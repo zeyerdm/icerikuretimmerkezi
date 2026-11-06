@@ -28,6 +28,14 @@ export async function selectBrand(brandId) {
   renderChrome();
 }
 
+// Örnek markayı ekler (varsa açar) ve ana ekrana götürür
+export async function openDemoBrand() {
+  const { created } = await api.createDemoBrand();
+  await refreshBrands();
+  toast(created ? 'Örnek marka hazır. Ana ekrandaki rehberle keşfetmeye başla.' : 'Örnek marka zaten var, onu açtım.', 'success');
+  go('#/');
+}
+
 export const go = hash => { if (location.hash === hash) route(); else location.hash = hash; };
 
 const NAV = [
@@ -54,7 +62,7 @@ export function renderChrome() {
     ${state.brands.length ? `
       <label class="small muted" for="brand-switch">Marka</label>
       <select id="brand-switch" class="select" style="width:auto;min-width:200px">
-        ${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === state.activeBrandId ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+        ${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === state.activeBrandId ? 'selected' : ''}>${esc(b.name)}${b.isDemo ? ' (örnek)' : ''}</option>`).join('')}
       </select>
       <a class="btn btn-sm" href="#/marka/yeni">${icon('plus')}Yeni marka</a>` : ''}
     <div class="spacer"></div>

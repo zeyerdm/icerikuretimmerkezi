@@ -11,6 +11,8 @@ import { createBrandService, identityCompleteness, PROFILE_FIELDS, FONT_OPTIONS 
 import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES } from './services/assets.js';
 import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
 import { createAssistantService } from './services/assistant.js';
+import { transaction } from './db.js';
+import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, demoAssetBuffer } from './demo/index.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -131,6 +133,29 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), aiProvider, fetch
     const brand = brands.create(req.body || {});
     settings.set('ui.activeBrandId', brand.id);
     res.status(201).json({ brand });
+  });
+
+  // Örnek marka: kullanım şeklini göstermek için hazır doldurulmuş kurgusal bir marka.
+  // Zaten varsa yenisi oluşturulmaz, mevcut olan açılır.
+  api.post('/brands/demo', (req, res) => {
+    const existing = brands.findDemo();
+    if (existing) {
+      settings.set('ui.activeBrandId', existing.id);
+      return res.json({ brand: existing, created: false });
+    }
+    const brand = transaction(db, () => {
+      const b = brands.markDemo(brands.create(DEMO_BRAND).id);
+      DEMO_IDEAS.forEach(i => {
+        const idea = ideas.create(b.id, i, 'demo');
+        if (i.favorite) ideas.update(b.id, idea.id, { favorite: true });
+      });
+      return b;
+    });
+    // Dosyalar veritabanı işleminden sonra yazılır; biri yazılamazsa marka yine kullanılabilir
+    DEMO_ASSETS.forEach(a => assets.create(brand.id, { buffer: demoAssetBuffer(a.file), category: a.category, label: a.label }));
+    brands.logActivity(brand.id, 'demo.created', 'Örnek marka hazırlandı: profil, renkler, fontlar, logo, maskot ve 6 fikir');
+    settings.set('ui.activeBrandId', brand.id);
+    res.status(201).json({ brand, created: true });
   });
 
   // Marka parametresi: her alt rotada önce yetki kontrolü (marka bu kullanıcıya ait mi?)

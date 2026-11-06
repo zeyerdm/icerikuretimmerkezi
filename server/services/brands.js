@@ -70,6 +70,7 @@ export function toBrand(row) {
     goals: row.goals,
     competitors: row.competitors,
     slogan: row.slogan,
+    isDemo: Boolean(row.is_demo),
     colors: Object.assign({ primary: '', secondary: [], backgrounds: [], heading: '', body: '' }, parseJson(row.colors, {})),
     fonts: Object.assign({ heading: '', body: '' }, parseJson(row.fonts, {})),
     createdAt: row.created_at,
@@ -143,6 +144,16 @@ export function createBrandService(db, ownerId) {
           now(), current.id, ownerId);
       logActivity(current.id, 'brand.updated', 'Marka kimliği güncellendi');
       return service.get(current.id);
+    },
+
+    findDemo() {
+      const row = db.prepare('SELECT * FROM brands WHERE owner_id = ? AND is_demo = 1 LIMIT 1').get(ownerId);
+      return toBrand(row);
+    },
+
+    markDemo(brandId) {
+      db.prepare('UPDATE brands SET is_demo = 1 WHERE id = ? AND owner_id = ?').run(brandId, ownerId);
+      return service.get(brandId);
     },
 
     remove(brandId) {

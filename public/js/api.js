@@ -39,6 +39,7 @@ export const api = {
   brands: () => request('GET', '/api/brands'),
   brand: id => request('GET', b(id)),
   createBrand: body => request('POST', '/api/brands', body),
+  createDemoBrand: () => request('POST', '/api/brands/demo'),
   updateBrand: (id, body) => request('PATCH', b(id), body),
   deleteBrand: id => request('DELETE', b(id)),
   overview: id => request('GET', b(id) + '/overview'),
