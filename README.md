@@ -43,6 +43,10 @@ Windows "bilinmeyen yayımcı" uyarısı gösterirse **Ek bilgi → Yine de çal
 
 Uygulama her açıldığında GitHub'daki son sürümü kontrol eder ve varsa **kendini günceller**. Verilerin (markalar, dosyalar, fikirler, sohbetler) ve API anahtarın güncellemede korunur; internet yoksa mevcut sürümle açılır.
 
+- Güncellemeden hemen önce verilerin yedeği alınır.
+- Yeni sürüm açılamazsa uygulama **kendiliğinden önceki sürüme döner** ve o sürümü bir daha kurmaz (GitHub'da daha yeni bir sürüm çıkınca yine güncellenir).
+- Yeni sürümü beğenmezsen: Ayarlar → Güncelleme → **Önceki sürüme dön**.
+
 - **Açıkken güncellemek için:** Ayarlar → **Güncelleme** → *Güncellemeleri kontrol et* → *Güncelle ve yeniden başlat*.
 - **Depo özelse** (GitHub'da kilit simgesi): uygulamanın GitHub'a girebilmesi için ya depoyu herkese açık yap (Settings → Danger Zone → Change visibility; depoda sır yok) ya da Ayarlar → Güncelleme altında bir **GitHub erişim anahtarı** ekle (Fine-grained token, yalnızca bu depo, "Contents: Read-only").
 
@@ -57,7 +61,14 @@ Node.js 22.13 veya üstü kuruluysa klasörde `npm install`, ardından `npm run 
 
 ## Veriler
 
-Markalar, yüklenen dosyalar, fikirler ve sohbetler `data/` klasöründe durur (`app.db` ve `uploads/`). Yedek almak için bu klasörü kopyalaman yeterli. Bu klasör GitHub'a gönderilmez.
+Markalar, yüklenen dosyalar, fikirler ve sohbetler `data/` klasöründe durur (`app.db` ve `uploads/`). Bu klasör GitHub'a gönderilmez.
+
+**Yedekler (Ayarlar → Yedekler):**
+- Uygulama her gün kendiliğinden yedek alır; son 14 gün saklanır. Yedekler `data/backups/` içinde `.zip` dosyalarıdır.
+- **Şimdi yedek al**, **İndir**, **Geri yükle**: geri yüklemeden önce mevcut hâlin de yedeği alınır, yani geri yükleme de geri alınabilir.
+- **Yedek dosyasından geri yükle**: başka bir bilgisayardan ya da Drive'dan indirdiğin yedeği yükler (verileri yeni bilgisayara taşımak için de kullanılır).
+- API anahtarları ve erişim anahtarları yedeğe **girmez**; geri yüklemede mevcut anahtarların değişmez.
+- **Google Drive:** Drive masaüstü uygulaması kuruluysa Drive içindeki bir klasörün yolunu yazınca her yedeğin bir kopyası oraya da gider.
 
 ## Geliştirme
 
@@ -65,6 +76,8 @@ Markalar, yüklenen dosyalar, fikirler ve sohbetler `data/` klasöründe durur (
 npm test
 ```
 
-API testleri (marka kimliği, veri izolasyonu, güvenli yükleme, AI anahtarı güvenliği, asistan) her zaman çalışır. Arayüz testleri bilgisayarda Playwright kuruluysa çalışır, yoksa atlanır.
+API testleri (marka kimliği, veri izolasyonu, güvenli yükleme, AI anahtarı güvenliği, asistan, yedekleme, güncelleme ve geri alma) her zaman çalışır. Arayüz testleri bilgisayarda Playwright kuruluysa çalışır, yoksa atlanır.
+
+GitHub'da her değişiklik Linux (arayüz testleri dahil) ve Windows'ta otomatik test edilir (`.github/workflows/test.yml`); testleri geçmeyen değişiklik `main`'e alınmaz.
 
 Bu proje `zeyerdm/icerikuretici` (DevOrtak) projesinden bağımsızdır; onun dosyalarına, verilerine veya ayarlarına dokunmaz.

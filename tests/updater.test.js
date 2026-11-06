@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { spawnSync } from 'node:child_process';
-import { applyUpdate, checkForUpdate, readVersion, UpdateError } from '../scripts/updater.js';
+import { applyUpdate, checkForUpdate, readVersion, previousVersion, rollback, UpdateError } from '../scripts/updater.js';
 
 const SHA1 = 'a'.repeat(40);
 const SHA2 = 'b'.repeat(40);
@@ -134,5 +134,56 @@ test('paket dosyası değişirse paketler yeniden kurulur', async () => {
     const r = await applyUpdate({ root, skipInstall: true });
     assert.equal(r.updated, true);
     assert.equal(readVersion(root).sha, SHA2);
+  } finally { delete process.env.UPDATE_API_BASE; await gh.stop(); }
+});
+
+test('önceki sürüme dönüş: eski dosyalar geri gelir, veri korunur, geri alınan sürüm yeniden kurulmaz', async () => {
+  const gh = await fakeGithub({ archive: makeRelease(RELEASE) });
+  const root = installedApp({ '.version': JSON.stringify({ sha: SHA1, updatedAt: '2026-01-01T00:00:00.000Z' }) });
+  process.env.UPDATE_API_BASE = gh.base;
+  try {
+    assert.equal(previousVersion(root), null);
+    assert.throws(() => rollback({ root }), err => err.code === 'NO_PREVIOUS');
+
+    let swapped = false;
+    await applyUpdate({ root, beforeSwap: () => { swapped = fs.readFileSync(path.join(root, 'server', 'index.js'), 'utf8') === '// eski sürüm'; } });
+    assert.ok(swapped, 'yedek kancası dosyalar değişmeden önce çağrılmadı');
+    assert.equal(previousVersion(root).sha, SHA1);
+    assert.equal(fs.readFileSync(path.join(root, '.onceki-surum', 'server', 'index.js'), 'utf8'), '// eski sürüm');
+
+    const r = rollback({ root });
+    assert.equal(r.sha, SHA1);
+    assert.equal(fs.readFileSync(path.join(root, 'server', 'index.js'), 'utf8'), '// eski sürüm');
+    assert.ok(fs.existsSync(path.join(root, 'public', 'eski-dosya.js')), 'eski sürümün dosyası geri gelmedi');
+    assert.equal(fs.existsSync(path.join(root, 'public', 'js', 'app.js')), false, 'yeni sürümün dosyası kaldı');
+    assert.equal(fs.readFileSync(path.join(root, 'data', 'app.db'), 'utf8'), 'KULLANICI VERISI');
+    assert.equal(fs.readFileSync(path.join(root, 'node_modules', 'express', 'index.js'), 'utf8'), 'PAKET');
+    const v = readVersion(root);
+    assert.equal(v.sha, SHA1);
+    assert.equal(v.skipSha, SHA2);
+    assert.equal(previousVersion(root), null);
+
+    // Geri alınan sürüm açılışta tekrar kurulmaz; kontrol "atlandı" der; istenirse yine de kurulur
+    const check = await checkForUpdate({ root });
+    assert.equal(check.available, false);
+    assert.equal(check.skipped, true);
+    const again = await applyUpdate({ root });
+    assert.equal(again.updated, false);
+    assert.equal(again.skipped, true);
+    assert.equal(fs.readFileSync(path.join(root, 'server', 'index.js'), 'utf8'), '// eski sürüm');
+    const forced = await applyUpdate({ root, force: true });
+    assert.equal(forced.updated, true);
+    assert.equal(readVersion(root).skipSha, null);
+  } finally { delete process.env.UPDATE_API_BASE; await gh.stop(); }
+});
+
+test('yedek alınamazsa güncelleme yapılmaz', async () => {
+  const gh = await fakeGithub({ archive: makeRelease(RELEASE) });
+  const root = installedApp();
+  process.env.UPDATE_API_BASE = gh.base;
+  try {
+    await assert.rejects(() => applyUpdate({ root, beforeSwap: () => { throw new Error('disk dolu'); } }), /disk dolu/);
+    assert.equal(fs.readFileSync(path.join(root, 'server', 'index.js'), 'utf8'), '// eski sürüm');
+    assert.equal(readVersion(root).sha, '');
   } finally { delete process.env.UPDATE_API_BASE; await gh.stop(); }
 });

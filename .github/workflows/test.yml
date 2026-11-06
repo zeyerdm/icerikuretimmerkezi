@@ -1,0 +1,48 @@
+# Her değişiklik main'e alınmadan önce testlerden geçer.
+# Linux'ta arayüz testleri (Playwright) dahil hepsi; Windows'ta (kullanıcının bilgisayarına en yakın ortam)
+# sunucu, yedekleme, güncelleme ve başlatıcı testleri çalışır.
+name: Testler
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: '22'
+            ui: true
+          - os: ubuntu-latest
+            node: '24'
+            ui: false
+          - os: windows-latest
+            node: '22'
+            ui: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Arayüz testleri için tarayıcı
+        if: matrix.ui
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - run: npm test
