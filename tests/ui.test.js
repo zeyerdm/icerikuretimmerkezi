@@ -132,3 +132,43 @@ test('arayüz: AI bağlı değilken asistan devre dışı ve ayarlara yönlendir
     await srv.stop();
   }
 });
+
+test('arayüz: örnek markayla keşfet', { skip: !chromium && 'Playwright yok' }, async () => {
+  const provider = fakeProvider([{ reply: 'Üç fikir kaydettim.', actions: [{ type: 'save_ideas', ideas: [{ title: 'Gece kütüphanesi kahvesi', category: 'eglenceli' }] }] }]);
+  const srv = await startServer({ aiProvider: provider });
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+  const problems = [];
+  page.on('pageerror', e => problems.push(e.message));
+  try {
+    await page.goto(srv.base + '/');
+    await page.getByRole('button', { name: '☕ Örnek markayla keşfet' }).click();
+    await page.getByRole('heading', { name: '🧭 Örnek marka: nasıl kullanılır?' }).waitFor();
+    assert.match(await page.locator('.hero h1').textContent(), /Kahve Durağı/);
+    assert.equal(await page.locator('#idea-list .idea').count(), 6);
+    assert.ok((await page.locator('.side-brand').textContent()).includes('%100'));
+    assert.ok((await page.locator('#brand-switch option:checked').textContent()).includes('(örnek)'));
+
+    // Rehber adımı: kütüphanede maskot pozları
+    await page.getByRole('link', { name: 'Kütüphane' }).click();
+    await page.getByRole('button', { name: 'Maskot pozu' }).click();
+    await page.locator('.asset').nth(2).waitFor();
+    assert.equal(await page.locator('.asset').count(), 3);
+
+    // Rehber adımı: asistanı dene
+    await page.getByRole('link', { name: 'Ana ekran' }).click();
+    await page.getByRole('button', { name: 'Dene' }).click();
+    await page.getByText('Üç fikir kaydettim.').waitFor();
+    assert.ok(provider.calls[0].prompt.includes('Üniversite') || provider.calls[0].prompt.includes('üniversite'), 'örnek markanın hafızası gönderilmedi');
+
+    // Markalar sayfasında rozet; tekrar ekleme butonu gizli
+    await page.getByRole('link', { name: 'Markalar' }).click();
+    await page.getByRole('heading', { name: 'Markalar' }).waitFor();
+    assert.ok((await page.locator('.brand-card').first().textContent()).includes('Örnek'));
+    assert.equal(await page.getByRole('button', { name: '☕ Örnek marka ekle' }).count(), 0);
+    assert.deepEqual(problems, []);
+  } finally {
+    await browser.close();
+    await srv.stop();
+  }
+});

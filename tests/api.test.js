@@ -223,3 +223,45 @@ test('güvenlik: başka siteden gelen istek ve yabancı Host reddedilir', async 
   const page = await fetch(srv.base + '/');
   assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
 });
+
+test('örnek marka: tek tıkla hazır kimlik, varlıklar ve fikirler; ikinci kez kopya oluşmaz', async () => {
+  const s = await startServer();
+  try {
+    const other = (await s.request('POST', '/api/brands', { name: 'Kendi Markam' })).data.brand;
+    const first = await s.request('POST', '/api/brands/demo');
+    assert.equal(first.status, 201);
+    const demo = first.data.brand;
+    assert.equal(demo.isDemo, true);
+    assert.equal(demo.colors.primary, '#c2410c');
+    assert.equal(demo.fonts.heading, 'Poppins');
+    assert.ok(demo.audience && demo.tone && demo.character, 'profil boş');
+    assert.equal((await s.request('GET', '/api/settings')).data.activeBrandId, demo.id, 'örnek marka açılmadı');
+
+    const assets = (await s.request('GET', `/api/brands/${demo.id}/assets`)).data.assets;
+    assert.equal(assets.filter(a => a.category === 'mascot').length, 3);
+    assert.equal(assets.filter(a => a.category === 'logo').length, 1);
+    const logo = await s.request('GET', assets.find(a => a.category === 'logo').url);
+    assert.equal(logo.status, 200);
+    assert.equal(logo.headers.get('content-type'), 'image/png');
+
+    const ideas = (await s.request('GET', `/api/brands/${demo.id}/ideas`)).data.ideas;
+    assert.equal(ideas.length, 6);
+    assert.equal(ideas.filter(i => i.favorite).length, 2);
+    assert.ok(ideas.every(i => i.source === 'demo'));
+
+    const overview = (await s.request('GET', `/api/brands/${demo.id}/overview`)).data;
+    assert.equal(overview.completeness.percent, 100, 'örnek markanın kimliği eksik: ' + overview.completeness.missing);
+
+    const again = await s.request('POST', '/api/brands/demo');
+    assert.equal(again.status, 200);
+    assert.equal(again.data.created, false);
+    assert.equal(again.data.brand.id, demo.id);
+    assert.equal((await s.request('GET', '/api/brands')).data.brands.length, 2, 'örnek marka kopyalandı');
+
+    // Örnek marka diğer markaya karışmaz ve normal marka gibi silinir
+    assert.equal((await s.request('GET', `/api/brands/${other.id}/ideas`)).data.ideas.length, 0);
+    assert.equal((await s.request('GET', `/api/brands/${other.id}/assets`)).data.assets.length, 0);
+    assert.equal((await s.request('DELETE', `/api/brands/${demo.id}`)).status, 204);
+    assert.equal((await s.request('POST', '/api/brands/demo')).status, 201, 'silindikten sonra yeniden eklenemedi');
+  } finally { await s.stop(); }
+});

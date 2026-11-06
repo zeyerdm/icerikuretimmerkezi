@@ -78,6 +78,10 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_activity_brand ON activity(brand_id, created_at);
+  `,
+  // 2: örnek marka işareti (arayüzde rozet ve kullanım rehberi gösterilir)
+  `
+  ALTER TABLE brands ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0;
   `
 ];
 

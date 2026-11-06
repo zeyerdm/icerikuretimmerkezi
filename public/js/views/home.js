@@ -1,7 +1,7 @@
 // Ana ekran: AI asistanı merkezde; yanında marka kimliği, son fikirler ve son çalışmalar
 import { api } from '../api.js';
 import { esc, icon, toast, timeAgo, brandAvatar, errorBox } from '../ui.js';
-import { state, activeBrand, refreshBrands, go } from '../app.js';
+import { state, activeBrand, refreshBrands, go, openDemoBrand } from '../app.js';
 
 // Hızlı işlemler asistana hazır bir istek gönderir (marka hafızasıyla çalışır)
 const QUICK = [
@@ -30,6 +30,7 @@ export async function renderHome(view) {
   view.innerHTML = `
     <div class="home">
       <div class="stack">
+        ${brand.isDemo ? demoGuide(brand, aiReady) : ''}
         <section class="card hero">
           <h1>${firstVisit ? 'Merhaba!' : 'Tekrar hoş geldin!'} Bugün <b>${esc(brand.name)}</b> için ne üretelim?</h1>
           <p>${overview.ideaCount ? `Fikir havuzunda ${overview.ideaCount} fikir var${overview.favoriteCount ? `, ${overview.favoriteCount} tanesi favori` : ''}.` : 'Asistana bir istek yaz ya da hızlı işlemlerden biriyle başla.'}</p>
@@ -74,6 +75,25 @@ export async function renderHome(view) {
   const body = view.querySelector('#chat-body');
   renderMessages(body, chat.messages, brand);
   wire(view, brand, body);
+}
+
+// Örnek markada adım adım kullanım rehberi; her adım gerçek bir sayfaya veya işleme götürür
+function demoGuide(brand, aiReady) {
+  const id = esc(brand.id);
+  const steps = [
+    ['1', 'Marka kimliğini incele', 'Hedef kitle, iletişim dili, karakter: asistan her yanıtta bunları kullanır.', `<a class="btn btn-sm" href="#/marka/${id}/profil">Profili aç</a>`],
+    ['2', 'Renk ve fontlara bak', 'Canlı önizlemede bir rengi değiştir, post nasıl değişiyor gör.', `<a class="btn btn-sm" href="#/marka/${id}/gorsel">Görsel kimlik</a>`],
+    ['3', 'Logo ve maskot pozları', '"Çekirdek" maskotunun pozları ve logo varlık kütüphanesinde.', `<a class="btn btn-sm" href="#/marka/${id}/varliklar">Kütüphane</a>`],
+    ['4', 'Asistandan fikir iste', aiReady ? 'Dene\'ye bas: hazır bir istek gönderilir, fikirler bu markanın diliyle üretilip kaydedilir.' : 'Önce Ayarlar\'dan Gemini anahtarını ekle, sonra asistana yaz.',
+      aiReady ? '<button class="btn btn-sm btn-primary" data-demo-try>Dene</button>' : '<a class="btn btn-sm" href="#/ayarlar">Ayarlar</a>'],
+    ['5', 'Kendi markanı oluştur', 'Aynı adımları kendi markan için yap. Örnek markayı istediğin zaman silebilirsin.', '<a class="btn btn-sm" href="#/marka/yeni">Yeni marka</a>']
+  ];
+  return `
+    <section class="card demo-guide">
+      <div class="card-head"><h3>🧭 Örnek marka: nasıl kullanılır?</h3><span class="pill">Örnek</span></div>
+      <p class="small muted" style="margin-bottom:12px">${esc(brand.name)} kurgusal bir kafe. Bütün bilgileri hazır doldurulmuş; uygulamanın parçalarının nasıl birlikte çalıştığını görmek için adımları sırayla dene.</p>
+      <ol class="steps">${steps.map(([n, t, d, action]) => `<li><span class="step-n">${n}</span><div><div class="step-t">${t}</div><div class="small muted">${d}</div></div>${action}</li>`).join('')}</ol>
+    </section>`;
 }
 
 function identityCard(brand, overview) {
@@ -166,6 +186,7 @@ function wire(view, brand, body) {
 
   // Tıklamalar tek bir dinleyiciyle yakalanır; atama, önceki çizimin dinleyicisini değiştirir (birikmez)
   view.onclick = async e => {
+    if (e.target.closest('[data-demo-try]')) return send('Sınav haftasında öğrencilere yönelik 3 içerik fikri üret ve kaydet: biri eğlenceli, biri eğitici, biri satış odaklı olsun.');
     const quick = e.target.closest('[data-quick]');
     if (quick) return send(QUICK[Number(quick.dataset.quick)].prompt);
     const chip = e.target.closest('[data-chip]');
@@ -199,7 +220,15 @@ function renderOnboarding(view) {
         <input class="input" name="sector" placeholder="Sektör (ör. kafe, yazılım)" maxlength="120" aria-label="Sektör">
         <button class="btn btn-primary" type="submit">Oluştur</button>
       </form>
+      <div class="demo-cta">
+        <span class="muted small">Önce nasıl çalıştığını görmek mi istersin?</span>
+        <button class="btn" type="button" id="demo-btn">☕ Örnek markayla keşfet</button>
+      </div>
     </section>`;
+  view.querySelector('#demo-btn').addEventListener('click', async e => {
+    e.target.disabled = true;
+    try { await openDemoBrand(); } catch (err) { toast(err.message, 'error'); e.target.disabled = false; }
+  });
   view.querySelector('#onboard-form').addEventListener('submit', async e => {
     e.preventDefault();
     const form = new FormData(e.target);

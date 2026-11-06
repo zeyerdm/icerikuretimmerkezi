@@ -25,7 +25,7 @@ Sıradaki aşamalar ve mimari: [docs/ANALIZ.md](docs/ANALIZ.md)
 Windows "bilinmeyen yayımcı" uyarısı gösterirse **Ek bilgi → Yine de çalıştır** de.
 
 İlk açılışta:
-1. İlk markanı oluştur.
+1. Nasıl çalıştığını görmek için **☕ Örnek markayla keşfet**'e bas (kurgusal bir kafe: kimliği, renkleri, logosu, maskot pozları ve fikirleri hazır; ana ekranda adım adım rehber çıkar) ya da doğrudan kendi markanı oluştur.
 2. **Ayarlar** → Gemini API anahtarını ekle (<https://aistudio.google.com/apikey>). Anahtar yalnızca bu bilgisayarda saklanır.
 3. Ana ekrana dön ve asistana yaz: *"Bu marka için haftaya 5 içerik fikri üret."*
 
