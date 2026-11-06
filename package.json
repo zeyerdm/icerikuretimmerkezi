@@ -1,0 +1,17 @@
+{
+  "name": "icerik-uretim-merkezi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Markadan bağımsız AI içerik üretim asistanı",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"tests/*.test.js\""
+  },
+  "dependencies": {
+    "express": "5.1.0"
+  }
+}
