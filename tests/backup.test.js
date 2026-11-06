@@ -169,7 +169,7 @@ test('ek klasör (ör. Google Drive): yedekler oraya da kopyalanır; geçersiz k
     assert.equal((await s.request('PUT', '/api/settings/backup', { copyDir: 'goreli/klasor' })).status, 400);
     assert.equal((await s.request('PUT', '/api/settings/backup', { copyDir: path.join(extra, 'yok') })).status, 400);
     await s.request('POST', '/api/backups');
-    const r = await s.request('PUT', '/api/settings/backup', { copyDir: extra });
+    const r = await s.request('PUT', '/api/settings/backup', { copyDir: `"${extra}"` });
     assert.equal(r.status, 200);
     assert.equal(r.data.copyDir, extra);
     assert.equal(fs.readdirSync(extra).filter(n => n.endsWith('.zip')).length, 1, 'mevcut son yedek kopyalanmadı');

@@ -243,7 +243,8 @@ export function createBackupService({ db, dataDir, settings }) {
     restore(name) { return restoreBuffer(fs.readFileSync(resolve(name))); },
     restoreBuffer,
     setCopyDir(value) {
-      const v = String(value || '').trim();
+      // Windows'un "Yol olarak kopyala" komutu yolu tırnak içinde verir: tırnaklar atılır
+      const v = String(value || '').trim().replace(/^["']+|["']+$/g, '').trim();
       if (!v) { settings.remove('backup.copyDir'); lastCopyError = null; return ''; }
       if (!path.isAbsolute(v)) throw badRequest('Klasörün tam yolunu yaz (ör. G:\\Drive\'ım\\Yedekler).');
       let ok = false;
