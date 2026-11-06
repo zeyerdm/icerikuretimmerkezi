@@ -16,4 +16,4 @@ if [ ! -d node_modules/express ]; then
 fi
 echo "  Hazır. Tarayıcı birazdan açılacak: http://localhost:3000"
 echo "  Uygulama çalıştığı sürece bu pencereyi kapatma."
-OPEN_BROWSER=1 npm start
+OPEN_BROWSER=1 node scripts/start.js

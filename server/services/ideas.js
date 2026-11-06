@@ -36,6 +36,12 @@ export function createIdeaService(db) {
       return db.prepare(sql).all(...args).map(toIdea);
     },
 
+    // Son N günde eklenen fikirlerin zamanları (arayüz yerel saate göre günlere böler)
+    recentTimes(brandId, days = 14) {
+      const since = new Date(Date.now() - (days + 1) * 86400000).toISOString();
+      return db.prepare('SELECT created_at FROM ideas WHERE brand_id = ? AND created_at >= ? ORDER BY created_at').all(brandId, since).map(r => r.created_at);
+    },
+
     create(brandId, body, source = 'manual') {
       const row = {
         id: newId(), brand_id: brandId,

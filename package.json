@@ -9,9 +9,14 @@
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
-    "test": "node --disable-warning=ExperimentalWarning --test \"tests/*.test.js\""
+    "test": "node --disable-warning=ExperimentalWarning --test \"tests/*.test.js\"",
+    "launch": "node scripts/start.js"
   },
   "dependencies": {
     "express": "5.1.0"
+  },
+  "updates": {
+    "repo": "zeyerdm/icerikuretimmerkezi",
+    "branch": "main"
   }
 }

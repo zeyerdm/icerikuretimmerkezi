@@ -172,3 +172,47 @@ test('arayüz: örnek markayla keşfet', { skip: !chromium && 'Playwright yok' }
     await srv.stop();
   }
 });
+
+test('arayüz: marka rengi temaya uygulanır, açık renkte yazı koyulaşır; güncelleme kartı', { skip: !chromium && 'Playwright yok' }, async () => {
+  const sha = 'd'.repeat(40);
+  const srv = await startServer({ updateFetch: async () => new Response(sha, { status: 200 }) });
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+  const problems = [];
+  page.on('pageerror', e => problems.push(e.message));
+  const cssVar = name => page.evaluate(n => document.documentElement.style.getPropertyValue(n), name);
+  try {
+    await srv.request('POST', '/api/brands', { name: 'Koyu Marka', colors: { primary: '#1e3a8a' } });
+    await page.goto(srv.base + '/');
+    await page.locator('.stat').first().waitFor();
+    assert.equal(await cssVar('--brand'), '#1e3a8a');
+    assert.equal(await cssVar('--on-brand'), '#ffffff', 'koyu markada yazı beyaz olmalı');
+    const sidebarBg = await page.locator('.sidebar').evaluate(el => getComputedStyle(el).backgroundImage);
+    assert.ok(sidebarBg.includes('rgb(30, 58, 138)'), 'kenar çubuğu marka renginde değil: ' + sidebarBg);
+
+    await srv.request('POST', '/api/brands', { name: 'Açık Marka', colors: { primary: '#fbbf24' } });
+    await page.reload();
+    await page.locator('.stat').first().waitFor();
+    assert.equal(await cssVar('--brand'), '#fbbf24');
+    assert.equal(await cssVar('--on-brand'), '#1b1f3b', 'açık markada yazı koyu olmalı');
+    assert.match(await cssVar('--brand-ink'), /color-mix/, 'açık renk beyaz zeminde koyulaştırılmadı');
+
+    // Marka seçici temayı değiştirir
+    await page.locator('#brand-switch').selectOption({ label: 'Koyu Marka' });
+    await page.waitForFunction(() => document.documentElement.style.getPropertyValue('--brand') === '#1e3a8a');
+
+    // Ayarlar: sürüm, kontrol; başlatıcı olmadan güncelleme düğmesi gizli
+    await page.getByRole('link', { name: 'Ayarlar', exact: true }).click();
+    await page.getByRole('heading', { name: 'Güncelleme' }).waitFor();
+    assert.ok(await page.getByText('Baslat dosyasıyla açılmadı').isVisible());
+    assert.equal(await page.getByRole('button', { name: 'Güncelle ve yeniden başlat' }).isVisible(), false, 'güncelle düğmesi baştan görünüyor');
+    await page.getByRole('button', { name: 'Güncellemeleri kontrol et' }).click();
+    await page.getByText('Yeni sürüm var').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Güncelle ve yeniden başlat' }).isVisible(), false, 'başlatıcı yokken güncelle düğmesi göründü');
+    assert.ok((await page.locator('#update-result').textContent()).includes('Baslat dosyasına çift tıkla'));
+    assert.deepEqual(problems, []);
+  } finally {
+    await browser.close();
+    await srv.stop();
+  }
+});

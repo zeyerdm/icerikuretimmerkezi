@@ -265,3 +265,66 @@ test('örnek marka: tek tıkla hazır kimlik, varlıklar ve fikirler; ikinci kez
     assert.equal((await s.request('POST', '/api/brands/demo')).status, 201, 'silindikten sonra yeniden eklenemedi');
   } finally { await s.stop(); }
 });
+
+test('ana ekran özeti: maskot, varlık toplamı ve 14 günlük fikir zamanları', async () => {
+  const s = await startServer();
+  try {
+    const brand = (await s.request('POST', '/api/brands', { name: 'Özet' })).data.brand;
+    const empty = (await s.request('GET', `/api/brands/${brand.id}/overview`)).data;
+    assert.equal(empty.mascotUrl, null);
+    assert.equal(empty.assetTotal, 0);
+    assert.deepEqual(empty.ideaTimes, []);
+    await s.request('POST', `/api/brands/${brand.id}/ideas`, { title: 'x', category: 'trend' });
+    await s.request('POST', `/api/brands/${brand.id}/assets?category=mascot&label=Mutlu`, PNG_1PX, { 'Content-Type': 'image/png' });
+    await s.request('POST', `/api/brands/${brand.id}/assets?category=logo`, PNG_1PX, { 'Content-Type': 'image/png' });
+    const o = (await s.request('GET', `/api/brands/${brand.id}/overview`)).data;
+    assert.equal(o.assetTotal, 2);
+    assert.equal(o.ideaTimes.length, 1);
+    assert.ok(o.mascotUrl.endsWith('/file'));
+    assert.ok((await s.request('GET', '/api/brands')).data.brands[0].mascotUrl, 'marka listesinde maskot yok');
+  } finally { await s.stop(); }
+});
+
+test('sistem: sürüm bilgisi, güncelleme kontrolü, yeniden başlatma yalnızca başlatıcıyla', async () => {
+  const sha = 'c'.repeat(40);
+  const calls = [];
+  const updateFetch = async (url, init) => { calls.push({ url: String(url), auth: (init.headers || {}).Authorization }); return new Response(sha, { status: 200 }); };
+  let restarted = 0;
+  // Bu bilgisayarda GITHUB_TOKEN tanımlı olabilir; test kendi ortamını kurar
+  const savedToken = process.env.GITHUB_TOKEN;
+  delete process.env.GITHUB_TOKEN;
+  const s = await startServer({ updateFetch, restart: () => { restarted++; } });
+  try {
+    const info = (await s.request('GET', '/api/system')).data;
+    assert.equal(info.version, '0.1.0');
+    assert.equal(info.supervised, false);
+    assert.equal(info.tokenConfigured, false);
+
+    const check = (await s.request('POST', '/api/system/check')).data;
+    assert.equal(check.latest, sha);
+    assert.equal(check.available, true, 'sürüm kaydı yokken güncelleme önerilmedi');
+    assert.ok(calls[0].url.includes('/repos/zeyerdm/icerikuretimmerkezi/commits/main'));
+
+    // Başlatıcı olmadan yeniden başlatma reddedilir
+    const denied = await s.request('POST', '/api/system/restart');
+    assert.equal(denied.status, 409);
+    assert.equal(denied.data.error.code, 'NOT_SUPERVISED');
+    assert.equal(restarted, 0);
+    process.env.SUPERVISED = '1';
+    try {
+      assert.equal((await s.request('POST', '/api/system/restart')).status, 202);
+      await new Promise(r => setTimeout(r, 600));
+      assert.equal(restarted, 1);
+    } finally { delete process.env.SUPERVISED; }
+
+    // Erişim anahtarı: kaydedilir, kontrol isteğinde başlıkla gider, istemciye dönmez
+    assert.equal((await s.request('PUT', '/api/settings/update-token', { token: 'kısa' })).status, 400);
+    const token = 'github_pat_0123456789abcdefGHIJ';
+    const saved = await s.request('PUT', '/api/settings/update-token', { token });
+    assert.equal(saved.data.system.tokenConfigured, true);
+    assert.ok(!JSON.stringify(saved.data).includes('0123456789abcdef'), 'anahtar istemciye döndü');
+    await s.request('POST', '/api/system/check');
+    assert.equal(calls[calls.length - 1].auth, `Bearer ${token}`);
+    assert.equal((await s.request('DELETE', '/api/settings/update-token')).data.system.tokenConfigured, false);
+  } finally { if (savedToken !== undefined) process.env.GITHUB_TOKEN = savedToken; await s.stop(); }
+});

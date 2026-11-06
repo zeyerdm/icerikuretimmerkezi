@@ -66,6 +66,6 @@ echo   Hazir. Tarayici birazdan acilacak: http://localhost:3000
 echo   Uygulama calistigi surece BU PENCEREYI KAPATMA.
 echo.
 set OPEN_BROWSER=1
-call npm start
+call node scripts\start.js
 echo.
 pause
