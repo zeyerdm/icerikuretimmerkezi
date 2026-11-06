@@ -10,9 +10,9 @@ Durum: ⬜ sırada · 🔄 yapılıyor · ✅ tamamlandı
 
 Hedef: veriler tek bilgisayarda durduğu ve uygulama kendini güncellediği için veri kaybını ve bozuk sürüm riskini baştan kapatmak.
 
-- ⬜ **0.1 Yedekleme ve geri yükleme:** her gün kendiliğinden yedek (son 14 gün saklanır); Ayarlar'da "Yedek al" ve "Yedekten geri yükle"; istenirse yedeğin Google Drive'a gönderilmesi.
-- ⬜ **0.2 Güncellemeyi geri alma:** yeni sürüm açılamazsa kendiliğinden önceki sürüme dönme; Ayarlar'da "önceki sürüme dön" düğmesi.
-- ⬜ **0.3 GitHub'da otomatik test:** her değişiklik `main`'e alınmadan önce GitHub'da testlerden geçer; geçmezse birleştirilmez.
+- ✅ **0.1 Yedekleme ve geri yükleme:** her gün kendiliğinden yedek (son 14 gün saklanır); Ayarlar → Yedekler'de "Şimdi yedek al", indir, "Geri yükle", "Yedek dosyasından geri yükle"; geri yüklemeden önce mevcut hâlin yedeği; API anahtarları yedeğe girmez; istenirse her yedeğin bir kopyası Google Drive masaüstü klasörüne.
+- ✅ **0.2 Güncellemeyi geri alma:** güncellemeden önce verilerin yedeği alınır; yeni sürüm açılamazsa başlatıcı kendiliğinden önceki sürüme döner ve o sürümü bir daha kurmaz; Ayarlar'da "Önceki sürüme dön" ve gerekirse "Yine de güncelle".
+- ✅ **0.3 GitHub'da otomatik test:** her değişiklik GitHub'da Linux (arayüz testleri dahil) ve Windows'ta testlerden geçer; geçmeyen değişiklik `main`'e alınmaz.
 
 ## Aşama 1 — Arayüz ve kullanım düzeni (UX/UI)
 

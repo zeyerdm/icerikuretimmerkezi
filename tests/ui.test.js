@@ -60,8 +60,11 @@ test('ilk açılış: yönetim merkezi → marka oluştur → kimlik → kütüp
     await page.locator('[data-hex="primary"]').fill('#aa3300');
     await page.getByLabel('Başlık fontu').selectOption('Poppins');
     assert.equal(await page.locator('.pp-title').textContent(), 'Her yudum bir mola');
+    // İlk kaydın bildirimi hâlâ ekranda olabilir: yeni bir bildirimin gelmesi beklenir
+    const savedToasts = () => page.getByText('Marka kimliği kaydedildi.').count();
+    const before = await savedToasts();
     await page.getByRole('button', { name: 'Kaydet' }).click();
-    await page.getByText('Marka kimliği kaydedildi.').waitFor();
+    await page.waitForFunction(n => [...document.querySelectorAll('.toast')].filter(t => t.textContent === 'Marka kimliği kaydedildi.').length > n, before);
 
     // Kütüphane (alt menüden)
     await page.getByRole('link', { name: 'Kütüphane' }).click();
@@ -297,6 +300,42 @@ test('AI bağlı değilken asistan kapalı; ayarlarda güncelleme kartı', { ski
     await page.getByRole('button', { name: 'Güncellemeleri kontrol et' }).click();
     await page.getByText('Yeni sürüm var').waitFor();
     assert.equal(await page.getByRole('button', { name: 'Güncelle ve yeniden başlat' }).isVisible(), false, 'başlatıcı yokken güncelle düğmesi göründü');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('ayarlar → yedekler: yedek al, listede gör, değişikliği geri yükleyerek geri al, dosyadan geri yükle', { skip }, async () => {
+  const srv = await startServer();
+  const { browser, page, problems } = await open(srv);
+  try {
+    await srv.request('POST', '/api/brands', { name: 'Yedeklenen Marka' });
+    await page.goto(srv.base + '/#/ayarlar');
+    await page.getByRole('heading', { name: 'Yedekler' }).waitFor();
+    await page.getByText('Henüz yedek yok').waitFor();
+    await page.getByRole('button', { name: 'Şimdi yedek al' }).click();
+    await page.locator('#backup-table tbody tr').first().waitFor();
+    assert.equal(await page.locator('#backup-table tbody tr').count(), 1);
+    assert.match(await page.locator('#backup-table').textContent(), /Elle alınan/);
+
+    // Yedekten sonra marka silinir; geri yüklenince geri gelir
+    const id = (await srv.request('GET', '/api/brands')).data.brands[0].id;
+    await srv.request('DELETE', '/api/brands/' + id);
+    await page.getByRole('button', { name: 'Geri yükle' }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Geri yükle' }).click();
+    await page.getByText('Geri yükleme tamamlandı.').waitFor();
+    assert.match(await page.locator('#backup-result').textContent(), /1 marka/);
+    assert.deepEqual((await srv.request('GET', '/api/brands')).data.brands.map(b => b.name), ['Yedeklenen Marka']);
+    assert.match(await page.locator('#backup-table').textContent(), /Geri yükleme öncesi/);
+
+    // İndirilen yedek dosyası, dosya seçiciyle geri yüklenebilir
+    const name = (await srv.request('GET', '/api/backups')).data.backups.find(b => b.kind === 'elle').name;
+    const zip = (await srv.request('GET', '/api/backups/' + name)).data;
+    await srv.request('POST', '/api/brands', { name: 'Fazladan' });
+    await page.locator('#backup-file').setInputFiles({ name: 'yedek.zip', mimeType: 'application/zip', buffer: zip });
+    await page.getByRole('dialog').getByText('yedek.zip').waitFor();
+    await page.getByRole('dialog').getByRole('button', { name: 'Geri yükle' }).click();
+    await page.getByText('Geri yükleme tamamlandı.').waitFor();
+    assert.deepEqual((await srv.request('GET', '/api/brands')).data.brands.map(b => b.name), ['Yedeklenen Marka']);
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

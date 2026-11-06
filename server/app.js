@@ -13,7 +13,8 @@ import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
 import { createAssistantService } from './services/assistant.js';
 import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES, TASK_PRIORITIES, TASK_STATUSES } from './services/workspace.js';
 import { transaction } from './db.js';
-import { checkForUpdate, readVersion, readConfig, UpdateError } from '../scripts/updater.js';
+import { createBackupService } from './services/backup.js';
+import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -69,7 +70,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, fetchImpl, updateFetch, restart = () => process.exit(75) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, fetchImpl, updateFetch, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -80,6 +81,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const ideas = createIdeaService(db);
   const assistant = createAssistantService({ db, ai, brands, ideas });
   const workspace = createWorkspaceService(db, ownerId, brands);
+  const backups = createBackupService({ db, dataDir, settings });
 
   const app = express();
   app.disable('x-powered-by');
@@ -134,9 +136,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const updateToken = () => process.env.GITHUB_TOKEN || settings.get(TOKEN_SETTING) || '';
   const systemInfo = () => {
     const v = readVersion(root);
+    const prev = previousVersion(root);
     return {
       version: readConfig(root).version, sha: v.sha, updatedAt: v.updatedAt, instance: root,
-      supervised: process.env.SUPERVISED === '1', tokenConfigured: Boolean(updateToken())
+      supervised: process.env.SUPERVISED === '1', tokenConfigured: Boolean(updateToken()),
+      skippedSha: v.skipSha || null, rolledBackAt: v.rolledBackAt || null,
+      previous: prev ? { sha: prev.sha, updatedAt: prev.updatedAt } : null
     };
   };
 
@@ -151,12 +156,25 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     }
   }));
 
-  api.post('/system/restart', (req, res) => {
+  const requireSupervisor = () => {
     if (process.env.SUPERVISED !== '1') {
       throw new HttpError(409, 'NOT_SUPERVISED', 'Uygulama Baslat dosyasıyla açılmadı. Pencereyi kapatıp Baslat dosyasına çift tıkla; güncelleme açılışta kendiliğinden yapılır.');
     }
+  };
+
+  // Yeniden başlat ve güncelle. force: daha önce geri alınmış (atlanan) sürüm olsa da güncelle.
+  api.post('/system/restart', (req, res) => {
+    requireSupervisor();
     res.status(202).json({ restarting: true });
-    setTimeout(restart, 400);
+    setTimeout(() => restart(req.body && req.body.force ? RESTART_CODES.forceUpdate : RESTART_CODES.restart), 400);
+  });
+
+  // Önceki sürüme dön: başlatıcı eski dosyaları geri koyar ve bu sürümü atlar
+  api.post('/system/rollback', (req, res) => {
+    requireSupervisor();
+    if (!previousVersion(root)) throw new HttpError(409, 'NO_PREVIOUS', 'Dönülebilecek önceki bir sürüm yok (henüz bu bilgisayarda hiç güncelleme yapılmadı).');
+    res.status(202).json({ restarting: true });
+    setTimeout(() => restart(RESTART_CODES.rollback), 400);
   });
 
   api.put('/settings/update-token', (req, res) => {
@@ -167,6 +185,40 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   });
 
   api.delete('/settings/update-token', (req, res) => { settings.remove(TOKEN_SETTING); res.json({ system: systemInfo() }); });
+
+  // --- Yedekler ---
+  const backupInfo = () => Object.assign({ backups: backups.list() }, backups.status());
+  api.get('/backups', (req, res) => res.json(backupInfo()));
+  api.post('/backups', (req, res) => {
+    const backup = backups.create('elle');
+    res.status(201).json(Object.assign({ backup }, backupInfo()));
+  });
+  api.put('/settings/backup', (req, res) => {
+    backups.setCopyDir(req.body && req.body.copyDir);
+    const r = backupInfo();
+    // Klasör yeni seçildiyse son yedek hemen oraya da kopyalanır
+    if (r.copyDir && r.backups[0]) { backups.copyOut(r.backups[0].name); Object.assign(r, backups.status()); }
+    res.json(r);
+  });
+  // Yedek dosyasından geri yükleme (başka bilgisayardan ya da Drive'dan indirilen .zip)
+  api.post('/backups/restore-upload', express.raw({ type: () => true, limit: '2gb' }), (req, res) => {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) throw badRequest('Yedek dosyası seçilmedi.');
+    const result = backups.restoreBuffer(req.body);
+    brands.logActivity(null, 'backup.restored', 'Yedek dosyasından geri yüklendi');
+    res.json(Object.assign({ result }, backupInfo()));
+  });
+  api.get('/backups/:name', (req, res) => {
+    const file = backups.file(req.params.name);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${req.params.name}"`);
+    res.sendFile(file);
+  });
+  api.post('/backups/:name/restore', (req, res) => {
+    const result = backups.restore(req.params.name);
+    brands.logActivity(null, 'backup.restored', `Yedekten geri yüklendi: ${req.params.name}`);
+    res.json(Object.assign({ result }, backupInfo()));
+  });
+  api.delete('/backups/:name', (req, res) => { backups.remove(req.params.name); res.json(backupInfo()); });
 
   // --- Yönetim merkezi ---
   // Ham kayıtlar gönderilir; günlere/haftalara bölme kullanıcının saat dilimine göre arayüzde yapılır.
@@ -374,5 +426,5 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html', setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));
   app.use(errorHandler);
 
-  return { app, db, close: () => db.close() };
+  return { app, db, backups, close: () => db.close() };
 }

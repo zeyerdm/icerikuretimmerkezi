@@ -143,6 +143,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: var(--radius-sm); background: var(--amber-soft); color: #7a5500; font-size: 13px; }
 .notice strong { color: #5f4200; }
 .notice-error { background: var(--rose-soft); color: #9c1f3d; }
+.notice-ok { background: var(--teal-soft); color: #0b6b5d; }
+.notice-ok strong { color: #075045; }
 
 .toasts { position: fixed; right: 24px; bottom: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 50; max-width: 380px; }
 .toast { background: var(--ink); color: #fff; padding: 12px 16px; border-radius: 14px; box-shadow: var(--shadow); font-weight: 600; font-size: 13px; animation: rise .2s ease-out; }
@@ -597,3 +599,12 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
   .topbar #brand-switch { flex: 1 1 100%; min-width: 0; }
   .table th:nth-child(3), .table td:nth-child(3) { display: none; }
 }
+
+/* Ayarlar: yedek listesi */
+.table-wrap { overflow-x: auto; }
+#backup-table td { vertical-align: middle; }
+.table td.nowrap, .table td.row-actions { white-space: nowrap; }
+.table td.row-actions { text-align: right; }
+.row-actions .btn-ghost { padding-inline: 10px; }
+.row-actions .btn + .btn { margin-left: 6px; }
+label.btn { cursor: pointer; }

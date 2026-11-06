@@ -15,7 +15,8 @@ const { createApp } = await import('./app.js');
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const START_PORT = Number(process.env.PORT) || 3000;
 const MAX_TRIES = 10;
-const { app } = createApp();
+const { app, backups } = createApp();
+const PORTS_BUSY = 3; // scripts/start.js bu kodu sürüm hatası saymaz
 
 // Başlat dosyasıyla açıldığında tarayıcı kendiliğinden açılır
 function openBrowser(url) {
@@ -62,6 +63,9 @@ async function start() {
       }
       console.log(`\n  İçerik Üretim Merkezi çalışıyor: ${url}\n  Durdurmak için Ctrl+C\n`);
       if (process.env.OPEN_BROWSER === '1') openBrowser(url);
+      // Başlatıcıya "açıldım" bilgisi: yeni sürüm açılamazsa başlatıcı önceki sürüme döner
+      if (process.send) process.send({ type: 'ready' });
+      startDailyBackups();
       return;
     } catch (err) {
       if (err.code !== 'EADDRINUSE') { console.error(err); process.exit(1); }
@@ -73,7 +77,21 @@ async function start() {
     }
   }
   console.error(`\n  ${START_PORT}-${START_PORT + MAX_TRIES - 1} arası bütün portlar dolu. Açık kalmış siyah pencereleri kapatıp tekrar dene.\n`);
-  process.exit(1);
+  process.exit(PORTS_BUSY);
+}
+
+// Günlük otomatik yedek: açılışta ve uygulama açık kaldıkça saatte bir kontrol edilir (günde bir yedek)
+function startDailyBackups() {
+  const run = () => {
+    try {
+      const b = backups.ensureDaily();
+      if (b) console.log(`  Günlük yedek alındı: ${b.name}`);
+    } catch (err) {
+      console.log(`  Günlük yedek alınamadı: ${err.message}`);
+    }
+  };
+  setTimeout(run, 3000).unref();
+  setInterval(run, 60 * 60 * 1000).unref();
 }
 
 start();
