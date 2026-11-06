@@ -13,28 +13,25 @@ Markadan bağımsız, AI destekli içerik üretim asistanı. Her marka için dij
 
 Sıradaki aşamalar ve mimari: [docs/ANALIZ.md](docs/ANALIZ.md)
 
-## Kurulum (bir kez)
+## Açmak (çift tıkla)
 
-1. **Node.js 22 veya üstünü kur:** <https://nodejs.org> adresinden "LTS" sürümünü indir ve kur.
-2. Bu depoyu indir: GitHub'da **Code → Download ZIP**, ardından ZIP'i bir klasöre çıkar. (Git kullanıyorsan `git clone`.)
-3. Klasörün içinde bir terminal aç (Windows: klasörde boş bir yere Shift + sağ tık → "Terminalde aç") ve şunu çalıştır:
+1. GitHub'da **Code → Download ZIP** ile indir ve ZIP'i bir klasöre çıkar.
+2. Klasördeki **`Baslat.bat`** dosyasına çift tıkla (Mac: `Baslat.command`, ilk seferde sağ tık → Aç).
+   - Node.js yoksa kendisi kurar; kurulum bitince dosyaya **bir kez daha** çift tıkla.
+   - İlk açılışta gerekli paketleri indirir (bir dakika sürebilir).
+   - Tarayıcıda **<http://localhost:3000>** kendiliğinden açılır.
+3. Açılan siyah pencere uygulamanın kendisidir: uygulamayı kullandığın sürece **kapatma**. Kapatınca uygulama durur; tekrar açmak için yine `Baslat`'a çift tıkla.
 
-   ```
-   npm install
-   ```
-
-## Çalıştırma
-
-```
-npm start
-```
-
-Tarayıcıda **<http://localhost:3000>** adresini aç. Durdurmak için terminalde `Ctrl + C`.
+Windows "bilinmeyen yayımcı" uyarısı gösterirse **Ek bilgi → Yine de çalıştır** de.
 
 İlk açılışta:
 1. İlk markanı oluştur.
 2. **Ayarlar** → Gemini API anahtarını ekle (<https://aistudio.google.com/apikey>). Anahtar yalnızca bu bilgisayarda saklanır.
 3. Ana ekrana dön ve asistana yaz: *"Bu marka için haftaya 5 içerik fikri üret."*
+
+### Terminalden (isteğe bağlı)
+
+Node.js 22.13 veya üstü kuruluysa klasörde `npm install`, ardından `npm start`.
 
 ## Veriler
 
