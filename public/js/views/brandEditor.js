@@ -1,7 +1,7 @@
 // Marka dijital kimliği: profil, görsel kimlik (renk, font, canlı önizleme) ve varlık kütüphanesi
 import { api } from '../api.js';
 import { esc, icon, toast, loadFonts, errorBox } from '../ui.js';
-import { state, refreshBrands, selectBrand, go } from '../app.js';
+import { state, refreshBrands, go, renderChrome } from '../app.js';
 
 const LONG_FIELDS = new Set(['description', 'audience', 'character', 'tone', 'goals', 'competitors']);
 const PLACEHOLDERS = {
@@ -28,7 +28,6 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     const [{ brand: b }, { assets }] = await Promise.all([api.brand(brandId), api.assets(brandId, 'logo')]);
     brand = b;
     logoUrl = assets[0] ? assets[0].url : null;
-    if (state.activeBrandId !== brand.id) await selectBrand(brand.id);
   }
   const draft = JSON.parse(JSON.stringify(brand));
   let tab = isNew ? 'profil' : initialTab;
@@ -146,7 +145,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         const { brand: created } = await api.createBrand(payload);
         await refreshBrands();
         toast('Marka oluşturuldu.', 'success');
-        go('#/marka/' + created.id + '/gorsel');
+        go('#/m/' + created.id + '/kimlik/gorsel');
         return;
       }
       const { brand: saved } = await api.updateBrand(brand.id, payload);
@@ -193,7 +192,9 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       if (t.dataset.tab === tab) return;
       if (dirty && !confirm('Kaydedilmemiş değişiklikler var. Kaydetmeden sekme değiştirilsin mi? Değişiklikler bu sayfada kalır, kaydetmeyi unutma.')) return;
       tab = t.dataset.tab;
-      history.replaceState(null, '', `#/marka/${brand.id}/${tab}`);
+      // Sekme adresi değişir ama sayfa yeniden yüklenmez (kaydedilmemiş değişiklikler korunur)
+      history.replaceState(null, '', `#/m/${brand.id}${{ profil: '/kimlik', gorsel: '/kimlik/gorsel', varliklar: '/kutuphane' }[tab]}`);
+      renderChrome();
       shell();
     } else if (t.dataset.action === 'save') save(t);
     else if (t.dataset.addColor) {
@@ -203,7 +204,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       draft.colors[t.dataset.removeColor].splice(Number(t.dataset.index), 1);
       markDirty(); renderTab();
     } else if (t.dataset.action === 'delete') {
-      if (!confirm(`"${brand.name}" markası; fikirleri, dosyaları ve sohbet geçmişiyle birlikte kalıcı olarak silinsin mi?`)) return;
+      if (!confirm(`"${brand.name}" markası; fikirleri, dosyaları, takvim içerikleri, görevleri, notları ve sohbet geçmişiyle birlikte kalıcı olarak silinsin mi?`)) return;
       try {
         await api.deleteBrand(brand.id);
         await refreshBrands();

@@ -57,6 +57,22 @@ export const api = {
   deleteAsset: (id, assetId) => request('DELETE', `${b(id)}/assets/${assetId}`),
 
   ideas: (id, query = '') => request('GET', b(id) + '/ideas' + query),
+  createIdea: (id, body) => request('POST', b(id) + '/ideas', body),
+  deleteIdea: (id, ideaId) => request('DELETE', `${b(id)}/ideas/${ideaId}`),
+
+  dashboard: brandId => request('GET', '/api/dashboard' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
+  contents: (params = {}) => request('GET', '/api/contents?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString()),
+  createContent: body => request('POST', '/api/contents', body),
+  updateContent: (id, body) => request('PATCH', '/api/contents/' + encodeURIComponent(id), body),
+  deleteContent: id => request('DELETE', '/api/contents/' + encodeURIComponent(id)),
+  tasks: (params = {}) => request('GET', '/api/tasks?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()),
+  createTask: body => request('POST', '/api/tasks', body),
+  updateTask: (id, body) => request('PATCH', '/api/tasks/' + encodeURIComponent(id), body),
+  deleteTask: id => request('DELETE', '/api/tasks/' + encodeURIComponent(id)),
+  notes: (params = {}) => request('GET', '/api/notes?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()),
+  createNote: body => request('POST', '/api/notes', body),
+  updateNote: (id, body) => request('PATCH', '/api/notes/' + encodeURIComponent(id), body),
+  deleteNote: id => request('DELETE', '/api/notes/' + encodeURIComponent(id)),
   updateIdea: (id, ideaId, body) => request('PATCH', `${b(id)}/ideas/${ideaId}`, body),
 
   chat: id => request('GET', b(id) + '/chat'),

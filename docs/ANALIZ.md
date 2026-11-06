@@ -63,7 +63,25 @@ css/app.css   tasarım sistemi          services/assistant.js asistan + işlemle
 - **Yetkilendirme:** Yerel kullanımda tek sahip vardır ve markalar ona bağlıdır. İnternete taşındığında oturum açma eklenip aynı sahip kontrolü kullanılır.
 - **Genişletilebilirlik:** Yeni AI sağlayıcısı `services/ai/` altına eklenir; yeni modüller kendi servis dosyası, tablosu ve rotasıyla gelir.
 
-## 4. Asistan nasıl çalışıyor?
+## 4. Temel mimari: yönetim merkezi ve marka çalışma alanları
+
+**Önce üreticinin yönetim merkezi, ardından markaların bağımsız çalışma alanları.**
+
+| | Katman 1 — Yönetim Merkezi | Katman 2 — Marka çalışma alanı |
+|---|---|---|
+| Adres | `#/`, `#/markalar`, `#/takvim`, `#/gorevler`, `#/notlar`, `#/analizler`, `#/ayarlar` | `#/m/<markaId>`, `/kimlik`, `/fikirler`, `/kutuphane`, `/takvim`, `/arsiv`, `/analiz` |
+| Tasarım | Bütün kullanıcılarda aynı, sabit uygulama renkleri | Markanın ana rengi, logosu, maskotu (yalnızca bu alanda) |
+| Veri | Bütün markalar + markasız görev ve notlar | Yalnızca bu marka (`brandId` filtresi sunucuda) |
+| Menü | Yönetim Merkezi, Markalar, İçerik Takvimi, Görevler, Notlar, Analizler, Ayarlar | Marka ana sayfası, Dijital kimlik, İçerik fikirleri, Reels*, Prompt Studio*, Post stüdyosu*, Kütüphane, Takvim, Arşiv, Analizler |
+
+\* Sıradaki aşamalarda; menüde "Yakında" olarak tıklanamaz durumda.
+
+- Tema `applyBrandTheme` ile yalnızca marka alanına girerken uygulanır, yönetim merkezine dönünce sabit renklere sıfırlanır.
+- Takvim ve analiz bileşenleri iki katmanda ortaktır: merkezde bütün markalarla (marka filtresiyle), marka alanında o markayla çalışır.
+- Veri modeli: `contents` (planlanan/üretilen içerik: marka, tür, durum, yayın tarihi, fikir bağlantısı, tamamlanma zamanı), `tasks` ve `notes` (sahibe bağlı, markaya isteğe bağlı), `activity` (markasız işlemleri de tutar). Marka silinince bağlı içerik, görev ve notlar da silinir.
+- Yönetim merkezi özeti (`/api/dashboard`) ham kayıtları döndürür; günlere ve haftalara bölme kullanıcının saat dilimine göre arayüzde yapılır.
+
+## 5. Asistan nasıl çalışıyor?
 
 1. Kullanıcı mesajı, seçili markanın hafızası (profil, görsel kimlik, varlık özeti, önceki ve favori fikirler) ve son konuşma ile birlikte modele gönderilir.
 2. Model `{ reply, actions }` biçiminde yanıt verir.
@@ -71,14 +89,15 @@ css/app.css   tasarım sistemi          services/assistant.js asistan + işlemle
 4. Henüz olmayan bir modül istenirse asistanın bunu açıkça söylemesi istenir; yapmadığı işi yapmış gibi göstermez.
 5. AI bağlı değilse veya hata verirse sohbete hiçbir şey yazılmaz, anlaşılır bir hata gösterilir.
 
-## 5. Yol haritası
+## 6. Yol haritası
 
 | Aşama | Kapsam | Durum |
 |---|---|---|
 | 1 | Kaynak kod analizi | ✅ Bu belge |
 | 2 | Bağımsız proje kurulumu, sunucu, veritabanı, testler | ✅ |
 | 3 | Ana ekran, AI asistanı, gezinme, marka yönetimi, dijital kimlik, varlık kütüphanesi | ✅ |
-| 4 | İçerik fikir havuzu ekranı, Reels fikir havuzu ve senaryo, Prompt Studio, prompt geliştirme + sürümler, içerik arşivi | Sırada |
+| 3b | **Yönetim merkezi mimarisi:** genel bakış, içerik takvimi, görevler, notlar, analizler; marka çalışma alanları, iki tema katmanı, fikir havuzu ekranı, marka arşivi | ✅ |
+| 4 | Reels fikir havuzu ve senaryo, Prompt Studio, prompt geliştirme + sürümler | Sırada |
 | 5 | Post Tasarım Stüdyosu: katmanlar, metin/renk/font, logo/maskot/sticker, şablonlar | |
 | 6 | Görsel üretim API'si, tasarım referansı analizi (renk paleti, font, yerleşim), modüller arası akış | |
 | 7 | Kapsamlı test, performans, iyileştirme | Her aşamada sürüyor |

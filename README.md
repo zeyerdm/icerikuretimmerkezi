@@ -2,15 +2,29 @@
 
 Markadan bağımsız, AI destekli içerik üretim asistanı. Her marka için dijital kimlik bir kez tanımlanır; içerik fikirlerinden prompt üretimine, Reels senaryosundan post tasarımına kadar bütün süreç aynı marka hafızası üzerinden yürür.
 
-## Şu an neler var?
+## Nasıl çalışır?
 
-- **Marka renginde çalışma alanı:** Kenar çubuğu, düğmeler ve vurgular seçili markanın ana rengini alır (açık renklerde yazılar otomatik koyulaşır). Ana ekranda maskotlu karşılama, hızlı işlem kutuları, canlı sayaçlar, kimlik halkası ve son 14 günün fikir grafiği var.
-- **AI asistanı (ana ekran):** Seçili markanın kimliğini bilerek konuşur, içerik fikri üretir ve ürettiklerini markanın fikir havuzuna **gerçekten kaydeder**. Sohbet markaya göre saklanır; kaldığın yerden devam edersin.
-- **Hızlı işlemler:** 5 içerik fikri, eğlenceli fikirler, haftalık plan, marka dili özeti.
-- **Marka dijital kimliği:** Profil (sektör, hedef kitle, karakter, iletişim dili, hedefler, rakipler, slogan), görsel kimlik (ana/ikincil/arka plan renkleri, başlık ve gövde yazı renkleri, fontlar) ve canlı post önizlemesi.
-- **Varlık kütüphanesi:** Logo, maskot pozları, marka görselleri, ürün fotoğrafları, sticker, illüstrasyon, arka plan, tasarım referansları. Her marka yalnızca kendi dosyalarını görür.
-- **Son fikirler ve son çalışmalar**, favoriler, marka kimliği tamamlanma durumu.
-- **Güvenlik:** AI anahtarı yalnızca sunucuda; dosyalar içerikten doğrulanır; sunucu yalnızca bu bilgisayardan erişilebilir.
+**Önce üreticinin yönetim merkezi, ardından markaların bağımsız çalışma alanları.**
+
+Uygulama açılınca **Yönetim Merkezi** gelir. Burası bütün kullanıcılarda aynı tasarım ve sabit renklerle çalışan genel alandır:
+
+- **Genel bakış:** marka sayısı, üretilen içerik, Reels, tamamlanan tasarımlar, bekleyen içerikler, bu haftanın üretim özeti ve grafiği, son işlemler. Hepsi gerçek kayıtlardan.
+- **İçerik takvimi:** aylık ve haftalık görünüm; boş bir güne tıklayıp içerik planla (marka, tür, saat, durum). İçerikler markanın renginde görünür; marka filtresi var.
+- **Markalar:** logo, kısa açıklama, kategori, renkler, son çalışma tarihi ve içerik üretim durumu. Karta tıklayınca markanın çalışma alanı açılır.
+- **Görevler:** hızlı ekleme, son tarih, öncelik, ilgili marka, durum; gecikmiş / bugün / bu hafta grupları, tamamlananlar.
+- **Notlar:** hızlı not, kategori, markaya bağlama, sabitleme, arama.
+- **Analizler:** haftalık ve aylık üretim, marka ve içerik türü dağılımı, tamamlanan/bekleyen, tamamlanma ve zamanında bitirme oranları.
+
+Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz markanın kendi renklerini, logosunu ve maskotunu alır (bu tema yalnızca o markanın alanında geçerlidir):
+
+- **Marka ana sayfası:** markanın hafızasıyla çalışan AI asistanı, hızlı işlemler, kimlik durumu, fikir grafiği.
+- **Dijital kimlik:** profil, renkler, fontlar, canlı post önizlemesi.
+- **İçerik fikirleri:** kategorili fikir havuzu, favoriler, tek tıkla takvime ekleme.
+- **Kütüphane:** logo, maskot pozları, sticker, görseller (her marka yalnızca kendi dosyalarını görür).
+- **Takvim, Arşiv, Analizler:** yalnızca bu markanın içerikleri.
+- **Reels fikirleri, Prompt Studio, Post stüdyosu:** sıradaki aşamalarda geliyor (menüde "Yakında" olarak görünür, bitmiş gibi gösterilmez).
+
+Üstteki konum çubuğu (Yönetim Merkezi › Marka › Sayfa) ve marka değiştirici ile her an nerede olduğun belli; tek tıkla başka markaya geçer ya da yönetim merkezine dönersin.
 
 Sıradaki aşamalar ve mimari: [docs/ANALIZ.md](docs/ANALIZ.md)
 
