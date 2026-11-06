@@ -1,6 +1,6 @@
 // Ana ekran: AI asistanı merkezde; yanında marka kimliği, son fikirler ve son çalışmalar
 import { api } from '../api.js';
-import { esc, icon, toast, timeAgo, brandAvatar, errorBox } from '../ui.js';
+import { esc, icon, toast, timeAgo, errorBox, ring, bucketByDay } from '../ui.js';
 import { state, activeBrand, refreshBrands, go, openDemoBrand } from '../app.js';
 
 // Hızlı işlemler asistana hazır bir istek gönderir (marka hafızasıyla çalışır)
@@ -32,12 +32,23 @@ export async function renderHome(view) {
       <div class="stack">
         ${brand.isDemo ? demoGuide(brand, aiReady) : ''}
         <section class="card hero">
-          <h1>${firstVisit ? 'Merhaba!' : 'Tekrar hoş geldin!'} Bugün <b>${esc(brand.name)}</b> için ne üretelim?</h1>
-          <p>${overview.ideaCount ? `Fikir havuzunda ${overview.ideaCount} fikir var${overview.favoriteCount ? `, ${overview.favoriteCount} tanesi favori` : ''}.` : 'Asistana bir istek yaz ya da hızlı işlemlerden biriyle başla.'}</p>
-          <div class="quick">
-            ${QUICK.map((q, i) => `<button type="button" data-quick="${i}" ${aiReady ? '' : 'disabled'}><span class="q-icon">${q.icon}</span><span class="q-title">${q.title}</span><span class="q-sub">${q.sub}</span></button>`).join('')}
+          <div class="orb"></div><div class="orb small"></div>
+          <div class="hero-text">
+            <h1>${firstVisit ? 'Merhaba!' : 'Tekrar hoş geldin!'} Bugün <b>${esc(brand.name)}</b> için ne üretelim?</h1>
+            <p>${overview.ideaCount ? `Fikir havuzunda ${overview.ideaCount} fikir var${overview.favoriteCount ? `, ${overview.favoriteCount} tanesi favori` : ''}.` : 'Asistana bir istek yaz ya da aşağıdaki hızlı işlemlerden biriyle başla.'}</p>
           </div>
+          ${overview.mascotUrl ? `<img class="hero-mascot" src="${esc(overview.mascotUrl)}" alt="">` : ''}
         </section>
+
+        <div class="quick">
+          ${QUICK.map((q, i) => `<button type="button" data-quick="${i}" ${aiReady ? '' : 'disabled'}><span class="q-icon">${q.icon}</span><span class="q-title">${q.title}</span><span class="q-sub">${q.sub}</span></button>`).join('')}
+        </div>
+
+        <div class="stats">
+          <div class="stat s1"><div class="s-num">${overview.ideaCount}</div><div class="s-label">İçerik fikri</div><div class="s-sub">fikir havuzunda</div></div>
+          <div class="stat s2"><div class="s-num">${overview.favoriteCount}</div><div class="s-label">Favori</div><div class="s-sub">beğenilen fikir</div></div>
+          <div class="stat s3"><div class="s-num">${overview.assetTotal}</div><div class="s-label">Varlık</div><div class="s-sub">logo, maskot, görsel</div></div>
+        </div>
 
         <section class="card chat" aria-label="AI asistanı">
           <div class="chat-head">
@@ -59,6 +70,7 @@ export async function renderHome(view) {
 
       <div class="stack">
         ${identityCard(brand, overview)}
+        ${ideaChart(overview.ideaTimes)}
         <section class="card">
           <div class="card-head"><h3>Son fikirler</h3><span class="small muted">${overview.ideaCount} fikir</span></div>
           <div id="idea-list">${ideaList(overview.recentIdeas)}</div>
@@ -101,20 +113,35 @@ function identityCard(brand, overview) {
   const colors = [brand.colors.primary, ...brand.colors.secondary].filter(Boolean);
   return `
     <section class="card">
-      <div class="row" style="flex-wrap:nowrap">
-        ${brandAvatar(brand, overview.logoUrl, 'avatar-lg')}
+      <div class="card-head"><h3>Dijital kimlik</h3>${colors.length ? `<div class="swatches">${colors.slice(0, 5).map(col => `<span class="swatch" style="background:${esc(col)}" title="${esc(col)}"></span>`).join('')}</div>` : ''}</div>
+      <div class="identity">
+        ${ring(c.percent)}
         <div style="min-width:0">
-          <h3 style="font-size:16px">${esc(brand.name)}</h3>
+          <div style="font-weight:800">${esc(brand.name)}</div>
           <div class="small muted">${esc(brand.slogan || brand.sector || 'Sektör ve slogan eklenmedi')}</div>
+          ${c.missing.length ? `<p class="small muted" style="margin-top:8px">Eksik: ${esc(c.missing.slice(0, 3).join(', '))}${c.missing.length > 3 ? '…' : ''}</p>` : '<p class="small" style="margin-top:8px;color:var(--teal);font-weight:700">Kimlik tamam ✓</p>'}
         </div>
       </div>
-      ${colors.length ? `<div class="swatches" style="margin-top:14px">${colors.map(col => `<span class="swatch" style="background:${esc(col)}" title="${esc(col)}"></span>`).join('')}</div>` : ''}
-      <div style="margin-top:14px">
-        <div class="row" style="justify-content:space-between"><span class="small" style="font-weight:700">Dijital kimlik</span><span class="small muted">%${c.percent}</span></div>
-        <div class="progress" style="margin-top:6px"><span style="width:${c.percent}%"></span></div>
-        ${c.missing.length ? `<p class="small muted" style="margin-top:8px">Eksik: ${esc(c.missing.slice(0, 4).join(', '))}${c.missing.length > 4 ? '…' : ''}</p>` : '<p class="small" style="margin-top:8px;color:var(--teal);font-weight:700">Kimlik tamam ✓</p>'}
+      <a class="btn btn-sm" style="margin-top:14px;width:100%" href="#/marka/${esc(brand.id)}">${c.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
+    </section>`;
+}
+
+// Son 14 günde eklenen fikirler (gerçek veri); en yoğun gün vurgulanır, bugün sarı
+function ideaChart(times) {
+  const days = bucketByDay(times, 14);
+  const total = days.reduce((n, d) => n + d.count, 0);
+  const max = Math.max(...days.map(d => d.count));
+  const fmt = d => d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+  return `
+    <section class="card" aria-label="Fikir üretimi grafiği">
+      <div class="card-head"><h3>Fikir üretimi</h3><span class="small muted">Son 14 gün</span></div>
+      <div class="chart-total"><b>${total}</b><span class="small muted">${total ? 'yeni fikir' : 'henüz fikir eklenmedi'}</span></div>
+      <div class="bars">
+        ${days.map((d, i) => `<div class="bar ${i === days.length - 1 ? 'today' : ''} ${max > 0 && d.count === max ? 'max' : ''}" title="${fmt(d.date)}: ${d.count} fikir">
+          ${max > 0 && d.count === max ? `<span class="tip">${d.count}</span>` : ''}<i style="height:${max ? Math.max(5, Math.round((d.count / max) * 100)) : 5}%"></i></div>`).join('')}
       </div>
-      <a class="btn btn-sm" style="margin-top:12px;width:100%" href="#/marka/${esc(brand.id)}">${c.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
+      <div class="bar-labels">${days.map(d => `<span>${d.date.getDate()}</span>`).join('')}</div>
+      <div class="chart-legend"><span><i style="background:var(--brand)"></i>En yoğun gün</span><span><i style="background:var(--amber)"></i>Bugün</span></div>
     </section>`;
 }
 

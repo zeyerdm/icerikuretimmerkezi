@@ -43,10 +43,57 @@ export function brandAvatar(brand, logoUrl, size = '') {
   return `<div class="avatar ${size}"${bg}>${logoUrl ? `<img src="${esc(logoUrl)}" alt="">` : initial}</div>`;
 }
 
-// Seçili markanın ana rengi arayüz vurgularına uygulanır
+// WCAG göreli parlaklık: açık renklerde yazı koyu, koyu renklerde beyaz olur
+export function luminance(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+const DEFAULT_BRAND = '#5b55e6';
+
+// Seçili markanın ana rengi kenar çubuğuna, düğmelere ve vurgulara uygulanır.
+// --on-brand: marka rengi üzerindeki yazı rengi; --brand-ink: beyaz zemin üzerindeki marka rengi yazı (gerekirse koyulaştırılır)
 export function applyBrandTheme(brand) {
-  const color = brand && brand.colors && brand.colors.primary;
-  document.documentElement.style.setProperty('--brand', color || 'var(--accent)');
+  const raw = brand && brand.colors && brand.colors.primary;
+  const color = /^#[0-9a-fA-F]{6}$/.test(raw || '') ? raw.toLowerCase() : DEFAULT_BRAND;
+  const lum = luminance(color);
+  const root = document.documentElement.style;
+  root.setProperty('--brand', color);
+  root.setProperty('--on-brand', lum > 0.45 ? '#1b1f3b' : '#ffffff');
+  root.setProperty('--brand-ink', lum > 0.3 ? `color-mix(in srgb, ${color} 45%, #000)` : color);
+}
+
+// Yüzde halkası (SVG)
+export function ring(percent, size = 92) {
+  const r = 38;
+  const c = 2 * Math.PI * r;
+  return `<div class="ring ${percent >= 100 ? 'done' : ''}" style="width:${size}px;height:${size}px" role="img" aria-label="Yüzde ${percent}">
+    <svg viewBox="0 0 92 92"><circle class="track" cx="46" cy="46" r="${r}" fill="none" stroke-width="10"/>
+    <circle class="value" cx="46" cy="46" r="${r}" fill="none" stroke-width="10" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - percent / 100)).toFixed(1)}"/></svg>
+    <div class="num">%${percent}</div></div>`;
+}
+
+// Son N günün her biri için sayım: zamanlar yerel saate göre günlere bölünür
+export function bucketByDay(isoTimes, days = 14) {
+  const out = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    out.push({ date: d, count: 0 });
+  }
+  isoTimes.forEach(t => {
+    const d = new Date(t);
+    d.setHours(0, 0, 0, 0);
+    const slot = out.find(o => o.date.getTime() === d.getTime());
+    if (slot) slot.count++;
+  });
+  return out;
 }
 
 // Marka fontlarını Google Fonts'tan yükler (aynı font iki kez yüklenmez)

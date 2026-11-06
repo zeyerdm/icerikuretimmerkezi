@@ -34,6 +34,12 @@ export const api = {
   saveAi: body => request('PUT', '/api/settings/ai', body),
   removeAiKey: () => request('DELETE', '/api/settings/ai/key'),
   testAi: () => request('POST', '/api/settings/ai/test'),
+  system: () => request('GET', '/api/system'),
+  checkUpdate: () => request('POST', '/api/system/check'),
+  restart: () => request('POST', '/api/system/restart'),
+  saveUpdateToken: token => request('PUT', '/api/settings/update-token', { token }),
+  removeUpdateToken: () => request('DELETE', '/api/settings/update-token'),
+  health: () => request('GET', '/api/health'),
   setActiveBrand: brandId => request('PUT', '/api/settings/active-brand', { brandId }),
 
   brands: () => request('GET', '/api/brands'),

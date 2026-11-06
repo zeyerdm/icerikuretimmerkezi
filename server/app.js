@@ -5,13 +5,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { openDb } from './db.js';
-import { errorHandler, newId, now, badRequest, text, oneOf, route } from './lib/http.js';
+import { errorHandler, newId, now, badRequest, text, oneOf, route, HttpError } from './lib/http.js';
 import { createAiService } from './services/ai/index.js';
 import { createBrandService, identityCompleteness, PROFILE_FIELDS, FONT_OPTIONS } from './services/brands.js';
 import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES } from './services/assets.js';
 import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
 import { createAssistantService } from './services/assistant.js';
 import { transaction } from './db.js';
+import { checkForUpdate, readVersion, readConfig, UpdateError } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, demoAssetBuffer } from './demo/index.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -65,7 +66,9 @@ function securityHeaders(req, res, next) {
   next();
 }
 
-export function createApp({ dataDir = path.join(ROOT, 'data'), aiProvider, fetchImpl } = {}) {
+const TOKEN_SETTING = 'update.githubToken';
+
+export function createApp({ dataDir = path.join(ROOT, 'data'), root = ROOT, aiProvider, fetchImpl, updateFetch, restart = () => process.exit(75) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -118,13 +121,54 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), aiProvider, fetch
     res.json({ activeBrandId: brand.id });
   });
 
+  // --- Sürüm ve güncelleme ---
+  // Güncellemenin kendisi başlatıcıda (scripts/start.js) yapılır: sunucu yeniden başlatılınca
+  // son sürüm indirilir. Burada yalnızca durum, kontrol ve yeniden başlatma vardır.
+  const updateToken = () => process.env.GITHUB_TOKEN || settings.get(TOKEN_SETTING) || '';
+  const systemInfo = () => {
+    const v = readVersion(root);
+    return {
+      version: readConfig(root).version, sha: v.sha, updatedAt: v.updatedAt,
+      supervised: process.env.SUPERVISED === '1', tokenConfigured: Boolean(updateToken())
+    };
+  };
+
+  api.get('/system', (req, res) => res.json(systemInfo()));
+
+  api.post('/system/check', route(async (req, res) => {
+    try {
+      res.json(Object.assign(await checkForUpdate({ root, token: updateToken(), fetchImpl: updateFetch }), { system: systemInfo() }));
+    } catch (err) {
+      if (err instanceof UpdateError) throw new HttpError(502, 'UPDATE_' + err.code, err.message);
+      throw err;
+    }
+  }));
+
+  api.post('/system/restart', (req, res) => {
+    if (process.env.SUPERVISED !== '1') {
+      throw new HttpError(409, 'NOT_SUPERVISED', 'Uygulama Baslat dosyasıyla açılmadı. Pencereyi kapatıp Baslat dosyasına çift tıkla; güncelleme açılışta kendiliğinden yapılır.');
+    }
+    res.status(202).json({ restarting: true });
+    setTimeout(restart, 400);
+  });
+
+  api.put('/settings/update-token', (req, res) => {
+    const token = text(req.body && req.body.token, { field: 'Erişim anahtarı', max: 300, required: true }).replace(/\s+/g, '');
+    if (token.length < 20) throw badRequest('Bu bir GitHub erişim anahtarına benzemiyor.');
+    settings.set(TOKEN_SETTING, token);
+    res.json({ system: systemInfo() });
+  });
+
+  api.delete('/settings/update-token', (req, res) => { settings.remove(TOKEN_SETTING); res.json({ system: systemInfo() }); });
+
   // --- Markalar ---
   api.get('/brands', (req, res) => {
     res.json({
       brands: brands.list().map(b => {
         const counts = brands.assetCounts(b.id);
         const logo = assets.list(b.id, 'logo')[0];
-        return Object.assign(b, { completeness: identityCompleteness(b, counts), logoUrl: logo ? logo.url : null });
+        const mascot = assets.list(b.id, 'mascot')[0];
+        return Object.assign(b, { completeness: identityCompleteness(b, counts), logoUrl: logo ? logo.url : null, mascotUrl: mascot ? mascot.url : null });
       })
     });
   });
@@ -181,9 +225,13 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), aiProvider, fetch
   api.get('/brands/:brandId/overview', (req, res) => {
     const counts = brands.assetCounts(req.brand.id);
     const logo = assets.list(req.brand.id, 'logo')[0];
+    const mascot = assets.list(req.brand.id, 'mascot')[0];
     res.json({
       brand: req.brand,
       logoUrl: logo ? logo.url : null,
+      mascotUrl: mascot ? mascot.url : null,
+      assetTotal: Object.values(counts).reduce((a, b) => a + b, 0),
+      ideaTimes: ideas.recentTimes(req.brand.id, 14),
       completeness: identityCompleteness(req.brand, counts),
       assetCounts: counts,
       recentIdeas: ideas.list(req.brand.id, { limit: 6 }),

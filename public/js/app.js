@@ -50,8 +50,14 @@ export function renderChrome() {
     `<a href="${n.hash}" class="${n.match(hash) ? 'active' : ''}" aria-label="${n.label}" ${n.match(hash) ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label}</span></a>`).join('');
 
   const brand = activeBrand();
+  const initial = brand ? esc(brand.name.trim().charAt(0).toLocaleUpperCase('tr-TR')) : '';
   document.getElementById('side-brand').innerHTML = brand
-    ? `<div class="side-brand">${brandAvatar(brand, brand.logoUrl)}<div><div class="name">${esc(brand.name)}</div><div class="sub">Kimlik %${brand.completeness.percent}</div></div></div>`
+    ? `<div class="side-brand">
+        ${brand.mascotUrl ? `<img class="mascot" src="${esc(brand.mascotUrl)}" alt="">` : `<div class="mascot-fallback">${initial}</div>`}
+        <div class="name">${esc(brand.name)}</div>
+        <div class="sub">Kimlik %${brand.completeness.percent}</div>
+        <a class="btn-side" href="#/marka/${esc(brand.id)}">${brand.completeness.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
+      </div>`
     : '';
 
   const ai = state.settings && state.settings.ai;

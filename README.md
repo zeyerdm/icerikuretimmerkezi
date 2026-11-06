@@ -4,6 +4,7 @@ Markadan bağımsız, AI destekli içerik üretim asistanı. Her marka için dij
 
 ## Şu an neler var?
 
+- **Marka renginde çalışma alanı:** Kenar çubuğu, düğmeler ve vurgular seçili markanın ana rengini alır (açık renklerde yazılar otomatik koyulaşır). Ana ekranda maskotlu karşılama, hızlı işlem kutuları, canlı sayaçlar, kimlik halkası ve son 14 günün fikir grafiği var.
 - **AI asistanı (ana ekran):** Seçili markanın kimliğini bilerek konuşur, içerik fikri üretir ve ürettiklerini markanın fikir havuzuna **gerçekten kaydeder**. Sohbet markaya göre saklanır; kaldığın yerden devam edersin.
 - **Hızlı işlemler:** 5 içerik fikri, eğlenceli fikirler, haftalık plan, marka dili özeti.
 - **Marka dijital kimliği:** Profil (sektör, hedef kitle, karakter, iletişim dili, hedefler, rakipler, slogan), görsel kimlik (ana/ikincil/arka plan renkleri, başlık ve gövde yazı renkleri, fontlar) ve canlı post önizlemesi.
@@ -15,14 +16,21 @@ Sıradaki aşamalar ve mimari: [docs/ANALIZ.md](docs/ANALIZ.md)
 
 ## Açmak (çift tıkla)
 
-1. GitHub'da **Code → Download ZIP** ile indir ve ZIP'i bir klasöre çıkar.
+1. GitHub'da **Code → Download ZIP** ile indir ve ZIP'i bir klasöre çıkar. (**Bunu yalnızca bir kez yaparsın.**)
 2. Klasördeki **`Baslat.bat`** dosyasına çift tıkla (Mac: `Baslat.command`, ilk seferde sağ tık → Aç).
    - Node.js yoksa kendisi kurar; kurulum bitince dosyaya **bir kez daha** çift tıkla.
    - İlk açılışta gerekli paketleri indirir (bir dakika sürebilir).
    - Tarayıcıda **<http://localhost:3000>** kendiliğinden açılır.
-3. Açılan siyah pencere uygulamanın kendisidir: uygulamayı kullandığın sürece **kapatma**. Kapatınca uygulama durur; tekrar açmak için yine `Baslat`'a çift tıkla.
+3. Açılan siyah pencere uygulamanın kendisidir: kullandığın sürece **kapatma**. Kapatınca uygulama durur; tekrar açmak için yine `Baslat`'a çift tıkla.
 
 Windows "bilinmeyen yayımcı" uyarısı gösterirse **Ek bilgi → Yine de çalıştır** de.
+
+## Güncellemeler (ZIP indirmeye gerek yok)
+
+Uygulama her açıldığında GitHub'daki son sürümü kontrol eder ve varsa **kendini günceller**. Verilerin (markalar, dosyalar, fikirler, sohbetler) ve API anahtarın güncellemede korunur; internet yoksa mevcut sürümle açılır.
+
+- **Açıkken güncellemek için:** Ayarlar → **Güncelleme** → *Güncellemeleri kontrol et* → *Güncelle ve yeniden başlat*.
+- **Depo özelse** (GitHub'da kilit simgesi): uygulamanın GitHub'a girebilmesi için ya depoyu herkese açık yap (Settings → Danger Zone → Change visibility; depoda sır yok) ya da Ayarlar → Güncelleme altında bir **GitHub erişim anahtarı** ekle (Fine-grained token, yalnızca bu depo, "Contents: Read-only").
 
 İlk açılışta:
 1. Nasıl çalıştığını görmek için **☕ Örnek markayla keşfet**'e bas (kurgusal bir kafe: kimliği, renkleri, logosu, maskot pozları ve fikirleri hazır; ana ekranda adım adım rehber çıkar) ya da doğrudan kendi markanı oluştur.
@@ -31,7 +39,7 @@ Windows "bilinmeyen yayımcı" uyarısı gösterirse **Ek bilgi → Yine de çal
 
 ### Terminalden (isteğe bağlı)
 
-Node.js 22.13 veya üstü kuruluysa klasörde `npm install`, ardından `npm start`.
+Node.js 22.13 veya üstü kuruluysa klasörde `npm install`, ardından `npm run launch` (güncellemeli) ya da `npm start` (güncellemesiz, geliştirme için).
 
 ## Veriler
 
