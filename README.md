@@ -26,7 +26,7 @@ Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz marka
 
 Üstteki konum çubuğu (Yönetim Merkezi › Marka › Sayfa) ve marka değiştirici ile her an nerede olduğun belli; tek tıkla başka markaya geçer ya da yönetim merkezine dönersin.
 
-Sıradaki aşamalar ve mimari: [docs/ANALIZ.md](docs/ANALIZ.md)
+Yapılacaklar ve sıradaki adımlar: [docs/YOL_HARITASI.md](docs/YOL_HARITASI.md) · Mimari: [docs/ANALIZ.md](docs/ANALIZ.md)
 
 ## Açmak (çift tıkla)
 
