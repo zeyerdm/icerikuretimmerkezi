@@ -68,7 +68,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = path.join(ROOT, 'data'), root = ROOT, aiProvider, fetchImpl, updateFetch, restart = () => process.exit(75) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, fetchImpl, updateFetch, restart = () => process.exit(75) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -128,7 +128,7 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), root = ROOT, aiPr
   const systemInfo = () => {
     const v = readVersion(root);
     return {
-      version: readConfig(root).version, sha: v.sha, updatedAt: v.updatedAt,
+      version: readConfig(root).version, sha: v.sha, updatedAt: v.updatedAt, instance: root,
       supervised: process.env.SUPERVISED === '1', tokenConfigured: Boolean(updateToken())
     };
   };
@@ -290,7 +290,8 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), root = ROOT, aiPr
   api.use((req, res) => res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Böyle bir API uç noktası yok.' } }));
 
   app.use('/api', api);
-  app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html' }));
+  // Arayüz dosyaları her açılışta yeniden doğrulanır; tarayıcı eski arayüzü önbellekten göstermez
+  app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html', setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));
   app.use(errorHandler);
 
   return { app, db, close: () => db.close() };

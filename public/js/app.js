@@ -12,6 +12,15 @@ export function activeBrand() {
   return state.brands.find(b => b.id === state.activeBrandId) || null;
 }
 
+// Hangi sürümün açık olduğu kenar çubuğunun altında küçük yazıyla görünür
+export async function showVersion() {
+  try {
+    const s = await api.system();
+    const el = document.getElementById('app-version');
+    if (el) el.textContent = 'Sürüm ' + s.version + (s.sha ? ' · ' + s.sha.slice(0, 7) : '');
+  } catch { /* sürüm bilgisi alınamazsa gizli kalır */ }
+}
+
 export async function refreshBrands() {
   const [{ brands }, settings] = await Promise.all([api.brands(), api.settings()]);
   state.brands = brands;
@@ -109,6 +118,7 @@ async function start() {
   try {
     state.meta = await api.meta();
     await refreshBrands();
+    showVersion();
   } catch (err) {
     view.innerHTML = errorBox(err);
     return;

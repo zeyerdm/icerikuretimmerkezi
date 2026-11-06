@@ -186,6 +186,7 @@ test('arayüz: marka rengi temaya uygulanır, açık renkte yazı koyulaşır; g
     await page.goto(srv.base + '/');
     await page.locator('.stat').first().waitFor();
     assert.equal(await cssVar('--brand'), '#1e3a8a');
+    assert.match(await page.locator('#app-version').textContent(), /^Sürüm 0\.1\.0/, 'sürüm yazısı yok');
     assert.equal(await cssVar('--on-brand'), '#ffffff', 'koyu markada yazı beyaz olmalı');
     const sidebarBg = await page.locator('.sidebar').evaluate(el => getComputedStyle(el).backgroundImage);
     assert.ok(sidebarBg.includes('rgb(30, 58, 138)'), 'kenar çubuğu marka renginde değil: ' + sidebarBg);
