@@ -6,6 +6,14 @@ Durum: ⬜ sırada · 🔄 yapılıyor · ✅ tamamlandı
 
 ---
 
+## Aşama 0 — Güvenlik ve güvenilirlik
+
+Hedef: veriler tek bilgisayarda durduğu ve uygulama kendini güncellediği için veri kaybını ve bozuk sürüm riskini baştan kapatmak.
+
+- ⬜ **0.1 Yedekleme ve geri yükleme:** her gün kendiliğinden yedek (son 14 gün saklanır); Ayarlar'da "Yedek al" ve "Yedekten geri yükle"; istenirse yedeğin Google Drive'a gönderilmesi.
+- ⬜ **0.2 Güncellemeyi geri alma:** yeni sürüm açılamazsa kendiliğinden önceki sürüme dönme; Ayarlar'da "önceki sürüme dön" düğmesi.
+- ⬜ **0.3 GitHub'da otomatik test:** her değişiklik `main`'e alınmadan önce GitHub'da testlerden geçer; geçmezse birleştirilmez.
+
 ## Aşama 1 — Arayüz ve kullanım düzeni (UX/UI)
 
 Hedef: bütün sayfalarda aynı ölçü, hizalama ve düğme dili; karmaşa yerine sade, hizalı, öngörülebilir ekranlar.
@@ -27,6 +35,7 @@ Hedef: Gemini'nin Türkçe metin yazımı beğenilmedi; her iş için en iyi mod
 - ⬜ **2.2 Karşılaştırma ekranı:** aynı brief'i 2-3 modele aynı anda yazdırıp sonuçları yan yana gösteren deneme sayfası; kararı gerçek çıktılara bakarak sen verirsin.
 - ⬜ **2.3 Çoklu sağlayıcı altyapısı:** AI servis katmanına seçilen sağlayıcıların eklenmesi; anahtarlar yalnızca sunucuda; bağlantı testi.
 - ⬜ **2.4 İşe göre model ataması:** Ayarlar'da "metin yazımı", "fikir üretimi", "çeviri", "görsel" için ayrı model seçimi; bir model hata verirse yedek modele geçiş.
+- ⬜ **2.5 AI harcama takibi:** hangi markada, hangi işte ne kadar harcandığı; aylık üst sınır ve sınıra yaklaşınca uyarı.
 
 ## Aşama 3 — Eski sistemin (icerikuretici) özelliklerini geliştirilmiş hâlleriyle taşıma
 
@@ -52,6 +61,11 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 - ⬜ **4.5 Görsel üretimi:** seçilen görsel modeliyle üretim; marka renkleri ve maskotla; servis bağlı değilse açık uyarı (sahte üretim yok).
 - ⬜ **4.6 Tasarım referansı analizi:** yüklenen örnek tasarımdan renk paleti, font önerisi, yerleşim ve görsel dil çıkarıp düzenlenebilir şablona çevirme.
 - ⬜ **4.7 Sticker paketleri ve varlık kütüphanesi genişletme:** paket olarak yükleme, kategoriler.
+- ⬜ **4.8 Paylaşım sonucu girişi:** yayınlanan içeriğe izlenme, beğeni, kaydetme, paylaşım sayılarının girilmesi; analizlerde "ne işe yaradı"; asistanın tutan giriş cümlesi ve temalardan öğrenmesi.
+- ⬜ **4.9 İçeriğin tamamı tek kartta:** her içerikte açıklama metni, hashtag'ler, ilk yorum ve yapılacaklar listesi (senaryo → çekim → kurgu → kapak → açıklama); açıklama ve hashtag'leri AI'ın yazması.
+- ⬜ **4.10 Özel günler takvimi:** Türkiye'nin özel günleri ve dönemleri takvimde hazır; "bu güne içerik planla" tek tıkla.
+- ⬜ **4.11 Kimliği AI ile doldurma:** web sitesi metni ya da Instagram biyografisi yapıştırılınca marka kimliği taslağının doldurulması.
+- ⬜ **4.12 Hatırlatmalar:** açılışta günün özeti (yayındaki içerikler, geciken görevler); istenirse bilgisayar bildirimi.
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
 
@@ -71,6 +85,15 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 - ⬜ **5.14 Video kesme ve altyazı gömme** *(Nashi)*: Flow kliplerini kesme/birleştirme, `.srt`'yi videoya basma (ffmpeg doğrulamalı kurulum).
 - ⬜ **5.15 QR kod** *(Nashi)*: kampanya postlarına QR ekleme.
 - ⬜ **5.16 Kampanya kanvası** *(Nailing AI)*: fikir, senaryo, görsel ve notların bağlı durduğu pano.
+- ⬜ **5.17 Genel arama:** bütün markalarda fikir, not, görev ve içerik arama (komut paletiyle birlikte).
+- ⬜ **5.18 Aylık rapor:** marka başına "bu ay ne ürettik, ne tuttu" raporu, PDF olarak.
+- ⬜ **5.19 Ortak şablonlar (tarifler):** beğenilen prompt ve senaryo kalıplarını kaydedip başka markalarda kullanma.
+- ⬜ **5.20 Koyu tema.**
+
+## Aşama 6 — İleride
+
+- ⬜ **6.1 Telefondan erişim:** uygulamanın internetteki bir sunucuya taşınması ve giriş şifresi.
+- ⬜ **6.2 Doğrudan yayınlama:** içeriklerin uygulamadan Instagram'a gönderilmesi (Meta onay süreci gerektirir).
 
 ---
 
