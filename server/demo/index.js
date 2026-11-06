@@ -37,6 +37,29 @@ export const DEMO_IDEAS = [
   { title: 'Dünya Kahve Günü: bedava kurabiye', description: '1 Ekim için özel gün paylaşımı; her kahvenin yanında kurabiye.', category: 'ozel_gun', favorite: false }
 ];
 
+// Takvim içerikleri: bugünden göreli gün ve saat (geçmiştekiler tamamlanmış/yayınlanmış)
+export const DEMO_CONTENTS = [
+  { day: -6, hour: 12, title: 'Barista ipucu: evde süt köpürtme', type: 'reels', status: 'yayinlandi' },
+  { day: -4, hour: 18, title: 'Sabah sen hangi kahvesin? anketi', type: 'story', status: 'yayinlandi' },
+  { day: -2, hour: 10, title: 'Final haftası hayatta kalma kiti', type: 'carousel', status: 'tamamlandi' },
+  { day: 0, hour: 16, title: 'Bir günümüz: dükkân açılmadan önce', type: 'reels', status: 'hazirlaniyor' },
+  { day: 2, hour: 12, title: 'Vize haftası öğrenci menüsü %20 indirim', type: 'post', status: 'taslak' },
+  { day: 5, hour: 19, title: 'Gece kütüphanesi kahvesi', type: 'story', status: 'taslak' },
+  { day: 9, hour: 11, title: 'Dünya Kahve Günü: bedava kurabiye', type: 'reklam', status: 'taslak' }
+];
+
+export const DEMO_TASKS = [
+  { title: 'Vize kampanyası görsellerini hazırla', description: 'Post ve story için iki ölçü.', day: 1, priority: 'yuksek', status: 'devam' },
+  { title: 'Dükkân açılış videosunu çek', description: 'Sabah 07:00, dikey çekim.', day: 3, priority: 'orta', status: 'yapilacak' },
+  { title: 'Kahve Günü için kurabiye tedarikçisiyle konuş', description: '', day: 7, priority: 'dusuk', status: 'yapilacak' },
+  { title: 'Barista ipucu videosunu yayınla', description: '', day: -6, priority: 'orta', status: 'tamamlandi' }
+];
+
+export const DEMO_NOTES = [
+  { title: 'Marka sesi', body: 'Sen diliyle, kısa ve samimi. Sınav/vize/final göndermeleri tutuyor. Emoji az ve yerinde. Asla kurumsal değil.', category: 'Marka', pinned: true },
+  { title: 'En çok etkileşim', body: 'Anketli story\'ler ve 15 saniyelik pratik Reels videoları en çok kaydedilen içerikler.', category: 'Analiz', pinned: false }
+];
+
 export function demoAssetBuffer(file) {
   return fs.readFileSync(path.join(DIR, file));
 }

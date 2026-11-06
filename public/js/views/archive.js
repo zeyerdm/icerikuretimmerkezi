@@ -1,0 +1,58 @@
+// Marka arşivi: markanın bütün içerikleri (planlanan, hazırlanan, tamamlanan, yayınlanan); süzme ve arama
+import { api } from '../api.js';
+import { esc, icon, fmtDate, timeStr } from '../ui.js';
+import { state } from '../app.js';
+import { contentModal } from './forms.js';
+
+export async function renderArchive(view, brand) {
+  const filter = { status: '', type: '', q: '' };
+  let all = [];
+
+  function drawList() {
+    const q = filter.q.toLocaleLowerCase('tr-TR');
+    const list = all.filter(c => (!filter.status || c.status === filter.status) && (!filter.type || c.type === filter.type) && (!q || c.title.toLocaleLowerCase('tr-TR').includes(q)));
+    view.querySelector('#arch-count').textContent = `${list.length} içerik`;
+    view.querySelector('#arch-list').innerHTML = list.length ? `
+      <table class="table">
+        <thead><tr><th>Tarih</th><th>Başlık</th><th>Tür</th><th>Durum</th><th></th></tr></thead>
+        <tbody>${list.map(c => `<tr>
+          <td class="nowrap">${c.scheduledAt ? `${esc(fmtDate(c.scheduledAt, { day: 'numeric', month: 'short', year: 'numeric' }))} <span class="muted">${timeStr(c.scheduledAt)}</span>` : '<span class="muted">Tarihsiz</span>'}</td>
+          <td><b>${esc(c.title)}</b>${c.notes ? `<div class="small muted">${esc(c.notes.slice(0, 90))}</div>` : ''}</td>
+          <td>${esc(c.typeLabel)}</td>
+          <td><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></td>
+          <td><button class="btn btn-sm btn-ghost icon-btn" data-edit="${esc(c.id)}" aria-label="Düzenle">${icon('edit')}</button></td></tr>`).join('')}</tbody>
+      </table>`
+      : `<div class="empty"><div class="em-icon">🗂️</div><h4>${all.length ? 'Bu filtrede içerik yok' : 'Arşiv boş'}</h4><p>${all.length ? 'Filtreleri değiştir.' : 'Takvimden ya da fikirlerden içerik planladıkça burada birikir.'}</p></div>`;
+  }
+
+  async function load() {
+    all = (await api.contents({ brandId: brand.id })).contents;
+    drawList();
+  }
+
+  view.innerHTML = `
+    <div class="page-head">
+      <div><h1>Arşiv</h1><p class="muted">${esc(brand.name)} markasının bütün içerikleri: taslaklar, hazırlananlar, tamamlananlar ve yayınlananlar.</p></div>
+      <button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>
+    </div>
+    <div class="filter-row">
+      <input class="input" type="search" id="arch-q" placeholder="Başlıkta ara" aria-label="Başlıkta ara" style="max-width:240px">
+      <select class="select" id="arch-status" aria-label="Durum" style="width:auto"><option value="">Bütün durumlar</option>${Object.entries(state.meta.contentStatuses).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
+      <select class="select" id="arch-type" aria-label="Tür" style="width:auto"><option value="">Bütün türler</option>${Object.entries(state.meta.contentTypes).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
+      <span class="small muted" id="arch-count" style="margin-left:auto"></span>
+    </div>
+    <section class="card" id="arch-list"></section>`;
+
+  view.querySelector('#arch-q').addEventListener('input', e => { filter.q = e.target.value.trim(); drawList(); });
+  view.querySelector('#arch-status').addEventListener('change', e => { filter.status = e.target.value; drawList(); });
+  view.querySelector('#arch-type').addEventListener('change', e => { filter.type = e.target.value; drawList(); });
+  view.onclick = e => {
+    const ed = e.target.closest('[data-edit]');
+    if (ed) return contentModal({ content: all.find(c => c.id === ed.dataset.edit), lockBrand: true, onSaved: load });
+    if (e.target.closest('[data-new]')) {
+      const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(12, 0, 0, 0);
+      contentModal({ brandId: brand.id, lockBrand: true, date: d, onSaved: load });
+    }
+  };
+  await load();
+}

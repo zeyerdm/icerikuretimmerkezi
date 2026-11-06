@@ -82,6 +82,68 @@ const MIGRATIONS = [
   // 2: örnek marka işareti (arayüzde rozet ve kullanım rehberi gösterilir)
   `
   ALTER TABLE brands ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0;
+  `,
+  // 3: yönetim merkezi — içerik planı (takvim/arşiv), görevler, notlar;
+  //    etkinlik akışı markadan bağımsız işlemleri de tutar (brand_id boş olabilir)
+  `
+  CREATE TABLE contents (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    idea_id TEXT REFERENCES ideas(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    scheduled_at TEXT,
+    notes TEXT NOT NULL DEFAULT '',
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_contents_brand ON contents(brand_id, scheduled_at);
+  CREATE INDEX idx_contents_scheduled ON contents(scheduled_at);
+
+  CREATE TABLE tasks (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    brand_id TEXT REFERENCES brands(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    due_date TEXT,
+    priority TEXT NOT NULL,
+    status TEXT NOT NULL,
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_tasks_owner ON tasks(owner_id, status, due_date);
+
+  CREATE TABLE notes (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    brand_id TEXT REFERENCES brands(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '',
+    pinned INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_notes_owner ON notes(owner_id, pinned, updated_at);
+
+  CREATE TABLE activity_new (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    brand_id TEXT REFERENCES brands(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  INSERT INTO activity_new (id, owner_id, brand_id, type, summary, created_at)
+    SELECT a.id, b.owner_id, a.brand_id, a.type, a.summary, a.created_at FROM activity a JOIN brands b ON b.id = a.brand_id ORDER BY a.rowid;
+  DROP TABLE activity;
+  ALTER TABLE activity_new RENAME TO activity;
+  CREATE INDEX idx_activity_brand ON activity(brand_id, created_at);
+  CREATE INDEX idx_activity_owner ON activity(owner_id, created_at);
   `
 ];
 

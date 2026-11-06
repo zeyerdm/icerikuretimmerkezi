@@ -92,9 +92,10 @@ export function identityCompleteness(brand, assetCounts) {
 }
 
 export function createBrandService(db, ownerId) {
+  // Etkinlik akışı: brandId boş olabilir (ör. markasız görev veya not)
   const logActivity = (brandId, type, summary) =>
-    db.prepare('INSERT INTO activity (id, brand_id, type, summary, created_at) VALUES (?, ?, ?, ?, ?)')
-      .run(newId(), brandId, type, summary, now());
+    db.prepare('INSERT INTO activity (id, owner_id, brand_id, type, summary, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(newId(), ownerId, brandId || null, type, summary, now());
 
   function readProfile(body, { partial }) {
     const out = {};
@@ -170,6 +171,20 @@ export function createBrandService(db, ownerId) {
     },
 
     logActivity,
+
+    // Yönetim merkezi: bütün markalardaki ve markasız son işlemler, marka adı ve rengiyle
+    recentActivityAll(limit = 12) {
+      return db.prepare(`SELECT a.id, a.type, a.summary, a.created_at AS createdAt, a.brand_id AS brandId, b.name AS brandName, b.colors AS colors
+        FROM activity a LEFT JOIN brands b ON b.id = a.brand_id WHERE a.owner_id = ? ORDER BY a.created_at DESC, a.rowid DESC LIMIT ?`)
+        .all(ownerId, limit).map(r => ({ id: r.id, type: r.type, summary: r.summary, createdAt: r.createdAt, brandId: r.brandId, brandName: r.brandName,
+          brandColor: r.colors ? (parseJson(r.colors, {}).primary || null) : null }));
+    },
+
+    // Markanın son çalışma tarihi: son etkinlik (yoksa güncellenme tarihi)
+    lastWorkedAt(brandId) {
+      const row = db.prepare('SELECT MAX(created_at) AS t FROM activity WHERE brand_id = ?').get(brandId);
+      return row && row.t ? row.t : null;
+    },
 
     recentActivity(brandId, limit = 8) {
       return db.prepare('SELECT id, type, summary, created_at AS createdAt FROM activity WHERE brand_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?')

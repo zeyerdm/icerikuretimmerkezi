@@ -11,9 +11,10 @@ import { createBrandService, identityCompleteness, PROFILE_FIELDS, FONT_OPTIONS 
 import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES } from './services/assets.js';
 import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
 import { createAssistantService } from './services/assistant.js';
+import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES, TASK_PRIORITIES, TASK_STATUSES } from './services/workspace.js';
 import { transaction } from './db.js';
 import { checkForUpdate, readVersion, readConfig, UpdateError } from '../scripts/updater.js';
-import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, demoAssetBuffer } from './demo/index.js';
+import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -78,6 +79,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
   const ideas = createIdeaService(db);
   const assistant = createAssistantService({ db, ai, brands, ideas });
+  const workspace = createWorkspaceService(db, ownerId, brands);
 
   const app = express();
   app.disable('x-powered-by');
@@ -94,6 +96,11 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     fonts: FONT_OPTIONS,
     assetCategories: ASSET_CATEGORIES,
     ideaCategories: IDEA_CATEGORIES,
+    contentTypes: CONTENT_TYPES,
+    contentStatuses: CONTENT_STATUSES,
+    doneStatuses: DONE_STATUSES,
+    taskPriorities: TASK_PRIORITIES,
+    taskStatuses: TASK_STATUSES,
     maxAssetBytes: MAX_ASSET_BYTES
   }));
 
@@ -161,6 +168,67 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
 
   api.delete('/settings/update-token', (req, res) => { settings.remove(TOKEN_SETTING); res.json({ system: systemInfo() }); });
 
+  // --- Yönetim merkezi ---
+  // Ham kayıtlar gönderilir; günlere/haftalara bölme kullanıcının saat dilimine göre arayüzde yapılır.
+  // brandId verilirse yalnızca o markanın verisi döner (marka analizleri).
+  const brandSummary = b => {
+    const logo = assets.list(b.id, 'logo')[0];
+    const counts = brands.assetCounts(b.id);
+    const c = db.prepare(`SELECT COUNT(*) AS total, SUM(status IN ('tamamlandi','yayinlandi')) AS done FROM contents WHERE brand_id = ?`).get(b.id);
+    return {
+      id: b.id, name: b.name, sector: b.sector, description: b.description, isDemo: b.isDemo, colors: b.colors,
+      logoUrl: logo ? logo.url : null, completeness: identityCompleteness(b, counts),
+      lastWorkedAt: brands.lastWorkedAt(b.id) || b.updatedAt,
+      contentTotal: c.total || 0, contentDone: c.done || 0, contentPending: (c.total || 0) - (c.done || 0),
+      ideaCount: db.prepare('SELECT COUNT(*) AS n FROM ideas WHERE brand_id = ?').get(b.id).n
+    };
+  };
+
+  api.get('/dashboard', (req, res) => {
+    const brandId = req.query.brandId ? brands.get(String(req.query.brandId)).id : null;
+    const all = brands.list();
+    const scope = brandId ? all.filter(b => b.id === brandId) : all;
+    const ideaRows = brandId
+      ? db.prepare('SELECT brand_id, category, created_at FROM ideas WHERE brand_id = ? ORDER BY created_at').all(brandId)
+      : db.prepare('SELECT i.brand_id, i.category, i.created_at FROM ideas i JOIN brands b ON b.id = i.brand_id WHERE b.owner_id = ? ORDER BY i.created_at').all(ownerId);
+    res.json({
+      brands: scope.map(brandSummary),
+      contents: workspace.listContents({ brandId }).map(c => ({
+        id: c.id, title: c.title, brandId: c.brandId, brandName: c.brandName, brandColor: c.brandColor, type: c.type, typeLabel: c.typeLabel,
+        status: c.status, statusLabel: c.statusLabel, done: c.done, scheduledAt: c.scheduledAt, createdAt: c.createdAt, completedAt: c.completedAt
+      })),
+      ideas: ideaRows.map(r => ({ brandId: r.brand_id, category: r.category, createdAt: r.created_at })),
+      tasks: workspace.listTasks({ brandId }),
+      pinnedNotes: workspace.listNotes({ brandId }).filter(n => n.pinned).slice(0, 6),
+      activity: brandId ? brands.recentActivity(brandId, 12) : brands.recentActivityAll(12)
+    });
+  });
+
+  // İçerik planı: takvim, arşiv
+  api.get('/contents', (req, res) => {
+    const q = req.query;
+    res.json({ contents: workspace.listContents({
+      brandId: q.brandId ? String(q.brandId) : null, from: q.from ? String(q.from) : null, to: q.to ? String(q.to) : null,
+      status: q.status ? String(q.status) : null, type: q.type ? String(q.type) : null, unscheduled: q.unscheduled === '1'
+    }) });
+  });
+  api.post('/contents', (req, res) => res.status(201).json({ content: workspace.createContent(req.body || {}) }));
+  api.patch('/contents/:id', (req, res) => res.json({ content: workspace.updateContent(req.params.id, req.body || {}) }));
+  api.delete('/contents/:id', (req, res) => { workspace.deleteContent(req.params.id); res.status(204).end(); });
+
+  api.get('/tasks', (req, res) => res.json({ tasks: workspace.listTasks({ brandId: req.query.brandId ? String(req.query.brandId) : null, status: req.query.status ? String(req.query.status) : null }) }));
+  api.post('/tasks', (req, res) => res.status(201).json({ task: workspace.createTask(req.body || {}) }));
+  api.patch('/tasks/:id', (req, res) => res.json({ task: workspace.updateTask(req.params.id, req.body || {}) }));
+  api.delete('/tasks/:id', (req, res) => { workspace.deleteTask(req.params.id); res.status(204).end(); });
+
+  api.get('/notes', (req, res) => res.json({
+    notes: workspace.listNotes({ brandId: req.query.brandId ? String(req.query.brandId) : null, category: req.query.category ? String(req.query.category) : null, q: req.query.q ? String(req.query.q) : null }),
+    categories: workspace.noteCategories()
+  }));
+  api.post('/notes', (req, res) => res.status(201).json({ note: workspace.createNote(req.body || {}) }));
+  api.patch('/notes/:id', (req, res) => res.json({ note: workspace.updateNote(req.params.id, req.body || {}) }));
+  api.delete('/notes/:id', (req, res) => { workspace.deleteNote(req.params.id); res.status(204).end(); });
+
   // --- Markalar ---
   api.get('/brands', (req, res) => {
     res.json({
@@ -193,11 +261,23 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
         const idea = ideas.create(b.id, i, 'demo');
         if (i.favorite) ideas.update(b.id, idea.id, { favorite: true });
       });
+      const at = (day, hour) => { const d = new Date(); d.setDate(d.getDate() + day); d.setHours(hour, 0, 0, 0); return d; };
+      DEMO_CONTENTS.forEach(c => {
+        const when = at(c.day, c.hour);
+        const created = workspace.createContent({ brandId: b.id, title: c.title, type: c.type, status: c.status, scheduledAt: when.toISOString() });
+        // Örnek içerikler planlanan tarihten birkaç gün önce hazırlanmış, yayın günü tamamlanmış görünür (grafikler gerçekçi olsun)
+        const madeAt = new Date(Math.min(Date.now(), when.getTime() - 3 * 86400000)).toISOString();
+        db.prepare('UPDATE contents SET created_at = ?, completed_at = CASE WHEN completed_at IS NULL THEN NULL ELSE ? END WHERE id = ?')
+          .run(madeAt, when.toISOString(), created.id);
+      });
+      DEMO_TASKS.forEach(t => workspace.createTask({ brandId: b.id, title: t.title, description: t.description, priority: t.priority, status: t.status,
+        dueDate: at(t.day, 12).toISOString().slice(0, 10) }));
+      DEMO_NOTES.forEach(n => workspace.createNote(Object.assign({ brandId: b.id }, n)));
       return b;
     });
     // Dosyalar veritabanı işleminden sonra yazılır; biri yazılamazsa marka yine kullanılabilir
     DEMO_ASSETS.forEach(a => assets.create(brand.id, { buffer: demoAssetBuffer(a.file), category: a.category, label: a.label }));
-    brands.logActivity(brand.id, 'demo.created', 'Örnek marka hazırlandı: profil, renkler, fontlar, logo, maskot ve 6 fikir');
+    brands.logActivity(brand.id, 'demo.created', 'Örnek marka hazırlandı: kimlik, logo, maskot, fikirler, takvim, görevler ve notlar');
     settings.set('ui.activeBrandId', brand.id);
     res.status(201).json({ brand, created: true });
   });

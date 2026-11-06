@@ -1,7 +1,7 @@
 // Ana ekran: AI asistanı merkezde; yanında marka kimliği, son fikirler ve son çalışmalar
 import { api } from '../api.js';
 import { esc, icon, toast, timeAgo, errorBox, ring, bucketByDay } from '../ui.js';
-import { state, activeBrand, refreshBrands, go, openDemoBrand } from '../app.js';
+import { state, refreshBrands } from '../app.js';
 
 // Hızlı işlemler asistana hazır bir istek gönderir (marka hafızasıyla çalışır)
 const QUICK = [
@@ -17,13 +17,11 @@ const CHIPS = [
   'Son fikirlerden hangisiyle başlamalıyım?'
 ];
 
-export async function renderHome(view) {
-  const brand = activeBrand();
-  if (!brand) return renderOnboarding(view);
-
+// Marka çalışma alanının ana sayfası: AI asistanı merkezde; yanında marka kimliği, fikir grafiği, son fikirler
+export async function renderHome(view, brand) {
   view.innerHTML = '<div class="home"><div class="stack"><div class="card skeleton" style="height:180px"></div><div class="card skeleton" style="height:420px"></div></div><div class="stack"><div class="card skeleton" style="height:240px"></div></div></div>';
   const [overview, chat] = await Promise.all([api.overview(brand.id), api.chat(brand.id)]);
-  if (activeBrand() !== brand) return; // yüklenirken marka değiştiyse eski çizimi bırak
+  if (state.workspaceBrandId !== brand.id) return; // yüklenirken başka sayfaya geçildiyse eski çizimi bırak
   const aiReady = state.settings.ai.configured;
   const firstVisit = chat.messages.length === 0;
 
@@ -93,9 +91,9 @@ export async function renderHome(view) {
 function demoGuide(brand, aiReady) {
   const id = esc(brand.id);
   const steps = [
-    ['1', 'Marka kimliğini incele', 'Hedef kitle, iletişim dili, karakter: asistan her yanıtta bunları kullanır.', `<a class="btn btn-sm" href="#/marka/${id}/profil">Profili aç</a>`],
-    ['2', 'Renk ve fontlara bak', 'Canlı önizlemede bir rengi değiştir, post nasıl değişiyor gör.', `<a class="btn btn-sm" href="#/marka/${id}/gorsel">Görsel kimlik</a>`],
-    ['3', 'Logo ve maskot pozları', '"Çekirdek" maskotunun pozları ve logo varlık kütüphanesinde.', `<a class="btn btn-sm" href="#/marka/${id}/varliklar">Kütüphane</a>`],
+    ['1', 'Marka kimliğini incele', 'Hedef kitle, iletişim dili, karakter: asistan her yanıtta bunları kullanır.', `<a class="btn btn-sm" href="#/m/${id}/kimlik">Profili aç</a>`],
+    ['2', 'Renk ve fontlara bak', 'Canlı önizlemede bir rengi değiştir, post nasıl değişiyor gör.', `<a class="btn btn-sm" href="#/m/${id}/kimlik/gorsel">Görsel kimlik</a>`],
+    ['3', 'Logo ve maskot pozları', '"Çekirdek" maskotunun pozları ve logo varlık kütüphanesinde.', `<a class="btn btn-sm" href="#/m/${id}/kutuphane">Kütüphane</a>`],
     ['4', 'Asistandan fikir iste', aiReady ? 'Dene\'ye bas: hazır bir istek gönderilir, fikirler bu markanın diliyle üretilip kaydedilir.' : 'Önce Ayarlar\'dan Gemini anahtarını ekle, sonra asistana yaz.',
       aiReady ? '<button class="btn btn-sm btn-primary" data-demo-try>Dene</button>' : '<a class="btn btn-sm" href="#/ayarlar">Ayarlar</a>'],
     ['5', 'Kendi markanı oluştur', 'Aynı adımları kendi markan için yap. Örnek markayı istediğin zaman silebilirsin.', '<a class="btn btn-sm" href="#/marka/yeni">Yeni marka</a>']
@@ -122,7 +120,7 @@ function identityCard(brand, overview) {
           ${c.missing.length ? `<p class="small muted" style="margin-top:8px">Eksik: ${esc(c.missing.slice(0, 3).join(', '))}${c.missing.length > 3 ? '…' : ''}</p>` : '<p class="small" style="margin-top:8px;color:var(--teal);font-weight:700">Kimlik tamam ✓</p>'}
         </div>
       </div>
-      <a class="btn btn-sm" style="margin-top:14px;width:100%" href="#/marka/${esc(brand.id)}">${c.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
+      <a class="btn btn-sm" style="margin-top:14px;width:100%" href="#/m/${esc(brand.id)}/kimlik">${c.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
     </section>`;
 }
 
@@ -189,7 +187,7 @@ function wire(view, brand, body) {
       if (savedIdeas) {
         // Fikir kaydedildiyse sağ paneller ve marka özeti de güncellensin
         await refreshBrands();
-        return renderHome(view);
+        return renderHome(view, brand);
       }
       body.querySelector('#typing').remove();
       body.insertAdjacentHTML('beforeend', messageHtml(res.assistantMessage));
@@ -230,40 +228,7 @@ function wire(view, brand, body) {
     }
     if (e.target.closest('[data-action="new-chat"]')) {
       if (!confirm('Bu markanın sohbet geçmişi silinsin mi? Kaydedilen fikirler silinmez.')) return;
-      try { await api.clearChat(brand.id); renderHome(view); } catch (err) { toast(err.message, 'error'); }
+      try { await api.clearChat(brand.id); renderHome(view, brand); } catch (err) { toast(err.message, 'error'); }
     }
   };
-}
-
-function renderOnboarding(view) {
-  view.onclick = null;
-  view.innerHTML = `
-    <section class="card onboard">
-      <div class="logo-mark" style="width:52px;height:52px;margin:0 auto 14px;font-size:22px;border-radius:16px">✦</div>
-      <h1>İlk markanı oluştur</h1>
-      <p>Markanın dijital kimliğini bir kez tanımla; asistan bundan sonra her içeriği bu kimliğe göre üretsin.</p>
-      <form id="onboard-form">
-        <input class="input" name="name" placeholder="Marka adı" required maxlength="80" aria-label="Marka adı">
-        <input class="input" name="sector" placeholder="Sektör (ör. kafe, yazılım)" maxlength="120" aria-label="Sektör">
-        <button class="btn btn-primary" type="submit">Oluştur</button>
-      </form>
-      <div class="demo-cta">
-        <span class="muted small">Önce nasıl çalıştığını görmek mi istersin?</span>
-        <button class="btn" type="button" id="demo-btn">☕ Örnek markayla keşfet</button>
-      </div>
-    </section>`;
-  view.querySelector('#demo-btn').addEventListener('click', async e => {
-    e.target.disabled = true;
-    try { await openDemoBrand(); } catch (err) { toast(err.message, 'error'); e.target.disabled = false; }
-  });
-  view.querySelector('#onboard-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    try {
-      const { brand } = await api.createBrand({ name: form.get('name'), sector: form.get('sector') });
-      await refreshBrands();
-      toast('Marka oluşturuldu. Şimdi kimliğini tamamlayalım.', 'success');
-      go('#/marka/' + brand.id);
-    } catch (err) { toast(err.message, 'error'); }
-  });
 }
