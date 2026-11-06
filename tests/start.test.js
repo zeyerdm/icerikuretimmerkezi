@@ -11,6 +11,19 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const listen = (server, port = 0) => new Promise(r => server.listen(port, '127.0.0.1', () => r(server.address().port)));
 
+const isFree = port => new Promise(resolve => {
+  const probe = http.createServer();
+  probe.once('error', () => resolve(false));
+  probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
+});
+// Ardışık iki boş port (20000-40000 arası)
+async function freePair() {
+  for (;;) {
+    const port = 20000 + Math.floor(Math.random() * 20000);
+    if (await isFree(port) && await isFree(port + 1)) return port;
+  }
+}
+
 function runServer(env) {
   const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(ROOT, 'server', 'index.js')], {
     cwd: ROOT, env: Object.assign({}, process.env, env), stdio: ['ignore', 'pipe', 'pipe']
@@ -33,8 +46,11 @@ function runServer(env) {
 
 test('port yabancı bir uygulamayla doluysa: sıradaki portta açılır ve eski pencere uyarısı verilir', async () => {
   // 3000 gibi bir portu eski sürüm tutuyor: /api/system yok (404)
+  // Port, işletim sisteminin rastgele dağıttığı aralığın dışından seçilir: Windows boş portları sırayla
+  // dağıttığı için aynı anda çalışan başka bir test sunucusu yoksa base+1'e düşebilir
   const old = http.createServer((req, res) => { res.writeHead(404); res.end('{}'); });
-  const base = await listen(old);
+  const base = await freePair();
+  await listen(old, base);
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ium-start-'));
   const a = runServer({ PORT: String(base), DATA_DIR: dataDir });
   let b;
@@ -61,9 +77,7 @@ test('port yabancı bir uygulamayla doluysa: sıradaki portta açılır ve eski 
 });
 
 test('port boşsa doğrudan o portta açılır, uyarı çıkmaz; arayüz önbelleğe alınmaz', async () => {
-  const probe = http.createServer();
-  const free = await listen(probe);
-  probe.close();
+  const free = await freePair();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ium-start-'));
   const a = runServer({ PORT: String(free), DATA_DIR: dataDir });
   try {

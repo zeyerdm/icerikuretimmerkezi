@@ -162,13 +162,16 @@ export function createBackupService({ db, dataDir, settings }) {
       const bakFile = path.join(work, 'app.db');
       fs.writeFileSync(bakFile, dbEntry.data);
       let version;
+      // Dosya her durumda kapatılır (Windows açık dosyayı silmeye izin vermez)
+      let probe = null;
       try {
-        const probe = new DatabaseSync(bakFile, { readOnly: true });
+        probe = new DatabaseSync(bakFile, { readOnly: true });
         version = probe.prepare('PRAGMA user_version').get().user_version;
         const ok = probe.prepare('PRAGMA integrity_check').get();
-        probe.close();
         if (Object.values(ok)[0] !== 'ok') throw new Error('integrity');
-      } catch { throw restoreError('Yedekteki veritabanı bozuk.'); }
+      } catch { throw restoreError('Yedekteki veritabanı bozuk.'); } finally {
+        if (probe) try { probe.close(); } catch { /* zaten kapalı */ }
+      }
       if (version > schemaVersion()) throw restoreError('Bu yedek uygulamanın daha yeni bir sürümüyle alınmış. Önce uygulamayı güncelle, sonra tekrar dene.');
       openDb(bakFile).close();
 

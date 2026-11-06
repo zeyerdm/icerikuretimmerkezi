@@ -60,8 +60,11 @@ test('ilk açılış: yönetim merkezi → marka oluştur → kimlik → kütüp
     await page.locator('[data-hex="primary"]').fill('#aa3300');
     await page.getByLabel('Başlık fontu').selectOption('Poppins');
     assert.equal(await page.locator('.pp-title').textContent(), 'Her yudum bir mola');
+    // İlk kaydın bildirimi hâlâ ekranda olabilir: yeni bir bildirimin gelmesi beklenir
+    const savedToasts = () => page.getByText('Marka kimliği kaydedildi.').count();
+    const before = await savedToasts();
     await page.getByRole('button', { name: 'Kaydet' }).click();
-    await page.getByText('Marka kimliği kaydedildi.').waitFor();
+    await page.waitForFunction(n => [...document.querySelectorAll('.toast')].filter(t => t.textContent === 'Marka kimliği kaydedildi.').length > n, before);
 
     // Kütüphane (alt menüden)
     await page.getByRole('link', { name: 'Kütüphane' }).click();
