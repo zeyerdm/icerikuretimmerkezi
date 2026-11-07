@@ -57,7 +57,7 @@ export async function renderHome(view, brand) {
           <div class="chat-body" id="chat-body"></div>
           <div class="chat-foot">
             ${aiReady ? `<div class="chips">${CHIPS.map(c => `<button type="button" class="chip" data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
-              : `<div class="notice"><div><strong>AI bağlı değil.</strong> Asistanın ve hızlı işlemlerin çalışması için Gemini API anahtarını ekle. Anahtar yalnızca bu bilgisayardaki sunucuda saklanır.</div><a class="btn btn-sm" href="#/ayarlar">Ayarlara git</a></div>`}
+              : `<div class="notice"><div><strong>AI bağlı değil.</strong> Asistanın ve hızlı işlemlerin çalışması için bir yapay zekâ sağlayıcısı bağla (Claude, OpenAI, OpenRouter ya da Gemini). Anahtar yalnızca bu bilgisayardaki sunucuda saklanır.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>`}
             <form class="composer" id="composer">
               <textarea class="textarea" id="chat-input" rows="1" placeholder="${aiReady ? 'Örn: Bu marka için haftaya 5 fikir üret' : 'Önce AI bağlantısını kur'}" ${aiReady ? '' : 'disabled'} maxlength="4000"></textarea>
               <button class="btn btn-primary" type="submit" ${aiReady ? '' : 'disabled'} aria-label="Gönder">${icon('send')}</button>
@@ -94,8 +94,8 @@ function demoGuide(brand, aiReady) {
     ['1', 'Marka kimliğini incele', 'Hedef kitle, iletişim dili, karakter: asistan her yanıtta bunları kullanır.', `<a class="btn btn-sm" href="#/m/${id}/kimlik">Profili aç</a>`],
     ['2', 'Renk ve fontlara bak', 'Canlı önizlemede bir rengi değiştir, post nasıl değişiyor gör.', `<a class="btn btn-sm" href="#/m/${id}/kimlik/gorsel">Görsel kimlik</a>`],
     ['3', 'Logo ve maskot pozları', '"Çekirdek" maskotunun pozları ve logo varlık kütüphanesinde.', `<a class="btn btn-sm" href="#/m/${id}/kutuphane">Kütüphane</a>`],
-    ['4', 'Asistandan fikir iste', aiReady ? 'Dene\'ye bas: hazır bir istek gönderilir, fikirler bu markanın diliyle üretilip kaydedilir.' : 'Önce Ayarlar\'dan Gemini anahtarını ekle, sonra asistana yaz.',
-      aiReady ? '<button class="btn btn-sm btn-primary" data-demo-try>Dene</button>' : '<a class="btn btn-sm" href="#/ayarlar">Ayarlar</a>'],
+    ['4', 'Asistandan fikir iste', aiReady ? 'Dene\'ye bas: hazır bir istek gönderilir, fikirler bu markanın diliyle üretilip kaydedilir.' : 'Önce Yapay zekâ sayfasından bir sağlayıcı bağla, sonra asistana yaz.',
+      aiReady ? '<button class="btn btn-sm btn-primary" data-demo-try>Dene</button>' : '<a class="btn btn-sm" href="#/ai/modeller">AI bağla</a>'],
     ['5', 'Kendi markanı oluştur', 'Aynı adımları kendi markan için yap. Örnek markayı istediğin zaman silebilirsin.', '<a class="btn btn-sm" href="#/marka/yeni">Yeni marka</a>']
   ];
   return `
@@ -197,7 +197,7 @@ function wire(view, brand, body) {
       body.lastElementChild.remove(); // gönderilemeyen mesaj geri alınır, metin kutuya döner
       input.value = message;
       body.insertAdjacentHTML('beforeend', `<div class="msg msg-assistant">${errorNotice(err)}</div>`);
-      if (err.code === 'AI_NOT_CONFIGURED') toast("AI bağlı değil: Ayarlar'dan anahtar ekle.", 'error');
+      if (err.code === 'AI_NOT_CONFIGURED') toast('AI bağlı değil: Yapay zekâ sayfasından bir sağlayıcı bağla.', 'error');
     } finally {
       busy = false;
       form.querySelector('button').disabled = false;

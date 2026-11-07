@@ -175,6 +175,8 @@ test('içerik takvimi: boş güne tıklayıp planlama, düzenleme, haftalık gö
 
     // Marka çalışma alanı takviminde yalnızca o marka; marka seçimi kilitli
     await page.goto(srv.base + `/#/m/${a.id}/takvim`);
+    // Adres değişince önceki sayfa bir an ekranda kalır: önce yeni sayfanın başlığı beklenir
+    await page.getByRole('heading', { name: 'Takvim', exact: true }).waitFor();
     await page.locator('.cw-item, .cal-item').first().waitFor();
     assert.ok(!(await page.locator('#view').textContent()).includes('B içeriği'), 'başka markanın içeriği göründü');
     await page.locator('[data-new]').click();
@@ -294,8 +296,11 @@ test('AI bağlı değilken asistan kapalı; ayarlarda güncelleme kartı', { ski
     await page.goto(srv.base + '/#/m/' + brand.id);
     await page.getByText('AI bağlı değil.').waitFor();
     assert.ok(await page.locator('#chat-input').isDisabled());
-    await page.getByRole('link', { name: 'Ayarlara git' }).click();
-    await page.getByLabel('Gemini API anahtarı').waitFor();
+    await page.getByRole('link', { name: 'AI bağla' }).click();
+    await page.locator('#key-anthropic').waitFor();
+    assert.match(page.url(), /#\/ai\/modeller$/);
+    await page.goto(srv.base + '/#/ayarlar');
+    await page.getByRole('heading', { name: 'Güncelleme' }).waitFor();
     assert.match(await page.locator('#app-version').textContent(), /^Sürüm 0\.1\.0/);
     await page.getByRole('button', { name: 'Güncellemeleri kontrol et' }).click();
     await page.getByText('Yeni sürüm var').waitFor();
@@ -449,6 +454,84 @@ test('tablet genişliği: kenar çubuğu ikonlara iner, menü ögeleri erişileb
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 0, 'yatay taşma: ' + overflow);
     assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('yapay zekâ: sağlayıcı bağla, işe model ata, iki modeli karşılaştır, kazananı seç, harcamayı gör', { skip }, async () => {
+  const KEY_A = 'sk-ant-UI-0123456789abcdefghijklmnop';
+  const KEY_O = 'sk-or-UI-0123456789abcdefghijklmnopq';
+  const js = (b, st = 200) => new Response(JSON.stringify(b), { status: st, headers: { 'Content-Type': 'application/json' } });
+  const fetchImpl = async (url, init = {}) => {
+    const u = new URL(String(url));
+    const h = new Headers(init.headers);
+    const body = init.body ? JSON.parse(init.body) : null;
+    if (u.host === 'api.anthropic.com') {
+      if (h.get('authorization') !== `Bearer ${KEY_A}` && h.get('x-api-key') !== KEY_A) return js({ type: 'error', error: { type: 'authentication_error', message: 'x' } }, 401);
+      if (u.pathname === '/v1/models') return js({ data: [{ id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' }], has_more: false });
+      return js({ id: 'm', type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: 'Sahne 1 (0-3 sn): Kahve fincanı yakın plan.' }], stop_reason: 'end_turn', usage: { input_tokens: 2000, output_tokens: 1500 } });
+    }
+    if (u.host === 'openrouter.ai') {
+      if (h.get('authorization') !== `Bearer ${KEY_O}`) return js({ error: { message: 'x' } }, 401);
+      if (u.pathname === '/api/v1/models') return js({ data: [{ id: 'meta-llama/llama-5', name: 'Llama 5', pricing: { prompt: '0.0000003', completion: '0.0000006' } }] });
+      return js({ model: body.model, choices: [{ message: { content: 'Llama senaryosu' } }], usage: { prompt_tokens: 100, completion_tokens: 100, cost: 0.002 } });
+    }
+    return js({}, 404);
+  };
+  const srv = await startServer({ fetchImpl });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await srv.request('POST', '/api/brands', { name: 'Kahve Evi' });
+    await page.goto(srv.base + '/#/ai');
+    await page.getByRole('heading', { name: 'Önce bir yapay zekâ sağlayıcısı bağla' }).waitFor();
+    await page.getByRole('link', { name: 'Sağlayıcı bağla' }).click();
+
+    // Yanlış anahtar kaydedilmez; doğru anahtarla bağlanır
+    await page.locator('#key-anthropic').fill('sk-ant-YANLIS-0123456789abcdefghijk');
+    await page.locator('[data-provider="anthropic"]').getByRole('button', { name: 'Bağlan' }).click();
+    await page.getByText('Claude anahtarı reddedildi').waitFor();
+    await page.locator('#key-anthropic').fill(KEY_A);
+    await page.locator('[data-provider="anthropic"]').getByRole('button', { name: 'Bağlan' }).click();
+    await page.locator('[data-provider="anthropic"]').getByText('Bağlı', { exact: true }).waitFor();
+    await page.locator('#key-openrouter').fill(KEY_O);
+    await page.locator('[data-provider="openrouter"]').getByRole('button', { name: 'Bağlan' }).click();
+    await page.locator('[data-provider="openrouter"]').getByText('Bağlı', { exact: true }).waitFor();
+    assert.match(await page.locator('.topbar').textContent(), /AI bağlı/);
+
+    // İşe model ata: metin yazımına Opus, yedek OpenRouter Llama
+    await page.locator('#tp-yazim').selectOption('anthropic:claude-opus-5-5');
+    await page.locator('#tf-yazim').selectOption('openrouter:meta-llama/llama-5');
+    await page.getByRole('button', { name: 'Atamaları kaydet' }).click();
+    await page.getByText('Atamalar kaydedildi.').waitFor();
+    const ov = (await srv.request('GET', '/api/ai')).data;
+    const yazim = ov.tasks.find(t => t.id === 'yazim');
+    assert.equal(yazim.primary, 'anthropic:claude-opus-5-5');
+    assert.equal(yazim.fallback, 'openrouter:meta-llama/llama-5');
+
+    // Karşılaştır: Claude Sonnet + OpenRouter Llama
+    await page.getByRole('tab', { name: 'Karşılaştır' }).click();
+    await page.locator('#cmp-brief').waitFor();
+    await page.locator('#cmp-brief').fill('Sabah kahvesi kampanyası');
+    // Varsayılan seçili iki Claude modelinden birini bırak, OpenRouter modelini ekle
+    await page.locator('[data-pick="anthropic:claude-opus-5-5"]').click();
+    await page.getByRole('button', { name: 'Başka model ekle' }).click();
+    await page.locator('#cmp-extra').selectOption('openrouter:meta-llama/llama-5');
+    await page.getByRole('button', { name: 'Karşılaştır', exact: true }).click();
+    await page.getByText('Llama senaryosu').waitFor();
+    await page.getByText('Sahne 1 (0-3 sn)').waitFor();
+    await page.getByRole('button', { name: 'Bunu seçtim' }).first().click();
+    await page.getByText('Seçtiğin', { exact: true }).first().waitFor();
+    await page.locator('#cmp-history').getByText('Sabah kahvesi kampanyası').waitFor();
+
+    // Harcama: karşılaştırmanın tutarı işlendi; sınır kaydedilir
+    await page.getByRole('tab', { name: 'Harcama' }).click();
+    await page.getByRole('heading', { name: 'Aylık sınır' }).waitFor();
+    assert.match(await page.locator('.kpis').textContent(), /2 *AI çağrısı/);
+    await page.locator('#b-limit').fill('5');
+    await page.locator('#budget-form').getByRole('button', { name: 'Kaydet' }).click();
+    await page.getByText('Sınır kaydedildi.').waitFor();
+    assert.equal((await srv.request('GET', '/api/ai')).data.budget.monthlyUsd, 5);
+    // Yanlış anahtar denemesinin 502 yanıtı beklenen bir durum
+    assert.deepEqual(problems.filter(p => !p.includes('502')), []);
   } finally { await browser.close(); await srv.stop(); }
 });
 

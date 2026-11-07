@@ -37,32 +37,12 @@ export async function renderSettings(view) {
   const shortSha = system.sha ? system.sha.slice(0, 7) : 'bilinmiyor';
 
   view.innerHTML = `
-    ${pageHead({ title: 'Ayarlar', desc: 'AI bağlantısı, Google Drive, güncelleme ve yedekler.' })}
+    ${pageHead({ title: 'Ayarlar', desc: 'Yapay zekâ, Google Drive, güncelleme ve yedekler.' })}
     <div class="settings">
-      <section class="card">
-        <div class="card-head"><h3>AI bağlantısı</h3>${ai.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
-        <dl class="kv">
-          <dt>Sağlayıcı</dt><dd>${esc(ai.providerLabel)}</dd>
-          <dt>Anahtar</dt><dd>${ai.configured ? esc(ai.keyHint) + (ai.source === 'env' ? ' <span class="muted small">(GEMINI_API_KEY ortam değişkeninden)</span>' : '') : '<span class="muted">Eklenmedi</span>'}</dd>
-        </dl>
-        <form id="key-form" class="stack-sm card-section">
-          <div class="field">
-            <label for="api-key">${ai.configured ? 'Anahtarı değiştir' : 'Gemini API anahtarı'}</label>
-            <input class="input" id="api-key" type="password" autocomplete="off" placeholder="Google AI Studio'dan aldığın anahtar" maxlength="300">
-            <span class="hint">Anahtar yalnızca bu bilgisayardaki sunucunun veritabanında saklanır; tarayıcıya geri gönderilmez ve sayfa kodunda bulunmaz. Anahtarı <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>'dan alabilirsin.</span>
-          </div>
-          <div class="row">
-            <button class="btn btn-primary" type="submit">Kaydet</button>
-            <button class="btn" type="button" data-action="test" ${ai.configured ? '' : 'disabled'}>Bağlantıyı test et</button>
-            ${ai.configured && ai.source === 'settings' ? '<button class="btn btn-danger" type="button" data-action="remove">Anahtarı kaldır</button>' : ''}
-          </div>
-        </form>
-        <div class="field card-section">
-          <label for="ai-model">Metin modeli</label>
-          <select class="select w-md" id="ai-model">${ai.models.map(m => `<option ${m === ai.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
-          <span class="hint">Flash hızlıdır; Pro daha özenli yazar ama yavaştır ve kotayı daha çok kullanır.</span>
-        </div>
-        <div id="test-result" class="mt-3"></div>
+      <section class="card" id="ai-card">
+        <div class="card-head"><h3>Yapay zekâ</h3>${ai.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
+        ${ai.configured ? `<dl class="kv"><dt>Fikir ve asistan</dt><dd>${esc(ai.model)} <span class="muted xsmall">(${esc(ai.providerLabel)})</span></dd><dt>Bu ay</dt><dd>${ai.budget.spent.toFixed(2).replace('.', ',')} $${ai.budget.monthlyUsd ? ` / ${ai.budget.monthlyUsd} $` : ''}</dd></dl>` : '<p class="card-text">Claude, OpenAI, OpenRouter ya da Gemini anahtarı ekleyerek asistanı çalıştırabilirsin.</p>'}
+        <div class="card-actions"><a class="btn btn-primary" href="#/ai/modeller">Sağlayıcılar ve modeller</a><a class="btn" href="#/ai">Modelleri karşılaştır</a><a class="btn btn-ghost" href="#/ai/harcama">Harcama</a></div>
       </section>
       <section class="card" id="update-card">
         <div class="card-head"><h3>Güncelleme</h3>${system.supervised ? '<span class="pill pill-ok"><span class="dot"></span>Otomatik güncelleme açık</span>' : '<span class="pill pill-warn"><span class="dot"></span>Baslat dosyasıyla açılmadı</span>'}</div>
@@ -141,23 +121,6 @@ export async function renderSettings(view) {
         </details>
       </section>
     </div>`;
-
-  view.querySelector('#key-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const input = view.querySelector('#api-key');
-    if (!input.value.trim()) return toast('Önce anahtarı yapıştır.', 'error');
-    try {
-      await api.saveAi({ apiKey: input.value });
-      input.value = '';
-      toast('Anahtar kaydedildi. Bağlantı test ediliyor…', 'success');
-      await renderSettings(view);
-      view.querySelector('[data-action="test"]').click();
-    } catch (err) { toast(err.message, 'error'); }
-  });
-
-  view.querySelector('#ai-model').addEventListener('change', async e => {
-    try { await api.saveAi({ model: e.target.value }); toast('Model kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
-  });
 
   view.querySelector('#token-form').addEventListener('submit', async e => {
     e.preventDefault();
@@ -257,7 +220,6 @@ export async function renderSettings(view) {
       try { await api.rollback(); await waitForRestart(upd); } catch (err) { upd.innerHTML = `<div class="notice notice-error"><div>${esc(err.message)}</div></div>`; btn.disabled = false; }
       return;
     }
-    const out = view.querySelector('#test-result');
     const upd = view.querySelector('#update-result');
     if (btn.dataset.action === 'check-update') {
       btn.disabled = true;
@@ -293,20 +255,6 @@ export async function renderSettings(view) {
     if (btn.dataset.action === 'remove-token') {
       try { await api.removeUpdateToken(); toast('Erişim anahtarı kaldırıldı.', 'success'); renderSettings(view); } catch (err) { toast(err.message, 'error'); }
       return;
-    }
-    if (btn.dataset.action === 'test') {
-      btn.disabled = true;
-      out.innerHTML = '<p class="card-text">Gemini\'ye bağlanılıyor…</p>';
-      try {
-        const { result } = await api.testAi();
-        out.innerHTML = `<div class="notice notice-ok"><div><strong>Bağlantı çalışıyor.</strong> ${result.modelAvailable ? 'Seçili model kullanılabilir.' : 'Uyarı: seçili model bu anahtarla listelenmiyor; başka bir model seç.'}</div></div>`;
-      } catch (err) {
-        out.innerHTML = `<div class="notice notice-error"><div><strong>Bağlantı başarısız.</strong> ${esc(err.message)}</div></div>`;
-      } finally { btn.disabled = false; }
-    }
-    if (btn.dataset.action === 'remove') {
-      if (!confirm('API anahtarı kaldırılsın mı? Asistan çalışmayı durdurur.')) return;
-      try { await api.removeAiKey(); toast('Anahtar kaldırıldı.', 'success'); renderSettings(view); } catch (err) { toast(err.message, 'error'); }
     }
   };
 }

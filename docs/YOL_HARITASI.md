@@ -30,13 +30,13 @@ Hedef: bütün sayfalarda aynı ölçü, hizalama ve düğme dili; karmaşa yeri
 
 ## Aşama 2 — Yapay zekâ seçimi
 
-Hedef: Gemini'nin Türkçe metin yazımı beğenilmedi; her iş için en iyi modeli birlikte seçmek.
+Hedef: Gemini'nin Türkçe metin yazımı beğenilmedi; her iş için en iyi modeli birlikte seçmek. Ayrıntılar: [docs/AI_SECENEKLERI.md](AI_SECENEKLERI.md)
 
-- ⬜ **2.1 Seçenekler ve maliyet tablosu:** metin (senaryo, fikir, açıklama), görsel ve video için sağlayıcı/model seçenekleri, güçlü/zayıf yanları ve yaklaşık maliyetleri; tek anahtarla birden çok modele erişim seçenekleri.
-- ⬜ **2.2 Karşılaştırma ekranı:** aynı brief'i 2-3 modele aynı anda yazdırıp sonuçları yan yana gösteren deneme sayfası; kararı gerçek çıktılara bakarak sen verirsin.
-- ⬜ **2.3 Çoklu sağlayıcı altyapısı:** AI servis katmanına seçilen sağlayıcıların eklenmesi; anahtarlar yalnızca sunucuda; bağlantı testi.
-- ⬜ **2.4 İşe göre model ataması:** Ayarlar'da "metin yazımı", "fikir üretimi", "çeviri", "görsel" için ayrı model seçimi; bir model hata verirse yedek modele geçiş.
-- ⬜ **2.5 AI harcama takibi:** hangi markada, hangi işte ne kadar harcandığı; aylık üst sınır ve sınıra yaklaşınca uyarı.
+- ✅ **2.1 Seçenekler ve maliyet tablosu:** metin, görsel ve video için seçenekler, güçlü yanları ve yaklaşık maliyetleri (uygulamada Yapay zekâ → Karşılaştır altında ve belgede); tek anahtarla birçok model için OpenRouter.
+- ✅ **2.2 Karşılaştırma ekranı:** aynı isteği (serbest, Reels senaryosu, gönderi açıklaması, fikir listesi; istenirse marka diliyle) 2-3 modele aynı anda yazdırıp yan yana gösterir; süre, token ve tutar; "Bunu seçtim", geçmiş ve en çok seçilen modeller; tek tıkla bir işe atama.
+- ✅ **2.3 Çoklu sağlayıcı altyapısı:** Anthropic Claude (resmî kütüphaneyle), OpenAI, OpenRouter ve Google Gemini; anahtarlar yalnızca sunucuda, bağlanırken denenir (çalışmayan kaydedilmez), yedeğe girmez.
+- ✅ **2.4 İşe göre model ataması:** "fikir üretimi ve asistan", "metin yazımı", "çeviri ve prompt" için ayrı model ve yedek model; geçici hatada (bağlantı, kota, sunucu) kendiliğinden yedeğe geçiş. Görsel model ataması görsel üretimiyle birlikte Aşama 4.5'te.
+- ✅ **2.5 AI harcama takibi:** her çağrının sağlayıcı, model, iş, marka, token ve tutar kaydı; aylık döküm (markaya, işe, modele göre); aylık üst sınır, eşikte üst çubukta uyarı, sınırda yeni istek yapılmaz; fiyatlar elle düzeltilebilir, OpenRouter gerçek tutarı bildirir.
 
 ## Aşama 3 — Eski sistemin (icerikuretici) özelliklerini geliştirilmiş hâlleriyle taşıma
 

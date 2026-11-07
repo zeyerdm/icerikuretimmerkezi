@@ -13,6 +13,7 @@
     "launch": "node scripts/start.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.1.0",
     "express": "5.1.0"
   },
   "updates": {

@@ -15,6 +15,7 @@ import { renderNotes } from './views/notes.js';
 import { renderAnalytics } from './views/analytics.js';
 import { renderIdeas } from './views/ideas.js';
 import { renderArchive } from './views/archive.js';
+import { renderAi } from './views/ai.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -66,6 +67,7 @@ const CENTER_NAV = [
   { hash: '#/gorevler', label: 'Görevler', icon: 'tasks', page: 'tasks' },
   { hash: '#/notlar', label: 'Notlar', icon: 'notes', page: 'notes' },
   { hash: '#/analizler', label: 'Analizler', icon: 'chart', page: 'analytics' },
+  { hash: '#/ai', label: 'Yapay zekâ', icon: 'sparkle', page: 'ai' },
   { hash: '#/ayarlar', label: 'Ayarlar', icon: 'settings', page: 'settings' }
 ];
 
@@ -83,7 +85,7 @@ const BRAND_NAV = [
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart' }
 ];
 
-const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', newBrand: 'Yeni marka' };
+const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', newBrand: 'Yeni marka', ai: 'Yapay zekâ' };
 
 export function parseRoute(hash = location.hash || '#/') {
   let m;
@@ -102,6 +104,7 @@ export function parseRoute(hash = location.hash || '#/') {
     return { redirect: '#/m/' + m[1] + ({ gorsel: '/kimlik/gorsel', varliklar: '/kutuphane' }[m[2]] || '/kimlik') };
   }
   if (hash === '#/marka/yeni') return { layer: 'center', page: 'newBrand' };
+  if ((m = hash.match(/^#\/ai(?:\/(modeller|harcama))?$/))) return { layer: 'center', page: 'ai', tab: m[1] || 'karsilastir' };
   const nav = CENTER_NAV.find(n => n.hash === hash || (n.hash === '#/' && hash === ''));
   return { layer: 'center', page: nav ? nav.page : 'notfound' };
 }
@@ -145,9 +148,12 @@ export function renderChrome() {
 
   // Üst çubuk: konum (yönetim merkezi › marka › sayfa), marka değiştirici, AI durumu
   const ai = state.settings && state.settings.ai;
+  const b = ai && ai.budget;
   const aiPill = ai && ai.configured
-    ? `<a class="pill pill-ok" href="#/ayarlar" title="${esc(ai.providerLabel)} · ${esc(ai.model)}"><span class="dot"></span>AI bağlı</a>`
-    : `<a class="pill pill-warn" href="#/ayarlar"><span class="dot"></span>AI bağlı değil</a>`;
+    ? (b && b.warning
+      ? `<a class="pill pill-warn" href="#/ai/harcama" title="Bu ay ${b.spent.toFixed(2)} $ / ${b.monthlyUsd} $"><span class="dot"></span>${b.blocked ? 'AI sınırı doldu' : 'AI harcaması %' + b.percent}</a>`
+      : `<a class="pill pill-ok" href="#/ai/modeller" title="${esc(ai.providerLabel)} · ${esc(ai.model)}"><span class="dot"></span>AI bağlı</a>`)
+    : `<a class="pill pill-warn" href="#/ai/modeller"><span class="dot"></span>AI bağlı değil</a>`;
   const pageLabel = brand ? ((BRAND_NAV.find(n => n.page === r.page) || {}).label || '') : (CENTER_TITLES[r.page] || '');
   const crumbs = brand
     ? `<a href="#/">Yönetim Merkezi</a><span>›</span><a href="#/m/${esc(brand.id)}">${esc(brand.name)}</a>${r.page !== 'home' ? `<span>›</span><b>${esc(pageLabel)}</b>` : ''}`
@@ -208,6 +214,7 @@ export async function route() {
     else if (r.page === 'notes') await renderNotes(view);
     else if (r.page === 'analytics') await renderAnalytics(view, {});
     else if (r.page === 'settings') await renderSettings(view);
+    else if (r.page === 'ai') await renderAi(view, r.tab);
     else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: '<a class="btn btn-sm" href="#/">Yönetim Merkezine dön</a>', card: true });
   } catch (err) {
     view.innerHTML = errorBox(err);

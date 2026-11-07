@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { openDb } from './db.js';
 import { errorHandler, newId, now, badRequest, text, oneOf, route, HttpError } from './lib/http.js';
-import { createAiService } from './services/ai/index.js';
+import { createAiService, GEMINI_TEXT_MODELS } from './services/ai/index.js';
 import { createBrandService, identityCompleteness, PROFILE_FIELDS, FONT_OPTIONS } from './services/brands.js';
 import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES } from './services/assets.js';
 import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
@@ -15,6 +15,7 @@ import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES,
 import { transaction } from './db.js';
 import { createBackupService } from './services/backup.js';
 import { createDriveService } from './services/drive.js';
+import { createCompareService } from './services/compare.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
 
@@ -71,12 +72,12 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, fetchImpl, updateFetch, driveFetch, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
   const settings = createSettingsStore(db);
-  const ai = createAiService(settings, { provider: aiProvider, fetchImpl });
+  const ai = createAiService(settings, { db, provider: aiProvider, fetchImpl, providers: aiProviders });
   const brands = createBrandService(db, ownerId);
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
   const ideas = createIdeaService(db);
@@ -84,6 +85,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const workspace = createWorkspaceService(db, ownerId, brands);
   const backups = createBackupService({ db, dataDir, settings });
   const drive = createDriveService(settings, { fetchImpl: driveFetch });
+  const compare = createCompareService({ db, ai, brands });
 
   const app = express();
   app.disable('x-powered-by');
@@ -121,20 +123,56 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.delete('/settings/drive', (req, res) => { drive.clear(); res.json(drive.status()); });
 
+  // Eski uç noktalar (yalnızca Gemini): geriye dönük uyumluluk için duruyor
+  const readKey = (body, field = 'API anahtarı') => {
+    const key = text(body && body.apiKey, { field, max: 300, required: true }).replace(/\s+/g, '');
+    if (key.length < 20) throw badRequest('Bu bir API anahtarına benzemiyor.');
+    return key;
+  };
   api.put('/settings/ai', (req, res) => {
     const body = req.body || {};
-    if ('apiKey' in body) {
-      const key = text(body.apiKey, { field: 'API anahtarı', max: 300, required: true }).replace(/\s+/g, '');
-      if (key.length < 20) throw badRequest('Bu bir API anahtarına benzemiyor.');
-      ai.setApiKey(key);
-    }
-    if ('model' in body) ai.setModel(oneOf(body.model, ai.models, 'Model'));
+    if ('apiKey' in body) ai.setApiKey('gemini', readKey(body));
+    if ('model' in body) ai.setTasks({ fikir: { primary: 'gemini:' + oneOf(body.model, GEMINI_TEXT_MODELS, 'Model') } });
     res.json({ ai: ai.status() });
   });
+  api.delete('/settings/ai/key', (req, res) => { ai.clearApiKey('gemini'); res.json({ ai: ai.status() }); });
+  api.post('/settings/ai/test', route(async (req, res) => {
+    const models = await ai.listModels('gemini');
+    res.json({ result: { ok: true, modelCount: models.length, modelAvailable: true }, ai: ai.status() });
+  }));
 
-  api.delete('/settings/ai/key', (req, res) => { ai.clearApiKey(); res.json({ ai: ai.status() }); });
-
-  api.post('/settings/ai/test', route(async (req, res) => res.json({ result: await ai.test(), ai: ai.status() })));
+  // --- Yapay zekâ: sağlayıcılar, işe göre model, harcama, karşılaştırma ---
+  const aiOverview = () => Object.assign(ai.overview(), { kinds: compare.kinds, scoreboard: compare.scoreboard() });
+  api.get('/ai', (req, res) => res.json(aiOverview()));
+  api.put('/ai/keys/:provider', route(async (req, res) => {
+    const id = String(req.params.provider);
+    ai.setApiKey(id, readKey(req.body));
+    // Anahtar hemen denenir: çalışmıyorsa kaydedilmez
+    try {
+      const models = await ai.listModels(id);
+      brands.logActivity(null, 'ai.connected', `${ai.overview().providers.find(p => p.id === id).label} bağlandı`);
+      res.json(Object.assign(aiOverview(), { modelCount: models.length }));
+    } catch (err) {
+      ai.clearApiKey(id);
+      throw err;
+    }
+  }));
+  api.delete('/ai/keys/:provider', (req, res) => { ai.clearApiKey(String(req.params.provider)); res.json(aiOverview()); });
+  api.get('/ai/models/:provider', route(async (req, res) => res.json({ models: await ai.listModels(String(req.params.provider)) })));
+  api.put('/ai/tasks', (req, res) => { ai.setTasks(req.body && req.body.tasks); res.json(aiOverview()); });
+  api.put('/ai/budget', (req, res) => { ai.setBudget(req.body || {}); res.json(aiOverview()); });
+  api.put('/ai/prices', (req, res) => {
+    const body = req.body || {};
+    ai.setPrice(String(body.ref || ''), body.price || null);
+    res.json(aiOverview());
+  });
+  api.get('/ai/usage', (req, res) => res.json(ai.usage(req.query.month ? String(req.query.month) : null)));
+  api.post('/ai/compare', route(async (req, res) => {
+    const body = req.body || {};
+    res.status(201).json({ comparison: await compare.run({ brief: body.brief, kind: body.kind || 'serbest', brandId: body.brandId || null, models: body.models }) });
+  }));
+  api.get('/ai/comparisons', (req, res) => res.json({ comparisons: compare.list(20), scoreboard: compare.scoreboard() }));
+  api.put('/ai/comparisons/:id/winner', (req, res) => res.json({ comparison: compare.setWinner(req.params.id, req.body && req.body.ref ? String(req.body.ref) : '') }));
 
   api.put('/settings/active-brand', (req, res) => {
     const brand = brands.get(req.body && req.body.brandId);
