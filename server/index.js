@@ -61,7 +61,7 @@ async function start() {
         console.log(`\n  UYARI: ${START_PORT} numaralı portu başka bir uygulama kullanıyor. Büyük ihtimalle önceden açık kalmış eski bir siyah pencere.`);
         console.log('  O pencereyi kapat; yoksa tarayıcıda yanlış uygulamayı görebilirsin.');
       }
-      console.log(`\n  İçerik Üretim Merkezi çalışıyor: ${url}\n  Durdurmak için Ctrl+C\n`);
+      console.log(`\n  KREATİFHANE çalışıyor: ${url}\n  Durdurmak için Ctrl+C\n`);
       if (process.env.OPEN_BROWSER === '1') openBrowser(url);
       // Başlatıcıya "açıldım" bilgisi: yeni sürüm açılamazsa başlatıcı önceki sürüme döner
       if (process.send) process.send({ type: 'ready' });

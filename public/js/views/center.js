@@ -28,6 +28,7 @@ export async function renderCenter(view) {
       <section class="card welcome">
         <div class="w-orb"></div><div class="w-orb two"></div>
         <div class="w-text">
+          <div class="w-slogan"><img src="/img/logo.svg" alt="">KREATİFHANE · Fikirden üretime, her şey tek merkezde</div>
           <div class="w-date">${esc(fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
           ${d.brands.length ? `
             <h1>${hello}! Bugün neler üretiyoruz?</h1>
