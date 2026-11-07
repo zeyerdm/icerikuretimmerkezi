@@ -1,7 +1,7 @@
 // Ayarlar: AI bağlantısı, güncelleme (ve önceki sürüme dönüş), yedekler.
 // AI anahtarı sunucuya yazılır ve bir daha tarayıcıya gönderilmez.
 import { api } from '../api.js';
-import { esc, toast, openModal } from '../ui.js';
+import { esc, toast, openModal, pageHead, emptyState, busy } from '../ui.js';
 import { state, renderChrome, refreshBrands } from '../app.js';
 
 const fmtSize = n => n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
@@ -9,7 +9,7 @@ const fmtShort = iso => new Date(iso).toLocaleString('tr-TR', { day: '2-digit', 
 const fmtWhen = iso => new Date(iso).toLocaleString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 function backupRows(list) {
-  if (!list.length) return '<p class="small muted">Henüz yedek yok. İlk otomatik yedek, kaydedilecek veri olduğunda alınır; istersen şimdi elle alabilirsin.</p>';
+  if (!list.length) return emptyState({ icon: 'archive', title: 'Henüz yedek yok', text: 'İlk otomatik yedek, kaydedilecek veri olduğunda alınır; istersen şimdi elle alabilirsin.', compact: true });
   return `<div class="table-wrap"><table class="table" id="backup-table">
     <thead><tr><th>Tarih</th><th>Tür</th><th>Boyut</th><th></th></tr></thead>
     <tbody>${list.map(b => `<tr data-name="${esc(b.name)}">
@@ -37,7 +37,7 @@ export async function renderSettings(view) {
   const shortSha = system.sha ? system.sha.slice(0, 7) : 'bilinmiyor';
 
   view.innerHTML = `
-    <div class="page-head"><div><h1>Ayarlar</h1><p class="muted">AI bağlantısı, Google Drive, güncelleme ve yedekler.</p></div></div>
+    ${pageHead({ title: 'Ayarlar', desc: 'AI bağlantısı, Google Drive, güncelleme ve yedekler.' })}
     <div class="settings">
       <section class="card">
         <div class="card-head"><h3>AI bağlantısı</h3>${ai.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
@@ -45,7 +45,7 @@ export async function renderSettings(view) {
           <dt>Sağlayıcı</dt><dd>${esc(ai.providerLabel)}</dd>
           <dt>Anahtar</dt><dd>${ai.configured ? esc(ai.keyHint) + (ai.source === 'env' ? ' <span class="muted small">(GEMINI_API_KEY ortam değişkeninden)</span>' : '') : '<span class="muted">Eklenmedi</span>'}</dd>
         </dl>
-        <form id="key-form" class="stack" style="margin-top:16px">
+        <form id="key-form" class="stack-sm card-section">
           <div class="field">
             <label for="api-key">${ai.configured ? 'Anahtarı değiştir' : 'Gemini API anahtarı'}</label>
             <input class="input" id="api-key" type="password" autocomplete="off" placeholder="Google AI Studio'dan aldığın anahtar" maxlength="300">
@@ -57,12 +57,12 @@ export async function renderSettings(view) {
             ${ai.configured && ai.source === 'settings' ? '<button class="btn btn-danger" type="button" data-action="remove">Anahtarı kaldır</button>' : ''}
           </div>
         </form>
-        <div class="field" style="margin-top:18px">
+        <div class="field card-section">
           <label for="ai-model">Metin modeli</label>
-          <select class="select" id="ai-model" style="max-width:320px">${ai.models.map(m => `<option ${m === ai.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+          <select class="select w-md" id="ai-model">${ai.models.map(m => `<option ${m === ai.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
           <span class="hint">Flash hızlıdır; Pro daha özenli yazar ama yavaştır ve kotayı daha çok kullanır.</span>
         </div>
-        <div id="test-result" style="margin-top:12px"></div>
+        <div id="test-result" class="mt-3"></div>
       </section>
       <section class="card" id="update-card">
         <div class="card-head"><h3>Güncelleme</h3>${system.supervised ? '<span class="pill pill-ok"><span class="dot"></span>Otomatik güncelleme açık</span>' : '<span class="pill pill-warn"><span class="dot"></span>Baslat dosyasıyla açılmadı</span>'}</div>
@@ -71,17 +71,17 @@ export async function renderSettings(view) {
           <dt>Son güncelleme</dt><dd>${system.updatedAt ? esc(new Date(system.updatedAt).toLocaleString('tr-TR')) : '<span class="muted">Kayıt yok</span>'}</dd>
           <dt>Önceki sürüm</dt><dd>${system.previous ? `<code>${esc((system.previous.sha || 'bilinmiyor').slice(0, 7))}</code> <span class="muted small">(dönülebilir)</span>` : '<span class="muted">Yok</span>'}</dd>
         </dl>
-        ${system.skippedSha ? `<div class="notice" style="margin-top:12px"><div><strong>Bir sürüm geri alındı.</strong> <code>${esc(system.skippedSha.slice(0, 7))}</code> sürümü ${system.rolledBackAt ? esc(fmtWhen(system.rolledBackAt)) + ' tarihinde ' : ''}geri alındı; GitHub'da daha yeni bir sürüm çıkana kadar kendiliğinden kurulmaz.</div></div>` : ''}
-        <p class="small muted" style="margin-top:12px">Uygulama her açıldığında GitHub'daki son sürümü kontrol edip kendini günceller; güncellemeden önce verilerin yedeğini alır. Yeni sürüm açılamazsa kendiliğinden önceki sürüme döner.</p>
-        <div class="row" style="margin-top:14px">
+        ${system.skippedSha ? `<div class="notice mt-3"><div><strong>Bir sürüm geri alındı.</strong> <code>${esc(system.skippedSha.slice(0, 7))}</code> sürümü ${system.rolledBackAt ? esc(fmtWhen(system.rolledBackAt)) + ' tarihinde ' : ''}geri alındı; GitHub'da daha yeni bir sürüm çıkana kadar kendiliğinden kurulmaz.</div></div>` : ''}
+        <p class="card-text mt-3">Uygulama her açıldığında GitHub'daki son sürümü kontrol edip kendini günceller; güncellemeden önce verilerin yedeğini alır. Yeni sürüm açılamazsa kendiliğinden önceki sürüme döner.</p>
+        <div class="card-actions">
           <button class="btn" data-action="check-update">Güncellemeleri kontrol et</button>
           <button class="btn btn-primary" data-action="apply-update" hidden>Güncelle ve yeniden başlat</button>
           ${system.previous && system.supervised ? '<button class="btn btn-ghost" data-action="rollback">Önceki sürüme dön</button>' : ''}
         </div>
-        <div id="update-result" style="margin-top:12px"></div>
-        <details style="margin-top:14px" ${system.tokenConfigured ? 'open' : ''}>
-          <summary class="small" style="cursor:pointer;font-weight:700">GitHub erişim anahtarı (yalnızca depo özelse gerekir)</summary>
-          <form id="token-form" class="stack" style="margin-top:12px">
+        <div id="update-result" class="mt-3"></div>
+        <details class="disclosure" ${system.tokenConfigured ? 'open' : ''}>
+          <summary>GitHub erişim anahtarı (yalnızca depo özelse gerekir)</summary>
+          <form id="token-form" class="stack-sm mt-3">
             <div class="field">
               <label for="gh-token">${system.tokenConfigured ? 'Anahtarı değiştir' : 'Erişim anahtarı'}</label>
               <input class="input" id="gh-token" type="password" autocomplete="off" maxlength="300" placeholder="github_pat_...">
@@ -93,10 +93,10 @@ export async function renderSettings(view) {
       </section>
       <section class="card" id="drive-card">
         <div class="card-head"><h3>Google Drive</h3>${drive.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
-        <p class="small muted">Her markanın dosyaları kendi Drive klasörüne gönderilir (klasör linkini markanın <b>Dijital kimlik → Marka profili</b> sayfasında girersin). Bunun için kendi Google hesabında bir kez küçük bir Apps Script yayınlaman gerekiyor; Google Cloud hesabı gerekmez.</p>
-        ${drive.configured ? `<dl class="kv" style="margin-top:12px"><dt>Apps Script</dt><dd><code>${esc(drive.urlHint)}</code></dd></dl>` : ''}
-        <details style="margin-top:14px" ${drive.configured ? '' : 'open'}>
-          <summary class="small" style="cursor:pointer;font-weight:700">${drive.configured ? 'Kurulum adımları ve kod' : 'Kurulum (bir kez, yaklaşık 3 dakika)'}</summary>
+        <p class="card-text">Her markanın dosyaları kendi Drive klasörüne gönderilir (klasör linkini markanın <b>Dijital kimlik → Marka profili</b> sayfasında girersin). Bunun için kendi Google hesabında bir kez küçük bir Apps Script yayınlaman gerekiyor; Google Cloud hesabı gerekmez.</p>
+        ${drive.configured ? `<dl class="kv mt-3"><dt>Apps Script</dt><dd><code>${esc(drive.urlHint)}</code></dd></dl>` : ''}
+        <details class="disclosure" ${drive.configured ? '' : 'open'}>
+          <summary>${drive.configured ? 'Kurulum adımları ve kod' : 'Kurulum (bir kez, yaklaşık 3 dakika)'}</summary>
           <ol class="drive-steps small">
             <li><a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com</a>'da yeni bir proje aç (Drive klasörlerinin olduğu Google hesabıyla).</li>
             <li>Açılan sayfadaki kodun hepsini sil, aşağıdaki kodu yapıştır ve kaydet (Ctrl+S).</li>
@@ -105,9 +105,9 @@ export async function renderSettings(view) {
             <li>Verilen <b>Web uygulaması URL'sini</b> kopyalayıp aşağıya yapıştır → <b>Bağlan</b>.</li>
           </ol>
           <div class="code-box"><pre id="drive-script">${esc(drive.script)}</pre><button class="btn btn-sm" type="button" data-action="copy-script">Kodu kopyala</button></div>
-          <p class="hint small" style="margin-top:6px">Koddaki anahtar bu uygulamaya özeldir; kimseyle paylaşma.</p>
+          <p class="hint mt-2">Koddaki anahtar bu uygulamaya özeldir; kimseyle paylaşma.</p>
         </details>
-        <form id="drive-form" class="stack" style="margin-top:14px">
+        <form id="drive-form" class="stack-sm card-section">
           <div class="field">
             <label for="drive-url">${drive.configured ? 'Web uygulaması adresini değiştir' : 'Web uygulaması adresi'}</label>
             <input class="input" id="drive-url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
@@ -115,21 +115,21 @@ export async function renderSettings(view) {
           </div>
           <div class="row"><button class="btn btn-primary btn-sm" type="submit">Bağlan</button>${drive.configured ? '<button class="btn btn-sm btn-danger" type="button" data-action="remove-drive">Bağlantıyı kaldır</button>' : ''}</div>
         </form>
-        <div id="drive-result" style="margin-top:12px"></div>
+        <div id="drive-result" class="mt-3"></div>
       </section>
       <section class="card" id="backup-card">
         <div class="card-head"><h3>Yedekler</h3><span class="pill pill-ok"><span class="dot"></span>Her gün otomatik</span></div>
-        <p class="small muted">Markalar, dosyalar, fikirler, takvim, görevler ve notlar her gün kendiliğinden yedeklenir (son ${backupData.keep} gün saklanır). Yedekler bu bilgisayarda <code>data/backups</code> klasöründedir; API anahtarların yedeğe girmez.</p>
-        <div class="row" style="margin-top:14px">
+        <p class="card-text">Markalar, dosyalar, fikirler, takvim, görevler ve notlar her gün kendiliğinden yedeklenir (son ${backupData.keep} gün saklanır). Yedekler bu bilgisayarda <code>data/backups</code> klasöründedir; API anahtarların yedeğe girmez.</p>
+        <div class="card-actions">
           <button class="btn btn-primary" type="button" data-action="create-backup">Şimdi yedek al</button>
           <label class="btn" for="backup-file">Yedek dosyasından geri yükle</label>
-          <input type="file" id="backup-file" accept=".zip,application/zip" hidden>
+          <input type="file" id="backup-file" accept=".zip,application/zip" class="sr-only">
         </div>
-        <div id="backup-result" style="margin-top:12px"></div>
-        <div id="backup-list" style="margin-top:6px">${backupRows(backupData.backups)}</div>
-        <details style="margin-top:16px" ${backupData.copyDir ? 'open' : ''}>
-          <summary class="small" style="cursor:pointer;font-weight:700">Yedeklerin bir kopyası başka bir klasöre de gitsin (ör. Google Drive)</summary>
-          <form id="copy-form" class="stack" style="margin-top:12px">
+        <div id="backup-result" class="mt-3"></div>
+        <div id="backup-list" class="mt-3">${backupRows(backupData.backups)}</div>
+        <details class="disclosure" ${backupData.copyDir ? 'open' : ''}>
+          <summary>Yedeklerin bir kopyası başka bir klasöre de gitsin (ör. Google Drive)</summary>
+          <form id="copy-form" class="stack-sm mt-3">
             <div class="field">
               <label for="copy-dir">Klasör yolu</label>
               <input class="input" id="copy-dir" value="${esc(backupData.copyDir)}" placeholder="Örn. G:\Drive'ım\İçerik Üretim Yedekleri">
@@ -173,7 +173,7 @@ export async function renderSettings(view) {
     if (!input.value.trim()) return toast('Önce Apps Script adresini yapıştır.', 'error');
     const btn = e.submitter || view.querySelector('#drive-form [type=submit]');
     btn.disabled = true;
-    out.innerHTML = '<p class="small muted">Google Drive\'a bağlanılıyor…</p>';
+    out.innerHTML = '<p class="card-text">Google Drive\'a bağlanılıyor…</p>';
     try {
       const r = await api.saveDrive(input.value);
       await renderSettings(view);
@@ -201,10 +201,10 @@ export async function renderSettings(view) {
   };
   const confirmRestore = (what, run) => openModal({
     title: 'Yedekten geri yükle',
-    body: `<p>${what}</p><p class="small muted" style="margin-top:8px">Şu anki markalar, içerikler, görevler, notlar ve dosyalar yedekteki hâliyle <strong>değiştirilir</strong>. Güvenlik için önce şu anki hâlin yedeği alınır. API anahtarların değişmez.</p>`,
+    body: `<p>${what}</p><p class="small muted mt-2">Şu anki markalar, içerikler, görevler, notlar ve dosyalar yedekteki hâliyle <strong>değiştirilir</strong>. Güvenlik için önce şu anki hâlin yedeği alınır. API anahtarların değişmez.</p>`,
     submitLabel: 'Geri yükle',
     onSubmit: async () => {
-      backupOut.innerHTML = '<p class="small muted">Geri yükleniyor…</p>';
+      backupOut.innerHTML = '<p class="card-text">Geri yükleniyor…</p>';
       try { await afterRestore(await run()); } catch (err) { backupOut.innerHTML = ''; throw err; }
     }
   });
@@ -253,7 +253,7 @@ export async function renderSettings(view) {
       if (!confirm('Önceki sürüme dönülsün mü? Uygulama birkaç saniye içinde yeniden başlar. Verilerin etkilenmez.')) return;
       btn.disabled = true;
       const upd = view.querySelector('#update-result');
-      upd.innerHTML = '<p class="small muted">Önceki sürüme dönülüyor ve uygulama yeniden başlatılıyor…</p>';
+      upd.innerHTML = '<p class="card-text">Önceki sürüme dönülüyor ve uygulama yeniden başlatılıyor…</p>';
       try { await api.rollback(); await waitForRestart(upd); } catch (err) { upd.innerHTML = `<div class="notice notice-error"><div>${esc(err.message)}</div></div>`; btn.disabled = false; }
       return;
     }
@@ -261,7 +261,7 @@ export async function renderSettings(view) {
     const upd = view.querySelector('#update-result');
     if (btn.dataset.action === 'check-update') {
       btn.disabled = true;
-      upd.innerHTML = '<p class="small muted">GitHub kontrol ediliyor…</p>';
+      upd.innerHTML = '<p class="card-text">GitHub kontrol ediliyor…</p>';
       try {
         const r = await api.checkUpdate();
         const apply = view.querySelector('[data-action="apply-update"]');
@@ -269,7 +269,7 @@ export async function renderSettings(view) {
         apply.dataset.force = r.skipped ? '1' : '';
         apply.textContent = r.skipped ? 'Yine de güncelle' : 'Güncelle ve yeniden başlat';
         upd.innerHTML = r.available
-          ? `<div class="notice" style="background:var(--brand-soft);color:var(--brand-ink)"><div><strong>Yeni sürüm var</strong> (${esc(r.latest.slice(0, 7))}). ${system.supervised ? 'Güncelleyince uygulama birkaç saniye içinde kendini yeniden başlatır.' : 'Güncellemek için pencereyi kapatıp Baslat dosyasına çift tıkla.'}</div></div>`
+          ? `<div class="notice notice-info"><div><strong>Yeni sürüm var</strong> (${esc(r.latest.slice(0, 7))}). ${system.supervised ? 'Güncelleyince uygulama birkaç saniye içinde kendini yeniden başlatır.' : 'Güncellemek için pencereyi kapatıp Baslat dosyasına çift tıkla.'}</div></div>`
           : r.skipped
             ? `<div class="notice"><div><strong>GitHub'daki son sürüm (${esc(r.latest.slice(0, 7))}) daha önce geri alınmıştı.</strong> Daha yeni bir sürüm çıkınca kendiliğinden güncellenir. Sorunun düzeldiğini biliyorsan yine de kurabilirsin.</div></div>`
             : '<div class="notice notice-ok"><div><strong>Uygulama güncel.</strong> En son sürümü kullanıyorsun.</div></div>';
@@ -280,7 +280,7 @@ export async function renderSettings(view) {
     }
     if (btn.dataset.action === 'apply-update') {
       btn.disabled = true;
-      upd.innerHTML = '<p class="small muted">Uygulama yeniden başlatılıyor ve güncelleniyor… (yarım dakika sürebilir)</p>';
+      upd.innerHTML = '<p class="card-text">Uygulama yeniden başlatılıyor ve güncelleniyor… (yarım dakika sürebilir)</p>';
       try {
         await api.restart(btn.dataset.force === '1');
         await waitForRestart(upd);
@@ -296,7 +296,7 @@ export async function renderSettings(view) {
     }
     if (btn.dataset.action === 'test') {
       btn.disabled = true;
-      out.innerHTML = '<p class="small muted">Gemini\'ye bağlanılıyor…</p>';
+      out.innerHTML = '<p class="card-text">Gemini\'ye bağlanılıyor…</p>';
       try {
         const { result } = await api.testAi();
         out.innerHTML = `<div class="notice notice-ok"><div><strong>Bağlantı çalışıyor.</strong> ${result.modelAvailable ? 'Seçili model kullanılabilir.' : 'Uyarı: seçili model bu anahtarla listelenmiyor; başka bir model seç.'}</div></div>`;

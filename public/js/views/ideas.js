@@ -1,6 +1,6 @@
 // Marka çalışma alanı: içerik fikir havuzu. Fikirler kategorilere ayrılır, favorilenir ve takvime aktarılır.
 import { api } from '../api.js';
-import { esc, icon, toast, timeAgo } from '../ui.js';
+import { esc, icon, toast, timeAgo, pageHead, emptyState, busy } from '../ui.js';
 import { state } from '../app.js';
 import { contentModal } from './forms.js';
 
@@ -18,7 +18,7 @@ export async function renderIdeas(view, brand) {
     view.querySelector('#idea-filters').innerHTML =
       `<button class="chip ${!category ? 'active' : ''}" data-cat="">Tümü (${ideas.length})</button>` +
       Object.entries(cats).map(([k, v]) => { const n = ideas.filter(i => i.category === k).length; return n ? `<button class="chip ${category === k ? 'active' : ''}" data-cat="${k}">${esc(v)} (${n})</button>` : ''; }).join('') +
-      `<label class="check" style="margin-left:auto"><input type="checkbox" id="fav-only" ${favOnly ? 'checked' : ''}> Yalnızca favoriler</label>`;
+      `<label class="check ml-auto"><input type="checkbox" id="fav-only" ${favOnly ? 'checked' : ''}> Yalnızca favoriler</label>`;
     view.querySelector('#idea-results').innerHTML = list.length ? `<div class="idea-grid">${list.map(i => `
       <article class="idea-card">
         <div class="ic-head"><span class="tag">${esc(i.categoryLabel)}</span>
@@ -26,23 +26,24 @@ export async function renderIdeas(view, brand) {
         <h4>${esc(i.title)}</h4>
         ${i.description ? `<p class="small muted">${esc(i.description)}</p>` : ''}
         <div class="ic-foot"><span class="small muted">${esc(SOURCE[i.source] || i.source)} · ${timeAgo(i.createdAt)}</span>
-          <span class="row" style="gap:4px"><button class="btn btn-sm" data-plan="${esc(i.id)}">${icon('calendar')}Takvime ekle</button>
+          <span class="row"><button class="btn btn-sm" data-plan="${esc(i.id)}">${icon('calendar')}Takvime ekle</button>
           <button class="btn btn-sm btn-ghost icon-btn" data-del="${esc(i.id)}" aria-label="Sil">${icon('trash')}</button></span></div>
       </article>`).join('')}</div>`
-      : `<div class="card empty"><div class="em-icon">💡</div><h4>${ideas.length ? 'Bu filtrede fikir yok' : 'Fikir havuzu boş'}</h4><p>Yukarıdan fikir ekle ya da <a href="#/m/${esc(brand.id)}">marka ana sayfasındaki</a> AI asistanından fikir iste.</p></div>`;
+      : emptyState({ icon: 'idea', title: ideas.length ? 'Bu filtrede fikir yok' : 'Fikir havuzu boş', text: ideas.length ? 'Başka bir kategori seç ya da favori filtresini kaldır.' : `Yukarıdan fikir ekle ya da <a class="link" href="#/m/${esc(brand.id)}">marka ana sayfasındaki</a> AI asistanından fikir iste.`, card: true });
     view.querySelector('#fav-only').addEventListener('change', e => { favOnly = e.target.checked; draw(); });
   }
 
   view.innerHTML = `
-    <div class="page-head">
-      <div><h1>İçerik fikirleri</h1><p class="muted">${esc(brand.name)} için kaydedilen fikirler. Beğendiğini favorile, hazır olduğunda takvime ekle.</p></div>
-      <a class="btn" href="#/m/${esc(brand.id)}">✦ Asistandan fikir iste</a>
-    </div>
-    <form class="card quick-idea" id="quick-idea">
+    ${pageHead({
+      title: 'İçerik fikirleri',
+      desc: `${esc(brand.name)} için kaydedilen fikirler. Beğendiğini favorile, hazır olduğunda takvime ekle.`,
+      actions: `<a class="btn btn-primary" href="#/m/${esc(brand.id)}">${icon('sparkle')}Asistandan fikir iste</a>`
+    })}
+    <form class="card quick-row" id="quick-idea">
       <input class="input" name="title" placeholder="Yeni fikir başlığı" required maxlength="200" aria-label="Fikir başlığı">
       <select class="select" name="category" aria-label="Kategori">${Object.entries(cats).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
       <input class="input" name="description" placeholder="Kısa açıklama (isteğe bağlı)" maxlength="2000" aria-label="Açıklama">
-      <button class="btn btn-primary" type="submit">${icon('plus')}Ekle</button>
+      <button class="btn" type="submit">${icon('plus')}Ekle</button>
     </form>
     <div class="filter-row" id="idea-filters"></div>
     <div id="idea-results"></div>`;
@@ -51,7 +52,7 @@ export async function renderIdeas(view, brand) {
     e.preventDefault();
     const fd = new FormData(e.target);
     try {
-      await api.createIdea(brand.id, { title: fd.get('title'), category: fd.get('category'), description: fd.get('description') });
+      await busy(e.submitter, () => api.createIdea(brand.id, { title: fd.get('title'), category: fd.get('category'), description: fd.get('description') }));
       e.target.reset();
       toast('Fikir eklendi.', 'success');
       draw();

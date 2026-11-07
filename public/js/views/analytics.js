@@ -1,12 +1,12 @@
 // Analizler: yönetim merkezinde bütün markalar, marka çalışma alanında yalnızca o marka.
 // Bütün grafikler gerçek kayıtlardan hesaplanır; veri yoksa açıklayıcı boş durum gösterilir.
 import { api } from '../api.js';
-import { esc, columnChart, hbarChart, donutChart } from '../ui.js';
+import { esc, columnChart, hbarChart, donutChart, pageHead, skeletonPage } from '../ui.js';
 import { state } from '../app.js';
 import * as S from '../stats.js';
 
 export async function renderAnalytics(view, { brand } = {}) {
-  view.innerHTML = '<div class="grid-2"><div class="card skeleton" style="height:260px"></div><div class="card skeleton" style="height:260px"></div></div>';
+  view.innerHTML = skeletonPage({ cards: 4, height: 260 });
   const d = await api.dashboard(brand ? brand.id : null);
   const perf = S.performance(d);
   const k = S.counts(d);
@@ -15,7 +15,7 @@ export async function renderAnalytics(view, { brand } = {}) {
   const statusSegs = S.byStatus(d, state.meta.contentStatuses);
 
   view.innerHTML = `
-    <div class="page-head"><div><h1>${brand ? 'Marka analizleri' : 'Analizler'}</h1><p class="muted">${brand ? esc(brand.name) + ' markasının üretim verileri.' : 'Bütün markaların içerik üretim verileri.'} Grafikler gerçek kayıtlardan hesaplanır.</p></div></div>
+    ${pageHead({ title: brand ? 'Marka analizleri' : 'Analizler', desc: `${brand ? esc(brand.name) + ' markasının üretim verileri.' : 'Bütün markaların içerik üretim verileri.'} Grafikler gerçek kayıtlardan hesaplanır.` })}
 
     <section class="card metrics">
       ${metric('%' + perf.completionRate, 'Tamamlanma oranı', `${d.contents.filter(c => c.done).length} / ${k.contents} içerik`)}
@@ -25,7 +25,7 @@ export async function renderAnalytics(view, { brand } = {}) {
       ${metric(k.ideas, 'Fikir havuzu', 'kaydedilen fikir')}
     </section>
 
-    <div class="grid-2">
+    <div class="grid-2 mb-5">
       <section class="card"><div class="card-head"><h3>Haftalık üretim</h3><span class="small muted">Son 8 hafta</span></div>
         ${columnChart(S.weeks(d, 8), series, { height: 180, empty: 'Son 8 haftada üretim yok.' })}</section>
       <section class="card"><div class="card-head"><h3>Aylık içerik sayısı</h3><span class="small muted">Son 6 ay</span></div>

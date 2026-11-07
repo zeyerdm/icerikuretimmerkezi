@@ -1,14 +1,14 @@
 // Yönetim Merkezi: uygulama açılınca ilk görülen, markalardan bağımsız genel çalışma alanı.
 // Sabit uygulama renkleriyle çizilir; bütün sayılar ve grafikler gerçek kayıtlardan hesaplanır.
 import { api } from '../api.js';
-import { esc, icon, toast, timeAgo, fmtDate, timeStr, columnChart, ring, sameDay, addDays, startOfDay } from '../ui.js';
+import { esc, icon, toast, timeAgo, fmtDate, timeStr, columnChart, ring, sameDay, addDays, startOfDay, emptyState, busy } from '../ui.js';
 import { state, refreshBrands, go, openDemoBrand } from '../app.js';
 import * as S from '../stats.js';
 import { contentModal, taskModal, noteModal } from './forms.js';
 import { brandCard } from './brands.js';
 
 export async function renderCenter(view) {
-  view.innerHTML = '<div class="center"><div class="card skeleton" style="height:190px"></div><div class="kpis">' + '<div class="skeleton" style="height:110px"></div>'.repeat(5) + '</div></div>';
+  view.innerHTML = '<div class="center" aria-busy="true"><div class="skeleton" style="height:200px"></div><div class="kpis">' + '<div class="skeleton" style="height:150px"></div>'.repeat(5) + '</div><div class="grid-2"><div class="skeleton" style="height:320px"></div><div class="skeleton" style="height:320px"></div></div></div>';
   const d = await api.dashboard();
   const k = S.counts(d);
   const week = S.thisWeek(d);
@@ -26,7 +26,7 @@ export async function renderCenter(view) {
   view.innerHTML = `
     <div class="center">
       <section class="card welcome">
-        <div class="w-orb"></div><div class="w-orb two"></div><div class="w-orb three"></div>
+        <div class="w-orb"></div><div class="w-orb two"></div>
         <div class="w-text">
           <div class="w-date">${esc(fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
           ${d.brands.length ? `
@@ -45,7 +45,7 @@ export async function renderCenter(view) {
               <input class="input" name="sector" placeholder="Sektör (ör. kafe, yazılım)" maxlength="120" aria-label="Sektör">
               <button class="btn btn-primary" type="submit">Oluştur</button>
             </form>
-            <div class="w-actions"><span class="small muted">Önce nasıl çalıştığını görmek mi istersin?</span><button class="btn" type="button" id="demo-btn">☕ Örnek markayla keşfet</button></div>`}
+            <div class="w-actions"><span class="small muted">Önce nasıl çalıştığını görmek mi istersin?</span><button class="btn btn-ghost" type="button" id="demo-btn">☕ Örnek markayla keşfet</button></div>`}
         </div>
       </section>
 
@@ -68,7 +68,7 @@ export async function renderCenter(view) {
               <div><b>${week.scheduled}</b><span>bu haftaya planlı</span></div>
             </div>
           </div>
-          <p class="small muted" style="margin:6px 0 10px">Halka: bütün içeriklerin tamamlanma oranı.</p>
+          <p class="small muted chart-note">Halka: bütün içeriklerin tamamlanma oranı.</p>
           ${columnChart(week.days.map(x => ({ label: x.label, values: [x.created, x.completed] })),
             [{ name: 'Üretilen', color: 'var(--c-violet)' }, { name: 'Tamamlanan', color: 'var(--c-teal)' }],
             { height: 150, empty: 'Bu hafta henüz üretim yok. İlk içeriği planlayınca grafik dolmaya başlar.' })}
@@ -83,25 +83,25 @@ export async function renderCenter(view) {
       <div class="grid-3">
         <section class="card">
           <div class="card-head"><h3>Görevler</h3><a class="small link" href="#/gorevler">Tümü ›</a></div>
-          <form id="quick-task" class="quick-add"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button class="btn btn-sm btn-primary" type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
-          ${openTasks.length ? `<ul class="task-mini">${openTasks.slice(0, 6).map(taskRow).join('')}</ul>` : '<p class="small muted empty-line">Açık görev yok. 🎉</p>'}
+          <form id="quick-task" class="quick-add"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button class="btn icon-btn" type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
+          ${openTasks.length ? `<ul class="task-mini">${openTasks.slice(0, 6).map(taskRow).join('')}</ul>` : emptyState({ icon: 'check', title: 'Açık görev yok', text: 'Yukarıdan hızlıca ekleyebilirsin.', compact: true })}
         </section>
         <section class="card">
           <div class="card-head"><h3>Sabit notlar</h3><a class="small link" href="#/notlar">Tüm notlar ›</a></div>
           ${d.pinnedNotes.length ? `<div class="note-mini">${d.pinnedNotes.map(n => `
             <button class="note-chip" data-note="${esc(n.id)}"><b>${esc(n.title || n.body.slice(0, 40))}</b><span>${esc(n.body.slice(0, 110))}${n.body.length > 110 ? '…' : ''}</span>${n.brandName ? `<em><i style="background:${esc(n.brandColor || '#999')}"></i>${esc(n.brandName)}</em>` : ''}</button>`).join('')}</div>`
-            : '<p class="small muted empty-line">Sabitlenmiş not yok. Önemli notlarını sabitleyince burada görünür.</p>'}
-          <button class="btn btn-sm" data-act="note" style="margin-top:10px">${icon('plus')}Not al</button>
+            : emptyState({ icon: 'pin', title: 'Sabit not yok', text: 'Önemli notlarını sabitleyince burada görünür.', compact: true })}
+          <div class="card-foot"><button class="btn btn-sm" data-act="note">${icon('plus')}Not al</button></div>
         </section>
         <section class="card activity">
           <div class="card-head"><h3>Son işlemler</h3></div>
-          ${d.activity.length ? `<ul>${d.activity.slice(0, 7).map(a => `<li><span class="a-dot" style="background:${esc(a.brandColor || 'var(--c-violet)')}"></span><div>${esc(a.summary)}<div class="muted small">${a.brandName ? esc(a.brandName) + ' · ' : ''}${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>` : '<p class="small muted empty-line">Henüz işlem yok.</p>'}
+          ${d.activity.length ? `<ul>${d.activity.slice(0, 6).map(a => `<li><span class="a-dot" style="background:${esc(a.brandColor || 'var(--c-violet)')}"></span><div>${esc(a.summary)}<div class="muted xsmall">${a.brandName ? esc(a.brandName) + ' · ' : ''}${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>` : emptyState({ icon: 'refresh', title: 'Henüz işlem yok', compact: true })}
         </section>
       </div>
 
       <section>
-        <div class="section-head"><h2>Markalar</h2><div class="row">${d.brands.some(b => b.isDemo) || !d.brands.length ? '' : '<button class="btn btn-sm" data-act="demo">☕ Örnek marka ekle</button>'}<a class="btn btn-sm btn-primary" href="#/marka/yeni">${icon('plus')}Yeni marka</a></div></div>
-        <div class="brand-grid">${d.brands.map(brandCard).join('')}<a class="card brand-new" href="#/marka/yeni"><div><div style="font-size:26px">＋</div>Yeni marka oluştur</div></a></div>
+        <div class="section-head"><h2>Markalar</h2><div class="row">${d.brands.some(b => b.isDemo) || !d.brands.length ? '' : '<button class="btn btn-sm btn-ghost" data-act="demo">☕ Örnek marka ekle</button>'}<a class="btn btn-sm" href="#/markalar">Tümü</a></div></div>
+        <div class="brand-grid">${d.brands.map(brandCard).join('')}<a class="card brand-new" href="#/marka/yeni"><div class="empty-icon">${icon('plus')}</div>Yeni marka oluştur</a></div>
       </section>
     </div>`;
 
@@ -110,18 +110,16 @@ export async function renderCenter(view) {
   if (onboard) onboard.addEventListener('submit', async e => {
     e.preventDefault();
     const fd = new FormData(onboard);
+    if (!String(fd.get('name')).trim()) { onboard.name.focus(); return toast('Marka adını yaz.', 'error'); }
     try {
-      const { brand } = await api.createBrand({ name: fd.get('name'), sector: fd.get('sector') });
+      const { brand } = await busy(e.submitter || onboard.querySelector('[type=submit]'), () => api.createBrand({ name: fd.get('name'), sector: fd.get('sector') }));
       await refreshBrands();
       toast('Marka oluşturuldu. Şimdi kimliğini tamamlayalım.', 'success');
       go('#/m/' + brand.id + '/kimlik');
     } catch (err) { toast(err.message, 'error'); }
   });
   const demoBtn = view.querySelector('#demo-btn');
-  if (demoBtn) demoBtn.addEventListener('click', async () => {
-    demoBtn.disabled = true;
-    try { await openDemoBrand(); } catch (err) { toast(err.message, 'error'); demoBtn.disabled = false; }
-  });
+  if (demoBtn) demoBtn.addEventListener('click', () => busy(demoBtn, openDemoBrand).catch(err => toast(err.message, 'error')));
   view.querySelector('#quick-task').addEventListener('submit', async e => {
     e.preventDefault();
     const input = e.target.title;
@@ -135,7 +133,7 @@ export async function renderCenter(view) {
       if (act && act.dataset.act === 'plan') return contentModal({ date: addDays(startOfDay(new Date()), 1).setHours(12), onSaved: refresh });
       if (act && act.dataset.act === 'task') return taskModal({ onSaved: refresh });
       if (act && act.dataset.act === 'note') return noteModal({ onSaved: refresh });
-      if (act && act.dataset.act === 'demo') { act.disabled = true; return await openDemoBrand(); }
+      if (act && act.dataset.act === 'demo') return await busy(act, openDemoBrand);
     } catch (err) { return toast(err.message, 'error'); }
     const item = e.target.closest('[data-content]');
     if (item) {
@@ -173,7 +171,7 @@ function taskRow(t) {
 }
 
 function agenda(items) {
-  if (!items.length) return `<div class="empty small"><div class="em-icon">🗓️</div><h4>Önümüzdeki 7 gün boş</h4><p>Takvimden ya da "İçerik planla" ile yeni içerik ekleyebilirsin.</p></div>`;
+  if (!items.length) return emptyState({ icon: 'calendar', title: 'Önümüzdeki 7 gün boş', text: 'Takvimden ya da "İçerik planla" ile yeni içerik ekleyebilirsin.', compact: true });
   const groups = [];
   items.forEach(c => {
     const day = new Date(c.scheduledAt);

@@ -1,6 +1,6 @@
 // Marka yönetimi (yönetim merkezi katmanı): bütün markalar tek yerde; karta tıklayınca markanın çalışma alanı açılır
 import { api } from '../api.js';
-import { esc, icon, toast, brandAvatar, timeAgo } from '../ui.js';
+import { esc, icon, toast, brandAvatar, timeAgo, pageHead, skeletonPage, busy } from '../ui.js';
 import { go, openDemoBrand } from '../app.js';
 
 // Marka kartı: logo, ad, kategori, kısa açıklama, renkler, son çalışma ve içerik üretim durumu
@@ -10,45 +10,39 @@ export function brandCard(b) {
   return `
     <article class="card brand-card" data-open="${esc(b.id)}" tabindex="0" role="link" aria-label="${esc(b.name)} çalışma alanını aç">
       <div class="b-top">${brandAvatar(b, b.logoUrl, 'avatar-lg')}
-        <div style="min-width:0;flex:1">
-          <div class="b-name">${esc(b.name)}${b.isDemo ? ' <span class="pill" style="margin-left:4px">Örnek</span>' : ''}</div>
-          ${b.sector ? `<span class="tag">${esc(b.sector)}</span>` : '<span class="small muted">Kategori belirtilmedi</span>'}
+        <div class="grow stack-sm" style="gap:4px">
+          <div class="b-name"><span class="truncate">${esc(b.name)}</span></div>
+          <div class="row">${b.sector ? `<span class="tag">${esc(b.sector)}</span>` : '<span class="small muted">Kategori belirtilmedi</span>'}${b.isDemo ? '<span class="pill">Örnek</span>' : ''}</div>
         </div>
         ${colors.length ? `<div class="b-colors">${colors.slice(0, 4).map(c => `<span style="background:${esc(c)}"></span>`).join('')}</div>` : ''}
       </div>
       <p class="b-desc">${esc(b.description || 'Henüz açıklama eklenmedi.')}</p>
       <div>
-        <div class="row" style="justify-content:space-between"><span class="small muted">İçerik üretimi</span><span class="small"><b>${b.contentPending}</b> bekleyen · <b>${b.contentDone}</b> tamamlandı</span></div>
-        <div class="progress" style="margin-top:6px"><span style="width:${pct}%"></span></div>
+        <div class="row-between"><span class="small muted">İçerik üretimi</span><span class="small"><b>${b.contentPending}</b> bekleyen · <b>${b.contentDone}</b> tamamlandı</span></div>
+        <div class="progress mt-2"><span style="width:${pct}%"></span></div>
       </div>
       <div class="b-foot"><span class="small muted">Son çalışma: ${b.lastWorkedAt ? timeAgo(b.lastWorkedAt) : '—'}</span><span class="small muted">${b.ideaCount} fikir · kimlik %${b.completeness.percent}</span></div>
     </article>`;
 }
 
 export async function renderBrands(view) {
-  view.innerHTML = '<div class="brand-grid">' + '<div class="card skeleton" style="height:220px"></div>'.repeat(3) + '</div>';
+  view.innerHTML = skeletonPage({ cards: 3, height: 236 });
   const d = await api.dashboard();
   view.innerHTML = `
-    <div class="page-head">
-      <div><h1>Markalar</h1><p class="muted">Her markanın kimliği, dosyaları, içerikleri ve takvimi birbirinden tamamen ayrı tutulur. Çalışmak istediğin markaya tıkla.</p></div>
-      <div class="row">
-        ${d.brands.some(b => b.isDemo) ? '' : '<button class="btn" data-demo>☕ Örnek marka ekle</button>'}
-        <a class="btn btn-primary" href="#/marka/yeni">${icon('plus')}Yeni marka</a>
-      </div>
-    </div>
+    ${pageHead({
+      title: 'Markalar',
+      desc: 'Her markanın kimliği, dosyaları, içerikleri ve takvimi birbirinden tamamen ayrı tutulur. Çalışmak istediğin markaya tıkla.',
+      actions: `${d.brands.some(b => b.isDemo) ? '' : '<button class="btn btn-ghost" data-demo>☕ Örnek marka ekle</button>'}<a class="btn btn-primary" href="#/marka/yeni">${icon('plus')}Yeni marka</a>`
+    })}
     <div class="brand-grid">
       ${d.brands.map(brandCard).join('')}
-      <a class="card brand-new" href="#/marka/yeni"><div><div style="font-size:26px">＋</div>Yeni marka oluştur</div></a>
+      <a class="card brand-new" href="#/marka/yeni"><div class="empty-icon">${icon('plus')}</div>Yeni marka oluştur</a>
     </div>`;
 
   const open = id => go('#/m/' + id);
   view.onclick = async e => {
     const demo = e.target.closest('[data-demo]');
-    if (demo) {
-      demo.disabled = true;
-      try { await openDemoBrand(); } catch (err) { toast(err.message, 'error'); demo.disabled = false; }
-      return;
-    }
+    if (demo) return busy(demo, openDemoBrand).catch(err => toast(err.message, 'error'));
     const card = e.target.closest('[data-open]');
     if (card) open(card.dataset.open);
   };

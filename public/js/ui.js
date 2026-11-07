@@ -46,7 +46,15 @@ const PATHS = {
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   pin: '<path d="M12 17v5M9 3h6l-1 6 3 3H7l3-3z"/>',
   chevronLeft: '<path d="M15 18l-6-6 6-6"/>',
-  chevronRight: '<path d="M9 18l6-6-6-6"/>'
+  chevronRight: '<path d="M9 18l6-6-6-6"/>',
+  chevronDown: '<path d="M6 9l6 6 6-6"/>',
+  sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 3v4M17 5h4"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/>',
+  alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  star: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/>'
 };
 
 export function icon(name) {
@@ -124,8 +132,43 @@ export function loadFonts(families) {
   });
 }
 
-export function errorBox(err) {
-  return `<div class="notice notice-error"><div><strong>Bir sorun oluştu.</strong> ${esc(err.message || err)}</div></div>`;
+// Hata kutusu: sayfa yüklenemezse anlaşılır mesaj ve "Tekrar dene" (app.js bütün [data-retry] düğmelerini dinler)
+export function errorBox(err, { retry = true } = {}) {
+  return `<div class="card error-card" role="alert"><div class="empty-icon">${icon('alert')}</div><h4>Bir sorun oluştu</h4>
+    <p class="small muted">${esc((err && err.message) || err)}</p>${retry ? '<button class="btn btn-sm mt-2" type="button" data-retry>Tekrar dene</button>' : ''}</div>`;
+}
+
+// Satır içi küçük hata (liste veya kart içinde)
+export function errorNotice(err) {
+  return `<div class="notice notice-error" role="alert"><div><strong>Bir sorun oluştu.</strong> ${esc((err && err.message) || err)}</div></div>`;
+}
+
+// --- Sayfa düzeni: her sayfada aynı başlık yapısı (başlık + açıklama solda, işlemler sağda) ---
+export function pageHead({ title, desc = '', actions = '' }) {
+  return `<header class="page-head"><div class="ph-text"><h1>${esc(title)}</h1>${desc ? `<p>${desc}</p>` : ''}</div>${actions ? `<div class="ph-actions">${actions}</div>` : ''}</header>`;
+}
+
+// Boş durum: ikon, başlık, açıklama ve isteğe bağlı tek işlem. compact: kart içindeki küçük listeler için
+export function emptyState({ icon: iconName = 'inbox', title, text = '', action = '', compact = false, card = false }) {
+  return `<div class="${card ? 'card ' : ''}empty${compact ? ' compact' : ''}"><div class="empty-icon">${icon(iconName)}</div><h4>${esc(title)}</h4>${text ? `<p>${text}</p>` : ''}${action}</div>`;
+}
+
+// Yükleniyor iskeleti: sayfa başlığı + kartlar (sayfanın son hâline benzer yerleşim, ekran zıplamaz)
+export function skeletonPage({ cards = 3, height = 180, head = true } = {}) {
+  return `<div class="sk-page" aria-busy="true" aria-label="Yükleniyor">${head ? '<div class="skeleton sk-head"></div>' : ''}
+    <div class="sk-grid">${`<div class="skeleton" style="height:${height}px"></div>`.repeat(cards)}</div></div>`;
+}
+
+// Düğmede işlem sürerken yükleniyor durumu: çift tıklamayı engeller, bitince eski hâline döner
+export async function busy(btn, fn) {
+  if (!btn) return fn();
+  if (btn.classList.contains('is-loading')) return undefined;
+  btn.classList.add('is-loading');
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  try { return await fn(); } finally {
+    if (btn.isConnected) { btn.classList.remove('is-loading'); btn.disabled = false; btn.removeAttribute('aria-busy'); }
+  }
 }
 
 // --- Tarih yardımcıları (yerel saat) ---
@@ -149,7 +192,7 @@ export function openModal({ title, body, submitLabel = 'Kaydet', onSubmit, dange
   wrap.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <form class="modal-form" novalidate>
-        <div class="modal-head"><h3 id="modal-title">${esc(title)}</h3><button type="button" class="btn btn-ghost icon-btn" data-close aria-label="Kapat">✕</button></div>
+        <div class="modal-head"><h3 id="modal-title">${esc(title)}</h3><button type="button" class="btn btn-ghost icon-btn btn-sm" data-close aria-label="Kapat">${icon('x')}</button></div>
         <div class="modal-body">${body}</div>
         <div class="modal-foot">
           ${danger ? `<button type="button" class="btn btn-danger" data-danger>${esc(danger.label)}</button>` : ''}
@@ -162,19 +205,39 @@ export function openModal({ title, body, submitLabel = 'Kaydet', onSubmit, dange
   document.body.appendChild(wrap);
   const form = wrap.querySelector('form');
   const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
-  const onKey = e => { if (e.key === 'Escape') close(); };
+  // Esc kapatır; Tab odağı pencerenin içinde tutar
+  const onKey = e => {
+    if (e.key === 'Escape') return close();
+    if (e.key !== 'Tab') return;
+    const items = [...wrap.querySelectorAll('button:not([disabled]), [href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled])')];
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
   document.addEventListener('keydown', onKey);
   wrap.addEventListener('mousedown', e => { if (e.target === wrap) close(); });
   wrap.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', close));
-  if (danger) wrap.querySelector('[data-danger]').addEventListener('click', async () => {
+  if (danger) wrap.querySelector('[data-danger]').addEventListener('click', async e => {
     if (danger.confirm && !confirm(danger.confirm)) return;
-    try { await danger.onClick(); close(); } catch (err) { toast(err.message, 'error'); }
+    try { await busy(e.currentTarget, () => danger.onClick()); close(); } catch (err) { toast(err.message, 'error'); }
   });
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    const btn = form.querySelector('[type=submit]');
-    btn.disabled = true;
-    try { await onSubmit(new FormData(form), form); close(); } catch (err) { toast(err.message, 'error'); } finally { btn.disabled = false; }
+    // Zorunlu alanlar pencere içinde gösterilir (bildirim yerine alanın altında)
+    const missing = [...form.querySelectorAll('[required]')].filter(el => !String(el.value).trim());
+    form.querySelectorAll('.field-error').forEach(el => el.remove());
+    form.querySelectorAll('[aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+    if (missing.length) {
+      missing.forEach(el => {
+        el.setAttribute('aria-invalid', 'true');
+        el.insertAdjacentHTML('afterend', '<span class="field-error">Bu alan zorunlu.</span>');
+      });
+      missing[0].focus();
+      return;
+    }
+    try { await busy(form.querySelector('[type=submit]'), () => onSubmit(new FormData(form), form)); close(); } catch (err) { toast(err.message, 'error'); }
   });
   const first = form.querySelector('input:not([type=hidden]), textarea, select');
   if (first) first.focus();

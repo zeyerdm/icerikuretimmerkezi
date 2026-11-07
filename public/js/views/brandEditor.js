@@ -1,6 +1,6 @@
 // Marka dijital kimliği: profil, görsel kimlik (renk, font, canlı önizleme) ve varlık kütüphanesi
 import { api } from '../api.js';
-import { esc, icon, toast, loadFonts, errorBox } from '../ui.js';
+import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy } from '../ui.js';
 import { state, refreshBrands, go, renderChrome } from '../app.js';
 
 const LONG_FIELDS = new Set(['description', 'audience', 'character', 'tone', 'goals', 'competitors']);
@@ -27,7 +27,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     brand = JSON.parse(JSON.stringify(EMPTY_BRAND));
     driveOk = (await api.settings()).drive.configured;
   } else {
-    view.innerHTML = '<div class="card skeleton" style="height:420px"></div>';
+    view.innerHTML = skeletonPage({ cards: 2, height: 420 });
     const [{ brand: b }, { assets }, settings] = await Promise.all([api.brand(brandId), api.assets(brandId, 'logo'), api.settings()]);
     brand = b;
     brand.driveFolder = b.driveFolderUrl || '';
@@ -40,10 +40,11 @@ export async function renderBrandEditor(view, brandId, initialTab) {
 
   function shell() {
     view.innerHTML = `
-      <div class="page-head">
-        <div><h1>${isNew ? 'Yeni marka' : esc(brand.name)}</h1><p class="muted">${isNew ? 'Kimliği bir kez tanımla; bütün üretimler buna göre yapılsın.' : 'Dijital kimlik: asistan ve üretim araçları bu bilgileri kullanır.'}</p></div>
-        ${isNew ? '' : `<button class="btn btn-danger btn-sm" data-action="delete">${icon('trash')}Markayı sil</button>`}
-      </div>
+      ${pageHead({
+        title: isNew ? 'Yeni marka' : brand.name,
+        desc: isNew ? 'Kimliği bir kez tanımla; bütün üretimler buna göre yapılsın.' : 'Dijital kimlik: asistan ve üretim araçları bu bilgileri kullanır.',
+        actions: isNew ? '' : `<button class="btn btn-danger" data-action="delete">${icon('trash')}Markayı sil</button>`
+      })}
       ${isNew ? '' : `<div class="tabs" role="tablist">
         ${[['profil', 'Marka profili'], ['gorsel', 'Görsel kimlik'], ['varliklar', 'Varlık kütüphanesi']].map(([id, label]) =>
           `<button role="tab" data-tab="${id}" class="${tab === id ? 'active' : ''}" aria-selected="${tab === id}">${label}</button>`).join('')}
@@ -82,7 +83,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         <label for="f-drive">Google Drive klasörü</label>
         <div class="drive-row">
           <input class="input" id="f-drive" data-drive value="${esc(draft.driveFolder)}" placeholder="https://drive.google.com/drive/folders/…" autocomplete="off">
-          ${isNew ? '' : `<button type="button" class="btn btn-sm" data-action="drive-test" ${driveOk && brand.driveFolderId ? '' : 'disabled'}>Bağlantıyı test et</button>`}
+          ${isNew ? '' : `<button type="button" class="btn" data-action="drive-test" ${driveOk && brand.driveFolderId ? '' : 'disabled'}>Bağlantıyı test et</button>`}
         </div>
         <span class="hint">Bu markanın dosyaları bu klasöre gönderilir (şimdilik kütüphane görselleri; postlar, başlıklar ve senaryolar geldikçe onlar da). Drive'da klasörü aç, adres çubuğundaki linki kopyalayıp buraya yapıştır. İsteğe bağlı.${driveOk ? '' : ' Gönderebilmek için önce <a href="#/ayarlar">Ayarlar → Google Drive</a> bağlantısını kur.'}</span>
       </div></div>`;
@@ -91,7 +92,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   const colorInput = (path, value, label) => `
     <div class="field"><label>${label}</label>
       <div class="color-field"><input type="color" data-color="${path}" value="${esc(value || '#ffffff')}" aria-label="${label}">
-      <input class="input" data-hex="${path}" value="${esc(value)}" maxlength="7" placeholder="#RRGGBB" style="max-width:120px"></div></div>`;
+      <input class="input" data-hex="${path}" value="${esc(value)}" maxlength="7" placeholder="#RRGGBB"></div></div>`;
 
   const colorList = (key, label, hint) => `
     <div class="field full"><label>${label}</label>
@@ -119,7 +120,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         ${fontSelect('heading', 'Başlık fontu')}
         ${fontSelect('body', 'Gövde fontu')}
       </div>
-      <p class="small muted" style="margin-top:16px">Logo, maskot, sticker ve görselleri <b>Varlık kütüphanesi</b> sekmesinden yükleyebilirsin.</p>`;
+      <p class="small muted mt-4">Logo, maskot, sticker ve görselleri <b>Varlık kütüphanesi</b> sekmesinden yükleyebilirsin.</p>`;
   }
 
   function previewCard() {
@@ -130,7 +131,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       <div class="card">
         <div class="card-head"><h3>Canlı önizleme</h3><span class="small muted">Instagram post</span></div>
         <div class="post-preview" style="background:${esc(bg)}">
-          <div class="row" style="justify-content:space-between">
+          <div class="row-between">
             ${logoUrl ? `<img class="pp-logo" src="${esc(logoUrl)}" alt="">` : `<div class="avatar" style="background:${esc(c.primary || '#5b55e6')}">${esc((draft.name || '?').charAt(0).toLocaleUpperCase('tr-TR'))}</div>`}
             <span class="small" style="color:${esc(c.body || '#3a3f63')};font-family:'${esc(draft.fonts.body)}',sans-serif;font-weight:700">${esc(draft.name || 'Marka adı')}</span>
           </div>
@@ -249,14 +250,14 @@ async function renderAssets(body, brand, driveOk) {
   async function draw() {
     body.innerHTML = `
       <div class="card">
-        <div class="asset-cats">${Object.entries(cats).map(([id, label]) => `<button type="button" class="chip ${id === current ? 'active' : ''}" data-cat="${id}" style="${id === current ? 'border-color:var(--accent);color:var(--accent)' : ''}">${esc(label)}</button>`).join('')}</div>
+        <div class="asset-cats">${Object.entries(cats).map(([id, label]) => `<button type="button" class="chip ${id === current ? 'active' : ''}" data-cat="${id}">${esc(label)}</button>`).join('')}</div>
         <label class="dropzone" id="dropzone">
-          <input type="file" id="asset-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+          <input type="file" id="asset-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple class="sr-only">
           <div>${icon('upload')}</div>
-          <div style="font-weight:700">${esc(cats[current])} yükle</div>
+          <div class="strong">${esc(cats[current])} yükle</div>
           <div class="small">Sürükle bırak ya da tıkla · PNG, JPEG, WEBP, GIF · en fazla ${Math.round(state.meta.maxAssetBytes / 1048576)} MB${current === 'mascot' ? ' · Her poza bir ad ver (ör. Mutlu, Şaşkın)' : ''}</div>
         </label>
-        <div id="asset-grid"><div class="skeleton" style="height:120px;margin-top:16px"></div></div>
+        <div id="asset-grid"><div class="skeleton mt-4" style="height:160px"></div></div>
       </div>`;
     // Yükleme alanı liste beklenmeden hemen bağlanır; seçilen dosya kaybolmaz
     wireUpload();
@@ -272,8 +273,8 @@ async function renderAssets(body, brand, driveOk) {
               ${canSend || a.driveUrl ? `<div class="meta">${a.driveUrl ? `<a class="drive-link" href="${esc(a.driveUrl)}" target="_blank" rel="noopener">✓ Drive'da</a>` : ''}
                 ${canSend ? `<button class="btn btn-sm${a.driveUrl ? ' btn-ghost' : ''}" data-asset-drive="${esc(a.id)}">${a.driveUrl ? 'Tekrar gönder' : 'Drive\'a gönder'}</button>` : ''}</div>` : ''}
             </div>`).join('')}</div>`
-        : `<div class="empty"><div class="em-icon">🖼️</div><h4>Bu kategoride dosya yok</h4><p>Yüklediğin dosyalar yalnızca ${esc(brand.name)} markasında görünür.</p></div>`;
-    } catch (err) { grid.innerHTML = errorBox(err); }
+        : emptyState({ icon: 'image', title: 'Bu kategoride dosya yok', text: `Yüklediğin dosyalar yalnızca ${esc(brand.name)} markasında görünür.`, compact: true });
+    } catch (err) { grid.innerHTML = errorNotice(err); }
     wireGrid();
   }
 
