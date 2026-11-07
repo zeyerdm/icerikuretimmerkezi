@@ -25,7 +25,7 @@ export function createAssistantService({ db, ai, brands, ideas }) {
   function buildPrompt(brand, memory, past, message) {
     const categories = Object.entries(IDEA_CATEGORIES).map(([id, label]) => `${id} (${label})`).join(', ');
     return [
-      "Sen 'İçerik Üretim Merkezi'nin AI içerik asistanısın. Şu an yalnızca aşağıdaki marka için çalışıyorsun.",
+      "Sen 'KREATİFHANE' (Kreatif Yönetim Platformu) uygulamasının AI içerik asistanısın. Şu an yalnızca aşağıdaki marka için çalışıyorsun.",
       'Yanıtlarını bu markanın kimliğine, hedef kitlesine ve iletişim diline göre yaz. Başka markaların bilgisini kullanma, uydurma bilgi verme.',
       '',
       'MARKA HAFIZASI:',

@@ -152,7 +152,7 @@ export function createBackupService({ db, dataDir, settings }) {
     const dbEntry = entries.find(e => e.name === 'app.db');
     let meta = null;
     try { meta = metaEntry && JSON.parse(metaEntry.data.toString('utf8')); } catch { meta = null; }
-    if (!meta || meta.app !== APP || !dbEntry) throw restoreError('Bu dosya İçerik Üretim Merkezi yedeği değil.');
+    if (!meta || meta.app !== APP || !dbEntry) throw restoreError('Bu dosya bir KREATİFHANE yedeği değil.');
     if (dbEntry.data.subarray(0, 16).toString('latin1') !== 'SQLite format 3\0') throw restoreError('Yedekteki veritabanı bozuk.');
 
     const work = path.join(dataDir, `.geri-yukleme-${crypto.randomBytes(6).toString('hex')}`);

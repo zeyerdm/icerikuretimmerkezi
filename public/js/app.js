@@ -145,7 +145,7 @@ export function renderChrome() {
         <a class="btn-side" href="${base}/kimlik">${brand.completeness.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
       </div>`;
   } else {
-    head.innerHTML = '<div class="logo"><div class="logo-mark">✦</div><div>İçerik Üretim<small>Merkezi</small></div></div>';
+    head.innerHTML = '<div class="logo"><img class="logo-mark" src="/img/logo.svg" alt=""><div>KREATİFHANE<small>Kreatif Yönetim Platformu</small></div></div>';
     nav.innerHTML = CENTER_NAV.map(n => navLink(n.hash, n.label, n.icon, r.page === n.page || (n.page === 'brands' && r.page === 'newBrand'))).join('');
     const last = state.brands.find(b => b.id === state.activeBrandId);
     foot.innerHTML = last ? `<div class="side-last"><div class="small">Son çalıştığın marka</div>

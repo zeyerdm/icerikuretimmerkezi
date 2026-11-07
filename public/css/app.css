@@ -101,7 +101,9 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 }
 #side-head { display: flex; flex-direction: column; gap: var(--s-3); }
 .logo { display: flex; align-items: center; gap: var(--s-3); font-weight: 800; font-size: var(--t-md); letter-spacing: -.02em; padding: 0 var(--s-2); min-height: var(--h-control); }
-.logo-mark { width: 36px; height: 36px; border-radius: var(--r-sm); background: rgba(255, 255, 255, .2); display: grid; place-items: center; font-size: var(--t-lg); flex: none; }
+.logo-mark { width: 36px; height: 36px; border-radius: var(--r-sm); display: block; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
+.w-slogan { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--t-xs); font-weight: 700; letter-spacing: .04em; opacity: .85; margin-bottom: var(--s-2); }
+.w-slogan img { width: 18px; height: 18px; border-radius: 5px; }
 .logo small { display: block; font-weight: 600; font-size: var(--t-xs); opacity: .8; letter-spacing: 0; }
 
 .nav { display: flex; flex-direction: column; gap: var(--s-1); overflow-y: auto; min-height: 0; }

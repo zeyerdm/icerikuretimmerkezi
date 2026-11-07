@@ -2,7 +2,7 @@
   "name": "icerik-uretim-merkezi",
   "version": "0.1.0",
   "private": true,
-  "description": "Markadan bağımsız AI içerik üretim asistanı",
+  "description": "KREATİFHANE: Creative Management Platform. Fikirden üretime, her şey tek merkezde.",
   "type": "module",
   "engines": {
     "node": ">=22.13"

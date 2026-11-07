@@ -1,6 +1,10 @@
-# İçerik Üretim Merkezi
+<p align="center"><img src="public/img/logo.svg" width="96" alt="KREATİFHANE logosu"></p>
 
-Markadan bağımsız, AI destekli içerik üretim asistanı. Her marka için dijital kimlik bir kez tanımlanır; içerik fikirlerinden prompt üretimine, Reels senaryosundan post tasarımına kadar bütün süreç aynı marka hafızası üzerinden yürür.
+# KREATİFHANE
+
+**Fikirden üretime, her şey tek merkezde.** · *Creative Management Platform (Kreatif Yönetim Platformu)*
+
+Markadan bağımsız, AI destekli içerik üretim ve yönetim platformu. Her marka için dijital kimlik bir kez tanımlanır; içerik fikirlerinden prompt üretimine, Reels senaryosundan post tasarımına kadar bütün süreç aynı marka hafızası üzerinden yürür.
 
 ## Nasıl çalışır?
 
