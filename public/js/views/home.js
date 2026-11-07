@@ -1,6 +1,6 @@
 // Ana ekran: AI asistanı merkezde; yanında marka kimliği, son fikirler ve son çalışmalar
 import { api } from '../api.js';
-import { esc, icon, toast, timeAgo, errorBox, ring, bucketByDay } from '../ui.js';
+import { esc, icon, toast, timeAgo, errorNotice, ring, bucketByDay, emptyState, busy } from '../ui.js';
 import { state, refreshBrands } from '../app.js';
 
 // Hızlı işlemler asistana hazır bir istek gönderir (marka hafızasıyla çalışır)
@@ -19,7 +19,7 @@ const CHIPS = [
 
 // Marka çalışma alanının ana sayfası: AI asistanı merkezde; yanında marka kimliği, fikir grafiği, son fikirler
 export async function renderHome(view, brand) {
-  view.innerHTML = '<div class="home"><div class="stack"><div class="card skeleton" style="height:180px"></div><div class="card skeleton" style="height:420px"></div></div><div class="stack"><div class="card skeleton" style="height:240px"></div></div></div>';
+  view.innerHTML = '<div class="home" aria-busy="true"><div class="stack"><div class="skeleton" style="height:184px"></div><div class="skeleton" style="height:132px"></div><div class="skeleton" style="height:420px"></div></div><div class="stack"><div class="skeleton" style="height:240px"></div><div class="skeleton" style="height:240px"></div></div></div>';
   const [overview, chat] = await Promise.all([api.overview(brand.id), api.chat(brand.id)]);
   if (state.workspaceBrandId !== brand.id) return; // yüklenirken başka sayfaya geçildiyse eski çizimi bırak
   const aiReady = state.settings.ai.configured;
@@ -38,26 +38,26 @@ export async function renderHome(view, brand) {
           ${overview.mascotUrl ? `<img class="hero-mascot" src="${esc(overview.mascotUrl)}" alt="">` : ''}
         </section>
 
-        <div class="quick">
-          ${QUICK.map((q, i) => `<button type="button" data-quick="${i}" ${aiReady ? '' : 'disabled'}><span class="q-icon">${q.icon}</span><span class="q-title">${q.title}</span><span class="q-sub">${q.sub}</span></button>`).join('')}
-        </div>
+        ${aiReady ? `<div class="quick">
+          ${QUICK.map((q, i) => `<button type="button" data-quick="${i}"><span class="q-icon">${q.icon}</span><span class="q-title">${q.title}</span><span class="q-sub">${q.sub}</span></button>`).join('')}
+        </div>` : ''}
 
-        <div class="stats">
-          <div class="stat s1"><div class="s-num">${overview.ideaCount}</div><div class="s-label">İçerik fikri</div><div class="s-sub">fikir havuzunda</div></div>
-          <div class="stat s2"><div class="s-num">${overview.favoriteCount}</div><div class="s-label">Favori</div><div class="s-sub">beğenilen fikir</div></div>
-          <div class="stat s3"><div class="s-num">${overview.assetTotal}</div><div class="s-label">Varlık</div><div class="s-sub">logo, maskot, görsel</div></div>
+        <div class="kpis three">
+          <a class="kpi k1" href="#/m/${esc(brand.id)}/fikirler"><div class="kpi-icon">${icon('idea')}</div><div class="kpi-num">${overview.ideaCount}</div><div class="kpi-label">İçerik fikri</div><div class="kpi-sub">fikir havuzunda</div></a>
+          <a class="kpi k3" href="#/m/${esc(brand.id)}/fikirler"><div class="kpi-icon">${icon('star')}</div><div class="kpi-num">${overview.favoriteCount}</div><div class="kpi-label">Favori</div><div class="kpi-sub">beğenilen fikir</div></a>
+          <a class="kpi k4" href="#/m/${esc(brand.id)}/kutuphane"><div class="kpi-icon">${icon('image')}</div><div class="kpi-num">${overview.assetTotal}</div><div class="kpi-label">Varlık</div><div class="kpi-sub">logo, maskot, görsel</div></a>
         </div>
 
         <section class="card chat" aria-label="AI asistanı">
           <div class="chat-head">
             <div class="ai-badge">✦</div>
-            <div style="flex:1"><h3 style="font-size:15px">AI Asistanı</h3><div class="small muted">${esc(brand.name)} marka hafızasıyla çalışıyor</div></div>
+            <div class="grow"><h3>AI Asistanı</h3><div class="xsmall muted">${esc(brand.name)} marka hafızasıyla çalışıyor</div></div>
             ${chat.messages.length ? `<button class="btn btn-sm btn-ghost" data-action="new-chat">${icon('refresh')}Yeni sohbet</button>` : ''}
           </div>
           <div class="chat-body" id="chat-body"></div>
           <div class="chat-foot">
-            ${aiReady ? '' : `<div class="notice"><div><strong>AI bağlı değil.</strong> Asistanın çalışması için Gemini API anahtarını ekle. Anahtar yalnızca bu bilgisayardaki sunucuda saklanır.</div><a class="btn btn-sm" href="#/ayarlar">Ayarlara git</a></div>`}
-            <div class="chips">${CHIPS.map(c => `<button type="button" class="chip" data-chip="${esc(c)}" ${aiReady ? '' : 'disabled'}>${esc(c)}</button>`).join('')}</div>
+            ${aiReady ? `<div class="chips">${CHIPS.map(c => `<button type="button" class="chip" data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
+              : `<div class="notice"><div><strong>AI bağlı değil.</strong> Asistanın ve hızlı işlemlerin çalışması için Gemini API anahtarını ekle. Anahtar yalnızca bu bilgisayardaki sunucuda saklanır.</div><a class="btn btn-sm" href="#/ayarlar">Ayarlara git</a></div>`}
             <form class="composer" id="composer">
               <textarea class="textarea" id="chat-input" rows="1" placeholder="${aiReady ? 'Örn: Bu marka için haftaya 5 fikir üret' : 'Önce AI bağlantısını kur'}" ${aiReady ? '' : 'disabled'} maxlength="4000"></textarea>
               <button class="btn btn-primary" type="submit" ${aiReady ? '' : 'disabled'} aria-label="Gönder">${icon('send')}</button>
@@ -76,8 +76,8 @@ export async function renderHome(view, brand) {
         <section class="card activity">
           <div class="card-head"><h3>Son çalışmalar</h3></div>
           ${overview.activity.length
-            ? `<ul>${overview.activity.map(a => `<li><span class="a-dot"></span><div>${esc(a.summary)}<div class="muted small">${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>`
-            : '<p class="muted small">Henüz bir çalışma yok.</p>'}
+            ? `<ul>${overview.activity.slice(0, 6).map(a => `<li><span class="a-dot"></span><div>${esc(a.summary)}<div class="muted xsmall">${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>`
+            : emptyState({ icon: 'refresh', title: 'Henüz bir çalışma yok', compact: true })}
         </section>
       </div>
     </div>`;
@@ -100,8 +100,8 @@ function demoGuide(brand, aiReady) {
   ];
   return `
     <section class="card demo-guide">
-      <div class="card-head"><h3>🧭 Örnek marka: nasıl kullanılır?</h3><span class="pill">Örnek</span></div>
-      <p class="small muted" style="margin-bottom:12px">${esc(brand.name)} kurgusal bir kafe. Bütün bilgileri hazır doldurulmuş; uygulamanın parçalarının nasıl birlikte çalıştığını görmek için adımları sırayla dene.</p>
+      <div class="card-head"><h3>Örnek marka: nasıl kullanılır?</h3><span class="pill">Örnek</span></div>
+      <p class="small muted mb-4">${esc(brand.name)} kurgusal bir kafe. Bütün bilgileri hazır doldurulmuş; uygulamanın parçalarının nasıl birlikte çalıştığını görmek için adımları sırayla dene.</p>
       <ol class="steps">${steps.map(([n, t, d, action]) => `<li><span class="step-n">${n}</span><div><div class="step-t">${t}</div><div class="small muted">${d}</div></div>${action}</li>`).join('')}</ol>
     </section>`;
 }
@@ -114,13 +114,13 @@ function identityCard(brand, overview) {
       <div class="card-head"><h3>Dijital kimlik</h3>${colors.length ? `<div class="swatches">${colors.slice(0, 5).map(col => `<span class="swatch" style="background:${esc(col)}" title="${esc(col)}"></span>`).join('')}</div>` : ''}</div>
       <div class="identity">
         ${ring(c.percent)}
-        <div style="min-width:0">
-          <div style="font-weight:800">${esc(brand.name)}</div>
+        <div class="grow">
+          <div class="strong truncate">${esc(brand.name)}</div>
           <div class="small muted">${esc(brand.slogan || brand.sector || 'Sektör ve slogan eklenmedi')}</div>
-          ${c.missing.length ? `<p class="small muted" style="margin-top:8px">Eksik: ${esc(c.missing.slice(0, 3).join(', '))}${c.missing.length > 3 ? '…' : ''}</p>` : '<p class="small" style="margin-top:8px;color:var(--teal);font-weight:700">Kimlik tamam ✓</p>'}
+          ${c.missing.length ? `<p class="xsmall muted mt-2">Eksik: ${esc(c.missing.slice(0, 3).join(', '))}${c.missing.length > 3 ? '…' : ''}</p>` : '<p class="small strong mt-2" style="color:var(--teal-ink)">Kimlik tamam ✓</p>'}
         </div>
       </div>
-      <a class="btn btn-sm" style="margin-top:14px;width:100%" href="#/m/${esc(brand.id)}/kimlik">${c.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
+      <a class="btn btn-sm w-full mt-4" href="#/m/${esc(brand.id)}/kimlik">${c.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
     </section>`;
 }
 
@@ -144,11 +144,11 @@ function ideaChart(times) {
 }
 
 function ideaList(ideas) {
-  if (!ideas.length) return '<div class="empty small"><div class="em-icon">💡</div><h4>Henüz fikir yok</h4><p>Asistandan fikir iste; ürettikleri buraya kaydedilir.</p></div>';
+  if (!ideas.length) return emptyState({ icon: 'idea', title: 'Henüz fikir yok', text: 'Asistandan fikir iste; ürettikleri buraya kaydedilir.', compact: true });
   return `<div class="idea-list">${ideas.map(i => `
     <div class="idea">
       <button class="star ${i.favorite ? 'on' : ''}" data-fav="${esc(i.id)}" aria-label="${i.favorite ? 'Favoriden çıkar' : 'Favorilere ekle'}" aria-pressed="${i.favorite}">★</button>
-      <div><div class="i-title">${esc(i.title)}</div>${i.description ? `<div class="i-desc">${esc(i.description)}</div>` : ''}<span class="tag" style="margin-top:6px">${esc(i.categoryLabel)}</span></div>
+      <div><div class="i-title">${esc(i.title)}</div>${i.description ? `<div class="i-desc">${esc(i.description)}</div>` : ''}<span class="tag">${esc(i.categoryLabel)}</span></div>
     </div>`).join('')}</div>`;
 }
 
@@ -196,7 +196,7 @@ function wire(view, brand, body) {
       body.querySelector('#typing').remove();
       body.lastElementChild.remove(); // gönderilemeyen mesaj geri alınır, metin kutuya döner
       input.value = message;
-      body.insertAdjacentHTML('beforeend', `<div class="msg msg-assistant">${errorBox(err)}</div>`);
+      body.insertAdjacentHTML('beforeend', `<div class="msg msg-assistant">${errorNotice(err)}</div>`);
       if (err.code === 'AI_NOT_CONFIGURED') toast("AI bağlı değil: Ayarlar'dan anahtar ekle.", 'error');
     } finally {
       busy = false;
@@ -226,9 +226,10 @@ function wire(view, brand, body) {
       } catch (err) { toast(err.message, 'error'); }
       return;
     }
-    if (e.target.closest('[data-action="new-chat"]')) {
+    const newChat = e.target.closest('[data-action="new-chat"]');
+    if (newChat) {
       if (!confirm('Bu markanın sohbet geçmişi silinsin mi? Kaydedilen fikirler silinmez.')) return;
-      try { await api.clearChat(brand.id); renderHome(view, brand); } catch (err) { toast(err.message, 'error'); }
+      try { await busy(newChat, () => api.clearChat(brand.id)); renderHome(view, brand); } catch (err) { toast(err.message, 'error'); }
     }
   };
 }

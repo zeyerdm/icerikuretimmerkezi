@@ -1,6 +1,6 @@
 // Görevler (yönetim merkezi): hızlı ekleme, son tarih ve önceliğe göre gruplama, marka filtresi, tamamlananlar
 import { api } from '../api.js';
-import { esc, icon, toast, fmtDate, dateKey, addDays, startOfWeek } from '../ui.js';
+import { esc, icon, toast, fmtDate, dateKey, addDays, startOfWeek, pageHead, emptyState, busy } from '../ui.js';
 import { state } from '../app.js';
 import { taskModal } from './forms.js';
 
@@ -41,25 +41,24 @@ export async function renderTasks(view) {
     const open = tasks.filter(t => !t.done);
     const done = tasks.filter(t => t.done);
     view.innerHTML = `
-      <div class="page-head">
-        <div><h1>Görevler</h1><p class="muted">${open.length} açık görev${done.length ? ` · ${done.length} tamamlandı` : ''}</p></div>
-        <button class="btn btn-primary" data-new>${icon('plus')}Yeni görev</button>
-      </div>
-      <form class="card quick-task" id="quick-task">
+      ${pageHead({
+        title: 'Görevler',
+        desc: `${open.length} açık görev${done.length ? ` · ${done.length} tamamlandı` : ''}. Hızlı ekle, son tarihe göre takip et.`,
+        actions: `<select class="select w-auto" id="task-brand" aria-label="Marka filtresi"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>
+          <button class="btn btn-primary" data-new>${icon('plus')}Yeni görev</button>`
+      })}
+      <form class="card quick-row" id="quick-task">
         <input class="input" name="title" placeholder="Görev ekle… (Enter)" maxlength="200" aria-label="Görev">
         <input class="input" type="date" name="dueDate" aria-label="Son tarih">
         <select class="select" name="priority" aria-label="Öncelik">${Object.entries(state.meta.taskPriorities).map(([k, v]) => `<option value="${k}" ${k === 'orta' ? 'selected' : ''}>${esc(v)} öncelik</option>`).join('')}</select>
         <select class="select" name="brandId" aria-label="İlgili marka"><option value="">Markasız</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>
-        <button class="btn btn-primary" type="submit">Ekle</button>
+        <button class="btn" type="submit">${icon('plus')}Ekle</button>
       </form>
-      <div class="filter-row">
-        <select class="select" id="task-brand" aria-label="Marka filtresi" style="width:auto"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>
-      </div>
       ${open.length ? GROUPS.map(([key, label]) => {
         const list = open.filter(t => groupOf(t) === key);
         return list.length ? `<section class="task-group"><h3 class="tg-title ${key}">${label} <span>${list.length}</span></h3><ul class="task-list card">${list.map(row).join('')}</ul></section>` : '';
-      }).join('') : '<div class="card empty"><div class="em-icon">✅</div><h4>Açık görev yok</h4><p>Yukarıdan hızlıca görev ekleyebilirsin.</p></div>'}
-      ${done.length ? `<section class="task-group"><button class="tg-toggle" data-show-done aria-expanded="${showDone}">${showDone ? '▾' : '▸'} Tamamlanan görevler (${done.length})</button>
+      }).join('') : emptyState({ icon: 'check', title: brandFilter ? 'Bu markada açık görev yok' : 'Açık görev yok', text: 'Yukarıdaki satırdan hızlıca görev ekleyebilirsin.', card: true })}
+      ${done.length ? `<section class="task-group"><button class="tg-toggle" data-show-done aria-expanded="${showDone}">${icon(showDone ? 'chevronDown' : 'chevronRight')}Tamamlanan görevler (${done.length})</button>
         ${showDone ? `<ul class="task-list card">${done.map(row).join('')}</ul>` : ''}</section>` : ''}`;
 
     view.querySelector('#quick-task').addEventListener('submit', async e => {
@@ -67,7 +66,7 @@ export async function renderTasks(view) {
       const fd = new FormData(e.target);
       if (!String(fd.get('title')).trim()) return;
       try {
-        await api.createTask({ title: fd.get('title'), dueDate: fd.get('dueDate') || null, priority: fd.get('priority'), brandId: fd.get('brandId') || null });
+        await busy(e.submitter, () => api.createTask({ title: fd.get('title'), dueDate: fd.get('dueDate') || null, priority: fd.get('priority'), brandId: fd.get('brandId') || null }));
         toast('Görev eklendi.', 'success');
         await draw();
         view.querySelector('#quick-task [name=title]').focus();

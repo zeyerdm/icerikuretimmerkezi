@@ -267,7 +267,7 @@ test('örnek markayla keşfet: rehber, takvim içerikleri, görevler, asistan', 
   try {
     await page.goto(srv.base + '/');
     await page.getByRole('button', { name: '☕ Örnek markayla keşfet' }).click();
-    await page.getByRole('heading', { name: '🧭 Örnek marka: nasıl kullanılır?' }).waitFor();
+    await page.getByRole('heading', { name: 'Örnek marka: nasıl kullanılır?' }).waitFor();
     assert.ok((await page.locator('.side-brand').textContent()).includes('%100'));
     await page.getByRole('link', { name: 'Kütüphane', exact: true }).first().click();
     await page.getByRole('button', { name: 'Maskot pozu' }).click();
@@ -320,7 +320,7 @@ test('ayarlar → yedekler: yedek al, listede gör, değişikliği geri yükleye
     // Yedekten sonra marka silinir; geri yüklenince geri gelir
     const id = (await srv.request('GET', '/api/brands')).data.brands[0].id;
     await srv.request('DELETE', '/api/brands/' + id);
-    await page.getByRole('button', { name: 'Geri yükle' }).first().click();
+    await page.locator('#backup-table').getByRole('button', { name: 'Geri yükle' }).first().click();
     await page.getByRole('dialog').getByRole('button', { name: 'Geri yükle' }).click();
     await page.getByText('Geri yükleme tamamlandı.').waitFor();
     assert.match(await page.locator('#backup-result').textContent(), /1 marka/);
@@ -384,6 +384,70 @@ test('Google Drive: ayarlardan bağlan, markaya klasör linki ekle, test et, kü
     await page.getByRole('button', { name: 'Drive\'a gönder' }).click();
     await page.getByRole('link', { name: '✓ Drive\'da' }).waitFor();
     assert.equal(await page.getByRole('link', { name: '✓ Drive\'da' }).getAttribute('href'), 'https://drive.google.com/file/d/f1/view');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('tasarım kuralları: düğme boyları, her sayfada aynı başlık yapısı, klavyeyle kullanım, pencere içi uyarılar', { skip }, async () => {
+  const srv = await startServer();
+  const { browser, page, problems } = await open(srv);
+  try {
+    const brand = (await srv.request('POST', '/api/brands/demo')).data.brand;
+    const pages = ['#/markalar', '#/takvim', '#/gorevler', '#/notlar', '#/analizler', '#/ayarlar',
+      `#/m/${brand.id}/kimlik`, `#/m/${brand.id}/fikirler`, `#/m/${brand.id}/takvim`, `#/m/${brand.id}/arsiv`, `#/m/${brand.id}/analiz`];
+    for (const hash of pages) {
+      await page.goto(srv.base + '/' + hash);
+      await page.locator('.page-head h1').waitFor();
+      // Her sayfada tek başlık yapısı: başlık + açıklama (+ işlemler)
+      assert.equal(await page.locator('.page-head').count(), 1, hash + ': sayfa başlığı yok ya da birden fazla');
+      assert.equal(await page.locator('.page-head .ph-text > p').count(), 1, hash + ': açıklama yok');
+      // Düğmeler yalnızca iki boyda: 40 (normal) ve 32 (küçük)
+      const heights = await page.locator('#view .btn:visible').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().height)));
+      const odd = [...new Set(heights)].filter(h => h !== 40 && h !== 32);
+      assert.deepEqual(odd, [], `${hash}: beklenmeyen düğme yüksekliği ${odd}`);
+      // Sayfa başlığındaki birincil düğme sayısı en fazla bir
+      assert.ok(await page.locator('.page-head .btn-primary').count() <= 1, hash + ': birden fazla birincil düğme');
+    }
+
+    // Takvim: gün hücresine klavyeyle gelip Enter ile içerik planlanır
+    await page.goto(srv.base + '/#/takvim');
+    const cell = page.locator('.cal-cell').nth(15);
+    await cell.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('dialog').waitFor();
+    // Zorunlu alan boşken kaydedilmez; uyarı alanın altında görünür
+    await page.getByLabel('Başlık *').fill('');
+    await page.getByRole('dialog').getByRole('button', { name: 'Planla' }).click();
+    await page.getByRole('dialog').getByText('Bu alan zorunlu.').waitFor();
+    assert.equal(await page.getByLabel('Başlık *').getAttribute('aria-invalid'), 'true');
+    // Tab odağı pencerenin içinde tutar
+    for (let i = 0; i < 15; i++) await page.keyboard.press('Tab');
+    assert.ok(await page.evaluate(() => Boolean(document.activeElement.closest('.modal'))), 'odak pencereden çıktı');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('dialog').count(), 0);
+
+    // Yüklenemeyen sayfa: anlaşılır hata ve "Tekrar dene"
+    await page.route('**/api/tasks*', r => r.fulfill({ status: 500, contentType: 'application/json', body: '{"error":{"message":"Deneme hatası"}}' }), { times: 1 });
+    await page.goto(srv.base + '/#/gorevler');
+    await page.getByText('Deneme hatası').waitFor();
+    await page.getByRole('button', { name: 'Tekrar dene' }).click();
+    await page.getByRole('heading', { name: 'Görevler' }).waitFor();
+    assert.deepEqual(problems.filter(p => !p.includes('500')), []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('tablet genişliği: kenar çubuğu ikonlara iner, menü ögeleri erişilebilir adlıdır', { skip }, async () => {
+  const srv = await startServer();
+  const { browser, page, problems } = await open(srv, { width: 900, height: 1000 });
+  try {
+    await srv.request('POST', '/api/brands', { name: 'Tablet Markası' });
+    await page.goto(srv.base + '/#/');
+    await page.locator('.kpis').waitFor();
+    const w = await page.locator('.sidebar').evaluate(e => e.getBoundingClientRect().width);
+    assert.ok(w < 100, 'kenar çubuğu daralmadı: ' + w);
+    assert.ok(await page.getByRole('link', { name: 'Görevler' }).isVisible());
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(overflow <= 0, 'yatay taşma: ' + overflow);
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

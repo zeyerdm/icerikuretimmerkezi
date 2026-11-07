@@ -17,16 +17,16 @@ Hedef: veriler tek bilgisayarda durduğu ve uygulama kendini güncellediği içi
 
 ## Aşama 1 — Arayüz ve kullanım düzeni (UX/UI)
 
-Hedef: bütün sayfalarda aynı ölçü, hizalama ve düğme dili; karmaşa yerine sade, hizalı, öngörülebilir ekranlar.
+Hedef: bütün sayfalarda aynı ölçü, hizalama ve düğme dili; karmaşa yerine sade, hizalı, öngörülebilir ekranlar. Kurallar: [docs/TASARIM.md](TASARIM.md)
 
-- ⬜ **1.1 Tasarım kuralları:** tek boşluk ölçeği (4-8-12-16-24-32), tek köşe yuvarlaklığı seti, yazı boyutu ölçeği, tek ikon boyutu; bunlar CSS değişkenlerine bağlanır, sayfalardaki rastgele değerler temizlenir.
-- ⬜ **1.2 Düğme sistemi:** tek tip birincil / ikincil / sessiz / tehlikeli düğme; iki boy (normal, küçük); her alanda tek birincil düğme; üzerine gelme, odak, devre dışı ve "yükleniyor" durumları; ikonlu ve ikonsuz düğmelerin hizası.
-- ⬜ **1.3 Hizalama ve ızgara:** bütün sayfalar aynı içerik genişliği ve kenar boşluğu; aynı satırdaki kartların eşit yükseklikte olması, başlıklarının ve alt çizgilerinin aynı hizadan başlayıp bitmesi; sayfa başlığı + açıklama + işlem düğmesi düzeni her sayfada aynı.
-- ⬜ **1.4 Formlar ve pencereler:** etiket, alan, yardım metni ve hata mesajı düzeni tek tip; hızlı ekleme satırları (görev, not, fikir) aynı yapıda; pencerelerin üst/alt alanları ve düğme sırası sabit.
-- ⬜ **1.5 Kenar çubuğu ve üst çubuk:** yönetim merkezi ve marka alanı menülerinin aynı ritimde olması, "Yakında" öğelerinin sade görünmesi, konum çubuğu ve marka değiştiricinin hizası.
-- ⬜ **1.6 Sayfa sayfa düzeltme:** Yönetim Merkezi, Markalar, Takvim, Görevler, Notlar, Analizler, Ayarlar, marka ana sayfası, dijital kimlik, fikirler, kütüphane, arşiv. Her sayfa için önce/sonra ekran görüntüsü.
-- ⬜ **1.7 Boş, yükleniyor ve hata durumları:** her listede tutarlı boş durum, iskelet yükleme ve anlaşılır hata kutusu.
-- ⬜ **1.8 Dar ekran ve erişilebilirlik:** telefon/tablet kırılımları, klavye ile gezinme, odak çerçeveleri, renk kontrastı kontrolü.
+- ✅ **1.1 Tasarım kuralları:** tek boşluk ölçeği (4-8-12-16-24-32-48), tek köşe seti (8-12-16-20-28), yazı ölçeği, iki kontrol yüksekliği (40/32), iki ikon boyu; stil dosyası bu değişkenlerle baştan yazıldı, sayfalardaki satır içi stiller temizlendi.
+- ✅ **1.2 Düğme sistemi:** birincil / ikincil / sessiz / tehlikeli; iki boy; bir alanda tek birincil düğme; üzerine gelme, odak, devre dışı ve "yükleniyor" durumları; ikonlu düğmelerde aynı hiza.
+- ✅ **1.3 Hizalama ve ızgara:** bütün sayfalar aynı içerik genişliği (1280) ve kenar boşluğu; üst çubuk içerikle aynı hizada; aynı satırdaki kartlar eşit yükseklikte, alt işlemleri aynı çizgide; her sayfada aynı başlık yapısı.
+- ✅ **1.4 Formlar ve pencereler:** bütün alanlar 40 px, tek tip etiket/yardım/hata düzeni; hızlı ekleme satırları aynı yapıda; pencerede sabit üst/alt alan, düğme sırası [Sil] … [Vazgeç] [Kaydet], zorunlu alan uyarısı alanın altında.
+- ✅ **1.5 Kenar çubuğu ve üst çubuk:** iki menü aynı ritimde (40 px satırlar); "Yakında" modülleri ayrı başlık altında sade; konum çubuğu, marka değiştirici ve AI durumu aynı hizada.
+- ✅ **1.6 Sayfa sayfa düzeltme:** bütün sayfalar yeni düzene geçirildi; okunmayan renkli sayaç kutuları (beyaz yazı sarı zeminde) açık zemin + koyu yazıya çevrildi; AI bağlı değilken soluk ve işlevsiz hızlı işlem kutuları yerine tek uyarı; önce/sonra ekran görüntüleri.
+- ✅ **1.7 Boş, yükleniyor ve hata durumları:** her listede aynı boş durum (ikon + başlık + açıklama), sayfaya benzeyen iskelet yükleme, "Tekrar dene" düğmeli hata kutusu.
+- ✅ **1.8 Dar ekran ve erişilebilirlik:** tablette ikonlu kenar çubuğu, telefonda üst menü şeridi; takvim günleri klavyeyle planlanır, pencerede odak içeride kalır, dosya seçiciler klavyeyle açılır, görünür odak çerçeveleri, renk kontrastı düzeltmeleri; bunlar testlerle denetlenir.
 
 ## Aşama 2 — Yapay zekâ seçimi
 

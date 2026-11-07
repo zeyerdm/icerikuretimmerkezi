@@ -73,7 +73,7 @@ export function noteModal({ note, brandId, categories = [], onSaved }) {
     body: `
       <div class="form-grid">
         <div class="field full"><label for="n-title">Başlık</label><input class="input" id="n-title" name="title" maxlength="120" value="${esc(n.title || '')}"></div>
-        <div class="field full"><label for="n-body">Not *</label><textarea class="textarea" id="n-body" name="body" required maxlength="5000" style="min-height:140px">${esc(n.body || '')}</textarea></div>
+        <div class="field full"><label for="n-body">Not *</label><textarea class="textarea" id="n-body" name="body" required maxlength="5000" rows="6">${esc(n.body || '')}</textarea></div>
         <div class="field"><label for="n-cat">Kategori</label><input class="input" id="n-cat" name="category" maxlength="40" list="note-cats" value="${esc(n.category || '')}" placeholder="Ör. Fikir, Toplantı"><datalist id="note-cats">${categories.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
         <div class="field"><label for="n-brand">İlgili marka</label><select class="select" id="n-brand" name="brandId">${brandOptions(n.brandId || brandId || '', { allowNone: true })}</select></div>
         <label class="check full"><input type="checkbox" name="pinned" ${n.pinned ? 'checked' : ''}> Sabitle (en üstte görünsün)</label>

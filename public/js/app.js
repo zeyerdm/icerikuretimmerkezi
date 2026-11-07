@@ -3,7 +3,7 @@
 //   Katman 2 — Marka çalışma alanı (#/m/<markaId>/...): markanın kendi renkleri, logosu, maskotu ve alt menüsü
 // Bir markanın teması yalnızca kendi çalışma alanında uygulanır; yönetim merkezine dönünce sabit renklere geçilir.
 import { api } from './api.js';
-import { esc, icon, toast, brandAvatar, applyBrandTheme, errorBox } from './ui.js';
+import { esc, icon, toast, brandAvatar, applyBrandTheme, errorBox, emptyState, skeletonPage } from './ui.js';
 import { renderCenter } from './views/center.js';
 import { renderHome } from './views/home.js';
 import { renderBrands } from './views/brands.js';
@@ -107,7 +107,7 @@ export function parseRoute(hash = location.hash || '#/') {
 }
 
 function navLink(href, label, iconName, active) {
-  return `<a href="${href}" class="${active ? 'active' : ''}" aria-label="${esc(label)}" ${active ? 'aria-current="page"' : ''}>${icon(iconName)}<span>${esc(label)}</span></a>`;
+  return `<a href="${href}" class="${active ? 'active' : ''}" aria-label="${esc(label)}" title="${esc(label)}" ${active ? 'aria-current="page"' : ''}>${icon(iconName)}<span>${esc(label)}</span></a>`;
 }
 
 export function renderChrome() {
@@ -124,9 +124,10 @@ export function renderChrome() {
     head.innerHTML = `
       <a class="back-link" href="#/" aria-label="Yönetim Merkezine dön">${icon('back')}<span>Yönetim Merkezi</span></a>
       <div class="ws-brand">${brandAvatar(brand, brand.logoUrl)}<div style="min-width:0"><div class="ws-name">${esc(brand.name)}</div><div class="ws-sub">Marka çalışma alanı</div></div></div>`;
-    nav.innerHTML = BRAND_NAV.map(n => n.soon
-      ? `<span class="nav-soon" aria-disabled="true" title="Bu modül sıradaki aşamada geliyor">${icon(n.icon)}<span>${esc(n.label)}</span><em>Yakında</em></span>`
-      : navLink(base + n.path, n.label, n.icon, r.page === n.page)).join('');
+    // Hazır modüller üstte; sıradaki aşamalarda gelecekler altta "Yakında" başlığıyla, tıklanamaz
+    nav.innerHTML = BRAND_NAV.filter(n => !n.soon).map(n => navLink(base + n.path, n.label, n.icon, r.page === n.page)).join('') +
+      '<div class="nav-group" aria-hidden="true">Yakında</div>' +
+      BRAND_NAV.filter(n => n.soon).map(n => `<span class="nav-soon" aria-disabled="true" title="${esc(n.label)}: sıradaki aşamada geliyor">${icon(n.icon)}<span>${esc(n.label)}</span></span>`).join('');
     const initial = esc(brand.name.trim().charAt(0).toLocaleUpperCase('tr-TR'));
     foot.innerHTML = `<div class="side-brand">
         ${brand.mascotUrl ? `<img class="mascot" src="${esc(brand.mascotUrl)}" alt="">` : `<div class="mascot-fallback">${initial}</div>`}
@@ -187,7 +188,7 @@ export async function route() {
 
   try {
     if (r.layer === 'brand') {
-      if (!brand) { view.innerHTML = '<div class="card empty"><h4>Marka bulunamadı</h4><p><a href="#/">Yönetim Merkezine dön</a></p></div>'; return; }
+      if (!brand) { view.innerHTML = emptyState({ icon: 'brands', title: 'Marka bulunamadı', text: 'Silinmiş olabilir.', action: '<a class="btn btn-sm" href="#/">Yönetim Merkezine dön</a>', card: true }); return; }
       selectBrand(brand.id).catch(() => {});
       if (r.page === 'home') await renderHome(view, brand);
       else if (r.page === 'kimlik') await renderBrandEditor(view, brand.id, r.tab);
@@ -196,7 +197,7 @@ export async function route() {
       else if (r.page === 'takvim') await renderCalendar(view, { brand });
       else if (r.page === 'arsiv') await renderArchive(view, brand);
       else if (r.page === 'analiz') await renderAnalytics(view, { brand });
-      else view.innerHTML = '<div class="card empty"><h4>Sayfa bulunamadı</h4></div>';
+      else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;
     }
     if (r.page === 'center') await renderCenter(view);
@@ -207,7 +208,7 @@ export async function route() {
     else if (r.page === 'notes') await renderNotes(view);
     else if (r.page === 'analytics') await renderAnalytics(view, {});
     else if (r.page === 'settings') await renderSettings(view);
-    else view.innerHTML = '<div class="card empty"><h4>Sayfa bulunamadı</h4><p><a href="#/">Yönetim Merkezine dön</a></p></div>';
+    else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: '<a class="btn btn-sm" href="#/">Yönetim Merkezine dön</a>', card: true });
   } catch (err) {
     view.innerHTML = errorBox(err);
   }
@@ -215,7 +216,9 @@ export async function route() {
 
 async function start() {
   const view = document.getElementById('view');
-  view.innerHTML = '<div class="skeleton" style="height:160px"></div>';
+  view.innerHTML = skeletonPage();
+  // Bir sayfa yüklenemediyse "Tekrar dene" aynı sayfayı yeniden çizer
+  view.addEventListener('click', e => { if (e.target.closest('[data-retry]')) route(); }, true);
   try {
     state.meta = await api.meta();
     await refreshBrands();

@@ -1,6 +1,6 @@
 // Marka arşivi: markanın bütün içerikleri (planlanan, hazırlanan, tamamlanan, yayınlanan); süzme ve arama
 import { api } from '../api.js';
-import { esc, icon, fmtDate, timeStr } from '../ui.js';
+import { esc, icon, fmtDate, timeStr, pageHead, emptyState } from '../ui.js';
 import { state } from '../app.js';
 import { contentModal } from './forms.js';
 
@@ -13,7 +13,7 @@ export async function renderArchive(view, brand) {
     const list = all.filter(c => (!filter.status || c.status === filter.status) && (!filter.type || c.type === filter.type) && (!q || c.title.toLocaleLowerCase('tr-TR').includes(q)));
     view.querySelector('#arch-count').textContent = `${list.length} içerik`;
     view.querySelector('#arch-list').innerHTML = list.length ? `
-      <table class="table">
+      <div class="table-wrap"><table class="table">
         <thead><tr><th>Tarih</th><th>Başlık</th><th>Tür</th><th>Durum</th><th></th></tr></thead>
         <tbody>${list.map(c => `<tr>
           <td class="nowrap">${c.scheduledAt ? `${esc(fmtDate(c.scheduledAt, { day: 'numeric', month: 'short', year: 'numeric' }))} <span class="muted">${timeStr(c.scheduledAt)}</span>` : '<span class="muted">Tarihsiz</span>'}</td>
@@ -21,8 +21,8 @@ export async function renderArchive(view, brand) {
           <td>${esc(c.typeLabel)}</td>
           <td><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></td>
           <td><button class="btn btn-sm btn-ghost icon-btn" data-edit="${esc(c.id)}" aria-label="Düzenle">${icon('edit')}</button></td></tr>`).join('')}</tbody>
-      </table>`
-      : `<div class="empty"><div class="em-icon">🗂️</div><h4>${all.length ? 'Bu filtrede içerik yok' : 'Arşiv boş'}</h4><p>${all.length ? 'Filtreleri değiştir.' : 'Takvimden ya da fikirlerden içerik planladıkça burada birikir.'}</p></div>`;
+      </table></div>`
+      : emptyState({ icon: all.length ? 'search' : 'archive', title: all.length ? 'Bu filtrede içerik yok' : 'Arşiv boş', text: all.length ? 'Aramayı ya da filtreleri değiştir.' : 'Takvimden ya da fikirlerden içerik planladıkça burada birikir.' });
   }
 
   async function load() {
@@ -31,15 +31,16 @@ export async function renderArchive(view, brand) {
   }
 
   view.innerHTML = `
-    <div class="page-head">
-      <div><h1>Arşiv</h1><p class="muted">${esc(brand.name)} markasının bütün içerikleri: taslaklar, hazırlananlar, tamamlananlar ve yayınlananlar.</p></div>
-      <button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>
-    </div>
-    <div class="filter-row">
-      <input class="input" type="search" id="arch-q" placeholder="Başlıkta ara" aria-label="Başlıkta ara" style="max-width:240px">
-      <select class="select" id="arch-status" aria-label="Durum" style="width:auto"><option value="">Bütün durumlar</option>${Object.entries(state.meta.contentStatuses).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
-      <select class="select" id="arch-type" aria-label="Tür" style="width:auto"><option value="">Bütün türler</option>${Object.entries(state.meta.contentTypes).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
-      <span class="small muted" id="arch-count" style="margin-left:auto"></span>
+    ${pageHead({
+      title: 'Arşiv',
+      desc: `${esc(brand.name)} markasının bütün içerikleri: taslaklar, hazırlananlar, tamamlananlar ve yayınlananlar.`,
+      actions: `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
+    })}
+    <div class="toolbar">
+      <input class="input w-md" type="search" id="arch-q" placeholder="Başlıkta ara" aria-label="Başlıkta ara">
+      <select class="select w-auto" id="arch-status" aria-label="Durum"><option value="">Bütün durumlar</option>${Object.entries(state.meta.contentStatuses).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
+      <select class="select w-auto" id="arch-type" aria-label="Tür"><option value="">Bütün türler</option>${Object.entries(state.meta.contentTypes).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
+      <span class="small muted ml-auto" id="arch-count"></span>
     </div>
     <section class="card" id="arch-list"></section>`;
 

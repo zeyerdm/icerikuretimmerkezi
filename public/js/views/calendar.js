@@ -1,7 +1,7 @@
 // İçerik takvimi: aylık ve haftalık görünüm. Yönetim merkezinde bütün markalar (marka filtresiyle),
 // marka çalışma alanında yalnızca o marka. Boş güne tıklayınca o gün için içerik planlanır.
 import { api } from '../api.js';
-import { esc, icon, toast, startOfDay, startOfWeek, addDays, sameDay, timeStr, TR_MONTHS, TR_DAYS_SHORT, fmtDate } from '../ui.js';
+import { esc, icon, toast, startOfDay, startOfWeek, addDays, sameDay, timeStr, TR_MONTHS, TR_DAYS_SHORT, fmtDate, pageHead } from '../ui.js';
 import { state } from '../app.js';
 import { contentModal } from './forms.js';
 
@@ -51,7 +51,7 @@ export async function renderCalendar(view, { brand } = {}) {
       ${cells.map(day => {
         const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
         const out = day.getMonth() !== cursor.getMonth();
-        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''}" role="gridcell" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik">
+        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''}" role="gridcell" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
           <div class="cal-num">${day.getDate()}</div>
           ${list.slice(0, 3).map(chip).join('')}
           ${list.length > 3 ? `<button class="cal-more" data-more="${day.getTime()}">+${list.length - 3} daha</button>` : ''}
@@ -79,20 +79,21 @@ export async function renderCalendar(view, { brand } = {}) {
     await load();
     const statuses = state.meta.contentStatuses;
     view.innerHTML = `
-      <div class="page-head">
-        <div><h1>${brand ? 'Takvim' : 'İçerik Takvimi'}</h1><p class="muted">${brand ? esc(brand.name) + ' markasının planlanan ve yayınlanan içerikleri.' : 'Bütün markaların planlanan gönderileri. Boş bir güne tıklayarak içerik planla.'}</p></div>
-        <button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>
-      </div>
+      ${pageHead({
+        title: brand ? 'Takvim' : 'İçerik Takvimi',
+        desc: brand ? esc(brand.name) + ' markasının planlanan ve yayınlanan içerikleri. Bir güne tıklayarak içerik planla.' : 'Bütün markaların planlanan gönderileri. Boş bir güne tıklayarak içerik planla.',
+        actions: `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
+      })}
       <div class="card cal-card">
         <div class="cal-toolbar">
           <div class="row">
-            <button class="btn btn-sm icon-btn" data-nav="-1" aria-label="Önceki">${icon('chevronLeft')}</button>
-            <button class="btn btn-sm" data-today>Bugün</button>
-            <button class="btn btn-sm icon-btn" data-nav="1" aria-label="Sonraki">${icon('chevronRight')}</button>
+            <button class="btn icon-btn" data-nav="-1" aria-label="Önceki">${icon('chevronLeft')}</button>
+            <button class="btn" data-today>Bugün</button>
+            <button class="btn icon-btn" data-nav="1" aria-label="Sonraki">${icon('chevronRight')}</button>
             <h2 class="cal-title">${esc(title())}</h2>
           </div>
           <div class="row">
-            ${brand ? '' : `<select class="select" id="cal-brand" aria-label="Marka filtresi" style="width:auto"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`}
+            ${brand ? '' : `<select class="select w-auto" id="cal-brand" aria-label="Marka filtresi"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`}
             <div class="seg" role="tablist" aria-label="Görünüm">
               <button role="tab" data-mode="ay" class="${mode === 'ay' ? 'active' : ''}" aria-selected="${mode === 'ay'}">Aylık</button>
               <button role="tab" data-mode="hafta" class="${mode === 'hafta' ? 'active' : ''}" aria-selected="${mode === 'hafta'}">Haftalık</button>
@@ -103,7 +104,7 @@ export async function renderCalendar(view, { brand } = {}) {
         <div class="cal-legend">${Object.entries(statuses).map(([k, v]) => `<span class="lg status-${k}"><i></i>${esc(v)}</span>`).join('')}
           ${brand ? '' : '<span class="small muted">Renkli çizgi: içeriğin markası</span>'}</div>
       </div>
-      ${unscheduled.length ? `<section class="card" style="margin-top:20px"><div class="card-head"><h3>Tarihsiz içerikler</h3><span class="small muted">${unscheduled.length}</span></div>
+      ${unscheduled.length ? `<section class="card mt-5"><div class="card-head"><h3>Tarihsiz içerikler</h3><span class="small muted">${unscheduled.length}</span></div>
         <div class="unsched">${unscheduled.map(c => `<button class="ag-item status-${esc(c.status)}" data-item="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}"><span class="ag-title">${esc(c.title)}</span><span class="ag-meta">${esc(c.brandName)} · ${esc(c.typeLabel)} · <span class="st">${esc(c.statusLabel)}</span></span></button>`).join('')}</div></section>` : ''}`;
 
     const sel = view.querySelector('#cal-brand');
@@ -145,6 +146,12 @@ export async function renderCalendar(view, { brand } = {}) {
     if (add) return plan(add.dataset.add);
     const cell = t.closest('.cal-cell');
     if (cell && !t.closest('button')) return plan(cell.dataset.day);
+  };
+
+  // Klavye: gün hücresinde Enter/boşluk içerik planlar
+  view.onkeydown = e => {
+    const cell = e.target.classList && e.target.classList.contains('cal-cell') ? e.target : null;
+    if (cell && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); plan(cell.dataset.day); }
   };
 
   await draw();
