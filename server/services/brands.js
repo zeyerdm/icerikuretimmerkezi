@@ -1,6 +1,7 @@
 // Marka profili, görsel kimlik ve marka hafızası.
 // Her sorgu marka sahibine göre süzülür; bir markanın verisi başka markanın işlemine karışmaz.
 import { badRequest, notFound, newId, now, text, HEX, parseJson } from '../lib/http.js';
+import { parseFolder, folderUrl } from './drive.js';
 
 export const PROFILE_FIELDS = {
   name: { label: 'Marka adı', max: 80, required: true },
@@ -71,6 +72,8 @@ export function toBrand(row) {
     competitors: row.competitors,
     slogan: row.slogan,
     isDemo: Boolean(row.is_demo),
+    driveFolderId: row.drive_folder || '',
+    driveFolderUrl: folderUrl(row.drive_folder || ''),
     colors: Object.assign({ primary: '', secondary: [], backgrounds: [], heading: '', body: '' }, parseJson(row.colors, {})),
     fonts: Object.assign({ heading: '', body: '' }, parseJson(row.fonts, {})),
     createdAt: row.created_at,
@@ -122,12 +125,13 @@ export function createBrandService(db, ownerId) {
       const profile = readProfile(body || {}, { partial: false });
       const colors = normalizeColors(body.colors) || normalizeColors({});
       const fonts = normalizeFonts(body.fonts) || normalizeFonts({});
+      const drive = parseFolder(body.driveFolder);
       const id = newId();
       const t = now();
-      db.prepare(`INSERT INTO brands (id, owner_id, name, sector, description, audience, character, tone, goals, competitors, slogan, colors, fonts, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      db.prepare(`INSERT INTO brands (id, owner_id, name, sector, description, audience, character, tone, goals, competitors, slogan, colors, fonts, drive_folder, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(id, ownerId, profile.name, profile.sector, profile.description, profile.audience, profile.character, profile.tone,
-          profile.goals, profile.competitors, profile.slogan, JSON.stringify(colors), JSON.stringify(fonts), t, t);
+          profile.goals, profile.competitors, profile.slogan, JSON.stringify(colors), JSON.stringify(fonts), drive, t, t);
       logActivity(id, 'brand.created', `${profile.name} markası oluşturuldu`);
       return service.get(id);
     },
@@ -138,11 +142,12 @@ export function createBrandService(db, ownerId) {
       const colors = normalizeColors(body.colors);
       const fonts = normalizeFonts(body.fonts);
       const next = Object.assign({}, current, profile);
+      const drive = 'driveFolder' in (body || {}) ? parseFolder(body.driveFolder) : current.driveFolderId;
       db.prepare(`UPDATE brands SET name = ?, sector = ?, description = ?, audience = ?, character = ?, tone = ?, goals = ?,
-        competitors = ?, slogan = ?, colors = ?, fonts = ?, updated_at = ? WHERE id = ? AND owner_id = ?`)
+        competitors = ?, slogan = ?, colors = ?, fonts = ?, drive_folder = ?, updated_at = ? WHERE id = ? AND owner_id = ?`)
         .run(next.name, next.sector, next.description, next.audience, next.character, next.tone, next.goals,
           next.competitors, next.slogan, JSON.stringify(colors || current.colors), JSON.stringify(fonts || current.fonts),
-          now(), current.id, ownerId);
+          drive, now(), current.id, ownerId);
       logActivity(current.id, 'brand.updated', 'Marka kimliği güncellendi');
       return service.get(current.id);
     },

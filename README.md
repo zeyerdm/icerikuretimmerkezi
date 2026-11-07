@@ -21,6 +21,7 @@ Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz marka
 - **Dijital kimlik:** profil, renkler, fontlar, canlı post önizlemesi.
 - **İçerik fikirleri:** kategorili fikir havuzu, favoriler, tek tıkla takvime ekleme.
 - **Kütüphane:** logo, maskot pozları, sticker, görseller (her marka yalnızca kendi dosyalarını görür).
+- **Google Drive klasörü:** her markanın kendi Drive klasörü; kütüphanedeki görseller (ileride postlar, başlıklar, senaryolar) tek tıkla o klasöre gider. Bağlantı Ayarlar → Google Drive'dan bir kez kurulur (kendi Google hesabında küçük bir Apps Script; adımlar ekranda).
 - **Takvim, Arşiv, Analizler:** yalnızca bu markanın içerikleri.
 - **Reels fikirleri, Prompt Studio, Post stüdyosu:** sıradaki aşamalarda geliyor (menüde "Yakında" olarak görünür, bitmiş gibi gösterilmez).
 

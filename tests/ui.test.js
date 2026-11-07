@@ -340,6 +340,54 @@ test('ayarlar → yedekler: yedek al, listede gör, değişikliği geri yükleye
   } finally { await browser.close(); await srv.stop(); }
 });
 
+test('Google Drive: ayarlardan bağlan, markaya klasör linki ekle, test et, kütüphaneden gönder', { skip }, async () => {
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbUI_TEST_0123456789abcdef/exec';
+  const FOLDER = '1UiTestKlasor0123456789abc';
+  let key = null;
+  const driveFetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    const ok = body.anahtar === key;
+    const out = !ok ? { ok: false, hata: 'anahtar' }
+      : body.islem === 'ping' ? { ok: true, surum: 1, klasorAdi: body.klasor ? 'Marka Postları' : 'Drive\'ım' }
+      : { ok: true, surum: 1, id: 'f1', url: 'https://drive.google.com/file/d/f1/view' };
+    return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json' } });
+  };
+  const srv = await startServer({ driveFetch });
+  const { browser, page, problems } = await open(srv);
+  try {
+    const brand = (await srv.request('POST', '/api/brands', { name: 'Drive Markası' })).data.brand;
+    await srv.request('POST', `/api/brands/${brand.id}/assets?category=logo&label=Logo`, PNG_1PX, { 'Content-Type': 'image/png' });
+
+    await page.goto(srv.base + '/#/ayarlar');
+    await page.getByRole('heading', { name: 'Google Drive' }).waitFor();
+    const script = await page.locator('#drive-script').textContent();
+    key = script.match(/const ANAHTAR = '([0-9a-f]+)'/)[1];
+    await page.getByLabel('Web uygulaması adresi').fill(SCRIPT_URL);
+    await page.getByRole('button', { name: 'Bağlan', exact: true }).click();
+    await page.getByText('Google Drive bağlandı.').waitFor();
+    assert.match(await page.locator('#drive-card').textContent(), /Bağlı/);
+
+    // Kütüphanede klasör yokken gönder düğmesi görünmez (işlevsiz düğme yok)
+    await page.goto(srv.base + `/#/m/${brand.id}/kutuphane`);
+    await page.locator('.asset').first().waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Drive\'a gönder' }).count(), 0);
+
+    await page.goto(srv.base + `/#/m/${brand.id}/kimlik`);
+    await page.getByLabel('Google Drive klasörü').fill(`https://drive.google.com/drive/folders/${FOLDER}?usp=sharing`);
+    await page.getByRole('button', { name: 'Kaydet' }).click();
+    await page.getByText('Tüm değişiklikler kayıtlı').waitFor();
+    assert.equal(await page.getByLabel('Google Drive klasörü').inputValue(), `https://drive.google.com/drive/folders/${FOLDER}`);
+    await page.getByRole('button', { name: 'Bağlantıyı test et' }).click();
+    await page.getByText('Drive klasörüne erişildi: Marka Postları.').waitFor();
+
+    await page.getByRole('link', { name: 'Kütüphane' }).click();
+    await page.getByRole('button', { name: 'Drive\'a gönder' }).click();
+    await page.getByRole('link', { name: '✓ Drive\'da' }).waitFor();
+    assert.equal(await page.getByRole('link', { name: '✓ Drive\'da' }).getAttribute('href'), 'https://drive.google.com/file/d/f1/view');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
 test('telefon genişliği: yönetim merkezi, takvim ve marka alanında yatay taşma yok', { skip }, async () => {
   const srv = await startServer();
   await srv.request('POST', '/api/brands/demo');

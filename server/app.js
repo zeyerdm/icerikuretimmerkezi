@@ -14,6 +14,7 @@ import { createAssistantService } from './services/assistant.js';
 import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES, TASK_PRIORITIES, TASK_STATUSES } from './services/workspace.js';
 import { transaction } from './db.js';
 import { createBackupService } from './services/backup.js';
+import { createDriveService } from './services/drive.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
 
@@ -70,7 +71,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, fetchImpl, updateFetch, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, fetchImpl, updateFetch, driveFetch, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -82,6 +83,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const assistant = createAssistantService({ db, ai, brands, ideas });
   const workspace = createWorkspaceService(db, ownerId, brands);
   const backups = createBackupService({ db, dataDir, settings });
+  const drive = createDriveService(settings, { fetchImpl: driveFetch });
 
   const app = express();
   app.disable('x-powered-by');
@@ -107,7 +109,17 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
 
   // --- Ayarlar (AI anahtarı yalnızca yazılır, hiçbir zaman geri okunmaz) ---
-  api.get('/settings', (req, res) => res.json({ ai: ai.status(), activeBrandId: settings.get('ui.activeBrandId') || null }));
+  api.get('/settings', (req, res) => res.json({ ai: ai.status(), drive: drive.status(), activeBrandId: settings.get('ui.activeBrandId') || null }));
+
+  // --- Google Drive bağlantısı (Apps Script). Adres ve gizli anahtar istemciye ham hâliyle dönmez;
+  // yalnızca kullanıcının Apps Script'e yapıştıracağı kod gösterilir. ---
+  api.get('/settings/drive', (req, res) => res.json(Object.assign({ script: drive.script() }, drive.status())));
+  api.put('/settings/drive', route(async (req, res) => {
+    const r = await drive.setScriptUrl(req.body && req.body.scriptUrl);
+    brands.logActivity(null, 'drive.connected', 'Google Drive bağlantısı kuruldu');
+    res.json(Object.assign({ rootFolder: r.klasorAdi || null }, drive.status()));
+  }));
+  api.delete('/settings/drive', (req, res) => { drive.clear(); res.json(drive.status()); });
 
   api.put('/settings/ai', (req, res) => {
     const body = req.body || {};
@@ -373,6 +385,24 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
       chatCount: assistant.history(req.brand.id, 1000).length
     });
   });
+
+  // --- Markanın Drive klasörü ---
+  api.post('/brands/:brandId/drive/test', route(async (req, res) => {
+    if (!req.brand.driveFolderId) throw badRequest('Bu markaya henüz Google Drive klasörü eklenmedi.');
+    const r = await drive.ping(req.brand.driveFolderId);
+    res.json({ folderName: r.klasorAdi || null, folderUrl: req.brand.driveFolderUrl });
+  }));
+
+  // Kütüphanedeki bir dosyayı markanın Drive klasörüne gönderir
+  api.post('/brands/:brandId/assets/:assetId/drive', route(async (req, res) => {
+    const f = assets.file(req.brand.id, req.params.assetId);
+    const day = new Date().toISOString().slice(0, 10);
+    const base = [req.brand.name, f.label || ASSET_CATEGORIES[f.category] || 'Dosya', day].join(' - ').replace(/[\\/:*?"<>|]+/g, ' ').trim();
+    const sent = await drive.upload(req.brand.driveFolderId, { name: base + f.ext, mime: f.mime, buffer: fs.readFileSync(f.path) });
+    const asset = assets.setDriveUrl(req.brand.id, req.params.assetId, sent.url);
+    brands.logActivity(req.brand.id, 'drive.uploaded', `Google Drive'a gönderildi: ${f.label || ASSET_CATEGORIES[f.category]}`);
+    res.json({ asset, drive: sent });
+  }));
 
   // --- Varlık kütüphanesi ---
   api.get('/brands/:brandId/assets', (req, res) => {

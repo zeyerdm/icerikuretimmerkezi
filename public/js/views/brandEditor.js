@@ -15,19 +15,24 @@ const PLACEHOLDERS = {
   competitors: 'Rakipler ve ilham alınan markalar',
   slogan: 'Ör. Her yudum bir mola'
 };
-const EMPTY_BRAND = { name: '', sector: '', description: '', audience: '', character: '', tone: '', goals: '', competitors: '', slogan: '', colors: { primary: '#5b55e6', secondary: [], backgrounds: ['#ffffff'], heading: '#1b1f3b', body: '#3a3f63' }, fonts: { heading: 'Plus Jakarta Sans', body: 'Inter' } };
+const EMPTY_BRAND = { name: '', sector: '', description: '', audience: '', character: '', tone: '', goals: '', competitors: '', slogan: '', driveFolder: '', colors: { primary: '#5b55e6', secondary: [], backgrounds: ['#ffffff'], heading: '#1b1f3b', body: '#3a3f63' }, fonts: { heading: 'Plus Jakarta Sans', body: 'Inter' } };
 const MAX_COLORS = 6;
 
 export async function renderBrandEditor(view, brandId, initialTab) {
   const isNew = brandId === 'yeni';
   let brand;
   let logoUrl = null;
-  if (isNew) brand = JSON.parse(JSON.stringify(EMPTY_BRAND));
-  else {
+  let driveOk = false;
+  if (isNew) {
+    brand = JSON.parse(JSON.stringify(EMPTY_BRAND));
+    driveOk = (await api.settings()).drive.configured;
+  } else {
     view.innerHTML = '<div class="card skeleton" style="height:420px"></div>';
-    const [{ brand: b }, { assets }] = await Promise.all([api.brand(brandId), api.assets(brandId, 'logo')]);
+    const [{ brand: b }, { assets }, settings] = await Promise.all([api.brand(brandId), api.assets(brandId, 'logo'), api.settings()]);
     brand = b;
+    brand.driveFolder = b.driveFolderUrl || '';
     logoUrl = assets[0] ? assets[0].url : null;
+    driveOk = settings.drive.configured;
   }
   const draft = JSON.parse(JSON.stringify(brand));
   let tab = isNew ? 'profil' : initialTab;
@@ -49,7 +54,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
 
   function renderTab() {
     const body = view.querySelector('#tab-body');
-    if (tab === 'varliklar') return renderAssets(body, brand);
+    if (tab === 'varliklar') return renderAssets(body, brand, driveOk);
     body.innerHTML = `
       <div class="editor">
         <div>
@@ -72,7 +77,15 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         ${LONG_FIELDS.has(key)
           ? `<textarea class="textarea" id="f-${key}" data-field="${key}" maxlength="${f.max}" placeholder="${esc(PLACEHOLDERS[key] || '')}">${esc(draft[key])}</textarea>`
           : `<input class="input" id="f-${key}" data-field="${key}" maxlength="${f.max}" value="${esc(draft[key])}" placeholder="${esc(PLACEHOLDERS[key] || '')}" ${f.required ? 'required' : ''}>`}
-      </div>`).join('')}</div>`;
+      </div>`).join('')}
+      <div class="field full">
+        <label for="f-drive">Google Drive klasörü</label>
+        <div class="drive-row">
+          <input class="input" id="f-drive" data-drive value="${esc(draft.driveFolder)}" placeholder="https://drive.google.com/drive/folders/…" autocomplete="off">
+          ${isNew ? '' : `<button type="button" class="btn btn-sm" data-action="drive-test" ${driveOk && brand.driveFolderId ? '' : 'disabled'}>Bağlantıyı test et</button>`}
+        </div>
+        <span class="hint">Bu markanın dosyaları bu klasöre gönderilir (şimdilik kütüphane görselleri; postlar, başlıklar ve senaryolar geldikçe onlar da). Drive'da klasörü aç, adres çubuğundaki linki kopyalayıp buraya yapıştır. İsteğe bağlı.${driveOk ? '' : ' Gönderebilmek için önce <a href="#/ayarlar">Ayarlar → Google Drive</a> bağlantısını kur.'}</span>
+      </div></div>`;
   }
 
   const colorInput = (path, value, label) => `
@@ -138,7 +151,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
 
   async function save(btn) {
     const payload = Object.assign({}, draft);
-    delete payload.id; delete payload.createdAt; delete payload.updatedAt;
+    delete payload.id; delete payload.createdAt; delete payload.updatedAt; delete payload.driveFolderId; delete payload.driveFolderUrl;
     btn.disabled = true;
     try {
       if (isNew) {
@@ -149,7 +162,8 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         return;
       }
       const { brand: saved } = await api.updateBrand(brand.id, payload);
-      Object.assign(brand, saved);
+      Object.assign(brand, saved, { driveFolder: saved.driveFolderUrl || '' });
+      Object.assign(draft, { driveFolder: brand.driveFolder });
       dirty = false;
       await refreshBrands();
       toast('Marka kimliği kaydedildi.', 'success');
@@ -162,6 +176,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   view.oninput = e => {
     const t = e.target;
     if (t.dataset.field) { draft[t.dataset.field] = t.value; markDirty(); }
+    else if (t.dataset.drive !== undefined) { draft.driveFolder = t.value; markDirty(); }
     else if (t.dataset.color) {
       draft.colors[t.dataset.color] = t.value;
       const hex = view.querySelector(`[data-hex="${t.dataset.color}"]`);
@@ -197,6 +212,14 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       renderChrome();
       shell();
     } else if (t.dataset.action === 'save') save(t);
+    else if (t.dataset.action === 'drive-test') {
+      if (draft.driveFolder.trim() !== brand.driveFolder) return toast('Önce Kaydet\'e bas; sonra bağlantıyı test et.', 'error');
+      t.disabled = true;
+      try {
+        const r = await api.testBrandDrive(brand.id);
+        toast(`Drive klasörüne erişildi${r.folderName ? ': ' + r.folderName : ''}.`, 'success');
+      } catch (err) { toast(err.message, 'error'); } finally { t.disabled = false; }
+    }
     else if (t.dataset.addColor) {
       const list = draft.colors[t.dataset.addColor];
       if (list.length < MAX_COLORS) { list.push(t.dataset.addColor === 'backgrounds' ? '#ffffff' : '#888888'); markDirty(); renderTab(); }
@@ -218,7 +241,8 @@ export async function renderBrandEditor(view, brandId, initialTab) {
 }
 
 // --- Varlık kütüphanesi: kategoriye göre yükleme, etiketleme, silme ---
-async function renderAssets(body, brand) {
+async function renderAssets(body, brand, driveOk) {
+  const canSend = driveOk && Boolean(brand.driveFolderId);
   const cats = state.meta.assetCategories;
   let current = 'logo';
 
@@ -245,6 +269,8 @@ async function renderAssets(body, brand) {
               <div class="thumb"><img src="${esc(a.url)}" alt="${esc(a.label || a.categoryLabel)}" loading="lazy"></div>
               <div class="meta"><input class="input" data-asset-label="${esc(a.id)}" value="${esc(a.label)}" placeholder="Etiket" maxlength="80" aria-label="Etiket">
               <button class="btn btn-sm btn-ghost icon-btn" data-asset-delete="${esc(a.id)}" aria-label="Sil">${icon('trash')}</button></div>
+              ${canSend || a.driveUrl ? `<div class="meta">${a.driveUrl ? `<a class="drive-link" href="${esc(a.driveUrl)}" target="_blank" rel="noopener">✓ Drive'da</a>` : ''}
+                ${canSend ? `<button class="btn btn-sm${a.driveUrl ? ' btn-ghost' : ''}" data-asset-drive="${esc(a.id)}">${a.driveUrl ? 'Tekrar gönder' : 'Drive\'a gönder'}</button>` : ''}</div>` : ''}
             </div>`).join('')}</div>`
         : `<div class="empty"><div class="em-icon">🖼️</div><h4>Bu kategoride dosya yok</h4><p>Yüklediğin dosyalar yalnızca ${esc(brand.name)} markasında görünür.</p></div>`;
     } catch (err) { grid.innerHTML = errorBox(err); }
@@ -276,6 +302,12 @@ async function renderAssets(body, brand) {
   function wireGrid() {
     body.querySelectorAll('[data-asset-label]').forEach(inp => inp.addEventListener('change', async () => {
       try { await api.updateAsset(brand.id, inp.dataset.assetLabel, { label: inp.value }); toast('Etiket kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
+    }));
+    body.querySelectorAll('[data-asset-drive]').forEach(btn => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Gönderiliyor…';
+      try { await api.sendAssetToDrive(brand.id, btn.dataset.assetDrive); toast('Dosya Google Drive klasörüne gönderildi.', 'success'); draw(); }
+      catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Drive\'a gönder'; }
     }));
     body.querySelectorAll('[data-asset-delete]').forEach(btn => btn.addEventListener('click', async () => {
       if (!confirm('Bu dosya silinsin mi?')) return;

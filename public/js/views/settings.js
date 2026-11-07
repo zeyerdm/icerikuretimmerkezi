@@ -31,13 +31,13 @@ async function waitForRestart(out) {
 }
 
 export async function renderSettings(view) {
-  const [{ ai }, system, backupData] = await Promise.all([api.settings(), api.system(), api.backups()]);
+  const [{ ai }, system, backupData, drive] = await Promise.all([api.settings(), api.system(), api.backups(), api.driveSettings()]);
   state.settings.ai = ai;
   renderChrome();
   const shortSha = system.sha ? system.sha.slice(0, 7) : 'bilinmiyor';
 
   view.innerHTML = `
-    <div class="page-head"><div><h1>Ayarlar</h1><p class="muted">AI bağlantısı, güncelleme ve yedekler.</p></div></div>
+    <div class="page-head"><div><h1>Ayarlar</h1><p class="muted">AI bağlantısı, Google Drive, güncelleme ve yedekler.</p></div></div>
     <div class="settings">
       <section class="card">
         <div class="card-head"><h3>AI bağlantısı</h3>${ai.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
@@ -91,6 +91,32 @@ export async function renderSettings(view) {
           </form>
         </details>
       </section>
+      <section class="card" id="drive-card">
+        <div class="card-head"><h3>Google Drive</h3>${drive.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
+        <p class="small muted">Her markanın dosyaları kendi Drive klasörüne gönderilir (klasör linkini markanın <b>Dijital kimlik → Marka profili</b> sayfasında girersin). Bunun için kendi Google hesabında bir kez küçük bir Apps Script yayınlaman gerekiyor; Google Cloud hesabı gerekmez.</p>
+        ${drive.configured ? `<dl class="kv" style="margin-top:12px"><dt>Apps Script</dt><dd><code>${esc(drive.urlHint)}</code></dd></dl>` : ''}
+        <details style="margin-top:14px" ${drive.configured ? '' : 'open'}>
+          <summary class="small" style="cursor:pointer;font-weight:700">${drive.configured ? 'Kurulum adımları ve kod' : 'Kurulum (bir kez, yaklaşık 3 dakika)'}</summary>
+          <ol class="drive-steps small">
+            <li><a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com</a>'da yeni bir proje aç (Drive klasörlerinin olduğu Google hesabıyla).</li>
+            <li>Açılan sayfadaki kodun hepsini sil, aşağıdaki kodu yapıştır ve kaydet (Ctrl+S).</li>
+            <li>Sağ üstte <b>Dağıt → Yeni dağıtım</b> → türü <b>Web uygulaması</b> seç. <b>Yürüten: Ben</b>, <b>Erişimi olan: Herkes</b> → Dağıt.</li>
+            <li>Google izin isterse hesabını seç → "Gelişmiş" → "projeye git (güvenli değil)" → İzin ver. (Uyarı, kodu kendin yayınladığın için çıkar.)</li>
+            <li>Verilen <b>Web uygulaması URL'sini</b> kopyalayıp aşağıya yapıştır → <b>Bağlan</b>.</li>
+          </ol>
+          <div class="code-box"><pre id="drive-script">${esc(drive.script)}</pre><button class="btn btn-sm" type="button" data-action="copy-script">Kodu kopyala</button></div>
+          <p class="hint small" style="margin-top:6px">Koddaki anahtar bu uygulamaya özeldir; kimseyle paylaşma.</p>
+        </details>
+        <form id="drive-form" class="stack" style="margin-top:14px">
+          <div class="field">
+            <label for="drive-url">${drive.configured ? 'Web uygulaması adresini değiştir' : 'Web uygulaması adresi'}</label>
+            <input class="input" id="drive-url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
+            <span class="hint">Bağlan'a basınca uygulama adresi dener; çalışmazsa kaydetmez ve nedenini söyler.</span>
+          </div>
+          <div class="row"><button class="btn btn-primary btn-sm" type="submit">Bağlan</button>${drive.configured ? '<button class="btn btn-sm btn-danger" type="button" data-action="remove-drive">Bağlantıyı kaldır</button>' : ''}</div>
+        </form>
+        <div id="drive-result" style="margin-top:12px"></div>
+      </section>
       <section class="card" id="backup-card">
         <div class="card-head"><h3>Yedekler</h3><span class="pill pill-ok"><span class="dot"></span>Her gün otomatik</span></div>
         <p class="small muted">Markalar, dosyalar, fikirler, takvim, görevler ve notlar her gün kendiliğinden yedeklenir (son ${backupData.keep} gün saklanır). Yedekler bu bilgisayarda <code>data/backups</code> klasöründedir; API anahtarların yedeğe girmez.</p>
@@ -140,6 +166,23 @@ export async function renderSettings(view) {
     try { await api.saveUpdateToken(input.value); toast('Erişim anahtarı kaydedildi.', 'success'); renderSettings(view); } catch (err) { toast(err.message, 'error'); }
   });
 
+  view.querySelector('#drive-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const input = view.querySelector('#drive-url');
+    const out = view.querySelector('#drive-result');
+    if (!input.value.trim()) return toast('Önce Apps Script adresini yapıştır.', 'error');
+    const btn = e.submitter || view.querySelector('#drive-form [type=submit]');
+    btn.disabled = true;
+    out.innerHTML = '<p class="small muted">Google Drive\'a bağlanılıyor…</p>';
+    try {
+      const r = await api.saveDrive(input.value);
+      await renderSettings(view);
+      view.querySelector('#drive-result').innerHTML = `<div class="notice notice-ok"><div><strong>Google Drive bağlandı.</strong> ${r.rootFolder ? esc(r.rootFolder) + ' erişilebilir. ' : ''}Şimdi markanın Dijital kimlik sayfasından Drive klasör linkini ekleyebilirsin.</div></div>`;
+    } catch (err) {
+      out.innerHTML = `<div class="notice notice-error"><div><strong>Bağlanılamadı.</strong> ${esc(err.message)}</div></div>`;
+    } finally { btn.disabled = false; }
+  });
+
   view.querySelector('#copy-form').addEventListener('submit', async e => {
     e.preventDefault();
     try {
@@ -177,6 +220,16 @@ export async function renderSettings(view) {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const backupName = btn.closest('[data-name]') ? btn.closest('[data-name]').dataset.name : null;
+    if (btn.dataset.action === 'copy-script') {
+      try { await navigator.clipboard.writeText(view.querySelector('#drive-script').textContent); toast('Kod kopyalandı.', 'success'); }
+      catch { toast('Kopyalanamadı; kodu seçip Ctrl+C ile kopyala.', 'error'); }
+      return;
+    }
+    if (btn.dataset.action === 'remove-drive') {
+      if (!confirm('Google Drive bağlantısı kaldırılsın mı? Markaların klasör linkleri silinmez; yeniden bağlanınca kaldığı yerden devam eder.')) return;
+      try { await api.removeDrive(); toast('Drive bağlantısı kaldırıldı.', 'success'); renderSettings(view); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     if (btn.dataset.action === 'create-backup') {
       btn.disabled = true;
       try {
