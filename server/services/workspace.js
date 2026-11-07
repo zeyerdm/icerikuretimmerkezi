@@ -41,7 +41,7 @@ export function createWorkspaceService(db, ownerId, brands) {
   const toContent = r => Object.assign({
     id: r.id, title: r.title, type: r.type, typeLabel: CONTENT_TYPES[r.type] || r.type,
     status: r.status, statusLabel: CONTENT_STATUSES[r.status] || r.status, done: DONE_STATUSES.includes(r.status),
-    scheduledAt: r.scheduled_at, notes: r.notes, ideaId: r.idea_id, completedAt: r.completed_at,
+    scheduledAt: r.scheduled_at, notes: r.notes, ideaId: r.idea_id, reelsId: r.reels_id || null, postId: r.post_id || null, completedAt: r.completed_at,
     createdAt: r.created_at, updatedAt: r.updated_at
   }, brandInfo(r));
 
@@ -137,6 +137,8 @@ export function createWorkspaceService(db, ownerId, brands) {
       if (next.brand_id !== row.brand_id) next.idea_id = null; else next.idea_id = row.idea_id;
       db.prepare(`UPDATE contents SET brand_id = ?, idea_id = ?, title = ?, type = ?, status = ?, scheduled_at = ?, notes = ?, completed_at = ?, updated_at = ? WHERE id = ?`)
         .run(next.brand_id, next.idea_id, next.title, next.type, next.status, next.scheduled_at, next.notes, next.completed_at, now(), row.id);
+      // Marka değişince başka markanın senaryosuna/postuna bağlantı kalmaz
+      if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, post_id = NULL WHERE id = ?').run(row.id);
       if (!wasDone && isDone) brands.logActivity(next.brand_id, 'content.completed', `${CONTENT_STATUSES[next.status]}: ${next.title}`);
       return toContent(getContentRow(row.id));
     },

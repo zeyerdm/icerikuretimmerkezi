@@ -16,6 +16,9 @@ import { transaction } from './db.js';
 import { createBackupService } from './services/backup.js';
 import { createDriveService } from './services/drive.js';
 import { createCompareService } from './services/compare.js';
+import { createReelsService } from './services/reels/index.js';
+import { createPostService } from './services/posts.js';
+import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
 
@@ -86,6 +89,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const backups = createBackupService({ db, dataDir, settings });
   const drive = createDriveService(settings, { fetchImpl: driveFetch });
   const compare = createCompareService({ db, ai, brands });
+  const reels = createReelsService({ db, ai, brands, workspace });
+  const posts = createPostService({ db, ai, brands, assets, workspace });
+  const review = createReviewService({ ai, brands });
 
   const app = express();
   app.disable('x-powered-by');
@@ -107,7 +113,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     doneStatuses: DONE_STATUSES,
     taskPriorities: TASK_PRIORITIES,
     taskStatuses: TASK_STATUSES,
-    maxAssetBytes: MAX_ASSET_BYTES
+    maxAssetBytes: MAX_ASSET_BYTES,
+    reels: reels.meta,
+    posts: { kinds: posts.kinds, formats: posts.formats },
+    reviewKinds: review.kinds
   }));
 
   // --- Ayarlar (AI anahtarı yalnızca yazılır, hiçbir zaman geri okunmaz) ---
@@ -440,6 +449,68 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const asset = assets.setDriveUrl(req.brand.id, req.params.assetId, sent.url);
     brands.logActivity(req.brand.id, 'drive.uploaded', `Google Drive'a gönderildi: ${f.label || ASSET_CATEGORIES[f.category]}`);
     res.json({ asset, drive: sent });
+  }));
+
+  // Üretilen dosyayı (başlık PNG'si, post görseli, altyazı, senaryo metni) markanın Drive klasörüne gönderir
+  const DRIVE_UPLOAD_TYPES = { 'image/png': '.png', 'image/jpeg': '.jpg', 'text/plain': '.txt', 'application/x-subrip': '.srt' };
+  api.post('/brands/:brandId/drive/upload', express.raw({ type: () => true, limit: MAX_ASSET_BYTES }), route(async (req, res) => {
+    const mime = String(req.query.mime || '');
+    if (!DRIVE_UPLOAD_TYPES[mime]) throw badRequest('Bu dosya türü Drive\'a gönderilemez.');
+    if (!Buffer.isBuffer(req.body) || !req.body.length) throw badRequest('Gönderilecek dosya boş.');
+    const base = text(String(req.query.name || ''), { field: 'Dosya adı', max: 120, required: true }).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\.[a-z0-9]{2,4}$/i, '').trim();
+    const sent = await drive.upload(req.brand.driveFolderId, { name: `${req.brand.name} - ${base}${DRIVE_UPLOAD_TYPES[mime]}`, mime, buffer: req.body });
+    brands.logActivity(req.brand.id, 'drive.uploaded', `Google Drive'a gönderildi: ${base}`);
+    res.json({ drive: sent });
+  }));
+
+  // --- Reels: fikir havuzu ve senaryolar ---
+  const mr = body => (body && body.model ? String(body.model) : null);
+  api.get('/brands/:brandId/reels/settings', (req, res) => res.json({ settings: reels.settings(req.brand.id) }));
+  api.put('/brands/:brandId/reels/settings', (req, res) => res.json({ settings: reels.setSettings(req.brand.id, req.body || {}) }));
+  api.get('/brands/:brandId/reels/pool', (req, res) => res.json({ pool: reels.listPool(req.brand.id) }));
+  api.post('/brands/:brandId/reels/pool', (req, res) => res.status(201).json({ item: reels.addPool(req.brand.id, req.body || {}) }));
+  api.post('/brands/:brandId/reels/pool/expand', route(async (req, res) => {
+    const b = req.body || {};
+    res.status(201).json(await reels.expandPool(req.brand.id, { category: b.category || null, similarTo: b.similarTo || null, modelRef: mr(b) }));
+  }));
+  api.patch('/brands/:brandId/reels/pool/:id', (req, res) => res.json({ item: reels.updatePool(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/reels/pool/:id', (req, res) => { reels.removePool(req.brand.id, req.params.id); res.status(204).end(); });
+  api.get('/brands/:brandId/reels', (req, res) => res.json({ reels: reels.list(req.brand.id) }));
+  api.post('/brands/:brandId/reels', route(async (req, res) => {
+    const b = req.body || {};
+    res.status(201).json({ reels: await reels.create(req.brand.id, { topic: b.topic, poolId: b.poolId || null, format: b.format || null, modelRef: mr(b) }) });
+  }));
+  api.get('/brands/:brandId/reels/:id', (req, res) => res.json({ reels: reels.get(req.brand.id, req.params.id) }));
+  api.patch('/brands/:brandId/reels/:id', (req, res) => res.json({ reels: reels.update(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/reels/:id', (req, res) => { reels.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.post('/brands/:brandId/reels/:id/regenerate', route(async (req, res) => {
+    const b = req.body || {};
+    res.json({ reels: await reels.regenerate(req.brand.id, req.params.id, { sceneIndex: b.sceneIndex, modelRef: mr(b) }) });
+  }));
+  api.post('/brands/:brandId/reels/:id/translate', route(async (req, res) => {
+    const b = req.body || {};
+    res.json({ reels: await reels.translate(req.brand.id, req.params.id, { sceneIndex: b.sceneIndex, to: b.to === 'tr' ? 'tr' : 'en', modelRef: mr(b) }) });
+  }));
+  api.post('/brands/:brandId/reels/:id/restore', (req, res) => res.json({ reels: reels.restore(req.brand.id, req.params.id, req.body && req.body.versionId) }));
+  api.post('/brands/:brandId/reels/:id/schedule', (req, res) => res.status(201).json({ content: reels.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));
+
+  // --- Post stüdyosu ---
+  api.get('/brands/:brandId/posts', (req, res) => res.json({ posts: posts.list(req.brand.id) }));
+  api.post('/brands/:brandId/posts', route(async (req, res) => {
+    const b = req.body || {};
+    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format, slides: b.slides, modelRef: mr(b) });
+    res.status(201).json({ post });
+  }));
+  api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
+  api.put('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.update(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/posts/:id', (req, res) => { posts.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
+  api.post('/brands/:brandId/posts/:id/schedule', (req, res) => res.status(201).json({ content: posts.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));
+
+  // --- AI içerik denetçisi ---
+  api.post('/brands/:brandId/review', route(async (req, res) => {
+    const b = req.body || {};
+    res.json({ review: await review.review(req.brand.id, { text: b.text, kind: b.kind || 'serbest', modelRef: mr(b) }) });
   }));
 
   // --- Varlık kütüphanesi ---

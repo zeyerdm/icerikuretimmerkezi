@@ -28,4 +28,5 @@ export function parseJsonOutput(label, text) {
   }
 }
 
-export const TIMEOUT_MS = 120000;
+// Uzun Reels senaryoları özenli modellerde 1-2 dakika sürebilir
+export const TIMEOUT_MS = 180000;

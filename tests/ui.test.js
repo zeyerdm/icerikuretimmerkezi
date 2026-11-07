@@ -535,6 +535,143 @@ test('yapay zekâ: sağlayıcı bağla, işe model ata, iki modeli karşılaşt�
   } finally { await browser.close(); await srv.stop(); }
 });
 
+// Aşama 3 için sahte model: istemin türüne göre yanıt
+function stage3Provider() {
+  const sc = (o = {}) => Object.assign({ duration: 6, start: 'Kafede', endFrame: 'Fincan masada', beats: [{ from: 0, to: 3, action: 'Fincanı kaldırır', camera: 'Yakın', sound: '' }, { from: 3, to: 6, action: 'Güler', camera: 'Geniş', sound: '' }],
+    line: 'Vize haftası geldi ama kahven hazır, sakin ol ve nefes al biraz', lineFrom: 0.5, lineTo: 6, flowScene: '0-3s: Kahveci lifts the cup. 3-6s: Kahveci laughs.', flowSceneTr: '0-3 sn: Kahveci fincanı kaldırır. 3-6 sn: Kahveci güler.' }, o);
+  const RAW = { title: 'Vize kahvesi', format: 'skec', topic: 'Vize haftası', why: 'Herkes yaşar', punchline: 'Kahve her derdin ilacı', setting: 'Sıcak kafe', screenTitle: 'Vize haftası kahve molası', titleKeyword: 'kahve',
+    scenes: [sc(), sc({ start: 'Devam' })], ending: { twist: 'Fincan göz kırpar', lastFrame: 'Logo' }, caption: 'Vize haftası açıklaması', hashtags: ['#vize'], music: 'Neşeli' };
+  return fakeProvider([prompt => {
+    if (prompt.startsWith('REELS FİKİR HAVUZU')) return { ideas: [{ text: 'AI fikri: kütüphane kahvesi', category: 'eglenceli' }] };
+    if (prompt.startsWith('ÇEVİRİ GÖREVİ')) return '0-3s: Kahveci grabs the cup fast. 3-6s: Kahveci laughs.';
+    if (prompt.startsWith('İÇERİK DENETİMİ')) return { score: 80, summary: 'İyi', issues: [{ severity: 'düşük', problem: 'Emoji yok', suggestion: 'Bir emoji ekle' }], improved: 'Düzeltilmiş açıklama' };
+    if (prompt.includes('Instagram içerik yazarısın')) return { title: 'Sınav ipuçları', slides: [{ title: 'Sınav haftası', body: 'Kahveyle odaklan' }, { title: 'Su iç', body: 'Beyin suyu sever' }, { title: 'Mola ver', body: '50 dakikada bir' }], caption: 'Açıklama', hashtags: ['#sinav'] };
+    if (prompt.includes('YALNIZCA SAHNE 2')) return { ...RAW, scenes: [sc(), sc({ start: 'Yeni', line: 'İkinci sahne yepyeni bir replikle yeniden yazıldı ve akıcı biçimde söyleniyor' })] };
+    return RAW;
+  }]);
+}
+
+test('Reels: havuza fikir ekle, genişlet, senaryo yaz, tek sahneyi yeniden yaz, Türkçeyi düzeltip çevir, sürüme dön, telepromter, takvim', { skip }, async () => {
+  const srv = await startServer({ aiProvider: stage3Provider() });
+  const { browser, page, problems } = await open(srv);
+  try {
+    const brand = (await srv.request('POST', '/api/brands', { name: 'Kahve Evi' })).data.brand;
+    await page.goto(srv.base + `/#/m/${brand.id}/reels`);
+    await page.getByRole('heading', { name: 'Reels', exact: true }).waitFor();
+    assert.ok(await page.getByRole('link', { name: 'Reels', exact: true }).isVisible(), 'menüde Reels yok');
+
+    await page.getByRole('button', { name: 'Reels ayarları' }).click();
+    await page.getByLabel('Konuşan karakterin adı *').fill('Kahveci');
+    await page.getByRole('dialog').getByRole('button', { name: 'Kaydet' }).click();
+    await page.getByText('Reels ayarları kaydedildi.').waitFor();
+
+    await page.getByLabel('Fikir', { exact: true }).fill('Vize haftası kahve kuyruğu');
+    await page.locator('#pool-add').getByRole('button', { name: 'Ekle' }).click();
+    await page.locator('.pool-item').filter({ hasText: 'Vize haftası kahve kuyruğu' }).waitFor();
+    await page.getByRole('button', { name: /Havuzu genişlet/ }).click();
+    await page.getByText('AI fikri: kütüphane kahvesi').waitFor();
+    await page.locator('.pool-item').filter({ hasText: 'AI fikri' }).getByRole('button', { name: 'Beğenme' }).click();
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator('.pool-item').filter({ hasText: 'AI fikri' }).count(), 0, 'beğenilmeyen gizlenmedi');
+
+    await page.locator('.pool-item').filter({ hasText: 'Vize haftası kahve kuyruğu' }).getByRole('button', { name: 'Senaryo yaz' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Senaryoyu yaz' }).click();
+    await page.getByRole('heading', { name: 'Vize kahvesi' }).waitFor();
+    assert.match(page.url(), /\/reels\/[0-9a-f-]{36}$/);
+    await page.getByRole('heading', { name: /Sahne 2/ }).waitFor();
+    assert.match(await page.locator('.reels-side').textContent(), /Sorun yok/);
+
+    // Tek sahneyi yeniden yaz
+    await page.locator('[data-scene="1"]').getByRole('button', { name: 'Bu sahneyi yeniden yaz' }).click();
+    await page.getByText('Sahne 2 yeniden yazıldı').waitFor();
+    assert.match(await page.locator('#line-1').inputValue(), /yepyeni/);
+
+    // Türkçe tarifi düzelt → İngilizceye çevir
+    await page.locator('[data-scene="0"] summary').filter({ hasText: 'Sahne tarifi' }).click();
+    await page.locator('#tr-0').fill('0-3 sn: Kahveci fincanı hızla kapar. 3-6 sn: Kahveci güler.');
+    await page.locator('[data-scene="0"]').getByRole('button', { name: 'Kaydet ve İngilizceye çevir' }).click();
+    await page.getByText('Sahne tarifi kaydedildi.').waitFor();
+    assert.match(await page.locator('[data-scene="0"]').textContent(), /grabs the cup fast/);
+
+    // İlk sürüme dön
+    await page.locator('.version-list li').last().getByRole('button', { name: 'Geri dön' }).click();
+    await page.getByText('Önceki sürüme dönüldü.').waitFor();
+    assert.doesNotMatch(await page.locator('#line-1').inputValue(), /yepyeni/);
+
+    // Açıklamayı denetle ve önerilen metni kullan
+    await page.locator('#rs-review').getByRole('button', { name: 'Denetle' }).click();
+    await page.getByText('Puan: 80/100').waitFor();
+
+    // Telepromter
+    await page.getByRole('button', { name: 'Telepromter' }).click();
+    await page.getByRole('dialog', { name: 'Telepromter' }).waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.prompter').count(), 0);
+
+    // Altyazı indir
+    const dl = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Altyazı indir (.srt)' }).click();
+    assert.match((await dl).suggestedFilename(), /_altyazi\.srt$/);
+
+    await page.getByRole('button', { name: 'Takvime ekle' }).click();
+    await page.getByRole('link', { name: 'Takvimde' }).waitFor();
+    const contents = (await srv.request('GET', `/api/contents?brandId=${brand.id}`)).data.contents;
+    assert.equal(contents[0].type, 'reels');
+    assert.ok(contents[0].reelsId);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('Post stüdyosu: konudan carousel üret, katman seç ve düzenle, slayt ekle, kaydet, PNG indir', { skip }, async () => {
+  const srv = await startServer({ aiProvider: stage3Provider() });
+  const { browser, page, problems } = await open(srv);
+  try {
+    const brand = (await srv.request('POST', '/api/brands', { name: 'Kahve Evi', colors: { primary: '#c2410c', secondary: [], backgrounds: ['#ffffff'], heading: '#1b1f3b', body: '#3a3f63' } })).data.brand;
+    await srv.request('POST', `/api/brands/${brand.id}/assets?category=logo`, PNG_1PX, { 'Content-Type': 'image/png' });
+    await page.goto(srv.base + `/#/m/${brand.id}/post`);
+    await page.getByRole('heading', { name: 'Post stüdyosu' }).waitFor();
+    await page.getByRole('button', { name: 'Konudan üret' }).first().click();
+    await page.getByLabel('Konu *').fill('Sınav haftası ipuçları');
+    await page.getByLabel('Slayt sayısı (carousel)').fill('3');
+    await page.getByRole('dialog').getByRole('button', { name: 'Üret' }).click();
+    await page.getByRole('heading', { name: 'Sınav ipuçları' }).waitFor();
+    await page.locator('.slide-thumb').nth(2).waitFor();
+    assert.equal(await page.locator('.slide-thumb').count(), 3);
+
+    // Kapakta başlığa tıkla: başlık metni katmanı seçilir
+    const stage = page.locator('#stage');
+    const box = await stage.boundingBox();
+    const k = box.width / 1080;
+    await page.mouse.click(box.x + 200 * k, box.y + (1350 * 0.22 + 40) * k);
+    await page.locator('#lp-text').waitFor();
+    assert.equal(await page.locator('#lp-text').inputValue(), 'Sınav haftası');
+    await page.locator('#lp-text').fill('Sınav haftası rehberi');
+    // Sürükle: katman yer değiştirir
+    await page.mouse.move(box.x + 200 * k, box.y + (1350 * 0.22 + 40) * k);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 260 * k, box.y + (1350 * 0.22 + 100) * k, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForFunction(() => document.querySelector('#lp-x') && document.querySelector('#lp-x').value !== '90', null, { timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Slayt ekle' }).click();
+    await page.locator('.slide-thumb').nth(3).waitFor();
+    await page.getByRole('button', { name: 'Metin', exact: true }).click();
+    await page.locator('#lp-text').fill('Son söz');
+    await page.getByRole('button', { name: 'Kaydet •' }).click();
+    await page.getByText('Tasarım kaydedildi.').waitFor();
+    const saved = (await srv.request('GET', `/api/brands/${brand.id}/posts`)).data.posts[0];
+    assert.equal(saved.data.slides.length, 4);
+    assert.ok(saved.data.slides[0].layers.some(l => l.text === 'Sınav haftası rehberi'));
+    assert.ok(saved.data.slides[1].layers.some(l => l.text === 'Son söz'));
+
+    const dl = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Bu slaytı PNG indir' }).click();
+    const file = await dl;
+    assert.match(file.suggestedFilename(), /\.png$/);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
 test('telefon genişliği: yönetim merkezi, takvim ve marka alanında yatay taşma yok', { skip }, async () => {
   const srv = await startServer();
   await srv.request('POST', '/api/brands/demo');

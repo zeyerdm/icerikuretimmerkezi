@@ -21,11 +21,15 @@ Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz marka
 - **Dijital kimlik:** profil, renkler, fontlar, canlı post önizlemesi.
 - **İçerik fikirleri:** kategorili fikir havuzu, favoriler, tek tıkla takvime ekleme.
 - **Kütüphane:** logo, maskot pozları, sticker, görseller (her marka yalnızca kendi dosyalarını görür).
-- **Google Drive klasörü:** her markanın kendi Drive klasörü; kütüphanedeki görseller (ileride postlar, başlıklar, senaryolar) tek tıkla o klasöre gider. Bağlantı Ayarlar → Google Drive'dan bir kez kurulur (kendi Google hesabında küçük bir Apps Script; adımlar ekranda).
+- **Google Drive klasörü:** her markanın kendi Drive klasörü; kütüphanedeki görseller, post PNG'leri, Reels başlıkları ve altyazıları tek tıkla o klasöre gider. Bağlantı Ayarlar → Google Drive'dan bir kez kurulur (kendi Google hesabında küçük bir Apps Script; adımlar ekranda).
 - **Takvim, Arşiv, Analizler:** yalnızca bu markanın içerikleri.
-- **Reels fikirleri, Prompt Studio, Post stüdyosu:** sıradaki aşamalarda geliyor (menüde "Yakında" olarak görünür, bitmiş gibi gösterilmez).
+- **Reels:** fikir havuzu (kategoriler, beğen/beğenme, rastgele seçim, AI ile genişletme) ve senaryo üretimi: saniye saniye sahneler, iki dilli Flow/Veo prompt'ları, yazısız Veo prompt'u, kalite uyarıları, sahneyi ya da tamamını yeniden yazdırma, sürüm geçmişi, başlık PNG'si (6 stil), `.srt` altyazı, telepromter, takvime ekleme ve Drive'a gönderme.
+- **Post stüdyosu:** konudan carousel/post üretimi ya da boş tasarım; yazı, görsel (logo, maskot pozları) ve şekil katmanları, sürükle-bırak, marka renkleri ve fontları, PNG indirme ve Drive'a gönderme, takvime ekleme.
+- **İçerik denetçisi:** açıklama ve senaryo metinlerini marka diline, uzunluğa ve kurallara göre puanlar, sorunları ve düzeltilmiş metni önerir.
+- Her üretim ekranında **hangi modelle yazılacağı seçilir**; beğenmezsen başka modelle tekrar yazdırırsın.
+- **Prompt Studio:** sıradaki aşamada geliyor (menüde "Yakında" olarak görünür, bitmiş gibi gösterilmez).
 
-**Yapay zekâ** sayfası: Claude, OpenAI, OpenRouter (tek anahtarla birçok model) ve Gemini bağlanır; aynı istek 2-3 modele yazdırılıp yan yana karşılaştırılır; her işe (fikir, metin yazımı, çeviri) ayrı model ve yedek model atanır; harcama markaya, işe ve modele göre izlenir, aylık sınır konur. Seçenekler ve maliyetler: [docs/AI_SECENEKLERI.md](docs/AI_SECENEKLERI.md)
+**Yapay zekâ** sayfası: Claude, OpenAI, OpenRouter (tek anahtarla birçok model) ve Gemini bağlanır; aynı istek 2-3 modele yazdırılıp yan yana karşılaştırılır; her işe (fikir, metin yazımı, çeviri, içerik denetimi) ayrı model ve yedek model atanır; harcama markaya, işe ve modele göre izlenir, aylık sınır konur. Seçenekler ve maliyetler: [docs/AI_SECENEKLERI.md](docs/AI_SECENEKLERI.md)
 
 Üstteki konum çubuğu (Yönetim Merkezi › Marka › Sayfa) ve marka değiştirici ile her an nerede olduğun belli; tek tıkla başka markaya geçer ya da yönetim merkezine dönersin.
 

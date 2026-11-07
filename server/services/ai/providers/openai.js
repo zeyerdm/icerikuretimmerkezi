@@ -14,7 +14,7 @@ export function createOpenAiCompatibleProvider({ id, label, shortLabel, baseURL,
         signal: AbortSignal.timeout(TIMEOUT_MS)
       });
     } catch (err) {
-      throw aiError('AI_UNAVAILABLE', err.name === 'TimeoutError' ? `${shortLabel} 2 dakika içinde yanıt vermedi.` : `${shortLabel} sunucusuna bağlanılamadı.`, { retryable: true });
+      throw aiError('AI_UNAVAILABLE', err.name === 'TimeoutError' ? `${shortLabel} 3 dakika içinde yanıt vermedi.` : `${shortLabel} sunucusuna bağlanılamadı.`, { retryable: true });
     }
     const data = await res.json().catch(() => null);
     if (!res.ok) {

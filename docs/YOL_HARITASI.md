@@ -42,14 +42,20 @@ Hedef: Gemini'nin Türkçe metin yazımı beğenilmedi; her iş için en iyi mod
 
 Hedef: eski sistemde çalışan her şey yeni sistemde, istenen düzeltmelerle ve markadan bağımsız çalışsın. DevOrtak'a ait veri, karakter, görsel ve ayarlar taşınmaz.
 
-- ⬜ **3.1 Reels fikir havuzu:** kategoriler, rastgele seçim, benzer fikir üretme (havuzu genişletme), beğen/beğenme, büyütülebilir havuz; markanın kendi fikirleriyle.
-- ⬜ **3.2 Reels senaryo üretimi:** saniye saniye sahneler, sahne sürekliliği, konuşma öncelikli yazım (her sahnede konuşma, anlatılan olayın ekranda gösterilmesi), "asıl espri" ile biten kurgu, çağrı/arayüz yasağı, doğal konuşma hızına göre sahne süresi, kalite kontrolü uyarıları.
-- ⬜ **3.3 Flow/Veo prompt'ları:** iki dilli (Türkçe + İngilizce) prompt, Türkçeden düzeltip İngilizceye çevirme, yazısız Veo prompt'u, sinematik stil satırı, gerçek isim temizleme.
-- ⬜ **3.4 Tekrar üretme:** senaryonun tamamını veya tek sahneyi yeniden yazdırma; üretim sırasında geçen süre göstergesi ve zaman sınırı.
-- ⬜ **3.5 Başlık ve altyazı:** başlık stilleri (önizlemeli), başlık PNG'si, `.srt` altyazı dosyası; başlık yalnızca ilk sahnede, altyazı kurguda.
-- ⬜ **3.6 Carousel/post üretimi ve editörü:** konudan slayt üretimi, slayt düzenleme, sürükle-bırak, maskot pozları, marka renk/font uygulaması, PNG dışa aktarma (Post stüdyosunun ilk sürümü).
-- ⬜ **3.7 AI içerik denetçisi:** üretilen metinlerin marka diline, uzunluğa ve kurallara uygunluk kontrolü.
-- ⬜ **3.8 Senaryo dışa aktarma:** senaryo metni, telepromter görünümü, sahne listesi; arşive ve takvime bağlanma.
+- ✅ **3.1 Reels fikir havuzu:** kategoriler, rastgele seçim, benzer fikir üretme (havuzu genişletme, aynı fikir iki kez eklenmez), beğen/beğenme, büyütülebilir havuz; markanın kendi fikirleriyle. Marka başına karakter, görsel stil (3D / gerçekçi / 2D) ve başlık stili ayarı.
+- ✅ **3.2 Reels senaryo üretimi:** 5 format (vlog, skeç, hikâye, bilgi, tanıtım); saniye saniye sahneler, sahne sürekliliği, konuşma öncelikli yazım, "asıl espri" ile biten kurgu, çağrı/arayüz yasağı, doğal konuşma hızına göre sahne süresi (3–8 sn, en çok 6 sahne, 45 sn), kalite kontrolü uyarıları (karakter adı, gerçek isim, süre, konuşma yoğunluğu). Durum: taslak → hazır → çekildi → paylaşıldı.
+- ✅ **3.3 Flow/Veo prompt'ları:** iki dilli (Türkçe + İngilizce) prompt, Türkçeden düzeltip İngilizceye çevirme (Türkçe değişince İngilizcenin eskidiği gösterilir), yazısız Veo prompt'u, sinematik stil satırı, gerçek isim temizleme; tek tıkla kopyalama.
+- ✅ **3.4 Tekrar üretme:** senaryonun tamamını veya tek sahneyi yeniden yazdırma (istenirse başka modelle); her üretim sürüm olarak saklanır, önceki sürüme dönülebilir; geçen süre göstergesi ve 3 dakikalık zaman sınırı.
+- ✅ **3.5 Başlık ve altyazı:** 6 başlık stili (önizlemeli, vurgu kelimesiyle), şeffaf 1080×1920 başlık PNG'si, `.srt` altyazı dosyası; başlık yalnızca ilk sahnenin prompt'unda, altyazı kurguda. İndirme ve markanın Drive klasörüne gönderme.
+- ✅ **3.6 Carousel/post üretimi ve editörü:** konudan slayt üretimi ya da boş tasarım; yazı/görsel/şekil katmanları, tıkla-seç, sürükle-bırak ve ok tuşlarıyla ince ayar, kütüphaneden logo ve maskot pozları, marka renk/font uygulaması, metni yeniden yazdırma, PNG dışa aktarma ve Drive'a gönderme (Post stüdyosunun ilk sürümü).
+- ✅ **3.7 AI içerik denetçisi:** açıklama, Reels ve carousel metinlerinin marka diline, uzunluğa ve kurallara uygunluk kontrolü; puan, sorun listesi ve önerilen düzeltilmiş metin (tek tıkla kullanılır). Kendi model ataması ("İçerik denetimi").
+- ✅ **3.8 Senaryo dışa aktarma:** senaryo metni, telepromter görünümü, sahne listesi, `.srt`; takvime ekleme, arşivde ve içerik kartında senaryoya/tasarıma bağlantı.
+
+**Kural (bütün üretim ekranları):** her üretim düğmesinin yanında model seçici bulunur (varsayılan: işe atanmış model) ve sonuç "başka modelle tekrar yaz" ile yeniden üretilebilir.
+
+## Aşama 3.5 — Uygulama kimliği: KREATİFHANE
+
+- ⬜ **3.9 Ad, slogan ve logo:** uygulama adı **KREATİFHANE**, slogan **"Fikirden üretime, her şey tek merkezde"**, tanım **Creative Management Platform** (Türkçesi: **Kreatif Yönetim Platformu**). Piksel kareli "K" logosunun SVG hâli (koyu lacivert üzerinde turkuaz→mor geçiş; küçük boy ve açık zemin sürümleri). Uygulama başlığı, kenar çubuğu logosu, favicon, karşılama ekranı ve README'ye uygulanır.
 
 ## Aşama 4 — Geliştirme ve yenileme
 
@@ -95,6 +101,7 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 
 - ⬜ **6.1 Telefondan erişim:** uygulamanın internetteki bir sunucuya taşınması ve giriş şifresi.
 - ⬜ **6.2 Doğrudan yayınlama:** içeriklerin uygulamadan Instagram'a gönderilmesi (Meta onay süreci gerektirir).
+- ⬜ **6.3 Arayüz dili (TR / EN):** bütün arayüz metinlerinin dil dosyalarına taşınması, Ayarlar'dan dil seçimi; AI üretimleri markanın içerik dilinde kalır.
 
 ---
 
