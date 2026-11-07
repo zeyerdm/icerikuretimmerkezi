@@ -24,8 +24,8 @@ const KEEP = { otomatik: 14, 'geri-yukleme-oncesi': 5, 'guncelleme-oncesi': 5 };
 const NAME_RE = /^yedek-(\d{4})-(\d{2})-(\d{2})-(\d{6})(?:-(\d+))?-(otomatik|elle|geri-yukleme-oncesi|guncelleme-oncesi)\.zip$/;
 const UPLOAD_RE = /^uploads\/[A-Za-z0-9-]{1,64}\/[A-Za-z0-9-]{1,64}\.(png|jpg|gif|webp)$/;
 
-// Yedeğe girmeyen ve geri yüklemede değişmeyen ayarlar: anahtarlar ve bu bilgisayara özel yollar
-export const isLocalSetting = key => /apikey|token|secret|password/i.test(key) || key.startsWith('backup.');
+// Yedeğe girmeyen ve geri yüklemede değişmeyen ayarlar: anahtarlar, Drive bağlantısı ve bu bilgisayara özel yollar
+export const isLocalSetting = key => /apikey|token|secret|password/i.test(key) || key.startsWith('backup.') || key.startsWith('drive.');
 
 const pad = n => String(n).padStart(2, '0');
 const stamp = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;

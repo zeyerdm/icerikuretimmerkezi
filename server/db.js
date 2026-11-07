@@ -144,6 +144,11 @@ const MIGRATIONS = [
   ALTER TABLE activity_new RENAME TO activity;
   CREATE INDEX idx_activity_brand ON activity(brand_id, created_at);
   CREATE INDEX idx_activity_owner ON activity(owner_id, created_at);
+  `,
+  // 4: markanın Google Drive klasörü ve Drive'a gönderilen dosyaların bağlantısı
+  `
+  ALTER TABLE brands ADD COLUMN drive_folder TEXT NOT NULL DEFAULT '';
+  ALTER TABLE assets ADD COLUMN drive_url TEXT NOT NULL DEFAULT '';
   `
 ];
 

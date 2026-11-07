@@ -32,7 +32,7 @@ export function detectImage(buffer) {
 
 const toAsset = r => ({
   id: r.id, category: r.category, categoryLabel: ASSET_CATEGORIES[r.category] || r.category,
-  label: r.label, mime: r.mime, size: r.size, createdAt: r.created_at,
+  label: r.label, mime: r.mime, size: r.size, createdAt: r.created_at, driveUrl: r.drive_url || '',
   url: `/api/brands/${r.brand_id}/assets/${r.id}/file`
 });
 
@@ -85,7 +85,13 @@ export function createAssetService(db, uploadDir) {
 
     file(brandId, assetId) {
       const row = getRow(brandId, assetId);
-      return { path: filePath(row), mime: row.mime };
+      return { path: filePath(row), mime: row.mime, label: row.label, category: row.category, ext: path.extname(row.file_name) };
+    },
+
+    setDriveUrl(brandId, assetId, url) {
+      const row = getRow(brandId, assetId);
+      db.prepare('UPDATE assets SET drive_url = ? WHERE id = ? AND brand_id = ?').run(url, row.id, brandId);
+      return toAsset(Object.assign(row, { drive_url: url }));
     },
 
     removeBrandFiles(brandId) {

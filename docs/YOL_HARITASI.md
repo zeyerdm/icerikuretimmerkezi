@@ -13,6 +13,7 @@ Hedef: veriler tek bilgisayarda durduğu ve uygulama kendini güncellediği içi
 - ✅ **0.1 Yedekleme ve geri yükleme:** her gün kendiliğinden yedek (son 14 gün saklanır); Ayarlar → Yedekler'de "Şimdi yedek al", indir, "Geri yükle", "Yedek dosyasından geri yükle"; geri yüklemeden önce mevcut hâlin yedeği; API anahtarları yedeğe girmez; istenirse her yedeğin bir kopyası Google Drive masaüstü klasörüne.
 - ✅ **0.2 Güncellemeyi geri alma:** güncellemeden önce verilerin yedeği alınır; yeni sürüm açılamazsa başlatıcı kendiliğinden önceki sürüme döner ve o sürümü bir daha kurmaz; Ayarlar'da "Önceki sürüme dön" ve gerekirse "Yine de güncelle".
 - ✅ **0.3 GitHub'da otomatik test:** her değişiklik GitHub'da Linux (arayüz testleri dahil) ve Windows'ta testlerden geçer; geçmeyen değişiklik `main`'e alınmaz.
+- ✅ **0.4 Marka başına Google Drive klasörü:** Ayarlar'da bir kez Apps Script bağlantısı (Google Cloud gerekmez); her markaya kendi Drive klasör linki (marka kurulurken ya da kimlik sayfasında), bağlantı testi, kütüphane görsellerini o klasöre gönderme. Aşama 3'teki her üretim (başlık PNG'si, post, senaryo, altyazı) geldikçe "Drive'a gönder" ona da bağlanır.
 
 ## Aşama 1 — Arayüz ve kullanım düzeni (UX/UI)
 
