@@ -19,6 +19,8 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
     title: content ? 'İçeriği düzenle' : 'İçerik planla',
     submitLabel: content ? 'Kaydet' : 'Planla',
     body: `
+      ${c.reelsId ? `<div class="notice notice-info mb-4"><div>Bu içerik bir Reels senaryosundan oluşturuldu.</div><a class="btn btn-sm" href="#/m/${esc(c.brandId)}/reels/${esc(c.reelsId)}" data-close>Senaryoyu aç</a></div>` : ''}
+      ${c.postId ? `<div class="notice notice-info mb-4"><div>Bu içerik Post stüdyosundaki bir tasarıma bağlı.</div><a class="btn btn-sm" href="#/m/${esc(c.brandId)}/post/${esc(c.postId)}" data-close>Tasarımı aç</a></div>` : ''}
       <div class="form-grid">
         <div class="field full"><label for="c-title">Başlık *</label><input class="input" id="c-title" name="title" required maxlength="200" value="${esc(c.title || title || '')}" placeholder="Ör. Vize haftası kampanya postu"></div>
         <div class="field"><label for="c-brand">Marka</label><select class="select" id="c-brand" name="brandId" ${lockBrand ? 'disabled' : ''}>${brandOptions(selectedBrand)}</select></div>

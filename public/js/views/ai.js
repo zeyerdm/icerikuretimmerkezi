@@ -241,7 +241,7 @@ const MEDIA = [
 async function renderProviders(body, ov, view) {
   const connected = ov.providers.filter(p => p.configured);
   body.innerHTML = `
-    <div class="grid-2">${ov.providers.map(p => `
+    <div class="grid-2">${ov.providers.filter(p => !p.test).map(p => `
       <section class="card" data-provider="${p.id}">
         <div class="card-head"><h3>${esc(p.label)}</h3>${p.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill">Bağlı değil</span>'}</div>
         <p class="card-text">${esc(p.note)}</p>

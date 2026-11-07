@@ -12,7 +12,7 @@ const PRICES_SETTING = 'ai.prices';
 const keySetting = id => `ai.${id}.apiKey`;
 export const GEMINI_TEXT_MODELS = MODELS.filter(m => m.provider === 'gemini').map(m => m.id);
 // İşe göre düşünme derinliği (Claude): yazım özen ister, çeviri hızlı olmalı
-const EFFORT = { yazim: 'high', fikir: 'medium', ceviri: 'low', karsilastirma: 'high' };
+const EFFORT = { yazim: 'high', fikir: 'medium', ceviri: 'low', denetim: 'medium', karsilastirma: 'high' };
 
 function monthStart(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
@@ -127,16 +127,24 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     }
   }
 
-  // İş için atanan modelle çalıştırır; geçici bir hata olursa yedek modele geçer
-  async function run({ task = 'fikir', brandId = null, prompt, json = false, temperature = 0.8 }) {
+  // İş için atanan modelle (ya da o an seçilen modelle) çalıştırır; geçici bir hata olursa işin yedek modeline geçer
+  async function run({ task = 'fikir', brandId = null, prompt, json = false, temperature = 0.8, modelRef = null }) {
     checkBudget();
     const a = assignment(task);
-    if (!a.primary) throw new HttpError(409, 'AI_NOT_CONFIGURED', 'AI bağlı değil. Yapay zekâ → Sağlayıcılar bölümünden bir anahtar ekle.');
+    let primary = a.primary;
+    if (modelRef) {
+      const p = parseRef(modelRef);
+      if (!p || !providers[p.provider]) throw badRequest('Geçersiz model seçimi.');
+      if (!isConfigured(p.provider)) throw new HttpError(409, 'AI_NOT_CONFIGURED', `${PROVIDERS[p.provider] ? PROVIDERS[p.provider].label : p.provider} bağlı değil.`);
+      primary = modelRef;
+    }
+    if (!primary) throw new HttpError(409, 'AI_NOT_CONFIGURED', 'AI bağlı değil. Yapay zekâ → Sağlayıcılar bölümünden bir anahtar ekle.');
+    const fallback = a.fallback && a.fallback !== primary ? a.fallback : null;
     try {
-      return Object.assign(await runOne(a.primary, { task, brandId, prompt, json, temperature }), { fallbackUsed: false });
+      return Object.assign(await runOne(primary, { task, brandId, prompt, json, temperature }), { fallbackUsed: false });
     } catch (err) {
-      if (!a.fallback || !err.retryable) throw err;
-      const r = await runOne(a.fallback, { task, brandId, prompt, json, temperature });
+      if (!fallback || !err.retryable) throw err;
+      const r = await runOne(fallback, { task, brandId, prompt, json, temperature });
       return Object.assign(r, { fallbackUsed: true, primaryError: err.message });
     }
   }
@@ -163,11 +171,14 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     },
 
     overview() {
+      const list = Object.entries(PROVIDERS).map(([id, p]) => {
+        const key = getKey(id);
+        return { id, label: p.label, note: p.note, keyUrl: p.keyUrl, keyPlaceholder: p.keyPlaceholder, configured: Boolean(key), source: keySource(id), keyHint: key ? '••••' + key.slice(-4) : null };
+      });
+      // Testlerdeki sahte sağlayıcı "bağlı" görünür (arayüz testleri gerçek anahtar olmadan çalışsın)
+      if (providers.fake) list.push({ id: 'fake', label: providers.fake.label, note: '', keyUrl: '', keyPlaceholder: '', configured: true, source: 'test', keyHint: null, test: true });
       return {
-        providers: Object.entries(PROVIDERS).map(([id, p]) => {
-          const key = getKey(id);
-          return { id, label: p.label, note: p.note, keyUrl: p.keyUrl, keyPlaceholder: p.keyPlaceholder, configured: Boolean(key), source: keySource(id), keyHint: key ? '••••' + key.slice(-4) : null };
-        }),
+        providers: list,
         models: MODELS.map(m => {
           const ref = modelRef(m.provider, m.id);
           return Object.assign({}, m, { ref, price: priceFor(ref) || m.price, available: isConfigured(m.provider) });

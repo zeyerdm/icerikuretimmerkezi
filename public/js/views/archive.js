@@ -17,7 +17,7 @@ export async function renderArchive(view, brand) {
         <thead><tr><th>Tarih</th><th>Başlık</th><th>Tür</th><th>Durum</th><th></th></tr></thead>
         <tbody>${list.map(c => `<tr>
           <td class="nowrap">${c.scheduledAt ? `${esc(fmtDate(c.scheduledAt, { day: 'numeric', month: 'short', year: 'numeric' }))} <span class="muted">${timeStr(c.scheduledAt)}</span>` : '<span class="muted">Tarihsiz</span>'}</td>
-          <td><b>${esc(c.title)}</b>${c.notes ? `<div class="small muted">${esc(c.notes.slice(0, 90))}</div>` : ''}</td>
+          <td><b>${esc(c.title)}</b>${c.notes ? `<div class="small muted">${esc(c.notes.slice(0, 90))}</div>` : ''}${c.reelsId ? `<div><a class="link small" href="#/m/${esc(brand.id)}/reels/${esc(c.reelsId)}">Senaryoyu aç</a></div>` : ''}${c.postId ? `<div><a class="link small" href="#/m/${esc(brand.id)}/post/${esc(c.postId)}">Tasarımı aç</a></div>` : ''}</td>
           <td>${esc(c.typeLabel)}</td>
           <td><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></td>
           <td><button class="btn btn-sm btn-ghost icon-btn" data-edit="${esc(c.id)}" aria-label="Düzenle">${icon('edit')}</button></td></tr>`).join('')}</tbody>

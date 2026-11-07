@@ -177,6 +177,59 @@ const MIGRATIONS = [
     winner TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX idx_ai_comparisons_time ON ai_comparisons(created_at);
+  `,
+  // 6: Reels fikir havuzu, Reels senaryoları (sürüm geçmişiyle), post/carousel stüdyosu;
+  //    takvimdeki içeriğin bağlı olduğu senaryo veya post; markanın Reels ayarları (karakter, görsel stil)
+  `
+  CREATE TABLE reels_pool (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    category TEXT NOT NULL,
+    rating INTEGER NOT NULL DEFAULT 0,
+    source TEXT NOT NULL DEFAULT 'manual',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_reels_pool_brand ON reels_pool(brand_id, created_at);
+
+  CREATE TABLE reels (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    pool_id TEXT REFERENCES reels_pool(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'taslak',
+    data TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_reels_brand ON reels(brand_id, updated_at);
+
+  CREATE TABLE reels_versions (
+    id TEXT PRIMARY KEY,
+    reels_id TEXT NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+    note TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_reels_versions ON reels_versions(reels_id, created_at);
+
+  CREATE TABLE posts (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_posts_brand ON posts(brand_id, updated_at);
+
+  ALTER TABLE contents ADD COLUMN reels_id TEXT REFERENCES reels(id) ON DELETE SET NULL;
+  ALTER TABLE contents ADD COLUMN post_id TEXT REFERENCES posts(id) ON DELETE SET NULL;
+  ALTER TABLE brands ADD COLUMN reels_settings TEXT NOT NULL DEFAULT '{}';
   `
 ];
 

@@ -48,17 +48,18 @@ export const MODELS = [
 
 // İşler: her işe ayrı model ve isteğe bağlı yedek model atanır
 export const TASKS = {
-  fikir: { label: 'Fikir üretimi ve asistan', hint: 'Marka ana sayfasındaki AI asistanı ve fikir havuzu bunu kullanır.' },
-  yazim: { label: 'Metin yazımı', hint: 'Reels senaryosu, gönderi açıklaması, carousel metni (Aşama 3 modülleri bunu kullanacak).' },
-  ceviri: { label: 'Çeviri ve prompt', hint: 'Türkçe metni düzeltme, İngilizce Flow/Veo prompt\'u (Aşama 3 modülleri bunu kullanacak).' }
+  fikir: { label: 'Fikir üretimi ve asistan', hint: 'Marka asistanı, fikir havuzu ve Reels fikir havuzunu genişletme bunu kullanır.' },
+  yazim: { label: 'Metin yazımı', hint: 'Reels senaryosu, carousel/post metni ve açıklamalar bunu kullanır.' },
+  ceviri: { label: 'Çeviri ve prompt', hint: 'Türkçe sahne tarifini İngilizce Flow/Veo prompt\'una çevirme.' },
+  denetim: { label: 'İçerik denetimi', hint: 'Üretilen metni marka diline, uzunluğa ve kurallara göre kontrol eder.' }
 };
 
 // Ayar yapılmadıysa: anahtarı olan ilk sağlayıcının bu iş için önerilen modeli
 export const DEFAULT_ORDER = ['anthropic', 'openai', 'gemini'];
 export const RECOMMENDED = {
-  anthropic: { fikir: 'claude-sonnet-5-5', yazim: 'claude-sonnet-5-5', ceviri: 'claude-haiku-5-5' },
-  openai: { fikir: 'gpt-5-mini', yazim: 'gpt-5', ceviri: 'gpt-5-mini' },
-  gemini: { fikir: 'gemini-flash-latest', yazim: 'gemini-pro-latest', ceviri: 'gemini-flash-lite-latest' }
+  anthropic: { fikir: 'claude-sonnet-5-5', yazim: 'claude-sonnet-5-5', ceviri: 'claude-haiku-5-5', denetim: 'claude-haiku-5-5' },
+  openai: { fikir: 'gpt-5-mini', yazim: 'gpt-5', ceviri: 'gpt-5-mini', denetim: 'gpt-5-mini' },
+  gemini: { fikir: 'gemini-flash-latest', yazim: 'gemini-pro-latest', ceviri: 'gemini-flash-lite-latest', denetim: 'gemini-flash-latest' }
 };
 
 export const modelRef = (provider, id) => `${provider}:${id}`;

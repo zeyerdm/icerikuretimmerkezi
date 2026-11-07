@@ -16,6 +16,8 @@ import { renderAnalytics } from './views/analytics.js';
 import { renderIdeas } from './views/ideas.js';
 import { renderArchive } from './views/archive.js';
 import { renderAi } from './views/ai.js';
+import { renderReels } from './views/reels.js';
+import { renderPosts } from './views/posts.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -76,9 +78,9 @@ const BRAND_NAV = [
   { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home' },
   { page: 'kimlik', path: '/kimlik', label: 'Dijital kimlik', icon: 'identity' },
   { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea' },
-  { page: 'reels', label: 'Reels fikirleri', icon: 'film', soon: true },
+  { page: 'reels', path: '/reels', label: 'Reels', icon: 'film' },
+  { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette' },
   { page: 'prompt', label: 'Prompt Studio', icon: 'wand', soon: true },
-  { page: 'post', label: 'Post stüdyosu', icon: 'palette', soon: true },
   { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image' },
   { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar' },
   { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive' },
@@ -95,6 +97,10 @@ export function parseRoute(hash = location.hash || '#/') {
     if (rest === '') return { layer: 'brand', page: 'home', brandId: id };
     if (rest === '/kimlik') return { layer: 'brand', page: 'kimlik', brandId: id, tab: 'profil' };
     if (rest === '/kimlik/gorsel') return { layer: 'brand', page: 'kimlik', brandId: id, tab: 'gorsel' };
+    // Reels: /reels (fikir havuzu), /reels/liste (senaryolar), /reels/<id> (senaryo); Post: /post, /post/<id>
+    let mm;
+    if ((mm = rest.match(/^\/reels(?:\/(liste|[A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'reels', brandId: id, sub: mm[1] || null };
+    if ((mm = rest.match(/^\/post(?:\/([A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'post', brandId: id, sub: mm[1] || null };
     const sub = BRAND_NAV.find(n => n.path === rest && !n.soon);
     if (sub) return { layer: 'brand', page: sub.page, brandId: id };
     return { layer: 'brand', page: 'notfound', brandId: id };
@@ -203,6 +209,8 @@ export async function route() {
       else if (r.page === 'takvim') await renderCalendar(view, { brand });
       else if (r.page === 'arsiv') await renderArchive(view, brand);
       else if (r.page === 'analiz') await renderAnalytics(view, { brand });
+      else if (r.page === 'reels') await renderReels(view, brand, r.sub);
+      else if (r.page === 'post') await renderPosts(view, brand, r.sub);
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;
     }
