@@ -149,6 +149,34 @@ const MIGRATIONS = [
   `
   ALTER TABLE brands ADD COLUMN drive_folder TEXT NOT NULL DEFAULT '';
   ALTER TABLE assets ADD COLUMN drive_url TEXT NOT NULL DEFAULT '';
+  `,
+  // 5: yapay zekâ harcama kaydı (her çağrı: sağlayıcı, model, iş, marka, token, tutar) ve model karşılaştırmaları
+  `
+  CREATE TABLE ai_usage (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    task TEXT NOT NULL,
+    brand_id TEXT REFERENCES brands(id) ON DELETE SET NULL,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    ok INTEGER NOT NULL DEFAULT 1,
+    error TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX idx_ai_usage_time ON ai_usage(created_at);
+
+  CREATE TABLE ai_comparisons (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    brand_id TEXT REFERENCES brands(id) ON DELETE SET NULL,
+    brief TEXT NOT NULL,
+    results TEXT NOT NULL DEFAULT '[]',
+    winner TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX idx_ai_comparisons_time ON ai_comparisons(created_at);
   `
 ];
 

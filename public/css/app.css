@@ -710,3 +710,12 @@ a.kpi { text-decoration: none; color: inherit; transition: transform .15s, box-s
 
 /* Genişlik yardımcıları form alanlarının %100 genişliğini ezer (dosyanın sonunda olmaları bu yüzden) */
 .w-auto { width: auto; } .w-sm { width: 180px; max-width: 100%; } .w-md { width: 260px; max-width: 100%; } .w-full { width: 100%; }
+
+/* Yapay zekâ: karşılaştırma sütunları ve iş atamaları */
+.cmp-grid { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: var(--s-4); align-items: stretch; }
+.cmp-col { display: flex; flex-direction: column; gap: var(--s-2); }
+.cmp-col.is-winner { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-soft), var(--shadow); }
+.cmp-text { white-space: pre-wrap; font-size: var(--t-sm); line-height: 1.6; color: var(--ink); background: var(--surface-2); border-radius: var(--r-sm); padding: var(--s-3) var(--s-4); max-height: 520px; overflow-y: auto; margin-top: var(--s-2); }
+.task-assign { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-4); align-items: end; padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
+.task-assign:last-child { border-bottom: none; }
+@media (max-width: 1000px) { .cmp-grid { grid-template-columns: minmax(0, 1fr); } .task-assign { grid-template-columns: minmax(0, 1fr); align-items: stretch; } }

@@ -25,6 +25,8 @@ Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz marka
 - **Takvim, Arşiv, Analizler:** yalnızca bu markanın içerikleri.
 - **Reels fikirleri, Prompt Studio, Post stüdyosu:** sıradaki aşamalarda geliyor (menüde "Yakında" olarak görünür, bitmiş gibi gösterilmez).
 
+**Yapay zekâ** sayfası: Claude, OpenAI, OpenRouter (tek anahtarla birçok model) ve Gemini bağlanır; aynı istek 2-3 modele yazdırılıp yan yana karşılaştırılır; her işe (fikir, metin yazımı, çeviri) ayrı model ve yedek model atanır; harcama markaya, işe ve modele göre izlenir, aylık sınır konur. Seçenekler ve maliyetler: [docs/AI_SECENEKLERI.md](docs/AI_SECENEKLERI.md)
+
 Üstteki konum çubuğu (Yönetim Merkezi › Marka › Sayfa) ve marka değiştirici ile her an nerede olduğun belli; tek tıkla başka markaya geçer ya da yönetim merkezine dönersin.
 
 Yapılacaklar ve sıradaki adımlar: [docs/YOL_HARITASI.md](docs/YOL_HARITASI.md) · Mimari: [docs/ANALIZ.md](docs/ANALIZ.md)
@@ -53,7 +55,7 @@ Uygulama her açıldığında GitHub'daki son sürümü kontrol eder ve varsa **
 
 İlk açılışta:
 1. Nasıl çalıştığını görmek için **☕ Örnek markayla keşfet**'e bas (kurgusal bir kafe: kimliği, renkleri, logosu, maskot pozları ve fikirleri hazır; ana ekranda adım adım rehber çıkar) ya da doğrudan kendi markanı oluştur.
-2. **Ayarlar** → Gemini API anahtarını ekle (<https://aistudio.google.com/apikey>). Anahtar yalnızca bu bilgisayarda saklanır.
+2. **Yapay zekâ → Sağlayıcılar ve modeller** → Claude, OpenAI, OpenRouter ya da Gemini anahtarını ekle. Anahtar yalnızca bu bilgisayarda saklanır. Hangi modelin daha iyi yazdığını **Karşılaştır** sekmesinde kendi markanla dene.
 3. Ana ekrana dön ve asistana yaz: *"Bu marka için haftaya 5 içerik fikri üret."*
 
 ### Terminalden (isteğe bağlı)

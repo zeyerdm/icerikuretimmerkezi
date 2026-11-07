@@ -80,7 +80,7 @@ export function createAssistantService({ db, ai, brands, ideas }) {
       const brand = brands.get(brandId);
       const message = text(rawMessage, { field: 'Mesaj', max: 4000, required: true });
       const past = history(brand.id, HISTORY_LIMIT);
-      const response = await ai.generate(buildPrompt(brand, brands.memory(brand.id), past, message), { json: true, temperature: 0.8 });
+      const response = await ai.generate(buildPrompt(brand, brands.memory(brand.id), past, message), { json: true, temperature: 0.8, task: 'fikir', brandId: brand.id });
       const reply = typeof (response && response.reply) === 'string' && response.reply.trim()
         ? response.reply.trim()
         : 'Yanıt oluşturulamadı, mesajını biraz farklı yazıp tekrar dener misin?';
