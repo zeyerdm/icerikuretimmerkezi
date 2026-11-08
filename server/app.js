@@ -8,7 +8,8 @@ import { openDb } from './db.js';
 import { errorHandler, newId, now, badRequest, text, oneOf, route, HttpError } from './lib/http.js';
 import { createAiService, GEMINI_TEXT_MODELS } from './services/ai/index.js';
 import { createBrandService, identityCompleteness, PROFILE_FIELDS, FONT_OPTIONS } from './services/brands.js';
-import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES } from './services/assets.js';
+import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES, MAX_PACK_BYTES } from './services/assets.js';
+import { readZip, ZipError } from './lib/zip.js';
 import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
 import { createAssistantService } from './services/assistant.js';
 import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES, TASK_PRIORITIES, TASK_STATUSES } from './services/workspace.js';
@@ -560,10 +561,24 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
 
   // Dosya ham gövde olarak gönderilir (multipart ayrıştırıcıya gerek yok); tür içerikten doğrulanır
   api.post('/brands/:brandId/assets', express.raw({ type: () => true, limit: MAX_ASSET_BYTES }), (req, res) => {
-    const asset = assets.create(req.brand.id, { buffer: req.body, category: String(req.query.category || ''), label: String(req.query.label || '') });
+    const asset = assets.create(req.brand.id, { buffer: req.body, category: String(req.query.category || ''), label: String(req.query.label || ''), pack: String(req.query.pack || ''), tags: String(req.query.tags || '') });
     brands.logActivity(req.brand.id, 'asset.uploaded', `${asset.categoryLabel} yüklendi${asset.label ? ': ' + asset.label : ''}`);
     res.status(201).json({ asset });
   });
+
+  // Paket yükleme: ZIP arşivi (gövde) ya da tek tek dosyalar ?pack= ile; paket listesi ve paket silme
+  api.post('/brands/:brandId/asset-packs', express.raw({ type: () => true, limit: MAX_PACK_BYTES }), (req, res) => {
+    let entries;
+    try { entries = readZip(req.body, { maxEntries: 1000, maxTotal: 300 * 1024 * 1024 }); } catch (err) {
+      if (err instanceof ZipError) throw badRequest(err.message);
+      throw err;
+    }
+    const r = assets.importPack(req.brand.id, { entries, category: String(req.query.category || 'sticker'), pack: String(req.query.pack || '') });
+    brands.logActivity(req.brand.id, 'asset.pack', `Paket yüklendi: ${String(req.query.pack || '')} (${r.added.length} görsel)`);
+    res.status(201).json(r);
+  });
+  api.get('/brands/:brandId/asset-packs', (req, res) => res.json({ packs: assets.packs(req.brand.id) }));
+  api.delete('/brands/:brandId/asset-packs', (req, res) => res.json({ removed: assets.removePack(req.brand.id, String(req.query.pack || '')) }));
 
   api.patch('/brands/:brandId/assets/:assetId', (req, res) => res.json({ asset: assets.update(req.brand.id, req.params.assetId, req.body || {}) }));
 

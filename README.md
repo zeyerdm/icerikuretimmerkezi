@@ -24,7 +24,7 @@ Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz marka
 - **Marka ana sayfası:** markanın hafızasıyla çalışan AI asistanı (sohbetten gerçekten iş yapar: fikir kaydeder/düzenler, Reels fikri ekler, senaryo yazar, post tasarlar, prompt üretir, takvime içerik ve görev ekler), hızlı işlemler, kimlik durumu, fikir grafiği.
 - **Dijital kimlik:** profil, renkler, fontlar, canlı post önizlemesi.
 - **İçerik fikirleri:** kategorili fikir havuzu, favoriler, tek tıkla takvime ekleme.
-- **Kütüphane:** logo, maskot pozları, sticker, görseller (her marka yalnızca kendi dosyalarını görür).
+- **Kütüphane:** logo, maskot pozları, sticker, görseller, AI görselleri (her marka yalnızca kendi dosyalarını görür); ZIP ya da çoklu dosyayla paket yükleme, paket filtresi ve silme, etiketler ve arama.
 - **Google Drive klasörü:** her markanın kendi Drive klasörü; kütüphanedeki görseller, post PNG'leri, Reels başlıkları ve altyazıları tek tıkla o klasöre gider. Bağlantı Ayarlar → Google Drive'dan bir kez kurulur (kendi Google hesabında küçük bir Apps Script; adımlar ekranda).
 - **Takvim, Arşiv, Analizler:** yalnızca bu markanın içerikleri.
 - **Reels:** fikir havuzu (kategoriler, beğen/beğenme, rastgele seçim, AI ile genişletme) ve senaryo üretimi: saniye saniye sahneler, iki dilli Flow/Veo prompt'ları, yazısız Veo prompt'u, kalite uyarıları, sahneyi ya da tamamını yeniden yazdırma, sürüm geçmişi, başlık PNG'si (6 stil), `.srt` altyazı, telepromter, takvime ekleme ve Drive'a gönderme.

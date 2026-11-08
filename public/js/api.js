@@ -74,8 +74,12 @@ export const api = {
   overview: id => request('GET', b(id) + '/overview'),
 
   assets: (id, category) => request('GET', b(id) + '/assets' + (category ? '?category=' + encodeURIComponent(category) : '')),
-  uploadAsset: (id, file, category, label) =>
-    request('POST', `${b(id)}/assets?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label || '')}`, file, { 'Content-Type': file.type || 'application/octet-stream' }),
+  uploadAsset: (id, file, category, label, pack = '') =>
+    request('POST', `${b(id)}/assets?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label || '')}&pack=${encodeURIComponent(pack || '')}`, file, { 'Content-Type': file.type || 'application/octet-stream' }),
+  uploadAssetPack: (id, file, category, pack) =>
+    request('POST', `${b(id)}/asset-packs?category=${encodeURIComponent(category)}&pack=${encodeURIComponent(pack)}`, file, { 'Content-Type': 'application/zip' }),
+  assetPacks: id => request('GET', b(id) + '/asset-packs'),
+  deleteAssetPack: (id, pack) => request('DELETE', `${b(id)}/asset-packs?pack=${encodeURIComponent(pack)}`),
   updateAsset: (id, assetId, body) => request('PATCH', `${b(id)}/assets/${assetId}`, body),
   deleteAsset: (id, assetId) => request('DELETE', `${b(id)}/assets/${assetId}`),
 

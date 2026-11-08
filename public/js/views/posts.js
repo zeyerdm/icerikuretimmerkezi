@@ -350,12 +350,13 @@ async function renderEditor(view, brand, id, models) {
 
   function pickAsset(onPick, only = null) {
     api.assets(brand.id).then(({ assets: all }) => {
-      const cats = [...new Map(all.map(a => [a.category, a.categoryLabel])).entries()];
       const assets = only ? all.filter(a => a.category === only) : all;
+      // Sticker seçicide paketler, genel seçicide kategoriler filtre olur
+      const cats = only ? [...new Set(assets.map(a => a.pack).filter(Boolean))].map(p => [p, p]) : [...new Map(all.map(a => [a.category, a.categoryLabel])).entries()];
       const m = openModal({
         title: only === 'sticker' ? 'Sticker seç' : 'Kütüphaneden görsel', submitLabel: 'Kapat',
-        body: assets.length ? `${!only && cats.length > 1 ? `<div class="chips mb-3"><button type="button" class="chip active" data-cat="">Tümü</button>${cats.map(([k, v]) => `<button type="button" class="chip" data-cat="${esc(k)}">${esc(v)}</button>`).join('')}</div>` : ''}
-          <div class="asset-grid">${assets.map(a => `<button type="button" class="asset asset-pick" data-pick="${esc(a.id)}" data-pcat="${esc(a.category)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || a.categoryLabel)}</div></button>`).join('')}</div>`
+        body: assets.length ? `${cats.length > (only ? 0 : 1) ? `<div class="chips mb-3"><button type="button" class="chip active" data-cat="">Tümü</button>${cats.map(([k, v]) => `<button type="button" class="chip" data-cat="${esc(k)}">${esc(v)}</button>`).join('')}</div>` : ''}
+          <div class="asset-grid">${assets.map(a => `<button type="button" class="asset asset-pick" data-pick="${esc(a.id)}" data-pcat="${esc(only ? a.pack : a.category)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || a.categoryLabel)}</div></button>`).join('')}</div>`
           : emptyState({ icon: 'image', title: only === 'sticker' ? 'Henüz sticker yok' : 'Kütüphane boş', text: `<a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> logo, maskot pozu veya görsel yükle.`, compact: true }),
         onSubmit: async () => {}
       });

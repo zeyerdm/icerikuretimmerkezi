@@ -287,6 +287,11 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_image_generations ON image_generations(brand_id, created_at);
+  `,
+  // 10: Varlık kütüphanesi: paket (ör. "Kış sticker'ları") ve etiketler (virgülle)
+  `
+  ALTER TABLE assets ADD COLUMN pack TEXT NOT NULL DEFAULT '';
+  ALTER TABLE assets ADD COLUMN tags TEXT NOT NULL DEFAULT '';
   `
 ];
 
