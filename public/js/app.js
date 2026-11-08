@@ -193,6 +193,8 @@ export async function route() {
   if (r.redirect) { location.replace(r.redirect); return; }
   // Tam ekran düzenleyiciden çıkınca normal yerleşime dönülür
   document.body.classList.remove('editor-mode');
+  // Sayfa değişince önceki sayfadan kalan pencereler kapanır
+  document.querySelectorAll('.modal-backdrop').forEach(m => m.remove());
   window.onbeforeunload = null;
   // Önceki sayfanın olay dinleyicileri temizlenir; her sayfa kendininkini atar
   view.onclick = view.oninput = view.onchange = view.onsubmit = view.onkeydown = null;

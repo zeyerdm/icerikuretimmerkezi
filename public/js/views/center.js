@@ -100,11 +100,28 @@ export async function renderCenter(view) {
         </section>
       </div>
 
+      <section class="card" id="upcoming-days"><div class="card-head"><h3>Yaklaşan özel günler</h3><a class="small link" href="#/takvim">Takvim ›</a></div><div class="skeleton" style="height:60px"></div></section>
+
       <section>
         <div class="section-head"><h2>Markalar</h2><div class="row">${d.brands.some(b => b.isDemo) || !d.brands.length ? '' : '<button class="btn btn-sm btn-ghost" data-act="demo">☕ Örnek marka ekle</button>'}<a class="btn btn-sm" href="#/markalar">Tümü</a></div></div>
         <div class="brand-grid">${d.brands.map(brandCard).join('')}<a class="card brand-new" href="#/marka/yeni"><div class="empty-icon">${icon('plus')}</div>Yeni marka oluştur</a></div>
       </section>
     </div>`;
+
+  // Önümüzdeki 30 gün: özel günler ve başlayan dönemler (takvimden planlanır)
+  (async () => {
+    const box = view.querySelector('#upcoming-days');
+    if (!box) return;
+    const iso = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    const now = new Date();
+    try {
+      const { days } = await api.specialDays(iso(now), iso(new Date(now.getTime() + 30 * 86400000)));
+      const list = days.filter(x => x.date >= iso(now) || !x.end).slice(0, 8);
+      box.querySelector('.skeleton').outerHTML = list.length
+        ? `<div class="upcoming">${list.map(x => { const dt = new Date(`${x.date}T12:00:00`); const left = Math.round((dt - new Date(iso(now) + 'T12:00:00')) / 86400000); return `<a class="upcoming-day cat-${esc(x.category)}" href="#/takvim" title="${esc(x.tip)}"><b>${dt.getDate()}</b><span>${esc(fmtDate(dt, { month: 'short' }))}</span><div><div class="strong small">${esc(x.name)}</div><div class="xsmall muted">${left <= 0 ? 'bugün' : `${left} gün sonra`} · ${esc(x.categoryLabel)}</div></div></a>`; }).join('')}</div>`
+        : '<p class="card-text">Önümüzdeki 30 günde özel gün yok.</p>';
+    } catch { box.remove(); }
+  })();
 
   const refresh = () => renderCenter(view);
   const onboard = view.querySelector('#onboard-form');

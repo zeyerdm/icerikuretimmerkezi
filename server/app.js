@@ -23,6 +23,7 @@ import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createCaptionService } from './services/captions.js';
+import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -305,6 +306,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
       ideaCount: db.prepare('SELECT COUNT(*) AS n FROM ideas WHERE brand_id = ?').get(b.id).n
     };
   };
+
+  // Özel günler: from/to (YYYY-MM-DD) aralığı, en fazla 2 yıl
+  api.get('/special-days', (req, res) => {
+    const re = /^\d{4}-\d{2}-\d{2}$/;
+    const from = re.test(String(req.query.from)) ? String(req.query.from) : new Date().toISOString().slice(0, 10);
+    const to = re.test(String(req.query.to)) ? String(req.query.to) : from;
+    if (to < from || Number(to.slice(0, 4)) - Number(from.slice(0, 4)) > 2) throw badRequest('Tarih aralığı geçersiz.');
+    res.json({ days: specialDays(from, to), categories: DAY_CATEGORIES });
+  });
 
   api.get('/performance', (req, res) => res.json(workspace.performance({ brandId: req.query.brandId ? String(req.query.brandId) : null })));
 

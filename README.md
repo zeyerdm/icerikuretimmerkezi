@@ -13,7 +13,7 @@ Markadan bağımsız, AI destekli içerik üretim ve yönetim platformu. Her mar
 Uygulama açılınca **Yönetim Merkezi** gelir. Burası bütün kullanıcılarda aynı tasarım ve sabit renklerle çalışan genel alandır:
 
 - **Genel bakış:** marka sayısı, üretilen içerik, Reels, tamamlanan tasarımlar, bekleyen içerikler, bu haftanın üretim özeti ve grafiği, son işlemler. Hepsi gerçek kayıtlardan.
-- **İçerik takvimi:** aylık ve haftalık görünüm; boş bir güne tıklayıp içerik planla (marka, tür, saat, durum). İçerikler markanın renginde görünür; marka filtresi var.
+- **İçerik takvimi:** aylık ve haftalık görünüm; boş bir güne tıklayıp içerik planla (marka, tür, saat, durum). Türkiye'nin özel günleri ve dönemleri takvimde hazır; tıklayınca o güne içerik planlanır ya da fikir ürettirilir. İçerikler markanın renginde görünür; marka filtresi var.
 - **Markalar:** logo, kısa açıklama, kategori, renkler, son çalışma tarihi ve içerik üretim durumu. Karta tıklayınca markanın çalışma alanı açılır.
 - **Görevler:** hızlı ekleme, son tarih, öncelik, ilgili marka, durum; gecikmiş / bugün / bu hafta grupları, tamamlananlar.
 - **Notlar:** hızlı not, kategori, markaya bağlama, sabitleme, arama.

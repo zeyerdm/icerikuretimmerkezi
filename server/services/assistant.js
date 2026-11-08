@@ -7,6 +7,7 @@ import { transaction } from '../db.js';
 import { IDEA_CATEGORIES } from './ideas.js';
 import { CONTENT_TYPES } from './workspace.js';
 import { PROMPT_KINDS } from './prompts.js';
+import { upcomingText } from './specialDays.js';
 
 const HISTORY_LIMIT = 12;
 const MAX_IDEAS_PER_ACTION = 12;
@@ -44,6 +45,8 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       context(brand.id),
       '',
       `BUGÜN: ${new Date().toISOString().slice(0, 10)}`,
+      'YAKLAŞAN ÖZEL GÜNLER VE DÖNEMLER (fikir ve plan önerirken bunları dikkate al; anma günlerinde ticari içerik önerme):',
+      upcomingText(45) || '(yok)',
       '',
       'YAPABİLECEĞİN İŞLEMLER (actions listesine ekle; uygulama gerçekten yapar):',
       `- save_ideas: {ideas: [{title, description, category}]} içerik fikirlerini fikir havuzuna kaydeder. Kategoriler: ${categories}. En fazla ${MAX_IDEAS_PER_ACTION}.`,
