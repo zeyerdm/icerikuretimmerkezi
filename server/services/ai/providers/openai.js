@@ -28,8 +28,10 @@ export function createOpenAiCompatibleProvider({ id, label, shortLabel, baseURL,
     id,
     label,
 
-    async generate({ model, prompt, json = false }) {
-      const body = { model, messages: [{ role: 'user', content: json ? prompt + '\n\nYanıtı yalnızca geçerli JSON olarak ver.' : prompt }] };
+    async generate({ model, prompt, json = false, images = [] }) {
+      const textPart = json ? prompt + '\n\nYanıtı yalnızca geçerli JSON olarak ver.' : prompt;
+      const content = images.length ? [{ type: 'text', text: textPart }, ...images.map(i => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.data.toString('base64')}` } }))] : textPart;
+      const body = { model, messages: [{ role: 'user', content }] };
       if (json) body.response_format = { type: 'json_object' };
       if (id === 'openrouter') body.usage = { include: true };
       const data = await request('/chat/completions', { method: 'POST', body: JSON.stringify(body) });

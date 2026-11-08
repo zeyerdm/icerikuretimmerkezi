@@ -788,3 +788,4 @@ a.kpi { text-decoration: none; color: inherit; transition: transform .15s, box-s
 .gen-card { margin: 0; display: flex; flex-direction: column; gap: 4px; }
 .gen-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface-2, #f4f4f8); }
 .act-img { display: block; max-width: 220px; border-radius: var(--r-sm); margin: 6px 0; }
+.asset-pick.is-picked { outline: 3px solid var(--brand); outline-offset: 2px; }

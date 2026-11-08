@@ -36,8 +36,8 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   if (legacyProvider) {
     providers.fake = {
       id: 'fake', label: legacyProvider.label || 'Test',
-      async generate({ prompt, json, temperature }) {
-        const r = await legacyProvider.generate(prompt, { json, temperature });
+      async generate({ prompt, json, temperature, images }) {
+        const r = await legacyProvider.generate(prompt, { json, temperature, images });
         return { output: r, usage: { input: 0, output: 0 }, model: 'test' };
       },
       async listModels() { return [{ id: 'test', label: 'Test modeli' }]; }
@@ -111,13 +111,13 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   // Tek modelle çalıştırır; harcamayı kaydeder
-  async function runOne(ref, { task, brandId, prompt, json, temperature }) {
+  async function runOne(ref, { task, brandId, prompt, json, temperature, images = [] }) {
     const p = parseRef(ref);
     if (!p || !providers[p.provider]) throw badRequest('Geçersiz model seçimi.');
     if (!isConfigured(p.provider)) throw new HttpError(409, 'AI_NOT_CONFIGURED', `${PROVIDERS[p.provider] ? PROVIDERS[p.provider].label : p.provider} bağlı değil.`);
     const started = Date.now();
     try {
-      const r = await providers[p.provider].generate({ model: p.id, prompt, json, temperature, effort: EFFORT[task] || 'medium' });
+      const r = await providers[p.provider].generate({ model: p.id, prompt, json, temperature, effort: EFFORT[task] || 'medium', images });
       const servedRef = modelRef(p.provider, r.model || p.id);
       const cost = typeof r.cost === 'number' ? r.cost : costOf(servedRef, r.usage || {}) || costOf(ref, r.usage || {});
       record({ ref: servedRef, task, brandId, usage: r.usage, cost });
@@ -129,7 +129,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   // İş için atanan modelle (ya da o an seçilen modelle) çalıştırır; geçici bir hata olursa işin yedek modeline geçer
-  async function run({ task = 'fikir', brandId = null, prompt, json = false, temperature = 0.8, modelRef = null }) {
+  async function run({ task = 'fikir', brandId = null, prompt, json = false, temperature = 0.8, modelRef = null, images = [] }) {
     checkBudget();
     const a = assignment(task);
     let primary = a.primary;
@@ -142,10 +142,10 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     if (!primary) throw new HttpError(409, 'AI_NOT_CONFIGURED', 'AI bağlı değil. Yapay zekâ → Sağlayıcılar bölümünden bir anahtar ekle.');
     const fallback = a.fallback && a.fallback !== primary ? a.fallback : null;
     try {
-      return Object.assign(await runOne(primary, { task, brandId, prompt, json, temperature }), { fallbackUsed: false });
+      return Object.assign(await runOne(primary, { task, brandId, prompt, json, temperature, images }), { fallbackUsed: false });
     } catch (err) {
       if (!fallback || !err.retryable) throw err;
-      const r = await runOne(fallback, { task, brandId, prompt, json, temperature });
+      const r = await runOne(fallback, { task, brandId, prompt, json, temperature, images });
       return Object.assign(r, { fallbackUsed: true, primaryError: err.message });
     }
   }
