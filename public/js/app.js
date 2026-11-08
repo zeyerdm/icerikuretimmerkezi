@@ -74,8 +74,7 @@ export const go = hash => { if (location.hash === hash) route(); else location.h
 export const CENTER_NAV = [
   { hash: '#/', label: 'Yönetim Merkezi', icon: 'home', page: 'center' },
   { hash: '#/markalar', label: 'Markalar', icon: 'brands', page: 'brands' },
-  { hash: '#/takvim', label: 'İçerik Takvimi', icon: 'calendar', page: 'calendar' },
-  { hash: '#/masa', label: 'Çalışma masası', icon: 'tasks', page: 'desk' },
+  { hash: '#/masa', label: 'Çalışma masası', icon: 'calendar', page: 'desk' },
   { hash: '#/analizler', label: 'Analizler', icon: 'chart', page: 'analytics' },
   { hash: '#/cop', label: 'Çöp kutusu', icon: 'trash', page: 'trash' },
   { hash: '#/ayarlar', label: 'Ayarlar', icon: 'settings', page: 'settings' }
@@ -124,6 +123,7 @@ export function parseRoute(hash = location.hash || '#/') {
   if (hash === '#/marka/yeni') return { layer: 'center', page: 'newBrand' };
   if ((m = hash.match(/^#\/ai(?:\/(modeller|harcama))?$/))) return { layer: 'center', page: 'ai', tab: m[1] || 'karsilastir' };
   // Görevler ve Notlar tam sayfa olarak da açılır (eski bağlantılar); menüde Çalışma masası altında
+  if (hash === '#/takvim') return { layer: 'center', page: 'desk' }; // takvim artık Çalışma masasının ortasında
   if (hash === '#/gorevler') return { layer: 'center', page: 'tasks' };
   if (hash === '#/notlar') return { layer: 'center', page: 'notes' };
   const nav = CENTER_NAV.find(n => n.hash === hash || (n.hash === '#/' && hash === ''));

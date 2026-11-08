@@ -41,7 +41,7 @@ test('ilk açılış: yönetim merkezi → marka oluştur → kimlik → kütüp
     await page.goto(srv.base + '/');
     // Uygulama marka sayfasıyla değil yönetim merkeziyle açılır
     await page.getByRole('heading', { name: 'İlk markanı oluştur' }).waitFor();
-    assert.ok(await page.getByRole('link', { name: 'İçerik Takvimi' }).isVisible());
+    assert.ok(await page.getByRole('link', { name: 'Çalışma masası', exact: true }).isVisible());
     await page.getByLabel('Marka adı').fill('Kahve Durağı');
     await page.getByLabel('Sektör').fill('Kafe');
     await page.getByRole('button', { name: 'Oluştur' }).click();
