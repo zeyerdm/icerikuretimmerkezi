@@ -63,13 +63,15 @@ Hedef: eski sistemde çalışan her şey yeni sistemde, istenen düzeltmelerle v
   - ✅ **Post stüdyosu:** tam ekran düzenleyici; üstte Dosya (ad, kaydet, marka şablonu, takvim, sil), Yeniden boyutlandır ve Paylaş (PNG, bütün slaytlar, Drive, takvim, şablon) menüleri; solda araç rayı (Metin, Öğeler, Marka, Yüklemeler, Şablonlar, Zemin, AI, Açıklama) ve tıklandıkça açılıp kapanan panel; ortada ekrana sığan tasarım alanı (sayfa kaymaz); altta sayfa şeridi ve yakınlaştırma; sağda yalnızca öğe seçiliyken ayarlar.
   - ✅ **Reels senaryo ekranı:** tam ekran; üstte Dosya (sürümler, yeniden yaz, sil), durum seçici, Takvime ekle ve Dışa aktar (kopyala, .txt, .srt, başlık PNG, telepromter, Drive); solda Özet, Yeniden yaz, Başlık, Açıklama, Kalite, Sürümler panelleri; ortada kendi içinde kayan sahneler; altta sahne şeridi (tıklayınca sahneye gider).
   - ✅ **Prompt Studio:** tam ekran; üstte Dosya (favori, sürümler, sil), Kaydet ve Prompt'u kopyala; solda Geliştir, Görsel üret, Sürümler panelleri; ortada prompt düzenleyici.
-- ⬜ **U.2 Yönetim Merkezi ve sol menü sıkılaştırma** *(kullanıcının ekran görüntüsü ve isteğiyle; yalnızca HTML/CSS, işlev ve veri modeline dokunulmaz)*:
+- ✅ **U.2 Yönetim Merkezi ve sol menü sıkılaştırma** *(kullanıcının ekran görüntüsü ve isteğiyle; yalnızca HTML/CSS, işlev ve veri modeline dokunulmaz)*:
   - **Sol menü:** ekranın üstünden altına tam yükseklik (`100dvh`), sayfa kayınca yerinde kalır (`position: sticky; top: 0`), çok seçenek olursa yalnızca menü kendi içinde kayar; son çalışılan marka kartı ve sürüm bilgisi daima en altta (`margin-top: auto`). Mor renk, logo, ikonlar ve aktif menü görünümü korunur.
   - **Karşılama alanı:** yükseklik %25–30 küçülür; sağdaki büyük dekoratif daireler küçültülür, yerine haftalık üretim özeti / hızlı aktivite bilgisi.
   - **İstatistik kartları:** daha kompakt (iç boşluk, başlık, ikon orantılı küçülür) ve daha anlamlı: Aktif marka · Bu ay üretilen içerik · Yayınlanan içerik · Onay bekleyen içerik · Planlanan içerik (mevcut verilerden).
   - **Haftalık performans ve Yaklaşan içerikler** yukarı taşınır; yaklaşan içeriklerde marka, platform/tür, yayın tarihi ve onay durumu görünür.
   - **Boşluklar:** bölümler arası 20–24 px; marka ana sayfasındaki gereksiz büyük dekoratif alanlar da küçülür.
   - **Hedef:** 1920×1080 ve 1440×900'de ana yönetim bilgilerinin büyük bölümü ilk ekranda; mobil/tablet görünümü bozulmaz; sonunda sidebar yüksekliği, kaydırma ve responsive görünüm bütün ekranlarda kontrol edilir.
+  - Not: uygulamada ayrı bir "onay" durumu olmadığı için "Onay bekleyen" yerine "Yayına hazır" (tamamlandı, yayınlanmadı) gösterilir; içerik durumlarına "Onay bekliyor" eklenmesi ayrı bir iş olarak yapılabilir.
+- ✅ **U.3 Çalışma masası ve Ayarlar'da yapay zekâ** *(kullanıcının isteğiyle)*: Görevler ve Notlar tek sayfada (`#/masa`): üstte önümüzdeki 7 günün yayın şeridi (tıklayınca içerik açılır, "Takvimi aç"), solda görevler, sağda notlar (aynı bileşenler, aynı işlevler; tablet/telefonda alt alta). Aylık takvim ayrı sayfada kalır. Yapay zekâ menüden kalktı, Ayarlar'da "Genel / Yapay zekâ" sekmesi; eski adresler (`#/gorevler`, `#/notlar`, `#/ai…`) çalışmaya devam eder, menüde ilgili öğe seçili görünür. Sol menü 9 → 7 öğe.
 
 ## Aşama 4 — Geliştirme ve yenileme
 
@@ -124,6 +126,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.21 Görsel okuma / etiketleme:** görselin modele gitmesi, yazı ve etiketlerin kaydı (mevcut etiketlerle birleşme, 12 sınırı, dolu adın korunması), arama ile bulunma, başka markanın görseline erişimin reddi, AI bağlı değilken düğmelerin gizlenmesi, toplu okuma.
 - ⬜ **T.22 Çöp kutusu:** her türün silinip geri alınması, alt kayıtların (sürümler) ve takvim bağlantısının geri gelmesi, başka markadan silme denemesinde çöpe kayıt düşmemesi, 30 günlük temizlik, marka silinince çöpün de silinmesi, bağlı fikir silinmişken içeriğin geri alınması, Geri al bildirimi ve Çöp kutusu sayfası.
 - ⬜ **T.23 Dışa aktarma merkezi:** kırpma oranı ve boyut hesabı, JPEG'de saydam zeminin beyaz olması, format/kalite değişince yeniden işleme, ZIP'in geçerli olması ve aynı adların numaralanması, tasarım slaytlarının eklenmesi, EXIF'in çıktıda bulunmaması.
+- ⬜ **T.24 Sol menü, Yönetim Merkezi, Çalışma masası:** kaydırınca menünün yerinde kalması ve tam boy olması, kısa ekranda yalnızca menünün kayması, alt kartın en altta kalması, yeni istatistiklerin doğru sayılması, hafta şeridi, masada görev/not ekleme-düzenleme, Ayarlar sekmeleri ve eski adreslerin yönlendirilmesi, 1920×1080 / 1440×900 / tablet / telefon görünümü.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)

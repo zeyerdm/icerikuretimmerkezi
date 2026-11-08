@@ -26,6 +26,7 @@ import { initPalette, openPalette } from './palette.js';
 import { initInspiration } from './inspiration.js';
 import { renderTrash, initTrashUndo } from './views/trash.js';
 import { renderExporter } from './views/exporter.js';
+import { renderDesk } from './views/desk.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -74,10 +75,8 @@ export const CENTER_NAV = [
   { hash: '#/', label: 'Yönetim Merkezi', icon: 'home', page: 'center' },
   { hash: '#/markalar', label: 'Markalar', icon: 'brands', page: 'brands' },
   { hash: '#/takvim', label: 'İçerik Takvimi', icon: 'calendar', page: 'calendar' },
-  { hash: '#/gorevler', label: 'Görevler', icon: 'tasks', page: 'tasks' },
-  { hash: '#/notlar', label: 'Notlar', icon: 'notes', page: 'notes' },
+  { hash: '#/masa', label: 'Çalışma masası', icon: 'tasks', page: 'desk' },
   { hash: '#/analizler', label: 'Analizler', icon: 'chart', page: 'analytics' },
-  { hash: '#/ai', label: 'Yapay zekâ', icon: 'sparkle', page: 'ai' },
   { hash: '#/cop', label: 'Çöp kutusu', icon: 'trash', page: 'trash' },
   { hash: '#/ayarlar', label: 'Ayarlar', icon: 'settings', page: 'settings' }
 ];
@@ -99,7 +98,7 @@ export const BRAND_NAV = [
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart' }
 ];
 
-const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', trash: 'Çöp kutusu', newBrand: 'Yeni marka', ai: 'Yapay zekâ' };
+const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', desk: 'Çalışma masası', trash: 'Çöp kutusu', newBrand: 'Yeni marka', ai: 'Yapay zekâ' };
 
 export function parseRoute(hash = location.hash || '#/') {
   let m;
@@ -124,6 +123,9 @@ export function parseRoute(hash = location.hash || '#/') {
   }
   if (hash === '#/marka/yeni') return { layer: 'center', page: 'newBrand' };
   if ((m = hash.match(/^#\/ai(?:\/(modeller|harcama))?$/))) return { layer: 'center', page: 'ai', tab: m[1] || 'karsilastir' };
+  // Görevler ve Notlar tam sayfa olarak da açılır (eski bağlantılar); menüde Çalışma masası altında
+  if (hash === '#/gorevler') return { layer: 'center', page: 'tasks' };
+  if (hash === '#/notlar') return { layer: 'center', page: 'notes' };
   const nav = CENTER_NAV.find(n => n.hash === hash || (n.hash === '#/' && hash === ''));
   return { layer: 'center', page: nav ? nav.page : 'notfound' };
 }
@@ -160,7 +162,9 @@ export function renderChrome() {
       </div>`;
   } else {
     head.innerHTML = '<div class="logo"><img class="logo-mark" src="/img/logo.svg" alt=""><div>KREATİFHANE<small>Kreatif Yönetim Platformu</small></div></div>';
-    nav.innerHTML = CENTER_NAV.map(n => navLink(n.hash, n.label, n.icon, r.page === n.page || (n.page === 'brands' && r.page === 'newBrand'))).join('');
+    // Görev/not tam sayfaları Çalışma masası, Yapay zekâ sayfaları Ayarlar altında sayılır
+    const owner = { newBrand: 'brands', tasks: 'desk', notes: 'desk', ai: 'settings' }[r.page] || r.page;
+    nav.innerHTML = CENTER_NAV.map(n => navLink(n.hash, n.label, n.icon, owner === n.page)).join('');
     const last = state.brands.find(b => b.id === state.activeBrandId);
     foot.innerHTML = last ? `<div class="side-last"><div class="small">Son çalıştığın marka</div>
         <a class="side-last-link" href="#/m/${esc(last.id)}">${brandAvatar(last, last.logoUrl)}<span>${esc(last.name)}</span>${icon('chevronRight')}</a></div>` : '';
@@ -177,7 +181,7 @@ export function renderChrome() {
   const pageLabel = brand ? ((BRAND_NAV.find(n => n.page === r.page) || {}).label || '') : (CENTER_TITLES[r.page] || '');
   const crumbs = brand
     ? `<a href="#/">Yönetim Merkezi</a><span>›</span><a href="#/m/${esc(brand.id)}">${esc(brand.name)}</a>${r.page !== 'home' ? `<span>›</span><b>${esc(pageLabel)}</b>` : ''}`
-    : `<a href="#/">Yönetim Merkezi</a>${r.page !== 'center' && pageLabel ? `<span>›</span><b>${esc(pageLabel)}</b>` : ''}`;
+    : `<a href="#/">Yönetim Merkezi</a>${{ ai: '<span>›</span><a href="#/ayarlar">Ayarlar</a>', tasks: '<span>›</span><a href="#/masa">Çalışma masası</a>', notes: '<span>›</span><a href="#/masa">Çalışma masası</a>' }[r.page] || ''}${r.page !== 'center' && pageLabel ? `<span>›</span><b>${esc(pageLabel)}</b>` : ''}`;
   document.getElementById('topbar').innerHTML = `
     <nav class="crumbs" aria-label="Konum">${crumbs}</nav>
     <div class="spacer"></div>
@@ -254,6 +258,7 @@ export async function route() {
     else if (r.page === 'tasks') await renderTasks(view);
     else if (r.page === 'notes') await renderNotes(view);
     else if (r.page === 'trash') await renderTrash(view);
+    else if (r.page === 'desk') await renderDesk(view);
     else if (r.page === 'analytics') await renderAnalytics(view, {});
     else if (r.page === 'settings') await renderSettings(view);
     else if (r.page === 'ai') await renderAi(view, r.tab);

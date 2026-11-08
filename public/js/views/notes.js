@@ -3,8 +3,9 @@ import { api } from '../api.js';
 import { esc, icon, toast, timeAgo, pageHead, emptyState, busy } from '../ui.js';
 import { state } from '../app.js';
 import { noteModal } from './forms.js';
+import { panelHead } from './tasks.js';
 
-export async function renderNotes(view) {
+export async function renderNotes(view, { embedded = false } = {}) {
   const filter = { q: '', category: '', brandId: '' };
   let notes = [];
   let categories = [];
@@ -41,7 +42,7 @@ export async function renderNotes(view) {
   }
 
   view.innerHTML = `
-    ${pageHead({ title: 'Notlar', desc: 'Fikirlerin, toplantı notların, hatırlatmaların. Markaya bağlayabilir, sabitleyebilirsin.' })}
+    ${(embedded ? panelHead : pageHead)({ title: 'Notlar', desc: 'Fikirlerin, toplantı notların, hatırlatmaların. Markaya bağlayabilir, sabitleyebilirsin.' })}
     <form class="card quick-note" id="quick-note">
       <input class="input" name="title" placeholder="Başlık (isteğe bağlı)" maxlength="120" aria-label="Not başlığı">
       <textarea class="textarea" name="body" placeholder="Hızlı not al…" maxlength="5000" required aria-label="Not"></textarea>

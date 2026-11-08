@@ -13,6 +13,11 @@ export function counts(d) {
     designsDone: d.contents.filter(c => c.done && c.type !== 'reels').length,
     pending: d.contents.filter(c => !c.done).length,
     ideas: d.ideas.length,
+    // U.2: yönetici özeti (yalnızca mevcut kayıtlardan; ayrı bir "onay" durumu olmadığı için tamamlanıp yayınlanmamışlar "yayına hazır" sayılır)
+    thisMonth: d.contents.filter(c => { const t = new Date(c.createdAt); const n = new Date(); return t.getFullYear() === n.getFullYear() && t.getMonth() === n.getMonth(); }).length,
+    published: d.contents.filter(c => c.status === 'yayinlandi').length,
+    ready: d.contents.filter(c => c.status === 'tamamlandi').length,
+    planned: d.contents.filter(c => !c.done && c.scheduledAt && new Date(c.scheduledAt) >= new Date()).length,
     openTasks: d.tasks.filter(t => !t.done).length,
     overdueTasks: d.tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate + 'T23:59:59') < new Date()).length
   };

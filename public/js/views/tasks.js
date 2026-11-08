@@ -4,7 +4,12 @@ import { esc, icon, toast, fmtDate, dateKey, addDays, startOfWeek, pageHead, emp
 import { state } from '../app.js';
 import { taskModal } from './forms.js';
 
-export async function renderTasks(view) {
+// Çalışma masasında sayfa başlığı yerine bölüm başlığı (sayfada tek başlık kuralı)
+export function panelHead({ title, desc = '', actions = '' }) {
+  return `<div class="panel-head"><div><h2>${esc(title)}</h2>${desc ? `<p class="small muted">${desc}</p>` : ''}</div>${actions ? `<div class="row">${actions}</div>` : ''}</div>`;
+}
+
+export async function renderTasks(view, { embedded = false } = {}) {
   let brandFilter = '';
   let showDone = false;
   let tasks = [];
@@ -41,7 +46,7 @@ export async function renderTasks(view) {
     const open = tasks.filter(t => !t.done);
     const done = tasks.filter(t => t.done);
     view.innerHTML = `
-      ${pageHead({
+      ${(embedded ? panelHead : pageHead)({
         title: 'Görevler',
         desc: `${open.length} açık görev${done.length ? ` · ${done.length} tamamlandı` : ''}. Hızlı ekle, son tarihe göre takip et.`,
         actions: `<select class="select w-auto" id="task-brand" aria-label="Marka filtresi"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>

@@ -31,6 +31,11 @@ async function waitForRestart(out) {
   out.innerHTML = '<div class="notice notice-error"><div>Uygulama geri gelmedi. Siyah pencereye bak; kapandıysa Baslat dosyasına tekrar çift tıkla.</div></div>';
 }
 
+// Ayarlar sekmeleri: Genel ve Yapay zekâ (sağlayıcılar, modeller, karşılaştırma, harcama)
+export function settingsTabs(active) {
+  return `<div class="tabs" role="tablist" aria-label="Ayarlar bölümleri"><a role="tab" href="#/ayarlar" class="${active === 'genel' ? 'active' : ''}" aria-selected="${active === 'genel'}">Genel</a><a role="tab" href="#/ai/modeller" class="${active === 'ai' ? 'active' : ''}" aria-selected="${active === 'ai'}">Yapay zekâ</a></div>`;
+}
+
 export async function renderSettings(view) {
   const [{ ai }, system, backupData, drive] = await Promise.all([api.settings(), api.system(), api.backups(), api.driveSettings()]);
   state.settings.ai = ai;
@@ -39,6 +44,7 @@ export async function renderSettings(view) {
 
   view.innerHTML = `
     ${pageHead({ title: 'Ayarlar', desc: 'Yapay zekâ, Google Drive, güncelleme ve yedekler.' })}
+    ${settingsTabs('genel')}
     <div class="settings">
       <section class="card" id="reminder-card">
         <div class="card-head"><h3>Hatırlatmalar</h3></div>
