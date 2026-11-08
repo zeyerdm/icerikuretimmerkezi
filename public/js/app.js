@@ -19,6 +19,7 @@ import { renderAi } from './views/ai.js';
 import { renderReels } from './views/reels.js';
 import { renderPosts } from './views/posts.js';
 import { renderPrompts } from './views/prompts.js';
+import { renderMemory } from './views/memory.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
@@ -79,6 +80,7 @@ const CENTER_NAV = [
 const BRAND_NAV = [
   { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home' },
   { page: 'kimlik', path: '/kimlik', label: 'Dijital kimlik', icon: 'identity' },
+  { page: 'hafiza', path: '/hafiza', label: 'Hafıza', icon: 'notes' },
   { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea' },
   { page: 'reels', path: '/reels', label: 'Reels', icon: 'film' },
   { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette' },
@@ -229,6 +231,7 @@ export async function route() {
       else if (r.page === 'reels') await renderReels(view, brand, r.sub);
       else if (r.page === 'post') await renderPosts(view, brand, r.sub);
       else if (r.page === 'prompt') await renderPrompts(view, brand, r.sub);
+      else if (r.page === 'hafiza') await renderMemory(view, brand);
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;
     }

@@ -156,7 +156,7 @@ function ideaList(ideas) {
 
 // Asistanın uyguladığı işlemler: her biri ilgili modüle bağlantıyla; başarısız olan açıkça gösterilir
 const ACTION_ERR = { save_ideas: 'Fikirler kaydedilemedi', update_idea: 'Fikir güncellenemedi', add_reels_ideas: 'Reels fikirleri eklenemedi', create_reels: 'Reels senaryosu yazılamadı',
-  create_post: 'Post tasarımı üretilemedi', create_prompt: 'Prompt üretilemedi', create_image: 'Görsel üretilemedi', plan_content: 'Takvime eklenemedi', add_task: 'Görev eklenemedi' };
+  create_post: 'Post tasarımı üretilemedi', create_prompt: 'Prompt üretilemedi', create_image: 'Görsel üretilemedi', plan_content: 'Takvime eklenemedi', add_task: 'Görev eklenemedi', remember: 'Hafızaya kaydedilemedi', forbid_words: 'Yasaklı listeye eklenemedi' };
 function actionHtml(a, brand) {
   const m = `#/m/${encodeURIComponent(brand.id)}`;
   const box = (title, inner = '') => `<div class="msg-actions"><div class="act-title">${title}</div>${inner}</div>`;
@@ -170,6 +170,8 @@ function actionHtml(a, brand) {
   if (a.type === 'create_prompt') return box(`✓ ${esc(a.kindLabel || '')} prompt'u yazıldı: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/prompt/${esc(a.id)}">Prompt'u aç</a>`);
   if (a.type === 'create_image') return box(`✓ Görsel üretildi (${esc(a.modelLabel)}), kütüphaneye kaydedildi`, `<a href="${esc(a.asset.url)}" target="_blank" rel="noopener"><img class="act-img" src="${esc(a.asset.url)}" alt=""></a><a class="small" href="${m}/kutuphane">Kütüphaneyi aç</a>`);
   if (a.type === 'plan_content') return box(`✓ ${a.items.length} içerik takvime eklendi`, li(a.items.map(c => `<li>${esc(c.title)} <span class="muted small">· ${esc(c.typeLabel)}${c.scheduledAt ? ' · ' + esc(new Date(c.scheduledAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) : ''}</span></li>`)) + `<a class="small" href="${m}/takvim">Takvimi aç</a>`);
+  if (a.type === 'remember') return box(`✓ Hafızaya kaydedildi: ${esc(a.fact.title)} <span class="muted small">· ${esc(a.fact.categoryLabel)}</span>`, `<a class="small" href="${m}/hafiza">Hafızayı aç</a>`);
+  if (a.type === 'forbid_words') return box(`✓ Yasaklı listeye eklendi: ${esc(a.words.join(', '))}`, `<a class="small" href="${m}/hafiza">Hafızayı aç</a>`);
   if (a.type === 'add_task') return box(`✓ Görev eklendi: ${esc(a.task.title)}${a.task.dueDate ? ` <span class="muted small">· son tarih ${esc(a.task.dueDate)}</span>` : ''}`, '<a class="small" href="#/gorevler">Görevleri aç</a>');
   return '';
 }

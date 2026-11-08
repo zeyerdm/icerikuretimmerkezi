@@ -15,7 +15,7 @@ const MAX_IDEAS_PER_ACTION = 12;
 const MAX_HEAVY = 3;
 const HEAVY = ['create_reels', 'create_post', 'create_prompt', 'create_image'];
 
-export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null, images = null }) {
+export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null, images = null, memory = null }) {
   const toMessage = r => ({ id: r.id, role: r.role, content: r.content, actions: parseJson(r.actions, []), createdAt: r.created_at });
   const save = (brandId, role, content, actions = []) => {
     const row = { id: newId(), brand_id: brandId, role, content, actions: JSON.stringify(actions), created_at: now() };
@@ -57,6 +57,8 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       `- create_prompt: {kind, brief} Prompt Studio'da prompt üretir. Türler: ${Object.entries(PROMPT_KINDS).map(([k, v]) => `${k} (${v.label})`).join(', ')}.`,
       `- plan_content: {items: [{title, type, date: "YYYY-MM-DD", time?: "HH:MM", ideaId?}]} takvime içerik planlar. Türler: ${Object.keys(CONTENT_TYPES).join(', ')}.`,
       '- create_image: {prompt (İngilizce, ayrıntılı görsel tarifi), aspect: "1:1"|"4:5"|"9:16"|"16:9", useMascot: true|false} görsel modeliyle görsel üretir ve kütüphaneye kaydeder (görsel başına ücretlidir; yalnızca kullanıcı görsel isterse).',
+      '- remember: {category: "urun"|"fiyat"|"iletisim"|"saat"|"kampanya"|"sss"|"hikaye"|"diger", title, content} kullanıcı "bunu hatırla / hafızaya kaydet" derse ya da kalıcı bir marka bilgisi (ürün, fiyat, adres, kampanya) verirse marka hafızasına bilgi kartı ekler.',
+      '- forbid_words: {words: ["..."]} kullanıcı "şu kelimeyi kullanma" derse yasaklı listeye ekler.',
       '- add_task: {title, dueDate?: "YYYY-MM-DD", priority?: "dusuk"|"orta"|"yuksek"} bu marka için görev ekler.',
       `Senaryo, post ve prompt üretimi ayrı AI çağrısıdır: tek mesajda en çok ${MAX_HEAVY} tane. Kullanıcı açıkça istemedikçe bunları başlatma.`,
       'İşlem sonucunu reply içinde "kaydettim/oluşturdum" diye anlatabilirsin; uygulama başarısız olanları ayrıca gösterir. Listede olmayan bir işi yapmış gibi anlatma.',
@@ -144,6 +146,12 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
             } catch { /* geçersiz satır atlanır */ }
           }
           if (planned.length) results.push({ type: 'plan_content', ok: true, items: planned.map(c => ({ id: c.id, title: c.title, typeLabel: c.typeLabel, scheduledAt: c.scheduledAt })) });
+        } else if (a.type === 'remember' && memory && a.title && a.content) {
+          const f = memory.addFact(brandId, { category: a.category, title: String(a.title).slice(0, 120), content: String(a.content).slice(0, 2000) }, 'assistant');
+          results.push({ type: 'remember', ok: true, fact: { title: f.title, categoryLabel: f.categoryLabel } });
+        } else if (a.type === 'forbid_words' && memory && Array.isArray(a.words) && a.words.length) {
+          const m = memory.addBanned(brandId, a.words);
+          results.push({ type: 'forbid_words', ok: true, words: a.words.slice(0, 20).map(String), total: m.banned.length });
         } else if (a.type === 'add_task' && workspace && a.title) {
           const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(String(a.dueDate)) ? a.dueDate : null;
           const t = workspace.createTask({ brandId, title: String(a.title).slice(0, 200), dueDate, priority: ['dusuk', 'orta', 'yuksek'].includes(a.priority) ? a.priority : 'orta' });
