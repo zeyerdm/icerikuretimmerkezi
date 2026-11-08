@@ -250,6 +250,27 @@ async function renderPatterns(view, brand, models, header, meta, aiReady) {
   };
 }
 
+// Satır satır çekim senaryosu: her konuşma satırının altında o an ekranda olan (aksiyon, kamera, ses)
+function shotRows(d, character) {
+  let off = 0;
+  return d.scenes.map((sc, i) => {
+    const from = off; off += sc.duration;
+    return { i, from, to: off, line: sc.line, lineFrom: sc.lineFrom != null ? from + sc.lineFrom : null, lineTo: sc.lineTo != null ? from + sc.lineTo : null,
+      beats: (sc.beats || []).map(b => ({ t: `${fmt(from + b.from)}–${fmt(from + b.to)}`, action: b.action, camera: b.camera, sound: b.sound })), start: sc.start, end: sc.endFrame, character };
+  });
+}
+function shotText(r, character) {
+  const L = [`${r.title} — satır satır çekim senaryosu`, `${r.totalSeconds} sn · ${r.data.scenes.length} sahne`, ''];
+  for (const x of shotRows(r.data, character)) {
+    L.push(`SAHNE ${x.i + 1} (${fmt(x.from)}–${fmt(x.to)})`);
+    L.push(`${character}: "${x.line}"${x.lineFrom != null ? `  [${fmt(x.lineFrom)}–${fmt(x.lineTo)}]` : ''}`);
+    x.beats.forEach(b => L.push(`   • ${b.t}  Görsel: ${b.action}${b.camera ? ` | Kamera: ${b.camera}` : ''}${b.sound ? ` | Ses: ${b.sound}` : ''}`));
+    if (x.end) L.push(`   • Bitiş karesi: ${x.end}`);
+    L.push('');
+  }
+  return L.join('\n');
+}
+
 // ------------------------------------------------------------ Senaryo ayrıntısı
 async function renderDetail(view, brand, id, models) {
   const meta = state.meta.reels;
@@ -260,6 +281,7 @@ async function renderDetail(view, brand, id, models) {
   const driveReady = Boolean(state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId);
   let lastAi = null;
   let panel = 'ozet';
+  let docView = 'sahne';
 
   function draw() {
     const d = r.data;
@@ -288,6 +310,7 @@ async function renderDetail(view, brand, id, models) {
               <div class="ed-share-grid">
                 <button type="button" data-export="script">${icon('notes')}<span>Senaryoyu kopyala</span></button>
                 <button type="button" data-export="txt">${icon('download')}<span>Senaryo metni indir (.txt)</span></button>
+                <button type="button" data-export="shot">${icon('download')}<span>Satır satır çekim senaryosu (.txt)</span></button>
                 <button type="button" data-export="srt" ${r.srt ? '' : 'disabled'}>${icon('download')}<span>Altyazı indir (.srt)</span></button>
                 <button type="button" data-export="png">${icon('image')}<span>Başlık PNG'si indir</span></button>
                 <button type="button" data-export="prompter">${icon('film')}<span>Telepromter</span></button>
@@ -319,6 +342,13 @@ async function renderDetail(view, brand, id, models) {
           <main class="ed-doc" id="ed-doc">
             <div class="ed-doc-inner">
               ${lastAi ? `<div class="notice notice-ok mb-4"><div>${esc(aiNote(lastAi))}</div></div>` : ''}
+              <div class="row"><div class="seg" role="tablist" aria-label="Görünüm">${[['sahne', 'Sahneler'], ['satir', 'Satır satır']].map(([k, v]) => `<button type="button" role="tab" data-docview="${k}" class="${docView === k ? 'active' : ''}" aria-selected="${docView === k}">${v}</button>`).join('')}</div>
+                <span class="xsmall muted">${docView === 'satir' ? 'Her konuşma satırının altında o an ekranda olan: görsel, kamera, ses.' : 'Sahne tarifi, prompt\'lar ve yeniden yazma.'}</span></div>
+              ${docView === 'satir' ? `<section class="card shot-script">${shotRows(d, settings.character).map(x => `
+                <div class="shot" data-scene="${x.i}"><div class="shot-time">Sahne ${x.i + 1}<span>${fmt(x.from)}–${fmt(x.to)}</span></div>
+                  <div class="grow"><p class="shot-line"><b>${esc(x.character)}:</b> “${esc(x.line)}”${x.lineFrom != null ? ` <span class="xsmall muted">${fmt(x.lineFrom)}–${fmt(x.lineTo)}</span>` : ''}</p>
+                    <ul class="shot-beats">${x.beats.map(b => `<li><span class="shot-t">${b.t}</span> <b>Görsel:</b> ${esc(b.action)}${b.camera ? ` · <b>Kamera:</b> ${esc(b.camera)}` : ''}${b.sound ? ` · <b>Ses:</b> ${esc(b.sound)}` : ''}</li>`).join('')}
+                      ${x.end ? `<li><span class="shot-t">son</span> <b>Bitiş karesi:</b> ${esc(x.end)}</li>` : ''}</ul></div></div>`).join('')}</section>` : `
               ${d.scenes.map((sc, i) => { const from = offset; offset += sc.duration; const p = r.prompts[i]; return `
           <section class="card scene-card" data-scene="${i}">
             <div class="card-head"><h3>Sahne ${i + 1} <span class="muted small">· ${fmt(from)}–${fmt(offset)} · ${sc.duration} sn</span></h3>
@@ -342,6 +372,7 @@ async function renderDetail(view, brand, id, models) {
             <details class="disclosure"><summary>Prompt önizlemesi</summary><div class="cmp-text">${esc(p.flowEn)}</div></details>
           </section>`; }).join('')}
 
+              `}
             </div>
           </main>
         </div>
@@ -400,6 +431,8 @@ async function renderDetail(view, brand, id, models) {
       if (panel === 'baslik') drawPreview();
       return;
     }
+    const dv = e.target.closest('[data-docview]');
+    if (dv) { docView = dv.dataset.docview; return draw(); }
     const go2 = e.target.closest('[data-goto]');
     if (go2) { const el = view.querySelector(`[data-scene="${go2.dataset.goto}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
     const model = sel => (view.querySelector(sel) || {}).value || null;
@@ -431,6 +464,7 @@ async function renderDetail(view, brand, id, models) {
     if (ex) {
       const name = safeName(r.title);
       if (ex.dataset.export === 'script') return copy(r.script, 'Senaryo kopyalandı.');
+      if (ex.dataset.export === 'shot') return downloadBlob(new Blob([shotText(r, settings.character)], { type: 'text/plain;charset=utf-8' }), `${name}_cekim.txt`);
       if (ex.dataset.export === 'txt') return downloadBlob(new Blob([r.script], { type: 'text/plain;charset=utf-8' }), `${name}_senaryo.txt`);
       if (ex.dataset.export === 'srt') { downloadBlob(new Blob([r.srt], { type: 'text/plain;charset=utf-8' }), `${name}_altyazi.srt`); return toast('Altyazı indirildi. CapCut\'ta Metin → Altyazı içe aktar ile ekleyebilirsin.', 'success', 5000); }
       if (ex.dataset.export === 'png') return busy(ex, async () => downloadBlob(await titleBlob({ title: r.data.screenTitle, keyword: r.data.titleKeyword, style: r.data.titleStyle, colors: brand.colors }), `${name}_baslik.png`));
