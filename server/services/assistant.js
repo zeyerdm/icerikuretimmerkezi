@@ -50,7 +50,7 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       '- update_idea: {id, title, description} kayıtlı bir fikri değiştirir ("bu fikri daha eğlenceli yap" gibi).',
       `- add_reels_ideas: {ideas: [{text, category}]} Reels fikir havuzuna kısa Reels fikirleri ekler ("haftaya 5 Reels fikri üret"). En fazla ${MAX_IDEAS_PER_ACTION}.`,
       '- create_reels: {topic} konudan saniye saniye Reels senaryosu yazar (ayrı bir üretim; birkaç saniye sürer).',
-      '- create_post: {topic, kind: "carousel"|"post", slides: 3-10, fromReelsId?} carousel/post tasarımı üretir; "bu senaryoya göre post tasarla" ise fromReelsId ver.',
+      '- create_post: {topic, kind: "carousel"|"post"|"story"|"kapak"(Reels kapağı)|"reklam"|"grafik"(bilgi grafiği), slides: 3-10 (yalnız carousel), fromReelsId?} carousel/post tasarımı üretir; "bu senaryoya göre post tasarla" ise fromReelsId ver.',
       `- create_prompt: {kind, brief} Prompt Studio'da prompt üretir. Türler: ${Object.entries(PROMPT_KINDS).map(([k, v]) => `${k} (${v.label})`).join(', ')}.`,
       `- plan_content: {items: [{title, type, date: "YYYY-MM-DD", time?: "HH:MM", ideaId?}]} takvime içerik planlar. Türler: ${Object.keys(CONTENT_TYPES).join(', ')}.`,
       '- add_task: {title, dueDate?: "YYYY-MM-DD", priority?: "dusuk"|"orta"|"yuksek"} bu marka için görev ekler.',
@@ -119,7 +119,7 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
               const src = reels.get(brandId, String(a.fromReelsId));
               topic = `${topic ? topic + '\n' : ''}Şu Reels senaryosuna dayanarak: ${src.title}. ${String(src.script || '').slice(0, 700)}`;
             }
-            const kind = a.kind === 'post' ? 'post' : 'carousel';
+            const kind = ['post', 'carousel', 'story', 'kapak', 'reklam', 'grafik'].includes(a.kind) ? a.kind : 'carousel';
             const p = await posts.create(brandId, { topic: topic.slice(0, 1000), kind, slides: Math.max(3, Math.min(10, Number(a.slides) || 6)) });
             results.push({ type: 'create_post', ok: true, id: p.id, title: p.title });
           } else if (a.type === 'create_prompt' && prompts) {

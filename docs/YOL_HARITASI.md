@@ -64,7 +64,7 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 - ✅ **4.1 Prompt Studio:** görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı için prompt oluşturma (marka hafızası ve maskot/stil ayarı otomatik eklenir; görsel/video prompt'ları İngilizce + Türkçesi); düzenleme, kopyalama, kaydetme, elle prompt kaydetme, favoriler, türe göre filtre ve arama.
 - ✅ **4.2 Prompt geliştirme mekanizması:** girişi değiştir, senaryoyu geliştir, daha yaratıcı/profesyonel yap, görsel detay ekle, kamera açısını değiştir, karakter hareketi ekle, kısalt, alternatif üret, seçili bölümü yeniden yaz; **sürüm geçmişi ve önceki sürüme dönme**.
 - ✅ **4.3 Asistanın modüllere bağlanması:** asistan sohbetten gerçekten işlem yapar: fikir kaydetme ve düzenleme ("bu fikri daha eğlenceli yap"), Reels fikir havuzuna ekleme ("haftaya 5 Reels fikri üret"), Reels senaryosu yazma, post/carousel tasarlama ("bu senaryoya göre post tasarla"), Prompt Studio'da prompt üretme, takvime içerik planlama, görev ekleme. Her sonuç sohbette ilgili modüle bağlantıyla görünür; başarısız işlem açıkça yazılır. Tek mesajda en çok 3 ağır üretim.
-- ⬜ **4.4 Post stüdyosu (tam):** post, story, carousel, Reels kapağı, reklam ve bilgi grafiği; katmanlar, yazı/renk/font, logo/maskot/sticker ekleme, arka plan, konumlandırma, şablon kaydetme.
+- ✅ **4.4 Post stüdyosu (tam):** post, carousel, story, Reels kapağı, reklam (eylem çağrısı düğmesiyle) ve bilgi grafiği (numaralı maddeler); her türün kendi boyutu, metin kuralları ve marka yerleşimi. Katmanlar (öne/arkaya), yazı/renk/font/kalınlık/hizalama, saydamlık, dikdörtgen ve daire, logo/maskot/sticker (kütüphaneden, kategori filtreli), zemin rengi ya da zemin görseli (kapla/sığdır, karartma), sürükle-bırak konumlandırma, şablon kaydetme ve şablondan başlatma.
 - ⬜ **4.5 Görsel üretimi:** seçilen görsel modeliyle üretim; marka renkleri ve maskotla; servis bağlı değilse açık uyarı (sahte üretim yok).
 - ⬜ **4.6 Tasarım referansı analizi:** yüklenen örnek tasarımdan renk paleti, font önerisi, yerleşim ve görsel dil çıkarıp düzenlenebilir şablona çevirme.
 - ⬜ **4.7 Sticker paketleri ve varlık kütüphanesi genişletme:** paket olarak yükleme, kategoriler.
@@ -80,6 +80,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 
 - ⬜ **T.1 Asistan işlemleri:** update_idea, add_reels_ideas, create_reels, create_post (fromReelsId dahil), create_prompt, plan_content, add_task; en çok 3 ağır üretim sınırı; başarısız işlemin sonuçta hata olarak görünmesi; başka markanın fikrine/senaryosuna erişilememesi.
 - ⬜ **T.2 Asistan arayüzü:** işlem kartları ve bağlantılar, başarısız işlem görünümü.
+- ⬜ **T.3 Post stüdyosu türleri:** story/kapak/reklam/grafik yerleşimleri ve varsayılan boyutları, zemin görseli doğrulaması (başka markanın görseli reddedilir), saydamlık ve daire katmanı, şablon kaydetme/şablondan başlatma/silme, takvimde doğru içerik türü.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
