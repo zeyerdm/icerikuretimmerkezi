@@ -18,13 +18,16 @@ concurrency:
 jobs:
   test:
     name: ${{ matrix.os }} · Node ${{ matrix.node }}
-    runs-on: ${{ matrix.os }}
+    # runner: arayüz testi işi Playwright'ın desteklediği Ubuntu sürümüne sabitlenir
+    # (ubuntu-latest yeni sürüme geçtiğinde Playwright tarayıcıyı kuramıyor); iş adı aynı kalır.
+    runs-on: ${{ matrix.runner || matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
+            runner: ubuntu-24.04
             node: '22'
             ui: true
           - os: ubuntu-latest
