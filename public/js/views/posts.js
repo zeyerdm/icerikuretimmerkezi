@@ -16,7 +16,7 @@ export async function renderPosts(view, brand, sub) {
   const models = await aiModels();
   if (sub) return renderEditor(view, brand, sub, models);
   const aiReady = models.ov.providers.some(p => p.configured);
-  const [{ posts }, { templates }] = await Promise.all([api.posts(brand.id), api.postTemplates(brand.id)]);
+  const [{ posts }, { templates }, { templates: sharedTpls }] = await Promise.all([api.posts(brand.id), api.postTemplates(brand.id), api.sharedTemplates(brand.id)]);
   const meta = state.meta.posts;
   view.innerHTML = `
     ${pageHead({
@@ -45,6 +45,18 @@ export async function renderPosts(view, brand, sub) {
     }
   }
 
+  // Ortak şablon kütüphanesi: bütün markalarda kullanılır; önizleme bu markanın renk, font, logo ve maskotuyla
+  view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Ortak şablon kütüphanesi</h3><span class="small muted">${sharedTpls.length} · bütün markalarda</span></div>
+    ${sharedTpls.length ? `<p class="small muted mb-3">Önizlemeler ${esc(brand.name)} markasının renkleri, yazı tipleri, logosu ve maskotuyla gösteriliyor.</p><div class="post-grid">${sharedTpls.map(t => `<div class="post-card tpl-card">
+      <div class="post-thumb"><canvas data-shared-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
+      <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)}${t.sourceBrandName ? ` · ${esc(t.sourceBrandName)} markasından` : ''}</div>
+      <div class="row mt-2"><button class="btn btn-sm" data-use-shared="${esc(t.id)}">Bu markada kullan</button><button class="btn btn-sm btn-ghost icon-btn" data-del-shared="${esc(t.id)}" aria-label="Ortak şablonu sil">${icon('trash')}</button></div>
+    </div>`).join('')}</div>` : '<p class="card-text">Henüz ortak şablon yok. Bir tasarımın düzenleyicisinde Dosya → "Ortak şablon kütüphanesine kaydet" ile ekle; sonra her markada o markanın kimliğiyle kullanılır.</p>'}</section>`);
+  for (const t of sharedTpls) {
+    const c = view.querySelector(`[data-shared-thumb="${CSS.escape(t.id)}"]`);
+    if (c && t.data) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format]); });
+  }
+
   // Küçük resimler: ilk slayt
   for (const p of posts) {
     const c = view.querySelector(`[data-thumb="${CSS.escape(p.id)}"]`);
@@ -66,6 +78,17 @@ export async function renderPosts(view, brand, sub) {
     if (useTpl) {
       const t = templates.find(x => x.id === useTpl.dataset.useTpl);
       try { const { post } = await api.createPost(brand.id, { blank: true, templateId: t.id, title: t.name }); go(base(brand) + '/' + post.id); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const useSh = e.target.closest('[data-use-shared]');
+    if (useSh) {
+      try { const { post } = await api.useSharedTemplate(brand.id, useSh.dataset.useShared); go(base(brand) + '/' + post.id); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const delSh = e.target.closest('[data-del-shared]');
+    if (delSh) {
+      if (!confirm('Ortak şablon bütün markalardan kaldırılsın mı? Ondan oluşturulan tasarımlar etkilenmez.')) return;
+      try { await api.deleteSharedTemplate(delSh.dataset.delShared); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const delTpl = e.target.closest('[data-del-tpl]');
@@ -207,6 +230,7 @@ async function renderEditor(view, brand, id, models) {
               <button type="button" data-act="rename">${icon('edit')}Adını değiştir</button>
               <button type="button" data-act="save">${icon('check')}Kaydet <span class="ed-hint" id="ed-save-state">${dirty ? 'Kaydedilmemiş değişiklik' : 'Değişiklikler kaydedildi'}</span></button>
               <button type="button" data-act="template">${icon('grid')}Marka şablonu olarak kaydet</button>
+              <button type="button" data-act="share-template">${icon('grid')}Ortak şablon kütüphanesine kaydet <span class="ed-hint">bütün markalar</span></button>
               ${post.content ? `<a href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde gör</a>` : `<button type="button" data-act="schedule">${icon('calendar')}Takvime ekle</button>`}
               <a href="${base(brand)}">${icon('plus')}Yeni tasarım oluştur</a>
               <hr><button type="button" class="danger" data-act="delete">${icon('trash')}Tasarımı sil</button>
@@ -225,6 +249,7 @@ async function renderEditor(view, brand, id, models) {
                 ${driveReady ? `<button type="button" data-drive="one">${icon('upload')}<span>Bu slaytı Drive'a gönder</span></button>${data.slides.length > 1 ? `<button type="button" data-drive="all">${icon('upload')}<span>Bütün slaytları Drive'a gönder</span></button>` : ''}` : ''}
                 ${post.content ? '' : `<button type="button" data-act="schedule">${icon('calendar')}<span>Takvime ekle</span></button>`}
                 <button type="button" data-act="template">${icon('grid')}<span>Marka şablonu</span></button>
+                <button type="button" data-act="share-template">${icon('grid')}<span>Ortak kütüphane</span></button>
               </div>
               ${driveReady ? '' : '<p class="xsmall muted mt-2">Drive\'a göndermek için markanın Drive klasörünü bağla.</p>'}
             </div></div>
@@ -380,9 +405,10 @@ async function renderEditor(view, brand, id, models) {
       return;
     }
     if (panel === 'sablonlar') {
-      const { templates } = await api.postTemplates(brand.id);
-      box.innerHTML = `${head}<button type="button" class="btn btn-sm w-full mb-3" data-act="template">${icon('plus')}Bu tasarımı şablon olarak kaydet</button>
-        ${templates.length ? `<div class="ed-tpl-grid">${templates.map(t => `<button type="button" class="ed-tpl" data-apply-tpl="${esc(t.id)}" title="Bu slayta uygula"><canvas data-tpl-c="${esc(t.id)}"></canvas><span>${esc(t.name)}</span></button>`).join('')}</div>
+      const [{ templates: own }, { templates: sh }] = await Promise.all([api.postTemplates(brand.id), api.sharedTemplates(brand.id)]);
+      const templates = own.map(t => Object.assign(t, { scope: 'Marka' })).concat(sh.map(t => Object.assign(t, { scope: 'Ortak' })));
+      box.innerHTML = `${head}<button type="button" class="btn btn-sm w-full mb-2" data-act="template">${icon('plus')}Marka şablonu olarak kaydet</button><button type="button" class="btn btn-sm w-full mb-3" data-act="share-template">${icon('plus')}Ortak kütüphaneye kaydet</button>
+        ${templates.length ? `<div class="ed-tpl-grid">${templates.map(t => `<button type="button" class="ed-tpl" data-apply-tpl="${esc(t.id)}" title="Bu slayta uygula"><canvas data-tpl-c="${esc(t.id)}"></canvas><span>${esc(t.name)} <em class="muted">· ${t.scope}</em></span></button>`).join('')}</div>
           <p class="xsmall muted mt-2">Şablona tıklayınca ilk slaydı bu slaydın yerine konur (geri almak için kaydetmeden çık).</p>` : '<p class="small muted">Henüz şablon yok. Post stüdyosunda "Referanstan şablon" ile ya da bu tasarımı kaydederek oluşturabilirsin.</p>'}`;
       box._tpls = templates;
       templates.forEach(t => { const c = box.querySelector(`[data-tpl-c="${CSS.escape(t.id)}"]`); if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => drawSlide(c, t.data.slides[0], meta.formats[t.data.format] || format())); });
@@ -587,6 +613,15 @@ async function renderEditor(view, brand, id, models) {
           if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
           await api.saveTemplate(brand.id, post.id, name.trim() || post.title);
           toast('Marka şablonu olarak kaydedildi.', 'success');
+          if (panel === 'sablonlar') drawPanelBody();
+          return;
+        }
+        if (a === 'share-template') {
+          const name = prompt('Ortak şablonun adı (bütün markalarda görünür)', post.title);
+          if (name === null) return;
+          if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
+          await api.shareTemplate(brand.id, post.id, name.trim() || post.title);
+          toast('Ortak şablon kütüphanesine kaydedildi; diğer markalarda kendi renk, font, logo ve maskotlarıyla kullanılabilir.', 'success', 6000);
           if (panel === 'sablonlar') drawPanelBody();
           return;
         }

@@ -26,6 +26,7 @@ import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
 import { createMemoryService } from './services/memory.js';
+import { createSharedTemplateService } from './services/sharedTemplates.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -99,6 +100,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const compare = createCompareService({ db, ai, brands });
   const reels = createReelsService({ db, ai, brands, workspace });
   const posts = createPostService({ db, ai, brands, assets, workspace });
+  const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const prompts = createPromptService({ db, ai, brands, reels });
   const images = createImageService({ db, ai, brands, assets });
@@ -539,6 +541,11 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
   api.put('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.update(req.brand.id, req.params.id, req.body || {}) }));
   api.delete('/brands/:brandId/posts/:id', (req, res) => { posts.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  // Ortak (markalar arası) şablonlar: liste hedef markanın kimliğiyle önizlenir
+  api.get('/brands/:brandId/shared-templates', (req, res) => res.json({ templates: shared.list(req.brand.id) }));
+  api.post('/brands/:brandId/posts/:id/share-template', (req, res) => res.status(201).json({ template: shared.saveFromPost(req.brand.id, req.params.id, req.body || {}) }));
+  api.post('/brands/:brandId/shared-templates/:tid/use', (req, res) => res.status(201).json({ post: shared.use(req.brand.id, req.params.tid, req.body || {}) }));
+  api.delete('/shared-templates/:tid', (req, res) => { shared.remove(req.params.tid); res.status(204).end(); });
   api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
   api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
