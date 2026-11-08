@@ -18,6 +18,7 @@ import { createDriveService } from './services/drive.js';
 import { createCompareService } from './services/compare.js';
 import { createReelsService } from './services/reels/index.js';
 import { createPostService } from './services/posts.js';
+import { createPromptService } from './services/prompts.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -92,6 +93,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const reels = createReelsService({ db, ai, brands, workspace });
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const review = createReviewService({ ai, brands });
+  const prompts = createPromptService({ db, ai, brands, reels });
 
   const app = express();
   app.disable('x-powered-by');
@@ -116,7 +118,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     maxAssetBytes: MAX_ASSET_BYTES,
     reels: reels.meta,
     posts: { kinds: posts.kinds, formats: posts.formats },
-    reviewKinds: review.kinds
+    reviewKinds: review.kinds,
+    prompts: { kinds: prompts.kinds, actions: prompts.actions }
   }));
 
   // --- Ayarlar (AI anahtarı yalnızca yazılır, hiçbir zaman geri okunmaz) ---
@@ -512,6 +515,23 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     res.json({ review: await review.review(req.brand.id, { text: b.text, kind: b.kind || 'serbest', modelRef: mr(b) }) });
   }));
+
+  // --- Prompt Studio ---
+  api.get('/brands/:brandId/prompts', (req, res) => res.json({ prompts: prompts.list(req.brand.id, { kind: req.query.kind || null, q: req.query.q || '' }) }));
+  api.post('/brands/:brandId/prompts', route(async (req, res) => {
+    const b = req.body || {};
+    const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b) });
+    res.status(201).json({ prompt });
+  }));
+  api.get('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.get(req.brand.id, req.params.id) }));
+  api.put('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.update(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/prompts/:id', (req, res) => { prompts.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.post('/brands/:brandId/prompts/:id/improve', route(async (req, res) => {
+    const b = req.body || {};
+    res.json({ prompt: await prompts.improve(req.brand.id, req.params.id, { action: b.action, brief: b.brief, selection: b.selection, instruction: b.instruction, modelRef: mr(b) }) });
+  }));
+  api.get('/brands/:brandId/prompts/:id/versions/:vid', (req, res) => res.json({ version: prompts.version(req.brand.id, req.params.id, req.params.vid) }));
+  api.post('/brands/:brandId/prompts/:id/restore', (req, res) => res.json({ prompt: prompts.restore(req.brand.id, req.params.id, (req.body || {}).versionId) }));
 
   // --- Varlık kütüphanesi ---
   api.get('/brands/:brandId/assets', (req, res) => {

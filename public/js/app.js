@@ -18,6 +18,7 @@ import { renderArchive } from './views/archive.js';
 import { renderAi } from './views/ai.js';
 import { renderReels } from './views/reels.js';
 import { renderPosts } from './views/posts.js';
+import { renderPrompts } from './views/prompts.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -80,7 +81,7 @@ const BRAND_NAV = [
   { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea' },
   { page: 'reels', path: '/reels', label: 'Reels', icon: 'film' },
   { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette' },
-  { page: 'prompt', label: 'Prompt Studio', icon: 'wand', soon: true },
+  { page: 'prompt', path: '/prompt', label: 'Prompt Studio', icon: 'wand' },
   { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image' },
   { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar' },
   { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive' },
@@ -101,6 +102,7 @@ export function parseRoute(hash = location.hash || '#/') {
     let mm;
     if ((mm = rest.match(/^\/reels(?:\/(liste|[A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'reels', brandId: id, sub: mm[1] || null };
     if ((mm = rest.match(/^\/post(?:\/([A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'post', brandId: id, sub: mm[1] || null };
+    if ((mm = rest.match(/^\/prompt(?:\/([A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'prompt', brandId: id, sub: mm[1] || null };
     const sub = BRAND_NAV.find(n => n.path === rest && !n.soon);
     if (sub) return { layer: 'brand', page: sub.page, brandId: id };
     return { layer: 'brand', page: 'notfound', brandId: id };
@@ -134,9 +136,10 @@ export function renderChrome() {
       <a class="back-link" href="#/" aria-label="Yönetim Merkezine dön">${icon('back')}<span>Yönetim Merkezi</span></a>
       <div class="ws-brand">${brandAvatar(brand, brand.logoUrl)}<div style="min-width:0"><div class="ws-name">${esc(brand.name)}</div><div class="ws-sub">Marka çalışma alanı</div></div></div>`;
     // Hazır modüller üstte; sıradaki aşamalarda gelecekler altta "Yakında" başlığıyla, tıklanamaz
+    const soon = BRAND_NAV.filter(n => n.soon);
     nav.innerHTML = BRAND_NAV.filter(n => !n.soon).map(n => navLink(base + n.path, n.label, n.icon, r.page === n.page)).join('') +
-      '<div class="nav-group" aria-hidden="true">Yakında</div>' +
-      BRAND_NAV.filter(n => n.soon).map(n => `<span class="nav-soon" aria-disabled="true" title="${esc(n.label)}: sıradaki aşamada geliyor">${icon(n.icon)}<span>${esc(n.label)}</span></span>`).join('');
+      (soon.length ? '<div class="nav-group" aria-hidden="true">Yakında</div>' : '') +
+      soon.map(n => `<span class="nav-soon" aria-disabled="true" title="${esc(n.label)}: sıradaki aşamada geliyor">${icon(n.icon)}<span>${esc(n.label)}</span></span>`).join('');
     const initial = esc(brand.name.trim().charAt(0).toLocaleUpperCase('tr-TR'));
     foot.innerHTML = `<div class="side-brand">
         ${brand.mascotUrl ? `<img class="mascot" src="${esc(brand.mascotUrl)}" alt="">` : `<div class="mascot-fallback">${initial}</div>`}
@@ -211,6 +214,7 @@ export async function route() {
       else if (r.page === 'analiz') await renderAnalytics(view, { brand });
       else if (r.page === 'reels') await renderReels(view, brand, r.sub);
       else if (r.page === 'post') await renderPosts(view, brand, r.sub);
+      else if (r.page === 'prompt') await renderPrompts(view, brand, r.sub);
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;
     }

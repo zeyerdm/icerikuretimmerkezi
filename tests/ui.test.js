@@ -116,7 +116,7 @@ test('iki tasarım katmanı: yönetim merkezi sabit renkte, marka alanı kendi r
     assert.equal(await cssVar('--brand'), '#1e3a8a');
     assert.equal(await cssVar('--on-brand'), '#ffffff');
     assert.ok((await page.locator('.crumbs').textContent()).includes('Koyu Marka'), 'konum çubuğunda marka yok');
-    assert.ok(await page.locator('.nav-soon').first().isVisible(), 'yakında modülleri görünmüyor');
+    assert.ok(await page.getByRole('link', { name: 'Prompt Studio' }).isVisible(), 'Prompt Studio menüde yok');
 
     // Takvimdeyken başka markaya geçince takvimde kalınır
     await page.getByRole('link', { name: 'Takvim' }).click();
@@ -544,6 +544,10 @@ function stage3Provider() {
   return fakeProvider([prompt => {
     if (prompt.startsWith('REELS FİKİR HAVUZU')) return { ideas: [{ text: 'AI fikri: kütüphane kahvesi', category: 'eglenceli' }] };
     if (prompt.startsWith('ÇEVİRİ GÖREVİ')) return '0-3s: Kahveci grabs the cup fast. 3-6s: Kahveci laughs.';
+    if (prompt.startsWith('PROMPT STUDIO')) return { title: 'Kampüs koşusu', prompt: 'A cheerful coffee bean mascot runs across campus at sunrise', promptTr: 'Neşeli kahve çekirdeği maskot gün doğumunda kampüste koşuyor' };
+    if (prompt.startsWith('PROMPT GELİŞTİRME')) return prompt.includes('YALNIZCA şu bölümünü')
+      ? { title: 'Kampüs koşusu', prompt: 'A cheerful coffee bean mascot runs across campus under neon lights at night', promptTr: 'Gece neon ışıklar altında' }
+      : { title: 'Kampüs koşusu', prompt: 'Low angle drone shot: a cheerful coffee bean mascot runs across campus at sunrise', promptTr: 'Alt açıdan drone çekimi' };
     if (prompt.startsWith('İÇERİK DENETİMİ')) return { score: 80, summary: 'İyi', issues: [{ severity: 'düşük', problem: 'Emoji yok', suggestion: 'Bir emoji ekle' }], improved: 'Düzeltilmiş açıklama' };
     if (prompt.includes('Instagram içerik yazarısın')) return { title: 'Sınav ipuçları', slides: [{ title: 'Sınav haftası', body: 'Kahveyle odaklan' }, { title: 'Su iç', body: 'Beyin suyu sever' }, { title: 'Mola ver', body: '50 dakikada bir' }], caption: 'Açıklama', hashtags: ['#sinav'] };
     if (prompt.includes('YALNIZCA SAHNE 2')) return { ...RAW, scenes: [sc(), sc({ start: 'Yeni', line: 'İkinci sahne yepyeni bir replikle yeniden yazıldı ve akıcı biçimde söyleniyor' })] };
@@ -684,6 +688,54 @@ test('telefon genişliği: yönetim merkezi, takvim ve marka alanında yatay ta�
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       assert.ok(overflow <= 1, `${hash} dar ekranda yatay kaydırma var: ${overflow}`);
     }
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('Prompt Studio: tür seç, üret, kopyala, geliştir, seçili bölümü yeniden yaz, sürüme dön, sil', { skip }, async () => {
+  const srv = await startServer({ aiProvider: stage3Provider() });
+  const { browser, page, problems } = await open(srv);
+  try {
+    const brand = (await srv.request('POST', '/api/brands', { name: 'Kahve Evi' })).data.brand;
+    await page.goto(srv.base + `/#/m/${brand.id}`);
+    await page.getByRole('link', { name: 'Prompt Studio' }).click();
+    await page.getByRole('heading', { name: 'Prompt Studio' }).waitFor();
+    await page.getByRole('radio', { name: 'Maskot animasyonu' }).click();
+    assert.match(await page.locator('#ps-hint').textContent(), /İngilizce/);
+    await page.locator('#ps-brief').fill('Maskot sabah kampüste koşuyor');
+    await page.getByRole('button', { name: 'Prompt üret' }).click();
+    await page.getByRole('heading', { name: 'Kampüs koşusu' }).waitFor();
+    assert.match(await page.locator('#pp-text').inputValue(), /runs across campus at sunrise/);
+    assert.match(await page.locator('#pp-tr').inputValue(), /kampüste koşuyor/);
+
+    // Hazır geliştirme işlemi yeni sürüm oluşturur
+    await page.getByRole('button', { name: 'Kamera açısını değiştir' }).click();
+    await page.waitForFunction(() => document.querySelector('#pp-text') && document.querySelector('#pp-text').value.startsWith('Low angle'));
+    assert.equal(await page.locator('.version-list li').count(), 2);
+
+    // Seçili bölümü yeniden yaz
+    await page.locator('#pp-text').evaluate(ta => { const i = ta.value.indexOf('at sunrise'); ta.focus(); ta.setSelectionRange(i, i + 'at sunrise'.length); });
+    await page.locator('#pp-instr').fill('gece olsun');
+    await page.getByRole('button', { name: 'Seçili bölümü yaz' }).click();
+    await page.waitForFunction(() => document.querySelector('#pp-text') && document.querySelector('#pp-text').value.includes('neon'));
+    assert.equal(await page.locator('.version-list li').count(), 3);
+
+    // İlk sürüme dön
+    await page.locator('.version-list li').last().getByRole('button', { name: 'Geri dön' }).click();
+    // Seçili bölüm sonrası metin de "A cheerful" ile başlıyor: geri dönüşü sürüm sayısıyla ve "neon"un gitmesiyle bekle
+    await page.waitForFunction(() => document.querySelectorAll('.version-list li').length === 4);
+    assert.equal(await page.locator('#pp-text').inputValue(), 'A cheerful coffee bean mascot runs across campus at sunrise');
+
+    // Elle düzenleyip kaydet, listede görün, sil
+    await page.locator('#pp-text').fill('Elle düzeltilmiş prompt');
+    await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll('.version-list li').length === 5);
+    await page.getByRole('link', { name: "Prompt'lar" }).click();
+    await page.locator('#ps-list .pool-item').first().waitFor();
+    assert.match(await page.locator('#ps-list').textContent(), /Elle düzeltilmiş prompt/);
+    await page.locator('#ps-list a').first().click();
+    await page.getByRole('button', { name: "Prompt'u sil" }).click();
+    await page.getByText('Henüz prompt yok').waitFor();
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

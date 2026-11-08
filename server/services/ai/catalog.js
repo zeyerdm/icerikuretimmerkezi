@@ -50,7 +50,7 @@ export const MODELS = [
 export const TASKS = {
   fikir: { label: 'Fikir üretimi ve asistan', hint: 'Marka asistanı, fikir havuzu ve Reels fikir havuzunu genişletme bunu kullanır.' },
   yazim: { label: 'Metin yazımı', hint: 'Reels senaryosu, carousel/post metni ve açıklamalar bunu kullanır.' },
-  ceviri: { label: 'Çeviri ve prompt', hint: 'Türkçe sahne tarifini İngilizce Flow/Veo prompt\'una çevirme.' },
+  ceviri: { label: 'Çeviri ve prompt', hint: 'Türkçe sahne tarifini İngilizce Flow/Veo prompt\'una çevirme ve Prompt Studio.' },
   denetim: { label: 'İçerik denetimi', hint: 'Üretilen metni marka diline, uzunluğa ve kurallara göre kontrol eder.' }
 };
 

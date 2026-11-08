@@ -230,6 +230,35 @@ const MIGRATIONS = [
   ALTER TABLE contents ADD COLUMN reels_id TEXT REFERENCES reels(id) ON DELETE SET NULL;
   ALTER TABLE contents ADD COLUMN post_id TEXT REFERENCES posts(id) ON DELETE SET NULL;
   ALTER TABLE brands ADD COLUMN reels_settings TEXT NOT NULL DEFAULT '{}';
+  `,
+  // 7: Prompt Studio — marka başına kayıtlı prompt'lar ve her değişikliğin sürümü
+  `
+  CREATE TABLE prompts (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    brief TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL,
+    text_tr TEXT NOT NULL DEFAULT '',
+    favorite INTEGER NOT NULL DEFAULT 0,
+    model TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_prompts_brand ON prompts(brand_id, updated_at);
+
+  CREATE TABLE prompt_versions (
+    id TEXT PRIMARY KEY,
+    prompt_id TEXT NOT NULL REFERENCES prompts(id) ON DELETE CASCADE,
+    note TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    brief TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL,
+    text_tr TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_prompt_versions ON prompt_versions(prompt_id, created_at);
   `
 ];
 
