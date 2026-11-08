@@ -155,6 +155,7 @@ export const api = {
   imageOverview: () => request('GET', '/api/ai/images'),
   setImageDefault: model => request('PUT', '/api/ai/images', { model }),
   images: (id, promptId) => request('GET', b(id) + '/images' + (promptId ? '?promptId=' + encodeURIComponent(promptId) : '')),
+  editImageRegion: (id, assetId, blob, instruction, model) => request('POST', `${b(id)}/images/edit?assetId=${encodeURIComponent(assetId)}&instruction=${encodeURIComponent(instruction)}${model ? '&model=' + encodeURIComponent(model) : ''}`, blob, { 'Content-Type': blob.type || 'image/png' }),
   generateImage: (id, body) => request('POST', b(id) + '/images', body),
   prompts: (id, params = {}) => request('GET', b(id) + '/prompts?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v))),
   brainstormPrompts: (id, body) => request('POST', b(id) + '/prompts/brainstorm', body),

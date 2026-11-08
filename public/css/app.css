@@ -939,3 +939,11 @@ body.editor-mode #daily-slot { display: none; }
 .bs-concept { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .bs-var { background: var(--surface-2, #f7f7fb); border-radius: 10px; padding: 10px; }
 .mention-chip { height: 24px; padding: 0 8px; font-size: 11px; margin: 2px 2px 0 0; }
+.gen-actions { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+.gen-actions .btn { padding: 0 6px; height: 26px; font-size: 11px; }
+.cmp-bar { display: flex; gap: var(--s-2); align-items: center; padding: 8px 12px; margin-top: var(--s-3); border-radius: 10px; background: var(--brand-soft); }
+.cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-3); }
+.cmp-grid img, .gen-detail-img { width: 100%; border-radius: 10px; border: 1px solid var(--line); }
+.gen-detail-img { max-height: 320px; object-fit: contain; background: var(--surface-2, #f7f7fb); }
+.region-wrap { display: flex; justify-content: center; background: var(--surface-2, #f7f7fb); border-radius: 10px; padding: 8px; }
+.region-wrap canvas { cursor: crosshair; touch-action: none; max-width: 100%; }

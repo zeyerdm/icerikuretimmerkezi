@@ -49,7 +49,7 @@ export function createOpenAiCompatibleProvider({ id, label, shortLabel, baseURL,
     async image({ model, prompt, aspect = '1:1', refs = [] }) {
       if (id === 'openrouter') {
         const content = [{ type: 'text', text: prompt }, ...refs.map(r => ({ type: 'image_url', image_url: { url: `data:${r.mime};base64,${r.data.toString('base64')}` } }))];
-        const data = await request('/chat/completions', { method: 'POST', body: JSON.stringify({ model, messages: [{ role: 'user', content }], modalities: ['image', 'text'], image_config: { aspect_ratio: aspect }, usage: { include: true } }) });
+        const data = await request('/chat/completions', { method: 'POST', body: JSON.stringify(Object.assign({ model, messages: [{ role: 'user', content }], modalities: ['image', 'text'], usage: { include: true } }, aspect ? { image_config: { aspect_ratio: aspect } } : {})) });
         const msg = data && data.choices && data.choices[0] && data.choices[0].message;
         const url = msg && msg.images && msg.images[0] && msg.images[0].image_url && msg.images[0].image_url.url;
         const m = /^data:([^;]+);base64,(.+)$/.exec(String(url || ''));
