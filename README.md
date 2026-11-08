@@ -37,6 +37,8 @@ Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz marka
 
 **Yapay zekâ** sayfası: Claude, OpenAI, OpenRouter (tek anahtarla birçok model) ve Gemini bağlanır; aynı istek 2-3 modele yazdırılıp yan yana karşılaştırılır; her işe (fikir, metin yazımı, çeviri, içerik denetimi) ayrı model ve yedek model atanır; harcama markaya, işe ve modele göre izlenir, aylık sınır konur. Seçenekler ve maliyetler: [docs/AI_SECENEKLERI.md](docs/AI_SECENEKLERI.md)
 
+**Hatırlatmalar:** günde ilk açılışta üstte "Günün özeti" şeridi (bugün yayında olanlar, geciken görevler, yaklaşan özel günler); üst çubuktaki zilden ayrıntılı özet; istenirse yayın saatinden 30 dakika önce bilgisayar bildirimi.
+
 Üstteki konum çubuğu (Yönetim Merkezi › Marka › Sayfa) ve marka değiştirici ile her an nerede olduğun belli; tek tıkla başka markaya geçer ya da yönetim merkezine dönersin.
 
 Yapılacaklar ve sıradaki adımlar: [docs/YOL_HARITASI.md](docs/YOL_HARITASI.md) · Mimari: [docs/ANALIZ.md](docs/ANALIZ.md)

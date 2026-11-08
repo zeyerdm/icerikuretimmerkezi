@@ -79,7 +79,16 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 - ✅ **4.9 İçeriğin tamamı tek kartta:** içerik penceresinde "Yayın metni" (açıklama, hashtag'ler, ilk yorum; kopyalama düğmeleri), "AI ile yaz" (model seçilir; bağlı Reels senaryosu ya da tasarım metinleri kaynak alınır), türe göre hazır yapılacaklar listesi (Reels: senaryo → çekim → kurgu → kapak → açıklama; adım eklenir/silinir) ve paylaşım sonucu. Senaryodan ya da tasarımdan takvime eklenen içeriğe açıklama ve hashtag'ler kendiliğinden geçer; arşivde ilerleme (✓ 2/5) görünür.
 - ✅ **4.10 Özel günler takvimi:** Türkiye'nin resmî/millî günleri, dinî bayramlar ve Ramazan (Diyanet takvimine göre 2025–2028 tablosu; tablo dışı yıllarda bayram uydurulmaz), ticari günler (Anneler/Babalar Günü, Sevgililer Günü, Black Friday), dünya günleri ve dönemler (okula dönüş, vize/final, yaz, yılbaşı alışverişi). Takvimde renkli işaretler (gizlenebilir); tıklayınca içerik ipucu, "Bu güne içerik planla" ve "Bu gün için 3 fikir üret" (markanın fikir havuzuna). Yönetim Merkezi'nde yaklaşan özel günler; asistan önümüzdeki 45 günü bilir (anma günlerinde ticari içerik önermez).
 - ✅ **4.11 Kimliği AI ile doldurma:** marka profilinde (yeni markada da) "AI ile doldur": web sitesi metni, Instagram biyografisi ya da tanıtım yazısı yapıştırılır, model seçilir; marka adı, sektör, açıklama, hedef kitle, karakter, iletişim dili, hedefler, rakipler ve slogan taslak olarak forma dolar (varsayılan: yalnızca boş alanlar; doldurulanlar vurgulanır). Metinde olmayan bilgi uydurulmaz; renk ve font yalnızca metinde açıkça geçiyorsa alınır. Kaydetmek kullanıcıya kalır.
-- ⬜ **4.12 Hatırlatmalar:** açılışta günün özeti (yayındaki içerikler, geciken görevler); istenirse bilgisayar bildirimi.
+- ✅ **4.12 Hatırlatmalar:** günde ilk açılışta sayfanın üstünde kapatılabilir "Günün özeti" şeridi (bugün yayında olanlar, tarihi geçen içerikler, bugün biten ve süresi dolan görevler, yaklaşan özel gün); üst çubukta bekleyen iş rozetli zil ve ayrıntılı özet penceresi; Ayarlar → Hatırlatmalar'dan şeridi kapatma ve yayın saatinden 30 dk önce bilgisayar bildirimi (uygulama açıkken).
+
+## Öncelikli (kullanıcının isteğiyle, Aşama 5'ten önce)
+
+- ⬜ **P.1 Akıllı marka hafızası:** her markanın kendine ait, görülebilen ve düzenlenebilen AI hafızası; yapay zekâya markayı her seferinde yeniden anlatmak gerekmez.
+  - Şu an olanlar (her üretime otomatik giriyor): marka dili ve hitap (kimlikteki "İletişim dili"), renkler ve yazı tipleri, hedef kitle, marka açıklaması/karakteri/hedefleri, paylaşım sonuçlarına göre en çok ve en az tutan içerikler (4.8), beğenilen fikirler.
+  - Eklenecekler: **kullanılmaması gereken kelimeler / yasaklı ifadeler** (üretimde kaçınılır, denetçi ve kalite kontrolü yakalar); **marka hakkında bilgiler** (serbest bilgi kartları: ürünler, fiyatlar, adres/çalışma saatleri, kampanyalar, sık sorulanlar); **tercih edilen ifadeler / imza cümleler**; **"Hafıza" sayfası**: yapay zekânın bu marka hakkında bildiği her şeyi tek yerde gösterme, düzenleme ve "bunu hatırla / unut"; asistan sohbetinde "bunu hafızaya kaydet" işlemi.
+- ⬜ **P.2 Şablon kütüphanesi (markalar arası):** bir kez tasarlanan şablon (Post stüdyosu) bütün markalarda kullanılabilsin; uygulandığı markanın renkleri, yazı tipleri, logosu ve maskotu otomatik yerleşsin.
+  - Şu an şablonlar marka başına (4.4); başka markaya taşınamıyor.
+  - Eklenecekler: ortak şablon kütüphanesi (Yönetim Merkezi'nde); şablon kaydederken katmanların rolü işaretlenir (ana renk / ikincil renk / zemin / başlık rengi / logo / maskot / ürün görseli); başka markaya uygulanınca bu roller o markanın kimliğiyle değiştirilir; önizleme ve şablonu markaya kopyalama.
 
 ## Toplu test (bekleyen)
 
@@ -95,6 +104,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.8 İçerik kartı:** türe göre varsayılan yapılacaklar, liste doğrulaması (15 adım, boş adım atlanır), hashtag temizleme, takvime eklerken açıklamanın geçmesi, AI yazımında bağlı senaryo/tasarım metninin isteme girmesi.
 - ⬜ **T.9 Özel günler:** sabit/hesaplanan günler (Anneler Günü mayısın 2. pazarı, Black Friday kasımın son cuması), bayram tablosu ve tablo dışı yıl, aralık filtresi ve dönemler, uç nokta doğrulaması, asistan istemine yaklaşan günlerin girmesi.
 - ⬜ **T.10 Kimlik taslağı:** kısa metin reddi, alan uzunluk sınırları, geçersiz HEX/font'un atılması, boş alanların boş kalması, harcamanın markaya yazılması, arayüzde yalnızca boş alanları doldurma.
+- ⬜ **T.11 Hatırlatmalar:** özet hesaplaması (bugün/geçmiş/görev/özel gün; yerel saat), şeridin günde bir kez çıkması ve kapanınca gelmemesi, zil rozeti, bildirimin bir içerik için bir kez gönderilmesi.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)

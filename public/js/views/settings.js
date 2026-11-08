@@ -2,6 +2,7 @@
 // AI anahtarı sunucuya yazılır ve bir daha tarayıcıya gönderilmez.
 import { api } from '../api.js';
 import { esc, toast, openModal, pageHead, emptyState, busy } from '../ui.js';
+import { reminderPrefs, setReminderPrefs } from '../reminders.js';
 import { state, renderChrome, refreshBrands } from '../app.js';
 
 const fmtSize = n => n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
@@ -39,6 +40,12 @@ export async function renderSettings(view) {
   view.innerHTML = `
     ${pageHead({ title: 'Ayarlar', desc: 'Yapay zekâ, Google Drive, güncelleme ve yedekler.' })}
     <div class="settings">
+      <section class="card" id="reminder-card">
+        <div class="card-head"><h3>Hatırlatmalar</h3></div>
+        <label class="check"><input type="checkbox" id="rm-summary" ${reminderPrefs().summary ? 'checked' : ''}> Açılışta günün özetini göster (günde bir kez)</label>
+        <label class="check mt-2"><input type="checkbox" id="rm-notify" ${reminderPrefs().notify && typeof Notification !== 'undefined' && Notification.permission === 'granted' ? 'checked' : ''} ${typeof Notification === 'undefined' ? 'disabled' : ''}> Yayın saatinden 30 dakika önce bilgisayar bildirimi</label>
+        <p class="hint mt-2">${typeof Notification === 'undefined' ? 'Bu tarayıcı bildirimleri desteklemiyor.' : 'Bildirimler uygulama açıkken (sekme arka planda olsa da) gelir; ilk açışta tarayıcı izin ister.'}</p>
+      </section>
       <section class="card" id="ai-card">
         <div class="card-head"><h3>Yapay zekâ</h3>${ai.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
         ${ai.configured ? `<dl class="kv"><dt>Fikir ve asistan</dt><dd>${esc(ai.model)} <span class="muted xsmall">(${esc(ai.providerLabel)})</span></dd><dt>Bu ay</dt><dd>${ai.budget.spent.toFixed(2).replace('.', ',')} $${ai.budget.monthlyUsd ? ` / ${ai.budget.monthlyUsd} $` : ''}</dd></dl>` : '<p class="card-text">Claude, OpenAI, OpenRouter ya da Gemini anahtarı ekleyerek asistanı çalıştırabilirsin.</p>'}
@@ -172,6 +179,15 @@ export async function renderSettings(view) {
     }
   });
 
+  view.querySelector('#rm-summary').addEventListener('change', e => { setReminderPrefs({ summary: e.target.checked }); toast('Kaydedildi.', 'success'); });
+  view.querySelector('#rm-notify').addEventListener('change', async e => {
+    if (e.target.checked && Notification.permission !== 'granted') {
+      const p = await Notification.requestPermission();
+      if (p !== 'granted') { e.target.checked = false; return toast('Tarayıcı bildirim iznini vermedi; tarayıcı ayarlarından açabilirsin.', 'error', 6000); }
+    }
+    setReminderPrefs({ notify: e.target.checked });
+    toast(e.target.checked ? 'Bildirimler açıldı.' : 'Bildirimler kapatıldı.', 'success');
+  });
   view.querySelector('#backup-file').addEventListener('change', e => {
     const file = e.target.files[0];
     e.target.value = '';
