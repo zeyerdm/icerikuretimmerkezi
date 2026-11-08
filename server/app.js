@@ -22,6 +22,7 @@ import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
 import { createDesignRefService } from './services/designRef.js';
+import { createAssetTagService } from './services/assetTags.js';
 import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
@@ -109,6 +110,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const prompts = createPromptService({ db, ai, brands, reels });
   const images = createImageService({ db, ai, brands, assets });
   const designRef = createDesignRefService({ db, ai, brands, assets });
+  const assetTags = createAssetTagService({ ai, brands, assets });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
@@ -645,6 +647,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/asset-packs', (req, res) => res.json({ packs: assets.packs(req.brand.id) }));
   api.delete('/brands/:brandId/asset-packs', (req, res) => res.json({ removed: assets.removePack(req.brand.id, String(req.query.pack || '')) }));
 
+  api.post('/brands/:brandId/assets/:assetId/analyze', route(async (req, res) => res.json(await assetTags.analyze(req.brand.id, req.params.assetId, { modelRef: mr(req.body || {}) }))));
   api.patch('/brands/:brandId/assets/:assetId', (req, res) => res.json({ asset: assets.update(req.brand.id, req.params.assetId, req.body || {}) }));
 
   api.delete('/brands/:brandId/assets/:assetId', (req, res) => { assets.remove(req.brand.id, req.params.assetId); res.status(204).end(); });

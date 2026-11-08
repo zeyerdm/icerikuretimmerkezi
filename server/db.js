@@ -371,6 +371,11 @@ const MIGRATIONS = [
   // 17: Rollü referanslar: kütüphane görseline kimlik / nesne / stil rolü (görsel üretiminde @etiket ile anılır)
   `
   ALTER TABLE assets ADD COLUMN ref_role TEXT NOT NULL DEFAULT '';
+  `,
+  // 18: Görselde yazı (OCR) ve AI ile etiketleme: okunan yazı kütüphane aramasına katılır
+  `
+  ALTER TABLE assets ADD COLUMN ocr_text TEXT NOT NULL DEFAULT '';
+  ALTER TABLE assets ADD COLUMN analyzed_at TEXT;
   `
 ];
 

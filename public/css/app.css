@@ -982,3 +982,4 @@ body.editor-mode #daily-slot { display: none; }
 .insp-item a { word-break: break-all; }
 .toast .btn { margin-left: 6px; }
 .pre-wrap { white-space: pre-wrap; }
+.ocr-text { padding: 6px 10px 8px; color: var(--ink-2, #445); font-style: italic; line-height: 1.35; word-break: break-word; }

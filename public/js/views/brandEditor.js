@@ -300,6 +300,9 @@ async function drawInspirationNotes(el, brand) {
 async function renderAssets(body, brand, driveOk) {
   const canSend = driveOk && Boolean(brand.driveFolderId);
   const cats = state.meta.assetCategories;
+  // Yazı okuma / etiketleme yalnızca AI bağlıysa gösterilir; bağlı değilse arama ipucunda nedeni yazar
+  const aiOn = Boolean(state.settings && state.settings.ai && state.settings.ai.configured);
+  let bulkIds = [];
   let current = takeLibraryCategory() || 'logo';
   if (!cats[current]) current = 'logo';
   let packFilter = '';
@@ -323,8 +326,8 @@ async function renderAssets(body, brand, driveOk) {
           <div class="strong">${esc(cats[current])} yükle</div>
           <div class="small">Sürükle bırak ya da tıkla · PNG, JPEG, WEBP, GIF · en fazla ${Math.round(state.meta.maxAssetBytes / 1048576)} MB${current === 'mascot' ? ' · Her poza bir ad ver (ör. Mutlu, Şaşkın)' : ''}</div>
         </label>
-        <div class="row mt-4 lib-tools"><input class="input w-auto" type="search" id="asset-q" placeholder="Ad, etiket ya da paket ara" aria-label="Kütüphanede ara" value="${esc(query)}">
-          <span class="spacer"></span><button type="button" class="btn btn-sm" data-pack-upload>${icon('upload')}Paket yükle (ZIP ya da çoklu)</button></div>
+        <div class="row mt-4 lib-tools"><input class="input w-auto" type="search" id="asset-q" placeholder="Ad, etiket, paket ya da görseldeki yazı" aria-label="Kütüphanede ara" value="${esc(query)}" title="${aiOn ? 'Okunan görsel yazıları da aranır' : 'Görseldeki yazıları okumak ve otomatik etiketlemek için Yapay zekâ sayfasından bir sağlayıcı bağla'}">
+          <span class="spacer"></span><span id="ocr-bulk"></span><button type="button" class="btn btn-sm" data-pack-upload>${icon('upload')}Paket yükle (ZIP ya da çoklu)</button></div>
         <div id="pack-row" class="chips mt-3"></div>
         <div id="asset-grid"><div class="skeleton mt-4" style="height:160px"></div></div>
       </div>`;
@@ -342,7 +345,10 @@ async function renderAssets(body, brand, driveOk) {
           ${packFilter ? `<button type="button" class="btn btn-sm btn-ghost" data-pack-delete="${esc(packFilter)}">${icon('trash')}Paketi sil</button>` : ''}`
         : '';
       const q = query.toLocaleLowerCase('tr-TR');
-      const assets = all.filter(a => (!packFilter || a.pack === packFilter) && (!q || [a.label, a.pack, ...a.tags].join(' ').toLocaleLowerCase('tr-TR').includes(q)));
+      const assets = all.filter(a => (!packFilter || a.pack === packFilter) && (!q || [a.label, a.pack, a.ocrText, ...a.tags].join(' ').toLocaleLowerCase('tr-TR').includes(q)));
+      const pending = assets.filter(a => !a.analyzedAt);
+      body.querySelector('#ocr-bulk').innerHTML = aiOn && pending.length ? `<button type="button" class="btn btn-sm" data-ocr-bulk>${icon('sparkle')}Okunmamışları oku ve etiketle (${pending.length})</button>` : '';
+      bulkIds = pending.map(a => a.id);
       grid.innerHTML = assets.length
         ? `<div class="asset-grid">${assets.map(a => `
             <div class="asset">
@@ -351,6 +357,8 @@ async function renderAssets(body, brand, driveOk) {
               <button class="btn btn-sm btn-ghost icon-btn" data-asset-delete="${esc(a.id)}" aria-label="Sil">${icon('trash')}</button></div>
               <div class="meta"><select class="select input-sm" data-asset-role="${esc(a.id)}" aria-label="Referans rolü" title="Görsel üretiminde @${esc(a.mention)} ile anılınca nasıl kullanılacağı"><option value="">Referans: —</option>${[['kimlik', 'Kimlik'], ['nesne', 'Nesne'], ['stil', 'Stil']].map(([k, v]) => `<option value="${k}" ${a.refRole === k ? 'selected' : ''}>Referans: ${v}</option>`).join('')}</select><span class="xsmall muted" title="Görsel tarifinde bu adla an">@${esc(a.mention)}</span></div>
               <div class="meta"><input class="input input-sm" data-asset-tags="${esc(a.id)}" value="${esc(a.tags.join(', '))}" placeholder="Etiketler (virgülle)" maxlength="300" aria-label="Etiketler">${a.pack ? `<span class="tag" title="Paket">${esc(a.pack)}</span>` : ''}</div>
+              ${a.ocrText ? `<div class="ocr-text xsmall" title="Görselde okunan yazı (aramaya dahil)">“${esc(a.ocrText.slice(0, 140))}${a.ocrText.length > 140 ? '…' : ''}”</div>` : a.analyzedAt ? '<div class="xsmall muted">Görselde yazı bulunmadı.</div>' : ''}
+              ${aiOn ? `<div class="meta"><button type="button" class="btn btn-sm btn-ghost" data-ocr="${esc(a.id)}" title="Görseldeki yazıyı okur, etiket ve ad önerir">${icon('sparkle')}${a.analyzedAt ? 'Yeniden oku' : 'Yazıyı oku ve etiketle'}</button></div>` : ''}
               ${canSend || a.driveUrl ? `<div class="meta">${a.driveUrl ? `<a class="drive-link" href="${esc(a.driveUrl)}" target="_blank" rel="noopener">✓ Drive'da</a>` : ''}
                 ${canSend ? `<button class="btn btn-sm${a.driveUrl ? ' btn-ghost' : ''}" data-asset-drive="${esc(a.id)}">${a.driveUrl ? 'Tekrar gönder' : 'Drive\'a gönder'}</button>` : ''}</div>` : ''}
             </div>`).join('')}</div>`
@@ -436,6 +444,24 @@ async function renderAssets(body, brand, driveOk) {
       try { await api.sendAssetToDrive(brand.id, btn.dataset.assetDrive); toast('Dosya Google Drive klasörüne gönderildi.', 'success'); draw(); }
       catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Drive\'a gönder'; }
     }));
+    body.querySelectorAll('[data-ocr]').forEach(btn => btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Okunuyor…';
+      try { const r = await api.analyzeAsset(brand.id, btn.dataset.ocr); toast(`${r.asset.tags.length} etiket · ${r.ai.modelLabel}`, 'success'); draw(); }
+      catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Yazıyı oku ve etiketle'; }
+    }));
+    const bulk = body.querySelector('[data-ocr-bulk]');
+    if (bulk) bulk.addEventListener('click', async () => {
+      const ids = bulkIds.slice();
+      bulk.disabled = true;
+      let ok = 0;
+      for (const [i, id] of ids.entries()) {
+        bulk.textContent = `Okunuyor… ${i + 1}/${ids.length}`;
+        try { await api.analyzeAsset(brand.id, id); ok++; } catch (err) { toast(err.message, 'error'); if (/bağlı|anahtar|yapılandır/i.test(err.message)) break; }
+      }
+      toast(`${ok} görsel okundu ve etiketlendi.`, ok ? 'success' : 'error');
+      draw();
+    });
     body.querySelectorAll('[data-asset-delete]').forEach(btn => btn.addEventListener('click', async () => {
       if (!confirm('Bu dosya silinsin mi?')) return;
       try { await api.deleteAsset(brand.id, btn.dataset.assetDelete); await refreshBrands(); draw(); } catch (err) { toast(err.message, 'error'); }
