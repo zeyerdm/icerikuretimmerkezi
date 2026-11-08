@@ -127,52 +127,66 @@ async function renderDetail(view, brand, id, models) {
   const meta = state.meta.prompts;
   let p = (await api.prompt(brand.id, id)).prompt;
   let lastAi = null;
+  let panel = 'gelistir';
 
   function draw() {
+    const panelBox = (k, title, inner) => `<div class="ed-pane" data-pane="${k}" ${panel === k ? '' : 'hidden'}><h3 class="ed-panel-title">${title}</h3>${inner}</div>`;
+    const rails = [['gelistir', 'Geliştir', 'sparkle'], ...(IMAGE_KINDS[p.kind] ? [['gorsel', 'Görsel üret', 'image']] : []), ['surumler', 'Sürümler', 'refresh']];
     view.innerHTML = `
-      ${pageHead({ title: esc(p.title), desc: `${esc(p.kindLabel)} prompt'u${p.brief ? ` · İstek: ${esc(p.brief.slice(0, 140))}` : ''}`, actions: `<a class="btn btn-ghost" href="${base(brand)}">${icon('back')}Prompt'lar</a>` })}
-      <div class="reels-layout">
-        <div class="stack">
-          <section class="card">
-            <div class="field"><label for="pp-title">Başlık</label><input class="input" id="pp-title" maxlength="80" value="${esc(p.title)}"></div>
-            <div class="field mt-3"><label for="pp-text">${p.english ? 'Prompt (İngilizce, üretim aracına bu verilir)' : 'Prompt'}</label>
-              <textarea class="textarea prompt-text" id="pp-text" rows="9" maxlength="8000">${esc(p.text)}</textarea></div>
-            ${p.english ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="6" maxlength="8000">${esc(p.textTr)}</textarea></div>` : ''}
-            <div class="row mt-3">
-              <button class="btn btn-primary" data-save>Kaydet</button>
-              <button class="btn" data-copy="text">${icon('notes')}Prompt'u kopyala</button>
-              ${p.english ? '<button class="btn btn-ghost" data-copy="tr">Türkçesini kopyala</button>' : ''}
-              <span class="xsmall muted" id="pp-note">${lastAi ? esc(aiNote(lastAi)) : p.modelLabel ? `Son yazan model: ${esc(p.modelLabel)}` : ''}</span>
-            </div>
-          </section>
-          ${aiReady ? `
-          <section class="card">
-            <div class="card-head"><h3>Geliştir</h3>${modelSelect(models, 'ceviri', { id: 'pp-model' })}</div>
-            <p class="small muted mb-3">Her işlem yeni bir sürüm oluşturur; beğenmezsen sağdaki geçmişten önceki sürüme dönebilirsin.</p>
-            <div class="chips">${Object.entries(meta.actions).map(([k, v]) => `<button type="button" class="chip" data-improve="${k}">${esc(v)}</button>`).join('')}</div>
-            <hr class="sep">
-            <div class="field"><label for="pp-instr">Seçili bölümü yeniden yaz</label>
-              <div class="row"><input class="input grow" id="pp-instr" maxlength="500" placeholder="Prompt'ta bir bölümü seç; nasıl değişsin? Ör. gece sahnesi olsun">
-              <button class="btn" data-selected>Seçili bölümü yaz</button></div>
-              <div class="xsmall muted mt-1">Önce yukarıdaki prompt kutusunda değiştirmek istediğin kısmı fareyle seç.</div></div>
-            <div class="field mt-3"><label for="pp-brief">Girişi değiştir</label>
-              <textarea class="textarea" id="pp-brief" rows="3" maxlength="2000" placeholder="Yeni isteği yaz; prompt baştan yazılır">${esc(p.brief)}</textarea>
-              <div class="row mt-2"><button class="btn" data-rebrief>Yeni girişe göre yeniden yaz</button></div></div>
-          </section>` : '<div class="notice"><div><strong>AI bağlı değil.</strong> Geliştirme işlemleri için bir sağlayıcı bağla. Elle düzenleyip kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
-          ${IMAGE_KINDS[p.kind] ? `<section class="card"><div class="card-head"><h3>Bu prompt'la görsel üret</h3></div>
-            <p class="small muted mb-3">Prompt kutusundaki metin seçtiğin görsel modeline gönderilir; sonuç kütüphaneye kaydedilir.</p><div id="pp-image"></div></section>` : ''}
-        </div>
-        <aside class="stack reels-side">
-          <section class="card"><button class="btn w-full" data-fav>${p.favorite ? '★ Favorilerden çıkar' : '☆ Favorilere ekle'}</button></section>
-          <section class="card">
-            <div class="card-head"><h3>Sürümler</h3><span class="small muted">${p.versions.length}</span></div>
-            <ul class="version-list">${p.versions.map((v, i) => `<li><div class="grow"><div class="small strong">${esc(v.note)}</div><div class="xsmall muted">${esc(when(v.createdAt))}${v.modelLabel ? ` · ${esc(v.modelLabel)}` : ''}</div></div>
+      <div class="ed ed-doc-mode">
+        <header class="ed-top">
+          <a class="ed-top-btn" href="${base(brand)}" title="Prompt'lar">${icon('back')}<span>Prompt'lar</span></a>
+          <div class="ed-menu"><button type="button" class="ed-top-btn" data-menu="dosya" aria-haspopup="true">Dosya</button>
+            <div class="ed-drop" data-drop="dosya" hidden>
+              <div class="ed-drop-head"><b>${esc(p.title)}</b><span class="xsmall">${esc(p.kindLabel)} prompt'u${p.brief ? ` · İstek: ${esc(p.brief.slice(0, 80))}` : ''}</span></div>
+              <button type="button" data-fav>${p.favorite ? '★ Favorilerden çıkar' : '☆ Favorilere ekle'}</button>
+              <button type="button" data-rail="surumler">${icon('refresh')}Sürüm geçmişi</button>
+              <hr><button type="button" class="danger" data-delete>${icon('trash')}Prompt'u sil</button>
+            </div></div>
+          <span class="spacer"></span>
+          <h1 class="ed-title" title="${esc(p.title)}">${esc(p.title)}</h1>
+          <button type="button" class="ed-top-btn ed-save" data-save>Kaydet</button>
+          <button type="button" class="ed-share" data-copy="text">Prompt'u kopyala</button>
+        </header>
+        <div class="ed-body ${panel ? 'has-panel' : ''}">
+          <nav class="ed-rail" aria-label="Araçlar">${rails.map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
+          <aside class="ed-panel" ${panel ? '' : 'hidden'}>
+            ${panelBox('gelistir', 'Geliştir', aiReady ? `<div class="field">${modelSelect(models, 'ceviri', { id: 'pp-model' })}</div>
+              <p class="small muted mt-2 mb-2">Her işlem yeni bir sürüm oluşturur; beğenmezsen Sürümler'den önceki sürüme dönebilirsin.</p>
+              <div class="chips">${Object.entries(meta.actions).map(([k, v]) => `<button type="button" class="chip" data-improve="${k}">${esc(v)}</button>`).join('')}</div>
+              <hr class="sep">
+              <div class="field"><label for="pp-instr">Seçili bölümü yeniden yaz</label>
+                <input class="input" id="pp-instr" maxlength="500" placeholder="Nasıl değişsin? Ör. gece sahnesi olsun">
+                <button class="btn btn-sm mt-2" data-selected>Seçili bölümü yaz</button>
+                <div class="xsmall muted mt-1">Önce ortadaki prompt kutusunda değiştirmek istediğin kısmı fareyle seç.</div></div>
+              <div class="field mt-3"><label for="pp-brief">Girişi değiştir</label>
+                <textarea class="textarea" id="pp-brief" rows="3" maxlength="2000" placeholder="Yeni isteği yaz; prompt baştan yazılır">${esc(p.brief)}</textarea>
+                <button class="btn btn-sm mt-2" data-rebrief>Yeni girişe göre yeniden yaz</button></div>`
+              : '<div class="notice"><div><strong>AI bağlı değil.</strong> Geliştirme işlemleri için bir sağlayıcı bağla. Elle düzenleyip kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>')}
+            ${IMAGE_KINDS[p.kind] ? panelBox('gorsel', "Bu prompt'la görsel üret", '<p class="small muted mb-3">Prompt kutusundaki metin seçtiğin görsel modeline gönderilir; sonuç kütüphaneye kaydedilir.</p><div id="pp-image"></div>') : ''}
+            ${panelBox('surumler', `Sürümler <span class="small muted">${p.versions.length}</span>`, `<ul class="version-list">${p.versions.map((v, i) => `<li><div class="grow"><div class="small strong">${esc(v.note)}</div><div class="xsmall muted">${esc(when(v.createdAt))}${v.modelLabel ? ` · ${esc(v.modelLabel)}` : ''}</div></div>
               <button class="btn btn-sm btn-ghost" data-show="${esc(v.id)}">Göster</button>
-              ${i === 0 ? '<span class="xsmall muted">Şu anki</span>' : `<button class="btn btn-sm btn-ghost" data-restore="${esc(v.id)}">Geri dön</button>`}</li>`).join('')}</ul>
-          </section>
-          <section class="card"><button class="btn btn-danger w-full" data-delete>${icon('trash')}Prompt'u sil</button></section>
-        </aside>
+              ${i === 0 ? '<span class="xsmall muted">Şu anki</span>' : `<button class="btn btn-sm btn-ghost" data-restore="${esc(v.id)}">Geri dön</button>`}</li>`).join('')}</ul>`)}
+            <button type="button" class="ed-collapse" data-rail-close aria-label="Paneli kapat">${icon('chevronLeft')}</button>
+          </aside>
+          <main class="ed-doc">
+            <div class="ed-doc-inner">
+              <section class="card">
+                <div class="field"><label for="pp-title">Başlık</label><input class="input" id="pp-title" maxlength="80" value="${esc(p.title)}"></div>
+                <div class="field mt-3"><label for="pp-text">${p.english ? 'Prompt (İngilizce, üretim aracına bu verilir)' : 'Prompt'}</label>
+                  <textarea class="textarea prompt-text" id="pp-text" rows="12" maxlength="8000">${esc(p.text)}</textarea></div>
+                ${p.english ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="7" maxlength="8000">${esc(p.textTr)}</textarea></div>` : ''}
+                <div class="row mt-3">
+                  ${p.english ? '<button class="btn btn-sm btn-ghost" data-copy="tr">Türkçesini kopyala</button>' : ''}
+                  <span class="xsmall muted" id="pp-note">${lastAi ? esc(aiNote(lastAi)) : p.modelLabel ? `Son yazan model: ${esc(p.modelLabel)}` : ''}</span>
+                </div>
+              </section>
+            </div>
+          </main>
+        </div>
+        <footer class="ed-bottom"><span class="small muted">${esc(p.kindLabel)} · ${p.text.length} karakter · ${p.versions.length} sürüm</span><span class="spacer"></span>${p.favorite ? '<span class="small">★ Favori</span>' : ''}</footer>
       </div>`;
+    document.body.classList.add('editor-mode');
     if (IMAGE_KINDS[p.kind]) imageBox(view.querySelector('#pp-image'), brand, { getPrompt: () => val('#pp-text'), promptId: p.id, aspect: IMAGE_KINDS[p.kind] });
   }
   draw();
@@ -197,6 +211,19 @@ async function renderDetail(view, brand, id, models) {
 
   view.onclick = async e => {
     const t = e.target;
+    const menu = t.closest('[data-menu]');
+    if (menu) { const dd = view.querySelector(`[data-drop="${menu.dataset.menu}"]`); const was = dd.hidden; view.querySelectorAll('[data-drop]').forEach(x => { x.hidden = true; }); dd.hidden = !was; return; }
+    if (!t.closest('.ed-drop') || t.closest('button')) view.querySelectorAll('[data-drop]').forEach(x => { x.hidden = true; });
+    const rail = t.closest('[data-rail]');
+    if (rail || t.closest('[data-rail-close]')) {
+      const k = rail ? rail.dataset.rail : panel;
+      panel = panel === k && !(rail && rail.closest('.ed-drop')) ? null : k; // aynı araca tekrar tıklayınca kapanır
+      view.querySelectorAll('.ed-rail [data-rail]').forEach(b => { b.classList.toggle('active', b.dataset.rail === panel); b.setAttribute('aria-pressed', String(b.dataset.rail === panel)); });
+      view.querySelectorAll('[data-pane]').forEach(x => { x.hidden = x.dataset.pane !== panel; });
+      view.querySelector('.ed-panel').hidden = !panel;
+      view.querySelector('.ed-body').classList.toggle('has-panel', Boolean(panel));
+      return;
+    }
     if (t.closest('[data-save]')) {
       try { await save(); lastAi = null; draw(); toast('Kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
       return;

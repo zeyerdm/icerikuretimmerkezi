@@ -59,9 +59,10 @@ Hedef: eski sistemde çalışan her şey yeni sistemde, istenen düzeltmelerle v
 
 ## Arayüz düzeni (kullanıcının ekran görüntüleriyle yapılacak)
 
-- 🔄 **U.1 Tasarım ekranlarını sadeleştirme (Canva benzeri yerleşim):** kullanıcının Canva ekran görüntülerine göre.
+- ✅ **U.1 Tasarım ekranlarını sadeleştirme (Canva benzeri yerleşim):** kullanıcının Canva ekran görüntülerine göre.
   - ✅ **Post stüdyosu:** tam ekran düzenleyici; üstte Dosya (ad, kaydet, marka şablonu, takvim, sil), Yeniden boyutlandır ve Paylaş (PNG, bütün slaytlar, Drive, takvim, şablon) menüleri; solda araç rayı (Metin, Öğeler, Marka, Yüklemeler, Şablonlar, Zemin, AI, Açıklama) ve tıklandıkça açılıp kapanan panel; ortada ekrana sığan tasarım alanı (sayfa kaymaz); altta sayfa şeridi ve yakınlaştırma; sağda yalnızca öğe seçiliyken ayarlar.
-  - ⬜ Reels senaryo ekranı ve Prompt Studio aynı düzene geçecek.
+  - ✅ **Reels senaryo ekranı:** tam ekran; üstte Dosya (sürümler, yeniden yaz, sil), durum seçici, Takvime ekle ve Dışa aktar (kopyala, .txt, .srt, başlık PNG, telepromter, Drive); solda Özet, Yeniden yaz, Başlık, Açıklama, Kalite, Sürümler panelleri; ortada kendi içinde kayan sahneler; altta sahne şeridi (tıklayınca sahneye gider).
+  - ✅ **Prompt Studio:** tam ekran; üstte Dosya (favori, sürümler, sil), Kaydet ve Prompt'u kopyala; solda Geliştir, Görsel üret, Sürümler panelleri; ortada prompt düzenleyici.
 
 ## Aşama 4 — Geliştirme ve yenileme
 

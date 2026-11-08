@@ -874,3 +874,15 @@ body.editor-mode .view { max-width: none; padding: 0; margin: 0; }
   .ed-body.has-panel.has-props { grid-template-columns: 64px 260px minmax(0, 1fr) 260px; }
   .ed-title, .ed-top-btn span { display: none; }
 }
+/* Belge türü düzenleyiciler (Reels senaryosu, Prompt Studio): ortada kendi içinde kayan belge */
+.ed-doc { overflow-y: auto; min-height: 0; background: var(--bg, #eef0f6); }
+.ed-doc-inner { max-width: 880px; margin: 0 auto; padding: 24px 24px 48px; display: flex; flex-direction: column; gap: var(--s-4); }
+.ed-pane[hidden] { display: none; }
+.ed-top-select { height: 36px; border-radius: 10px; background: rgba(255, 255, 255, .95); color: var(--ink, #1b1f3b); border: 0; font-weight: 600; margin-left: 4px; }
+.ed.ed-doc-mode { grid-template-rows: 56px minmax(0, 1fr) 68px; }
+.ed-doc-mode .ed-bottom { gap: 8px; }
+.ed-scene-chip { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2, #f7f7fb); font: inherit; font-size: var(--t-xs); cursor: pointer; color: inherit; }
+.ed-scene-chip:hover { border-color: var(--brand); }
+.ed-scene-chip b { font-size: var(--t-sm); }
+.ed-share-grid button:disabled { opacity: .45; cursor: not-allowed; }
+.ed-panel .title-preview canvas { width: 100%; }
