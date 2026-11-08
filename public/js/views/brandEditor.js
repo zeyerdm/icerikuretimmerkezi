@@ -1,5 +1,6 @@
 // Marka dijital kimliği: profil, görsel kimlik (renk, font, canlı önizleme) ve varlık kütüphanesi
 import { api } from '../api.js';
+import { imageBox } from './imageGen.js';
 import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy } from '../ui.js';
 import { state, refreshBrands, go, renderChrome } from '../app.js';
 
@@ -251,6 +252,7 @@ async function renderAssets(body, brand, driveOk) {
     body.innerHTML = `
       <div class="card">
         <div class="asset-cats">${Object.entries(cats).map(([id, label]) => `<button type="button" class="chip ${id === current ? 'active' : ''}" data-cat="${id}">${esc(label)}</button>`).join('')}</div>
+        ${current === 'ai_image' ? '<div class="card-section mb-4"><h3 class="mb-2">AI ile görsel üret</h3><div id="lib-image"></div></div>' : ''}
         <label class="dropzone" id="dropzone">
           <input type="file" id="asset-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple class="sr-only">
           <div>${icon('upload')}</div>
@@ -261,6 +263,7 @@ async function renderAssets(body, brand, driveOk) {
       </div>`;
     // Yükleme alanı liste beklenmeden hemen bağlanır; seçilen dosya kaybolmaz
     wireUpload();
+    if (current === 'ai_image') imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, onCreated: () => draw() });
     const grid = body.querySelector('#asset-grid');
     try {
       const { assets } = await api.assets(brand.id, current);

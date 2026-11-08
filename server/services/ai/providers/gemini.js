@@ -45,6 +45,27 @@ export function createGeminiProvider({ getApiKey, fetchImpl = fetch }) {
       return { output: json ? parseJsonOutput(LABEL, text) : text, usage, model };
     },
 
+    // Görsel üretimi: Imagen modelleri predict, Gemini görsel modelleri generateContent (referans görsel gönderilebilir)
+    async image({ model, prompt, aspect = '1:1', refs = [] }) {
+      if (/^imagen/.test(model)) {
+        const ar = aspect === '4:5' ? '3:4' : aspect;
+        const data = await request(encodeURIComponent(model) + ':predict', { method: 'POST', body: JSON.stringify({ instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: ar } }) });
+        const p = data && data.predictions && data.predictions[0];
+        if (!p || !p.bytesBase64Encoded) throw aiError('AI_EMPTY', 'Imagen görsel döndürmedi (içerik filtresine takılmış olabilir; tarifi değiştirip tekrar dene).', { retryable: false });
+        return { buffer: Buffer.from(p.bytesBase64Encoded, 'base64'), mime: p.mimeType || 'image/png', model };
+      }
+      const parts = [{ text: prompt }, ...refs.map(r => ({ inline_data: { mime_type: r.mime, data: r.data.toString('base64') } }))];
+      const data = await request(encodeURIComponent(model) + ':generateContent', {
+        method: 'POST',
+        body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: aspect } } })
+      });
+      const out = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      const img = out.map(p => p.inlineData || p.inline_data).find(Boolean);
+      if (!img || !img.data) throw aiError('AI_EMPTY', 'Gemini görsel döndürmedi (içerik filtresine takılmış olabilir; tarifi değiştirip tekrar dene).', { retryable: false });
+      const u = (data && data.usageMetadata) || {};
+      return { buffer: Buffer.from(img.data, 'base64'), mime: img.mimeType || img.mime_type || 'image/png', model, usage: { input: u.promptTokenCount || 0, output: u.candidatesTokenCount || 0 } };
+    },
+
     async listModels() {
       const data = await request('?pageSize=200', { method: 'GET' });
       return ((data && data.models) || [])

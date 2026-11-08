@@ -43,6 +43,24 @@ export function createOpenAiCompatibleProvider({ id, label, shortLabel, baseURL,
       return { output: json ? parseJsonOutput(shortLabel, text) : text, usage, cost, model: (data && data.model) || model };
     },
 
+    // Görsel üretimi. OpenAI: images API (b64). OpenRouter: sohbet API'si, görsel çıktı kipi; referans görsel gönderilebilir.
+    async image({ model, prompt, aspect = '1:1', refs = [] }) {
+      if (id === 'openrouter') {
+        const content = [{ type: 'text', text: prompt }, ...refs.map(r => ({ type: 'image_url', image_url: { url: `data:${r.mime};base64,${r.data.toString('base64')}` } }))];
+        const data = await request('/chat/completions', { method: 'POST', body: JSON.stringify({ model, messages: [{ role: 'user', content }], modalities: ['image', 'text'], image_config: { aspect_ratio: aspect }, usage: { include: true } }) });
+        const msg = data && data.choices && data.choices[0] && data.choices[0].message;
+        const url = msg && msg.images && msg.images[0] && msg.images[0].image_url && msg.images[0].image_url.url;
+        const m = /^data:([^;]+);base64,(.+)$/.exec(String(url || ''));
+        if (!m) throw aiError('AI_EMPTY', 'OpenRouter görsel döndürmedi (model görsel üretmiyor olabilir ya da içerik filtresine takıldı).', { retryable: false });
+        return { buffer: Buffer.from(m[2], 'base64'), mime: m[1], cost: data.usage && typeof data.usage.cost === 'number' ? data.usage.cost : undefined, model: data.model || model };
+      }
+      const size = aspect === '1:1' ? '1024x1024' : aspect === '16:9' ? '1536x1024' : '1024x1536';
+      const data = await request('/images/generations', { method: 'POST', body: JSON.stringify({ model, prompt, n: 1, size }) });
+      const b64 = data && data.data && data.data[0] && data.data[0].b64_json;
+      if (!b64) throw aiError('AI_EMPTY', 'OpenAI görsel döndürmedi (içerik politikasına takılmış olabilir).', { retryable: false });
+      return { buffer: Buffer.from(b64, 'base64'), mime: 'image/png', model };
+    },
+
     async listModels() {
       const data = await request('/models', { method: 'GET' });
       const list = (data && data.data) || [];

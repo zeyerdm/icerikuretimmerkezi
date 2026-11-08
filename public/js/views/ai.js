@@ -259,7 +259,19 @@ async function renderProviders(body, ov, view) {
         <div class="stack-sm" id="task-rows"><div class="skeleton" style="height:120px"></div></div>
         <div class="card-actions"><button class="btn btn-primary" id="save-tasks">Atamaları kaydet</button></div>`
         : emptyState({ icon: 'sparkle', title: 'Önce bir sağlayıcı bağla', text: 'Yukarıdan en az bir anahtar ekleyince işlere model atayabilirsin.', compact: true })}
-    </section>`;
+    </section>
+    <section class="card mt-5" id="image-card"><div class="card-head"><h3>Görsel üretimi</h3></div><div id="image-default"><div class="skeleton" style="height:60px"></div></div></section>`;
+  api.imageOverview().then(io => {
+    const box = body.querySelector('#image-default');
+    if (!box) return;
+    if (!io.configured) { box.innerHTML = '<p class="card-text">Görsel üretmek için Gemini, OpenAI ya da OpenRouter anahtarı ekle. Claude görsel üretmez.</p>'; return; }
+    box.innerHTML = `<p class="card-text mb-3">Prompt Studio ve Kütüphane'de varsayılan olarak seçilecek görsel modeli. Ücret görsel başınadır; harcama "Görsel üretimi" işi olarak izlenir.</p>
+      <table class="table"><thead><tr><th>Model</th><th>Sağlayıcı</th><th>Görsel başı</th><th>Maskot referansı</th><th>Not</th></tr></thead><tbody>${io.models.filter(m => m.available).map(m => `<tr><td><label class="check"><input type="radio" name="img-default" value="${esc(m.ref)}" ${m.ref === io.default ? 'checked' : ''}> ${esc(m.label)}</label></td><td>${esc(m.providerLabel)}</td><td>~${m.perImage.toFixed(3).replace('.', ',')} $</td><td>${m.refs ? 'Var' : '—'}</td><td class="small muted">${esc(m.note)}</td></tr>`).join('')}</tbody></table>`;
+    box.addEventListener('change', async e => {
+      if (e.target.name !== 'img-default') return;
+      try { await api.setImageDefault(e.target.value); toast('Varsayılan görsel modeli kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
+    });
+  }).catch(() => {});
 
   body.querySelectorAll('[data-key-form]').forEach(form => form.addEventListener('submit', async e => {
     e.preventDefault();

@@ -19,6 +19,7 @@ import { createCompareService } from './services/compare.js';
 import { createReelsService } from './services/reels/index.js';
 import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
+import { createImageService } from './services/images.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -93,7 +94,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const review = createReviewService({ ai, brands });
   const prompts = createPromptService({ db, ai, brands, reels });
-  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace });
+  const images = createImageService({ db, ai, brands, assets });
+  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images });
 
   const app = express();
   app.disable('x-powered-by');
@@ -518,6 +520,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     res.json({ review: await review.review(req.brand.id, { text: b.text, kind: b.kind || 'serbest', modelRef: mr(b) }) });
   }));
+
+  // --- Görsel üretimi ---
+  api.get('/ai/images', (req, res) => res.json(images.overview()));
+  api.put('/ai/images', (req, res) => res.json(ai.setImageDefault((req.body || {}).model || '')));
+  api.get('/brands/:brandId/images', (req, res) => res.json({ images: images.history(req.brand.id, { promptId: req.query.promptId || null }) }));
+  api.post('/brands/:brandId/images', route(async (req, res) => res.status(201).json(await images.generate(req.brand.id, req.body || {}))));
 
   // --- Prompt Studio ---
   api.get('/brands/:brandId/prompts', (req, res) => res.json({ prompts: prompts.list(req.brand.id, { kind: req.query.kind || null, q: req.query.q || '' }) }));

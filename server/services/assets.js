@@ -10,6 +10,7 @@ export const ASSET_CATEGORIES = {
   brand_image: 'Marka görseli',
   product: 'Ürün fotoğrafı',
   sticker: 'Sticker',
+  ai_image: 'AI görseli',
   illustration: 'İllüstrasyon',
   background: 'Arka plan',
   reference: 'Tasarım referansı',

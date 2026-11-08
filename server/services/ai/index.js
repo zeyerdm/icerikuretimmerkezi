@@ -1,7 +1,7 @@
 // AI servis katmanı: birden çok sağlayıcı, işe göre model ataması, yedek modele geçiş, harcama kaydı ve aylık sınır.
 // Anahtarlar yalnızca sunucuda (ayarlar tablosunda ya da ortam değişkeninde) durur; istemciye hiçbir zaman gönderilmez.
 import { newId, now, badRequest, parseJson, HttpError } from '../../lib/http.js';
-import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, modelRef, parseRef, catalogModel } from './catalog.js';
+import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMAGE_DEFAULTS, IMAGE_ASPECTS, modelRef, parseRef, catalogModel } from './catalog.js';
 import { createGeminiProvider } from './providers/gemini.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
 import { createOpenAiCompatibleProvider } from './providers/openai.js';
@@ -9,6 +9,7 @@ import { createOpenAiCompatibleProvider } from './providers/openai.js';
 const TASKS_SETTING = 'ai.tasks';
 const BUDGET_SETTING = 'ai.budget';
 const PRICES_SETTING = 'ai.prices';
+const IMAGE_SETTING = 'ai.imageModel';
 const keySetting = id => `ai.${id}.apiKey`;
 export const GEMINI_TEXT_MODELS = MODELS.filter(m => m.provider === 'gemini').map(m => m.id);
 // İşe göre düşünme derinliği (Claude): yazım özen ister, çeviri hızlı olmalı
@@ -101,7 +102,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   function labelOf(ref) {
-    const c = catalogModel(ref);
+    const c = catalogModel(ref) || IMAGE_MODELS.find(m => modelRef(m.provider, m.id) === ref);
     if (c) return c.label;
     const p = parseRef(ref);
     if (!p) return ref;
@@ -149,9 +150,56 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     }
   }
 
+  // --- Görsel üretimi (ayrı model listesi; görsel başına ücret) ---
+  const imageProviders = ['gemini', 'openai', 'openrouter'];
+  const imageCatalog = ref => IMAGE_MODELS.find(m => modelRef(m.provider, m.id) === ref) || null;
+  function imageDefault() {
+    const saved = settings.get(IMAGE_SETTING);
+    const p = saved && parseRef(saved);
+    if (p && imageProviders.includes(p.provider) && isConfigured(p.provider)) return saved;
+    const pid = imageProviders.find(isConfigured);
+    return pid ? modelRef(pid, IMAGE_DEFAULTS[pid]) : null;
+  }
+  function imageOverview() {
+    return {
+      configured: imageProviders.some(isConfigured),
+      default: imageDefault(),
+      aspects: IMAGE_ASPECTS,
+      models: IMAGE_MODELS.map(m => Object.assign({}, m, { ref: modelRef(m.provider, m.id), available: isConfigured(m.provider), providerLabel: PROVIDERS[m.provider].label }))
+    };
+  }
+  async function image({ brandId = null, prompt, modelRef: ref = null, aspect = '1:1', refs = [] }) {
+    checkBudget();
+    const chosen = ref || imageDefault();
+    if (!chosen) throw new HttpError(409, 'AI_IMAGE_NOT_CONFIGURED', 'Görsel üretimi için Gemini, OpenAI ya da OpenRouter anahtarı gerekli. Yapay zekâ → Sağlayıcılar bölümünden ekle.');
+    const p = parseRef(chosen);
+    if (!p || !imageProviders.includes(p.provider) || !providers[p.provider] || !providers[p.provider].image) throw badRequest('Bu model görsel üretmiyor; görsel modellerinden birini seç.');
+    if (!isConfigured(p.provider)) throw new HttpError(409, 'AI_NOT_CONFIGURED', `${PROVIDERS[p.provider].label} bağlı değil.`);
+    if (!IMAGE_ASPECTS[aspect]) throw badRequest('Geçersiz görsel oranı.');
+    const cat = imageCatalog(chosen);
+    const started = Date.now();
+    try {
+      const r = await providers[p.provider].image({ model: p.id, prompt, aspect, refs: cat && cat.refs === false ? [] : refs });
+      const cost = typeof r.cost === 'number' ? r.cost : (cat ? cat.perImage : 0);
+      record({ ref: chosen, task: 'gorsel', brandId, usage: r.usage || {}, cost });
+      return { buffer: r.buffer, mime: r.mime, ref: chosen, label: cat ? cat.label : p.id, cost, ms: Date.now() - started, usedRefs: Boolean(refs.length && (!cat || cat.refs)) };
+    } catch (err) {
+      record({ ref: chosen, task: 'gorsel', brandId, ok: false, error: err.message });
+      throw err;
+    }
+  }
+
   return {
     providers,
     tasks: TASKS,
+    image,
+    imageOverview,
+    setImageDefault(ref) {
+      const p = parseRef(ref);
+      if (ref && (!p || !imageProviders.includes(p.provider))) throw badRequest('Geçersiz görsel modeli.');
+      settings.set(IMAGE_SETTING, ref || '');
+      return imageOverview();
+    },
 
     // İstemciye gönderilen özet (eski arayüzle uyumlu alanlar dahil). Anahtarın kendisi asla yok.
     status() {
@@ -261,7 +309,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
         month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
         total,
         byBrand: q("COALESCE(b.name, 'Markasız')", ''),
-        byTask: q('u.task', '').map(r => Object.assign(r, { label: (TASKS[r.k] && TASKS[r.k].label) || (r.k === 'karsilastirma' ? 'Model karşılaştırma' : r.k) })),
+        byTask: q('u.task', '').map(r => Object.assign(r, { label: (TASKS[r.k] && TASKS[r.k].label) || (r.k === 'karsilastirma' ? 'Model karşılaştırma' : r.k === 'gorsel' ? 'Görsel üretimi' : r.k) })),
         byModel: q("u.provider || ':' || u.model", '').map(r => Object.assign(r, { label: labelOf(r.k) })),
         budget: budgetStatus()
       };
