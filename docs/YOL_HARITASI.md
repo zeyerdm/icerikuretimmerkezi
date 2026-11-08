@@ -63,6 +63,13 @@ Hedef: eski sistemde çalışan her şey yeni sistemde, istenen düzeltmelerle v
   - ✅ **Post stüdyosu:** tam ekran düzenleyici; üstte Dosya (ad, kaydet, marka şablonu, takvim, sil), Yeniden boyutlandır ve Paylaş (PNG, bütün slaytlar, Drive, takvim, şablon) menüleri; solda araç rayı (Metin, Öğeler, Marka, Yüklemeler, Şablonlar, Zemin, AI, Açıklama) ve tıklandıkça açılıp kapanan panel; ortada ekrana sığan tasarım alanı (sayfa kaymaz); altta sayfa şeridi ve yakınlaştırma; sağda yalnızca öğe seçiliyken ayarlar.
   - ✅ **Reels senaryo ekranı:** tam ekran; üstte Dosya (sürümler, yeniden yaz, sil), durum seçici, Takvime ekle ve Dışa aktar (kopyala, .txt, .srt, başlık PNG, telepromter, Drive); solda Özet, Yeniden yaz, Başlık, Açıklama, Kalite, Sürümler panelleri; ortada kendi içinde kayan sahneler; altta sahne şeridi (tıklayınca sahneye gider).
   - ✅ **Prompt Studio:** tam ekran; üstte Dosya (favori, sürümler, sil), Kaydet ve Prompt'u kopyala; solda Geliştir, Görsel üret, Sürümler panelleri; ortada prompt düzenleyici.
+- ⬜ **U.2 Yönetim Merkezi ve sol menü sıkılaştırma** *(kullanıcının ekran görüntüsü ve isteğiyle; yalnızca HTML/CSS, işlev ve veri modeline dokunulmaz)*:
+  - **Sol menü:** ekranın üstünden altına tam yükseklik (`100dvh`), sayfa kayınca yerinde kalır (`position: sticky; top: 0`), çok seçenek olursa yalnızca menü kendi içinde kayar; son çalışılan marka kartı ve sürüm bilgisi daima en altta (`margin-top: auto`). Mor renk, logo, ikonlar ve aktif menü görünümü korunur.
+  - **Karşılama alanı:** yükseklik %25–30 küçülür; sağdaki büyük dekoratif daireler küçültülür, yerine haftalık üretim özeti / hızlı aktivite bilgisi.
+  - **İstatistik kartları:** daha kompakt (iç boşluk, başlık, ikon orantılı küçülür) ve daha anlamlı: Aktif marka · Bu ay üretilen içerik · Yayınlanan içerik · Onay bekleyen içerik · Planlanan içerik (mevcut verilerden).
+  - **Haftalık performans ve Yaklaşan içerikler** yukarı taşınır; yaklaşan içeriklerde marka, platform/tür, yayın tarihi ve onay durumu görünür.
+  - **Boşluklar:** bölümler arası 20–24 px; marka ana sayfasındaki gereksiz büyük dekoratif alanlar da küçülür.
+  - **Hedef:** 1920×1080 ve 1440×900'de ana yönetim bilgilerinin büyük bölümü ilk ekranda; mobil/tablet görünümü bozulmaz; sonunda sidebar yüksekliği, kaydırma ve responsive görünüm bütün ekranlarda kontrol edilir.
 
 ## Aşama 4 — Geliştirme ve yenileme
 
