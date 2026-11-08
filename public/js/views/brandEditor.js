@@ -319,6 +319,7 @@ async function renderAssets(body, brand, driveOk) {
               <div class="thumb"><img src="${esc(a.url)}" alt="${esc(a.label || a.categoryLabel)}" loading="lazy"></div>
               <div class="meta"><input class="input" data-asset-label="${esc(a.id)}" value="${esc(a.label)}" placeholder="Etiket" maxlength="80" aria-label="Etiket">
               <button class="btn btn-sm btn-ghost icon-btn" data-asset-delete="${esc(a.id)}" aria-label="Sil">${icon('trash')}</button></div>
+              <div class="meta"><select class="select input-sm" data-asset-role="${esc(a.id)}" aria-label="Referans rolü" title="Görsel üretiminde @${esc(a.mention)} ile anılınca nasıl kullanılacağı"><option value="">Referans: —</option>${[['kimlik', 'Kimlik'], ['nesne', 'Nesne'], ['stil', 'Stil']].map(([k, v]) => `<option value="${k}" ${a.refRole === k ? 'selected' : ''}>Referans: ${v}</option>`).join('')}</select><span class="xsmall muted" title="Görsel tarifinde bu adla an">@${esc(a.mention)}</span></div>
               <div class="meta"><input class="input input-sm" data-asset-tags="${esc(a.id)}" value="${esc(a.tags.join(', '))}" placeholder="Etiketler (virgülle)" maxlength="300" aria-label="Etiketler">${a.pack ? `<span class="tag" title="Paket">${esc(a.pack)}</span>` : ''}</div>
               ${canSend || a.driveUrl ? `<div class="meta">${a.driveUrl ? `<a class="drive-link" href="${esc(a.driveUrl)}" target="_blank" rel="noopener">✓ Drive'da</a>` : ''}
                 ${canSend ? `<button class="btn btn-sm${a.driveUrl ? ' btn-ghost' : ''}" data-asset-drive="${esc(a.id)}">${a.driveUrl ? 'Tekrar gönder' : 'Drive\'a gönder'}</button>` : ''}</div>` : ''}
@@ -389,6 +390,9 @@ async function renderAssets(body, brand, driveOk) {
     body.querySelectorAll('[data-pack-delete]').forEach(b => b.addEventListener('click', async () => {
       if (!confirm(`"${b.dataset.packDelete}" paketindeki bütün dosyalar silinsin mi?`)) return;
       try { const r = await api.deleteAssetPack(brand.id, b.dataset.packDelete); toast(`${r.removed} dosya silindi.`, 'success'); packFilter = ''; await refreshBrands(); draw(); } catch (err) { toast(err.message, 'error'); }
+    }));
+    body.querySelectorAll('[data-asset-role]').forEach(sel => sel.addEventListener('change', async () => {
+      try { await api.updateAsset(brand.id, sel.dataset.assetRole, { refRole: sel.value }); toast('Referans rolü kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
     }));
     body.querySelectorAll('[data-asset-tags]').forEach(inp => inp.addEventListener('change', async () => {
       try { await api.updateAsset(brand.id, inp.dataset.assetTags, { tags: inp.value }); toast('Etiketler kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }

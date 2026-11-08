@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import { newId, now, text, badRequest, oneOf, parseJson } from '../lib/http.js';
 
-const MAX_REFS = 2;
+const MAX_REFS = 3;
 
 export function createImageService({ db, ai, brands, assets }) {
   function brandHint(b, { useColors, useMascot, character }) {
@@ -36,11 +36,27 @@ export function createImageService({ db, ai, brands, assets }) {
       // Referans almayan modelde (Imagen, GPT Image) maskot isteği yok sayılır; istemde de "ekteki görsel" denmez
       const ov = ai.imageOverview();
       const chosen = ov.models.find(m => m.ref === (body.model ? String(body.model) : ov.default));
-      const useMascot = Boolean(body.useMascot) && (!chosen || chosen.refs);
-      const refs = useMascot ? refsFor(b.id, Array.isArray(body.refAssetIds) ? body.refAssetIds.map(String) : null) : [];
+      // @etiket ile anılan kütüphane görselleri rolleriyle referans olur (en çok 3); anma varsa maskot seçeneğinin yerine geçer
+      const mentioned = [...new Set((prompt.match(/@([a-z0-9-]{2,32})/gi) || []).map(m => m.slice(1).toLowerCase()))];
+      let mentionRefs = [];
+      if (mentioned.length) {
+        const all = assets.list(b.id);
+        mentionRefs = mentioned.map(m => all.find(a => a.mention === m)).filter(Boolean).slice(0, MAX_REFS + 1);
+        const missing = mentioned.filter(m => !all.some(a => a.mention === m));
+        if (missing.length) throw badRequest(`Kütüphanede şu etiketle görsel yok: ${missing.map(m => '@' + m).join(', ')}`);
+        if (chosen && !chosen.refs) throw badRequest('Seçilen görsel modeli referans görsel almıyor; @ ile anma için Gemini Flash Image (Nano Banana) seç.');
+      }
+      const useMascot = !mentionRefs.length && Boolean(body.useMascot) && (!chosen || chosen.refs);
+      let refs = useMascot ? refsFor(b.id, Array.isArray(body.refAssetIds) ? body.refAssetIds.map(String) : null) : [];
       if (useMascot && !refs.length) throw badRequest('Kütüphanede maskot pozu yok; önce bir maskot görseli yükle ya da "maskotu referans al" seçeneğini kapat.');
+      let mentionText = '';
+      if (mentionRefs.length) {
+        refs = refsFor(b.id, mentionRefs.map(a => a.id));
+        const roleText = { kimlik: 'an identity reference: keep this exact character (design, proportions, colors, face)', nesne: 'an object reference: include this exact object/product unchanged', stil: 'a style reference: match its visual style, palette, lighting and texture (do not copy its content)' };
+        mentionText = mentionRefs.map((a, i) => `Reference image ${i + 1} (@${a.mention}) is ${roleText[a.refRole] || (a.category === 'mascot' ? roleText.kimlik : roleText.nesne)}.`).join(' ');
+      }
       const character = (parseJson((db.prepare('SELECT reels_settings FROM brands WHERE id = ?').get(b.id) || {}).reels_settings, {}) || {}).character || '';
-      const full = `${prompt}\n\n${brandHint(b, { useColors, useMascot, character })}`;
+      const full = `${prompt}${mentionText ? `\n\n${mentionText}` : ''}\n\n${brandHint(b, { useColors, useMascot, character })}`;
       const r = await ai.image({ brandId: b.id, prompt: full, modelRef: body.model ? String(body.model) : null, aspect, refs });
       const label = `AI: ${prompt.replace(/\s+/g, ' ').slice(0, 70)}`;
       const asset = assets.create(b.id, { buffer: r.buffer, category: 'ai_image', label });

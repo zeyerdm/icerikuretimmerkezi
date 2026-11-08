@@ -20,11 +20,13 @@ export async function imageBox(box, brand, opts = {}) {
   const avail = ov.models.filter(m => m.available);
   const id = 'ig-' + Math.random().toString(36).slice(2, 7);
   box.innerHTML = `
-    ${opts.editablePrompt ? `<div class="field"><label for="${id}-p">Görsel tarifi</label><textarea class="textarea" id="${id}-p" rows="3" maxlength="4000" placeholder="Ör. Kampüs bahçesinde güneşli sabah, masada dumanı tüten filtre kahve, sıcak tonlar"></textarea></div>` : ''}
+    ${opts.editablePrompt ? `<div class="field"><label for="${id}-p">Görsel tarifi</label><textarea class="textarea" id="${id}-p" rows="3" maxlength="4000" placeholder="Ör. Kampüs bahçesinde güneşli sabah, masada dumanı tüten filtre kahve, sıcak tonlar"></textarea>
+      <div class="row mt-1"><button type="button" class="btn btn-sm btn-ghost" id="${id}-enh">✨ Geliştir</button><button type="button" class="btn btn-sm btn-ghost" id="${id}-undo" hidden>Geri al</button><span class="xsmall muted">Kısa taslağı ayrıntılı bir görsel prompt'una çevirir.</span></div></div>` : ''}
     <div class="form-grid">
       <div class="field"><label for="${id}-m">Görsel modeli</label><select class="select" id="${id}-m">${avail.map(m => `<option value="${esc(m.ref)}" ${m.ref === ov.default ? 'selected' : ''}>${esc(m.label)} · ~${money(m.perImage)}</option>`).join('')}</select></div>
       <div class="field"><label for="${id}-a">Oran</label><select class="select" id="${id}-a">${Object.entries(ov.aspects).map(([k, v]) => `<option value="${k}" ${k === (opts.aspect || '1:1') ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
     </div>
+    <div class="xsmall muted mt-2" id="${id}-mentions"></div>
     <div class="row mt-2">
       <label class="check"><input type="checkbox" id="${id}-c" checked> Marka renklerini kullan</label>
       <label class="check"><input type="checkbox" id="${id}-r"> Maskotu referans al</label>
@@ -42,6 +44,12 @@ export async function imageBox(box, brand, opts = {}) {
   };
   $('-m').addEventListener('change', note);
   note();
+  // @ ile anılabilecek kütüphane görselleri: rol verilmiş olanlar ve maskot pozları
+  api.assets(brand.id).then(({ assets }) => {
+    const refs = assets.filter(a => a.refRole || a.category === 'mascot').slice(0, 12);
+    if (!refs.length) { $('-mentions').textContent = 'İpucu: Kütüphanede bir görsele referans rolü (kimlik/nesne/stil) verirsen tarifte @etiket ile anabilirsin.'; return; }
+    $('-mentions').innerHTML = `Tarifte anabileceğin görseller (Nano Banana gibi referans alan modellerde): ${refs.map(a => `<button type="button" class="chip mention-chip" data-mention="${esc(a.mention)}" title="${esc(a.label || a.categoryLabel)}${a.refRole ? ' · ' + a.refRole : ''}">@${esc(a.mention)}</button>`).join(' ')}`;
+  }).catch(() => {});
 
   async function list() {
     if (!opts.promptId) return;
@@ -55,7 +63,29 @@ export async function imageBox(box, brand, opts = {}) {
     <button type="button" class="btn btn-sm btn-ghost" data-dl="${esc(g.asset.url)}">İndir</button></figure>`;
   list();
 
+  // Geliştir + Geri al: kısa taslak → ayrıntılı prompt; önceki metin bir adım geri alınabilir
+  const history = [];
   box.addEventListener('click', async e => {
+    if (opts.editablePrompt && e.target.closest('#' + id + '-enh')) {
+      const ta = $('-p'); const draft = ta.value.trim();
+      if (!draft) return toast('Önce kısa bir taslak yaz.', 'error');
+      try {
+        const r = await busyTimer(e.target.closest('button'), () => api.enhancePrompt(brand.id, { kind: 'gorsel', text: draft }), 'Geliştiriyor');
+        history.push(ta.value); ta.value = r.prompt; $('-undo').hidden = false;
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    if (opts.editablePrompt && e.target.closest('#' + id + '-undo')) {
+      if (history.length) $('-p').value = history.pop();
+      $('-undo').hidden = !history.length;
+      return;
+    }
+    const mc = e.target.closest('[data-mention]');
+    if (mc) {
+      const ta = opts.editablePrompt ? $('-p') : (opts.mentionTarget ? opts.mentionTarget() : null);
+      if (ta) { ta.value = `${ta.value.trim()} @${mc.dataset.mention} `.trimStart(); ta.focus(); } else navigator.clipboard && navigator.clipboard.writeText('@' + mc.dataset.mention).then(() => toast('Kopyalandı; prompt\'a yapıştır.', 'success')).catch(() => {});
+      return;
+    }
     const dl = e.target.closest('[data-dl]');
     if (dl) {
       try { const blob = await (await fetch(dl.dataset.dl)).blob(); downloadBlob(blob, `${safeName(brand.name + ' gorsel')}.${blob.type.includes('jpeg') ? 'jpg' : 'png'}`); } catch (err) { toast(err.message, 'error'); }

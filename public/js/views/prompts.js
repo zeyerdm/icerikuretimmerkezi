@@ -38,7 +38,12 @@ export async function renderPrompts(view, brand, sub) {
       ${aiReady ? `
         <label class="sr-only" for="ps-brief">İstek</label>
         <textarea class="textarea" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
-        <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'ceviri', { id: 'ps-model' })}</div>`
+        <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'ceviri', { id: 'ps-model' })}
+          <span class="spacer"></span><span class="small muted">Beyin fırtınası:</span>
+          <select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
+          <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
+          <button class="btn" data-brainstorm>${icon('grid')}Beyin fırtınası</button></div>
+        <div id="ps-bs" class="mt-4"></div>`
       : '<div class="notice"><div><strong>AI bağlı değil.</strong> Prompt üretmek ve geliştirmek için bir sağlayıcı bağla; o zamana kadar kendi prompt\'larını elle kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     </section>
     <section class="card">
@@ -91,6 +96,30 @@ export async function renderPrompts(view, brand, sub) {
     if (c) {
       const p = (view.querySelector('#ps-list')._prompts || []).find(x => x.id === c.dataset.copy);
       if (p) copy(p.text, 'Prompt kopyalandı.');
+      return;
+    }
+    const bs = e.target.closest('[data-brainstorm]');
+    if (bs) {
+      const brief = view.querySelector('#ps-brief').value.trim();
+      if (!brief) return toast('Önce ne istediğini kısaca yaz.', 'error');
+      try {
+        const r = await busyTimer(bs, () => api.brainstormPrompts(brand.id, { kind, brief, concepts: Number(view.querySelector('#bs-c').value), variations: Number(view.querySelector('#bs-v').value), model: view.querySelector('#ps-model').value || null }), 'Düşünüyor');
+        const box = view.querySelector('#ps-bs');
+        box._bs = r;
+        box.innerHTML = `<div class="row-between mb-2"><b>${r.concepts.length} konsept</b><span class="xsmall muted">${esc(aiNote(r.ai))} · beğendiğini kaydet</span></div>
+          <div class="bs-grid">${r.concepts.map((c, ci) => `<div class="bs-concept"><div class="strong">${esc(c.name)}</div><div class="small muted mb-2">${esc(c.idea)}</div>
+            ${c.variations.map((v, vi) => `<div class="bs-var"><div class="small prompt-text">${esc(v.prompt)}</div>${v.promptTr ? `<div class="xsmall muted mt-1">${esc(v.promptTr)}</div>` : ''}
+              <div class="row mt-2"><button class="btn btn-sm" data-bs-save="${ci}:${vi}">Kaydet</button><button class="btn btn-sm btn-ghost" data-bs-copy="${ci}:${vi}">Kopyala</button></div></div>`).join('')}</div>`).join('')}</div>`;
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const bsv = e.target.closest('[data-bs-save],[data-bs-copy]');
+    if (bsv) {
+      const r = view.querySelector('#ps-bs')._bs;
+      const [ci, vi] = (bsv.dataset.bsSave || bsv.dataset.bsCopy).split(':').map(Number);
+      const c = r.concepts[ci]; const v = c.variations[vi];
+      if (bsv.dataset.bsCopy) return copy(v.prompt, 'Kopyalandı.');
+      try { await api.createPrompt(brand.id, { manual: true, kind: r.kind, title: `${c.name} · ${vi + 1}`.slice(0, 80), text: v.prompt, textTr: v.promptTr }); bsv.disabled = true; bsv.textContent = 'Kaydedildi ✓'; loadList(); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const create = e.target.closest('[data-create]');
@@ -187,7 +216,7 @@ async function renderDetail(view, brand, id, models) {
         <footer class="ed-bottom"><span class="small muted">${esc(p.kindLabel)} · ${p.text.length} karakter · ${p.versions.length} sürüm</span><span class="spacer"></span>${p.favorite ? '<span class="small">★ Favori</span>' : ''}</footer>
       </div>`;
     document.body.classList.add('editor-mode');
-    if (IMAGE_KINDS[p.kind]) imageBox(view.querySelector('#pp-image'), brand, { getPrompt: () => val('#pp-text'), promptId: p.id, aspect: IMAGE_KINDS[p.kind] });
+    if (IMAGE_KINDS[p.kind]) imageBox(view.querySelector('#pp-image'), brand, { getPrompt: () => val('#pp-text'), promptId: p.id, aspect: IMAGE_KINDS[p.kind], mentionTarget: () => view.querySelector('#pp-text') });
   }
   draw();
 

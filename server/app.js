@@ -604,6 +604,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b) });
     res.status(201).json({ prompt });
   }));
+  api.post('/brands/:brandId/prompts/brainstorm', route(async (req, res) => { const b = req.body || {}; res.json(await prompts.brainstorm(req.brand.id, { kind: b.kind, brief: b.brief, concepts: b.concepts, variations: b.variations, modelRef: mr(b) })); }));
+  api.post('/brands/:brandId/prompts/enhance', route(async (req, res) => { const b = req.body || {}; res.json(await prompts.enhance(req.brand.id, { kind: b.kind, text: b.text, modelRef: mr(b) })); }));
   api.get('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.get(req.brand.id, req.params.id) }));
   api.put('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.update(req.brand.id, req.params.id, req.body || {}) }));
   api.delete('/brands/:brandId/prompts/:id', (req, res) => { prompts.remove(req.brand.id, req.params.id); res.status(204).end(); });
