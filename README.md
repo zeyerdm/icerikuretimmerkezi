@@ -31,7 +31,7 @@ Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz marka
 - **Post stüdyosu:** konudan carousel/post üretimi ya da boş tasarım; yazı, görsel (logo, maskot pozları) ve şekil katmanları, sürükle-bırak, marka renkleri ve fontları, PNG indirme ve Drive'a gönderme, takvime ekleme.
 - **İçerik denetçisi:** açıklama ve senaryo metinlerini marka diline, uzunluğa ve kurallara göre puanlar, sorunları ve düzeltilmiş metni önerir.
 - Her üretim ekranında **hangi modelle yazılacağı seçilir**; beğenmezsen başka modelle tekrar yazdırırsın.
-- **Prompt Studio:** sıradaki aşamada geliyor (menüde "Yakında" olarak görünür, bitmiş gibi gösterilmez).
+- **Prompt Studio:** görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı prompt'ları; marka kimliği otomatik eklenir. Geliştirme işlemleri (daha yaratıcı/profesyonel, görsel detay, kamera açısı, karakter hareketi, kısalt, alternatif), seçili bölümü yeniden yazma, girişi değiştirme; her değişiklik sürüm olarak saklanır, önceki sürüme dönülür.
 
 **Yapay zekâ** sayfası: Claude, OpenAI, OpenRouter (tek anahtarla birçok model) ve Gemini bağlanır; aynı istek 2-3 modele yazdırılıp yan yana karşılaştırılır; her işe (fikir, metin yazımı, çeviri, içerik denetimi) ayrı model ve yedek model atanır; harcama markaya, işe ve modele göre izlenir, aylık sınır konur. Seçenekler ve maliyetler: [docs/AI_SECENEKLERI.md](docs/AI_SECENEKLERI.md)
 

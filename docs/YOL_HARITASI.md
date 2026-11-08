@@ -61,8 +61,8 @@ Hedef: eski sistemde çalışan her şey yeni sistemde, istenen düzeltmelerle v
 
 Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 
-- ⬜ **4.1 Prompt Studio:** görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı için prompt oluşturma; düzenleme, kopyalama, kaydetme.
-- ⬜ **4.2 Prompt geliştirme mekanizması:** girişi değiştir, senaryoyu geliştir, daha yaratıcı/profesyonel yap, görsel detay ekle, kamera açısını değiştir, karakter hareketi ekle, kısalt, alternatif üret, seçili bölümü yeniden yaz; **sürüm geçmişi ve önceki sürüme dönme**.
+- ✅ **4.1 Prompt Studio:** görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı için prompt oluşturma (marka hafızası ve maskot/stil ayarı otomatik eklenir; görsel/video prompt'ları İngilizce + Türkçesi); düzenleme, kopyalama, kaydetme, elle prompt kaydetme, favoriler, türe göre filtre ve arama.
+- ✅ **4.2 Prompt geliştirme mekanizması:** girişi değiştir, senaryoyu geliştir, daha yaratıcı/profesyonel yap, görsel detay ekle, kamera açısını değiştir, karakter hareketi ekle, kısalt, alternatif üret, seçili bölümü yeniden yaz; **sürüm geçmişi ve önceki sürüme dönme**.
 - ⬜ **4.3 Asistanın modüllere bağlanması:** "bu fikri daha eğlenceli yap", "bu senaryoya göre post tasarla", "haftaya 5 Reels fikri üret" gibi isteklerin ilgili modülde gerçekten işlem yapması.
 - ⬜ **4.4 Post stüdyosu (tam):** post, story, carousel, Reels kapağı, reklam ve bilgi grafiği; katmanlar, yazı/renk/font, logo/maskot/sticker ekleme, arka plan, konumlandırma, şablon kaydetme.
 - ⬜ **4.5 Görsel üretimi:** seçilen görsel modeliyle üretim; marka renkleri ve maskotla; servis bağlı değilse açık uyarı (sahte üretim yok).
