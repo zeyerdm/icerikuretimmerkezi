@@ -453,7 +453,7 @@ test('tablet genişliği: kenar çubuğu ikonlara iner, menü ögeleri erişileb
     await page.locator('.kpis').waitFor();
     const w = await page.locator('.sidebar').evaluate(e => e.getBoundingClientRect().width);
     assert.ok(w < 100, 'kenar çubuğu daralmadı: ' + w);
-    assert.ok(await page.getByRole('link', { name: 'Çalışma masası' }).isVisible());
+    assert.ok(await page.getByRole('link', { name: 'Çalışma masası', exact: true }).isVisible());
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 0, 'yatay taşma: ' + overflow);
     assert.deepEqual(problems, []);
