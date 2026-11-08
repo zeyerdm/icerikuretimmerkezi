@@ -25,6 +25,7 @@ import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders
 import { initPalette, openPalette } from './palette.js';
 import { initInspiration } from './inspiration.js';
 import { renderTrash, initTrashUndo } from './views/trash.js';
+import { renderExporter } from './views/exporter.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -92,6 +93,7 @@ export const BRAND_NAV = [
   { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette' },
   { page: 'prompt', path: '/prompt', label: 'Prompt Studio', icon: 'wand' },
   { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image' },
+  { page: 'disa', path: '/disa-aktar', label: 'Dışa aktar', icon: 'download' },
   { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar' },
   { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive' },
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart' }
@@ -241,6 +243,7 @@ export async function route() {
       else if (r.page === 'prompt') await renderPrompts(view, brand, r.sub);
       else if (r.page === 'hafiza') await renderMemory(view, brand);
       else if (r.page === 'rakipler') await renderCompetitors(view, brand);
+      else if (r.page === 'disa') await renderExporter(view, brand);
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;
     }
