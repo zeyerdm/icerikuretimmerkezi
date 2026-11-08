@@ -20,6 +20,7 @@ import { createReelsService } from './services/reels/index.js';
 import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
+import { createDesignRefService } from './services/designRef.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -95,6 +96,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const review = createReviewService({ ai, brands });
   const prompts = createPromptService({ db, ai, brands, reels });
   const images = createImageService({ db, ai, brands, assets });
+  const designRef = createDesignRefService({ db, ai, brands, assets });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images });
 
   const app = express();
@@ -526,6 +528,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/ai/images', (req, res) => res.json(ai.setImageDefault((req.body || {}).model || '')));
   api.get('/brands/:brandId/images', (req, res) => res.json({ images: images.history(req.brand.id, { promptId: req.query.promptId || null }) }));
   api.post('/brands/:brandId/images', route(async (req, res) => res.status(201).json(await images.generate(req.brand.id, req.body || {}))));
+
+  // --- Tasarım referansı analizi ---
+  api.post('/brands/:brandId/design-ref', route(async (req, res) => {
+    const b = req.body || {};
+    res.status(201).json(await designRef.analyze(req.brand.id, { assetId: b.assetId, modelRef: mr(b), name: b.name }));
+  }));
 
   // --- Prompt Studio ---
   api.get('/brands/:brandId/prompts', (req, res) => res.json({ prompts: prompts.list(req.brand.id, { kind: req.query.kind || null, q: req.query.q || '' }) }));

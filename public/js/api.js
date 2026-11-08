@@ -125,6 +125,7 @@ export const api = {
   saveTemplate: (id, pid, name) => request('POST', `${b(id)}/posts/${pid}/template`, { name }),
   deleteTemplate: (id, tid) => request('DELETE', `${b(id)}/post-templates/${tid}`),
   review: (id, body) => request('POST', b(id) + '/review', body),
+  analyzeDesign: (id, body) => request('POST', b(id) + '/design-ref', body),
   imageOverview: () => request('GET', '/api/ai/images'),
   setImageDefault: model => request('PUT', '/api/ai/images', { model }),
   images: (id, promptId) => request('GET', b(id) + '/images' + (promptId ? '?promptId=' + encodeURIComponent(promptId) : '')),

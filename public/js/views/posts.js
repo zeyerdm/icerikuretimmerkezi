@@ -21,7 +21,7 @@ export async function renderPosts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
-      actions: `<button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : ''}`
+      actions: `<button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn" data-ref>${icon('image')}Referanstan şablon</button><button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : ''}`
     })}
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     ${posts.length ? `<div class="post-grid">${posts.map(p => `
@@ -74,6 +74,7 @@ export async function renderPosts(view, brand, sub) {
       try { await api.deleteTemplate(brand.id, delTpl.dataset.delTpl); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); }
       return;
     }
+    if (e.target.closest('[data-ref]')) return referenceFlow(brand, models, () => renderPosts(view, brand, null));
     if (e.target.closest('[data-new]')) {
       const m = openModal({
         title: 'Konudan üret', submitLabel: 'Üret',
@@ -106,6 +107,64 @@ export async function renderPosts(view, brand, sub) {
       return wireKind(m);
     }
   };
+}
+
+// ------------------------------------------------------------ Tasarım referansı → şablon
+// Örnek tasarım (kütüphanedeki "Tasarım referansı" görselleri ya da yeni yüklenen) görseli okuyabilen modelle incelenir;
+// renk paleti, font önerisi ve yerleşim çıkarılıp düzenlenebilir şablon olarak kaydedilir.
+async function referenceFlow(brand, models, refresh) {
+  let refs;
+  try { refs = (await api.assets(brand.id, 'reference')).assets; } catch (err) { return toast(err.message, 'error'); }
+  let picked = refs[0] ? refs[0].id : null;
+  const m = openModal({
+    title: 'Referanstan şablon', submitLabel: 'İncele ve şablona çevir',
+    body: `<p class="small muted mb-3">Beğendiğin bir tasarımın ekran görüntüsünü seç ya da yükle. Model renk paletini, font benzerlerini ve yerleşimi çıkarır; metinler kopyalanmaz, görsel alanlarına markanın kendi logo ve maskotu konur.</p>
+      <div class="asset-grid" id="ref-grid">${refs.map(a => `<button type="button" class="asset asset-pick ${a.id === picked ? 'is-picked' : ''}" data-ref-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || 'Referans')}</div></button>`).join('')}</div>
+      <label class="btn btn-sm mt-3">${icon('upload')}Yeni referans yükle<input type="file" id="ref-file" accept="image/png,image/jpeg,image/webp" class="sr-only"></label>
+      <div class="form-grid mt-3">
+        <div class="field"><label for="ref-name">Şablon adı</label><input class="input" id="ref-name" name="name" maxlength="80" placeholder="Ör. Minimal duyuru"></div>
+        <div class="field"><label for="ref-model">Model (görseli okuyabilen)</label>${modelSelect(models, 'yazim', { id: 'ref-model' })}</div>
+      </div>
+      <p class="xsmall muted mt-1">Claude, GPT-5, Gemini ve görsel destekli OpenRouter modelleri görseli okur.</p>`,
+    onSubmit: async (fd, form) => {
+      if (!picked) throw new Error('Önce bir referans görsel seç ya da yükle.');
+      const res = await busyTimer(form.querySelector('[type=submit]'), () => api.analyzeDesign(brand.id, { assetId: picked, name: fd.get('name'), model: form.querySelector('#ref-model').value || null }), 'İnceliyor');
+      showResult(res);
+    }
+  });
+  m.form.addEventListener('click', e => {
+    const b = e.target.closest('[data-ref-pick]');
+    if (!b) return;
+    picked = b.dataset.refPick;
+    m.form.querySelectorAll('[data-ref-pick]').forEach(x => x.classList.toggle('is-picked', x === b));
+  });
+  m.form.querySelector('#ref-file').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const { asset } = await api.uploadAsset(brand.id, file, 'reference', file.name.replace(/\.[^.]+$/, '').slice(0, 80));
+      picked = asset.id;
+      m.form.querySelectorAll('[data-ref-pick]').forEach(x => x.classList.remove('is-picked'));
+      m.form.querySelector('#ref-grid').insertAdjacentHTML('afterbegin', `<button type="button" class="asset asset-pick is-picked" data-ref-pick="${esc(asset.id)}"><div class="thumb"><img src="${esc(asset.url)}" alt=""></div><div class="meta small">${esc(asset.label || 'Referans')}</div></button>`);
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  function showResult(res) {
+    const a = res.analysis;
+    openModal({
+      title: `Şablon hazır: ${res.template.name}`, submitLabel: 'Bu şablonla tasarım aç',
+      body: `${a.summary ? `<p>${esc(a.summary)}</p>` : ''}
+        <dl class="kv mt-3"><dt>Ruh hâli</dt><dd>${esc(a.mood || '—')}</dd><dt>Boyut</dt><dd>${esc(a.format)}</dd><dt>Fontlar</dt><dd>${esc(a.fonts.heading)} / ${esc(a.fonts.body)}</dd></dl>
+        ${a.palette.length ? `<div class="swatch-row mt-3">${a.palette.map(p => `<span class="swatch-btn" style="background:${esc(p.hex)}" title="${esc(p.hex)} · ${esc(p.role)}"></span>`).join('')}<span class="xsmall muted">${a.palette.map(p => esc(p.hex)).join(' ')}</span></div>` : ''}
+        ${a.tips.length ? `<ul class="issue-list mt-3">${a.tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+        <p class="xsmall muted mt-3">${esc(aiNote(res.ai).replace('yazıldı', 'incelendi'))} · Şablon Post stüdyosundaki "Şablonlar" listesine eklendi.</p>`,
+      onSubmit: async () => {
+        const { post } = await api.createPost(brand.id, { blank: true, templateId: res.template.id, title: res.template.name });
+        go(base(brand) + '/' + post.id);
+      }
+    });
+    refresh();
+  }
 }
 
 // ------------------------------------------------------------ Editör

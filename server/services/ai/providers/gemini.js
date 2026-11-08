@@ -30,12 +30,12 @@ export function createGeminiProvider({ getApiKey, fetchImpl = fetch }) {
     id: 'gemini',
     label: 'Google Gemini',
 
-    async generate({ model, prompt, json = false, temperature = 0.8 }) {
+    async generate({ model, prompt, json = false, temperature = 0.8, images = [] }) {
       const generationConfig = { temperature };
       if (json) generationConfig.responseMimeType = 'application/json';
       const data = await request(encodeURIComponent(model) + ':generateContent', {
         method: 'POST',
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig })
+        body: JSON.stringify({ contents: [{ parts: [...images.map(i => ({ inline_data: { mime_type: i.mime, data: i.data.toString('base64') } })), { text: prompt }] }], generationConfig })
       });
       const parts = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
       const text = parts.filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('').trim();

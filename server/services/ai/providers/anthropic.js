@@ -36,13 +36,14 @@ export function createAnthropicProvider({ getApiKey, fetchImpl, baseURL = 'https
     id: 'anthropic',
     label: 'Anthropic Claude',
 
-    async generate({ model, prompt, json = false, effort = 'medium' }) {
+    async generate({ model, prompt, json = false, effort = 'medium', images = [] }) {
       const sdk = client();
       const params = {
         model,
         max_tokens: 16000,
         system: json ? 'Yanıtı yalnızca geçerli JSON olarak ver; JSON dışında metin, açıklama veya kod bloğu ekleme.' : undefined,
-        messages: [{ role: 'user', content: prompt }]
+        // Görsel varsa önce görsel(ler), sonra metin
+        messages: [{ role: 'user', content: images.length ? [...images.map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.data.toString('base64') } })), { type: 'text', text: prompt }] : prompt }]
       };
       if (supportsEffort(model)) params.output_config = { effort };
       let res;
