@@ -112,6 +112,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.16 Beyin fırtınası, geliştir, @ referanslar:** konsept/varyasyon sınırları ve temizleme, geliştir çıktısı, anma çözümleme (Türkçe harf sadeleştirme), rol talimatları, en çok 3 referans, referans almayan modelde ve olmayan etikette hata.
 - ⬜ **T.17 Alan düzenleme ve üretim geçmişi:** işaretli görsel doğrulaması, referans almayan modelde hata, iki görselin modele gitmesi ve oran yapılandırmasının gönderilmemesi, geçmişte kayıt, varyasyon ve karşılaştırma arayüzü.
 - ⬜ **T.18 Izgara önizlemesi:** sıralama (en yeni sol üstte), taslak kutusu ve tercihin hatırlanması, Reels hücresi (senaryoya gider), boş durum, başka markanın içeriğinin görünmemesi.
+- ⬜ **T.19 Komut paleti:** Ctrl+K ile açılma/Esc ile kapanma, Türkçe karaktersiz arama, Enter ile markaya geçiş, paletten not/görev/içerik kaydı (açık markaya bağlı), form açıkken açılmaması.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
@@ -124,7 +125,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ✅ **5.6 Alan düzenleme** *(Banana Studio)*: görsel üretim galerisinde "Alanı düzenle": fareyle bir ya da birkaç dikdörtgen alan seçilir (katmanlı seçim), "bu alanda ne olsun" yazılır; asıl görsel ve alanları işaretli kopya referans alan modele (Nano Banana) gider, yalnızca işaretli alan değişir, kaynak oran korunur; sonuç yeni AI görseli olarak kaydedilir (asıl görsel silinmez).
 - ✅ **5.7 Üretim detayları, karşılaştırma ve varyasyon** *(Banana Studio)*: her görselde "Ayrıntı" (tarif, model, oran, referans, tutar, tarih; tarifi kutuya alma), "Varyasyon" (aynı model ve oranla yeni deneme), seçilenleri "Yan yana karşılaştır". Kütüphane → AI görseli sekmesi markanın bütün üretim geçmişini gösterir.
 - ✅ **5.8 Instagram ızgara önizlemesi** *(Banana Studio)*: Post stüdyosu → Izgara önizlemesi. Takvimdeki tasarımlar ve Reels, en yenisi sol üstte, 3 sütun 4:5 hücrelerle profil başlığının altında gösterilir; 9:16 tasarımlar ortadan kırpılır, kapak tasarımı olmayan Reels ekran başlığıyla marka renginde çizilir. İstenirse takvimde olmayan tasarımlar "taslak" olarak en üste eklenir; hücreye tıklayınca tasarım/senaryo açılır.
-- ⬜ **5.9 Komut paleti (Ctrl+K)** *(ClipBoardLine)*: her yerden "içerik planla", "markaya geç", "not al".
+- ✅ **5.9 Komut paleti (Ctrl+K)** *(ClipBoardLine)*: her yerden Ctrl+K / ⌘K ya da üst çubuktaki "Ara / komut" ile açılır. Eylemler (içerik planla, görev ekle, not al, yeni marka; açık markaya bağlı), açık markanın sayfaları, Yönetim Merkezi sayfaları ve "markaya geç". Türkçe karakterden bağımsız arama, ok tuşları + Enter.
 - ⬜ **5.10 İlham rafı (Ctrl+V)** *(ClipBoardLine)*: kopyalanan ekran görüntüsü/link/metin aktif markanın kütüphanesine düşer.
 - ⬜ **5.11 Görselde yazı arama (OCR) ve etiketler** *(ClipBoardLine)*.
 - ⬜ **5.12 Çöp kutusu ve geri al** *(ClipBoardLine)*: silinenler 30 gün geri alınabilir.
