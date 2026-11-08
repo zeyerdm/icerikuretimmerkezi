@@ -88,6 +88,7 @@ export const api = {
   deleteIdea: (id, ideaId) => request('DELETE', `${b(id)}/ideas/${ideaId}`),
 
   writeContentText: (id, model) => request('POST', `/api/contents/${encodeURIComponent(id)}/write`, { model }),
+  identityDraft: body => request('POST', '/api/identity-draft', body),
   specialDays: (from, to) => request('GET', `/api/special-days?from=${from}&to=${to}`),
   performance: brandId => request('GET', '/api/performance' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
   dashboard: brandId => request('GET', '/api/dashboard' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),

@@ -24,6 +24,7 @@ import { createImageService } from './services/images.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
+import { createIdentityService } from './services/identity.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -101,6 +102,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const images = createImageService({ db, ai, brands, assets });
   const designRef = createDesignRefService({ db, ai, brands, assets });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
+  const identity = createIdentityService({ ai });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images });
 
   const app = express();
@@ -306,6 +308,13 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
       ideaCount: db.prepare('SELECT COUNT(*) AS n FROM ideas WHERE brand_id = ?').get(b.id).n
     };
   };
+
+  // Kimliği AI ile doldurma (yeni markada da çalışır; brandId varsa harcama o markaya yazılır)
+  api.post('/identity-draft', route(async (req, res) => {
+    const b = req.body || {};
+    const brandId = b.brandId ? brands.get(String(b.brandId)).id : null;
+    res.json(await identity.draft({ text: b.text, modelRef: mr(b), brandId }));
+  }));
 
   // Özel günler: from/to (YYYY-MM-DD) aralığı, en fazla 2 yıl
   api.get('/special-days', (req, res) => {
