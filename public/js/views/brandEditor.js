@@ -1,7 +1,7 @@
 // Marka dijital kimliği: profil, görsel kimlik (renk, font, canlı önizleme) ve varlık kütüphanesi
 import { api } from '../api.js';
 import { imageBox } from './imageGen.js';
-import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy } from '../ui.js';
+import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy, openModal } from '../ui.js';
 import { state, refreshBrands, go, renderChrome } from '../app.js';
 
 const LONG_FIELDS = new Set(['description', 'audience', 'character', 'tone', 'goals', 'competitors']);
@@ -247,6 +247,8 @@ async function renderAssets(body, brand, driveOk) {
   const canSend = driveOk && Boolean(brand.driveFolderId);
   const cats = state.meta.assetCategories;
   let current = 'logo';
+  let packFilter = '';
+  let query = '';
 
   async function draw() {
     body.innerHTML = `
@@ -259,6 +261,9 @@ async function renderAssets(body, brand, driveOk) {
           <div class="strong">${esc(cats[current])} yükle</div>
           <div class="small">Sürükle bırak ya da tıkla · PNG, JPEG, WEBP, GIF · en fazla ${Math.round(state.meta.maxAssetBytes / 1048576)} MB${current === 'mascot' ? ' · Her poza bir ad ver (ör. Mutlu, Şaşkın)' : ''}</div>
         </label>
+        <div class="row mt-4 lib-tools"><input class="input w-auto" type="search" id="asset-q" placeholder="Ad, etiket ya da paket ara" aria-label="Kütüphanede ara" value="${esc(query)}">
+          <span class="spacer"></span><button type="button" class="btn btn-sm" data-pack-upload>${icon('upload')}Paket yükle (ZIP ya da çoklu)</button></div>
+        <div id="pack-row" class="chips mt-3"></div>
         <div id="asset-grid"><div class="skeleton mt-4" style="height:160px"></div></div>
       </div>`;
     // Yükleme alanı liste beklenmeden hemen bağlanır; seçilen dosya kaybolmaz
@@ -266,17 +271,26 @@ async function renderAssets(body, brand, driveOk) {
     if (current === 'ai_image') imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, onCreated: () => draw() });
     const grid = body.querySelector('#asset-grid');
     try {
-      const { assets } = await api.assets(brand.id, current);
+      const [{ assets: all }, { packs: allPacks }] = await Promise.all([api.assets(brand.id, current), api.assetPacks(brand.id)]);
+      const packs = allPacks.filter(p => p.category === current);
+      if (packFilter && !packs.some(p => p.name === packFilter)) packFilter = '';
+      body.querySelector('#pack-row').innerHTML = packs.length
+        ? `<button type="button" class="chip ${packFilter ? '' : 'active'}" data-pack="">Tüm paketler</button>${packs.map(p => `<button type="button" class="chip ${p.name === packFilter ? 'active' : ''}" data-pack="${esc(p.name)}">${esc(p.name)} <span class="muted">${p.count}</span></button>`).join('')}
+          ${packFilter ? `<button type="button" class="btn btn-sm btn-ghost" data-pack-delete="${esc(packFilter)}">${icon('trash')}Paketi sil</button>` : ''}`
+        : '';
+      const q = query.toLocaleLowerCase('tr-TR');
+      const assets = all.filter(a => (!packFilter || a.pack === packFilter) && (!q || [a.label, a.pack, ...a.tags].join(' ').toLocaleLowerCase('tr-TR').includes(q)));
       grid.innerHTML = assets.length
         ? `<div class="asset-grid">${assets.map(a => `
             <div class="asset">
               <div class="thumb"><img src="${esc(a.url)}" alt="${esc(a.label || a.categoryLabel)}" loading="lazy"></div>
               <div class="meta"><input class="input" data-asset-label="${esc(a.id)}" value="${esc(a.label)}" placeholder="Etiket" maxlength="80" aria-label="Etiket">
               <button class="btn btn-sm btn-ghost icon-btn" data-asset-delete="${esc(a.id)}" aria-label="Sil">${icon('trash')}</button></div>
+              <div class="meta"><input class="input input-sm" data-asset-tags="${esc(a.id)}" value="${esc(a.tags.join(', '))}" placeholder="Etiketler (virgülle)" maxlength="300" aria-label="Etiketler">${a.pack ? `<span class="tag" title="Paket">${esc(a.pack)}</span>` : ''}</div>
               ${canSend || a.driveUrl ? `<div class="meta">${a.driveUrl ? `<a class="drive-link" href="${esc(a.driveUrl)}" target="_blank" rel="noopener">✓ Drive'da</a>` : ''}
                 ${canSend ? `<button class="btn btn-sm${a.driveUrl ? ' btn-ghost' : ''}" data-asset-drive="${esc(a.id)}">${a.driveUrl ? 'Tekrar gönder' : 'Drive\'a gönder'}</button>` : ''}</div>` : ''}
             </div>`).join('')}</div>`
-        : emptyState({ icon: 'image', title: 'Bu kategoride dosya yok', text: `Yüklediğin dosyalar yalnızca ${esc(brand.name)} markasında görünür.`, compact: true });
+        : emptyState({ icon: 'image', title: all.length ? 'Eşleşen dosya yok' : 'Bu kategoride dosya yok', text: `Yüklediğin dosyalar yalnızca ${esc(brand.name)} markasında görünür.`, compact: true });
     } catch (err) { grid.innerHTML = errorNotice(err); }
     wireGrid();
   }
@@ -288,7 +302,7 @@ async function renderAssets(body, brand, driveOk) {
     for (const file of list) {
       if (file.size > state.meta.maxAssetBytes) { toast(`${file.name}: 10 MB'tan büyük.`, 'error'); continue; }
       const label = file.name.replace(/\.[^.]+$/, '').slice(0, 80);
-      try { await api.uploadAsset(brand.id, file, current, label); ok++; } catch (err) { toast(`${file.name}: ${err.message}`, 'error'); }
+      try { await api.uploadAsset(brand.id, file, current, label, packFilter); ok++; } catch (err) { toast(`${file.name}: ${err.message}`, 'error'); }
     }
     if (ok) { toast(`${ok} dosya yüklendi.`, 'success'); await refreshBrands(); }
     draw();
@@ -300,10 +314,52 @@ async function renderAssets(body, brand, driveOk) {
     dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
     dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
     dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); upload(e.dataTransfer.files); });
-    body.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => { current = b.dataset.cat; draw(); }));
+    body.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => { current = b.dataset.cat; packFilter = ''; draw(); }));
+    let t = null;
+    body.querySelector('#asset-q').addEventListener('input', e => { clearTimeout(t); t = setTimeout(() => { query = e.target.value.trim(); draw().then(() => { const i = body.querySelector('#asset-q'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }); }, 300); });
+    body.querySelector('[data-pack-upload]').addEventListener('click', packModal);
+  }
+
+  // Paket yükleme: ZIP arşivi tek istekte; tek tek seçilen görseller aynı paket adıyla sırayla yüklenir
+  function packModal() {
+    openModal({
+      title: `${cats[current]} paketi yükle`, submitLabel: 'Yükle',
+      body: `<div class="form-grid">
+        <div class="field full"><label for="pk-name">Paket adı *</label><input class="input" id="pk-name" name="pack" required maxlength="60" placeholder="Ör. Kış sticker'ları"></div>
+        <div class="field full"><label for="pk-files">Dosyalar *</label><input class="input" id="pk-files" name="files" type="file" multiple accept=".zip,application/zip,image/png,image/jpeg,image/webp,image/gif" required>
+          <span class="hint">Bir ZIP arşivi (en fazla 200 görsel, 60 MB) ya da birden çok görsel seç. ZIP içindeki alt klasör adları etiket olur.</span></div>
+      </div>`,
+      onSubmit: async (fd, form) => {
+        const pack = String(fd.get('pack') || '').trim();
+        const files = Array.from(form.querySelector('#pk-files').files);
+        if (!pack || !files.length) throw new Error('Paket adı ve dosya gerekli.');
+        let added = 0;
+        let skipped = 0;
+        for (const f of files) {
+          if (/\.zip$/i.test(f.name) || f.type === 'application/zip') {
+            const r = await api.uploadAssetPack(brand.id, f, current, pack);
+            added += r.added.length; skipped += r.skipped;
+          } else {
+            try { await api.uploadAsset(brand.id, f, current, f.name.replace(/\.[^.]+$/, '').slice(0, 80), pack); added++; } catch { skipped++; }
+          }
+        }
+        toast(`${added} görsel "${pack}" paketine eklendi${skipped ? `, ${skipped} dosya atlandı` : ''}.`, added ? 'success' : 'error', 5000);
+        packFilter = pack;
+        await refreshBrands();
+        draw();
+      }
+    });
   }
 
   function wireGrid() {
+    body.querySelectorAll('[data-pack]').forEach(b => b.addEventListener('click', () => { packFilter = b.dataset.pack; draw(); }));
+    body.querySelectorAll('[data-pack-delete]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm(`"${b.dataset.packDelete}" paketindeki bütün dosyalar silinsin mi?`)) return;
+      try { const r = await api.deleteAssetPack(brand.id, b.dataset.packDelete); toast(`${r.removed} dosya silindi.`, 'success'); packFilter = ''; await refreshBrands(); draw(); } catch (err) { toast(err.message, 'error'); }
+    }));
+    body.querySelectorAll('[data-asset-tags]').forEach(inp => inp.addEventListener('change', async () => {
+      try { await api.updateAsset(brand.id, inp.dataset.assetTags, { tags: inp.value }); toast('Etiketler kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
+    }));
     body.querySelectorAll('[data-asset-label]').forEach(inp => inp.addEventListener('change', async () => {
       try { await api.updateAsset(brand.id, inp.dataset.assetLabel, { label: inp.value }); toast('Etiket kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
     }));

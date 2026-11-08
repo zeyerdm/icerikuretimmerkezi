@@ -34,8 +34,17 @@ export function detectImage(buffer) {
 const toAsset = r => ({
   id: r.id, category: r.category, categoryLabel: ASSET_CATEGORIES[r.category] || r.category,
   label: r.label, mime: r.mime, size: r.size, createdAt: r.created_at, driveUrl: r.drive_url || '',
+  pack: r.pack || '', tags: r.tags ? r.tags.split(',').filter(Boolean) : [],
   url: `/api/brands/${r.brand_id}/assets/${r.id}/file`
 });
+
+// Paket adı tek satır; etiketler küçük harfli, tekrarsız, virgülle saklanır
+const cleanPack = v => String(v || '').replace(/[\r\n,]+/g, ' ').trim().slice(0, 60);
+const cleanTags = v => [...new Set((Array.isArray(v) ? v : String(v || '').split(','))
+  .map(t => String(t).trim().toLocaleLowerCase('tr-TR').replace(/^#/, '').slice(0, 30)).filter(Boolean))].slice(0, 12).join(',');
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
+export const MAX_PACK_BYTES = 60 * 1024 * 1024;
+const MAX_PACK_FILES = 200;
 
 export function createAssetService(db, uploadDir) {
   const brandDir = brandId => path.join(uploadDir, brandId);
@@ -54,7 +63,7 @@ export function createAssetService(db, uploadDir) {
       return rows.map(toAsset);
     },
 
-    create(brandId, { buffer, category, label }) {
+    create(brandId, { buffer, category, label, pack = '', tags = '' }) {
       oneOf(category, Object.keys(ASSET_CATEGORIES), 'Kategori');
       if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw badRequest('Dosya boş.');
       if (buffer.length > MAX_ASSET_BYTES) throw badRequest('Dosya en fazla 10 MB olabilir.');
@@ -64,9 +73,9 @@ export function createAssetService(db, uploadDir) {
       const fileName = `${id}.${kind.ext}`;
       fs.mkdirSync(brandDir(brandId), { recursive: true });
       fs.writeFileSync(path.join(brandDir(brandId), fileName), buffer);
-      const row = { id, brand_id: brandId, category, label: text(label, { field: 'Etiket', max: 80 }), file_name: fileName, mime: kind.mime, size: buffer.length, created_at: now() };
-      db.prepare('INSERT INTO assets (id, brand_id, category, label, file_name, mime, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(row.id, row.brand_id, row.category, row.label, row.file_name, row.mime, row.size, row.created_at);
+      const row = { id, brand_id: brandId, category, label: text(label, { field: 'Etiket', max: 80 }), file_name: fileName, mime: kind.mime, size: buffer.length, created_at: now(), pack: cleanPack(pack), tags: cleanTags(tags) };
+      db.prepare('INSERT INTO assets (id, brand_id, category, label, file_name, mime, size, created_at, pack, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(row.id, row.brand_id, row.category, row.label, row.file_name, row.mime, row.size, row.created_at, row.pack, row.tags);
       return toAsset(row);
     },
 
@@ -74,8 +83,10 @@ export function createAssetService(db, uploadDir) {
       const row = getRow(brandId, assetId);
       const label = 'label' in body ? text(body.label, { field: 'Etiket', max: 80 }) : row.label;
       const category = 'category' in body ? oneOf(body.category, Object.keys(ASSET_CATEGORIES), 'Kategori') : row.category;
-      db.prepare('UPDATE assets SET label = ?, category = ? WHERE id = ? AND brand_id = ?').run(label, category, row.id, brandId);
-      return toAsset(Object.assign(row, { label, category }));
+      const pack = 'pack' in body ? cleanPack(body.pack) : (row.pack || '');
+      const tags = 'tags' in body ? cleanTags(body.tags) : (row.tags || '');
+      db.prepare('UPDATE assets SET label = ?, category = ?, pack = ?, tags = ? WHERE id = ? AND brand_id = ?').run(label, category, pack, tags, row.id, brandId);
+      return toAsset(Object.assign(row, { label, category, pack, tags }));
     },
 
     remove(brandId, assetId) {
@@ -93,6 +104,39 @@ export function createAssetService(db, uploadDir) {
       const row = getRow(brandId, assetId);
       db.prepare('UPDATE assets SET drive_url = ? WHERE id = ? AND brand_id = ?').run(url, row.id, brandId);
       return toAsset(Object.assign(row, { drive_url: url }));
+    },
+
+    // ZIP paketinden toplu yükleme: yalnızca görseller alınır (klasör yolları, gizli dosyalar ve diğer türler atlanır).
+    // Dosya adı etiket olur; alt klasör adı (varsa) etikete eklenir. Geçersiz görseller atlanır, sayısı bildirilir.
+    importPack(brandId, { entries, category, pack }) {
+      oneOf(category, Object.keys(ASSET_CATEGORIES), 'Kategori');
+      const name = cleanPack(pack);
+      if (!name) throw badRequest('Paket adı zorunlu.');
+      const images = entries.filter(e => IMAGE_EXT.test(e.name) && !/(^|\/)(__MACOSX|\.)/.test(e.name));
+      if (!images.length) throw badRequest('Arşivde PNG, JPEG, WEBP ya da GIF görsel bulunamadı.');
+      if (images.length > MAX_PACK_FILES) throw badRequest(`Bir pakette en fazla ${MAX_PACK_FILES} görsel olabilir.`);
+      const added = [];
+      let skipped = 0;
+      for (const e of images) {
+        const parts = e.name.split('/');
+        const base = parts.pop().replace(IMAGE_EXT, '').replace(/[_-]+/g, ' ').trim();
+        const folder = parts.filter(Boolean).pop();
+        try { added.push(this.create(brandId, { buffer: e.data, category, label: base.slice(0, 80), pack: name, tags: folder || '' })); } catch { skipped++; }
+      }
+      return { added, skipped: skipped + (entries.length - images.length) };
+    },
+
+    packs(brandId) {
+      return db.prepare("SELECT pack, category, COUNT(*) AS count FROM assets WHERE brand_id = ? AND pack <> '' GROUP BY pack, category ORDER BY pack").all(brandId)
+        .map(r => ({ name: r.pack, category: r.category, count: r.count }));
+    },
+
+    removePack(brandId, pack) {
+      const rows = db.prepare('SELECT * FROM assets WHERE brand_id = ? AND pack = ?').all(brandId, cleanPack(pack));
+      if (!rows.length) throw notFound('Paket bulunamadı.');
+      db.prepare('DELETE FROM assets WHERE brand_id = ? AND pack = ?').run(brandId, cleanPack(pack));
+      rows.forEach(r => fs.rmSync(filePath(r), { force: true }));
+      return rows.length;
     },
 
     removeBrandFiles(brandId) {
