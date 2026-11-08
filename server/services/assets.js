@@ -45,6 +45,7 @@ const toAsset = r => ({
   label: r.label, mime: r.mime, size: r.size, createdAt: r.created_at, driveUrl: r.drive_url || '',
   pack: r.pack || '', tags: r.tags ? r.tags.split(',').filter(Boolean) : [],
   refRole: r.ref_role || '', mention: mentionOf(r.label, r.id),
+  ocrText: r.ocr_text || '', analyzedAt: r.analyzed_at || null,
   url: `/api/brands/${r.brand_id}/assets/${r.id}/file`
 });
 
@@ -109,6 +110,17 @@ export function createAssetService(db, uploadDir) {
     file(brandId, assetId) {
       const row = getRow(brandId, assetId);
       return { path: filePath(row), mime: row.mime, label: row.label, category: row.category, ext: path.extname(row.file_name) };
+    },
+
+    // AI okuması sonucu: yazı kaydedilir, etiketler mevcutlara eklenir (en fazla 12), ad boşsa önerilen ad kullanılır
+    saveAnalysis(brandId, assetId, { ocrText = '', tags = [], label = '' }) {
+      const row = getRow(brandId, assetId);
+      const merged = cleanTags([...(row.tags ? row.tags.split(',') : []), ...tags]);
+      const newLabel = row.label ? row.label : text(label, { field: 'Etiket', max: 80 });
+      const at = now();
+      const ocr = String(ocrText || '').slice(0, 2000);
+      db.prepare('UPDATE assets SET ocr_text = ?, tags = ?, label = ?, analyzed_at = ? WHERE id = ? AND brand_id = ?').run(ocr, merged, newLabel, at, row.id, brandId);
+      return toAsset(Object.assign(row, { ocr_text: ocr, tags: merged, label: newLabel, analyzed_at: at }));
     },
 
     setDriveUrl(brandId, assetId, url) {

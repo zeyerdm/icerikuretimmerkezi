@@ -80,6 +80,7 @@ export const api = {
     request('POST', `${b(id)}/asset-packs?category=${encodeURIComponent(category)}&pack=${encodeURIComponent(pack)}`, file, { 'Content-Type': 'application/zip' }),
   assetPacks: id => request('GET', b(id) + '/asset-packs'),
   deleteAssetPack: (id, pack) => request('DELETE', `${b(id)}/asset-packs?pack=${encodeURIComponent(pack)}`),
+  analyzeAsset: (id, assetId, body = {}) => request('POST', `${b(id)}/assets/${assetId}/analyze`, body),
   updateAsset: (id, assetId, body) => request('PATCH', `${b(id)}/assets/${assetId}`, body),
   deleteAsset: (id, assetId) => request('DELETE', `${b(id)}/assets/${assetId}`),
 
