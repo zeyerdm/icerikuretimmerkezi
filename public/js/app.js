@@ -22,6 +22,7 @@ import { renderPrompts } from './views/prompts.js';
 import { renderMemory } from './views/memory.js';
 import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
+import { initPalette, openPalette } from './palette.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -66,7 +67,7 @@ export async function openDemoBrand() {
 
 export const go = hash => { if (location.hash === hash) route(); else location.hash = hash; };
 
-const CENTER_NAV = [
+export const CENTER_NAV = [
   { hash: '#/', label: 'Yönetim Merkezi', icon: 'home', page: 'center' },
   { hash: '#/markalar', label: 'Markalar', icon: 'brands', page: 'brands' },
   { hash: '#/takvim', label: 'İçerik Takvimi', icon: 'calendar', page: 'calendar' },
@@ -78,7 +79,7 @@ const CENTER_NAV = [
 ];
 
 // Marka çalışma alanı alt menüsü. "Yakında" olanlar tıklanamaz; bitmiş gibi gösterilmez.
-const BRAND_NAV = [
+export const BRAND_NAV = [
   { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home' },
   { page: 'kimlik', path: '/kimlik', label: 'Dijital kimlik', icon: 'identity' },
   { page: 'hafiza', path: '/hafiza', label: 'Hafıza', icon: 'notes' },
@@ -181,6 +182,7 @@ export function renderChrome() {
         ${state.brands.map(b => `<option value="${esc(b.id)}" ${brand && b.id === brand.id ? 'selected' : ''}>${esc(b.name)}${b.isDemo ? ' (örnek)' : ''}</option>`).join('')}
         ${brand ? '<option value="__center">← Yönetim Merkezi</option>' : ''}
       </select>` : ''}
+    <button type="button" class="btn btn-ghost btn-sm kbd-btn" id="palette-open" title="Komut paleti (Ctrl+K)">${icon('search')}<span>Ara / komut</span><kbd>Ctrl K</kbd></button>
     <span id="bell-slot"></span>
     ${aiPill}`;
   // Zil (bekleyen iş rozeti) ayrı yüklenir; üst çubuğu bekletmez
@@ -190,6 +192,7 @@ export function renderChrome() {
     slot.innerHTML = html;
     slot.querySelector('#bell').addEventListener('click', () => openSummary(summary));
   });
+  document.getElementById('palette-open').addEventListener('click', openPalette);
   const sw = document.getElementById('brand-switch');
   if (sw) sw.addEventListener('change', () => {
     if (!sw.value) return;
@@ -267,6 +270,7 @@ async function start() {
     return;
   }
   window.addEventListener('hashchange', route);
+  initPalette();
   await route();
   showDailyOnce();
   startNotifier();
