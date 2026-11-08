@@ -1,6 +1,7 @@
 // Marka dijital kimliği: profil, görsel kimlik (renk, font, canlı önizleme) ve varlık kütüphanesi
 import { api } from '../api.js';
 import { imageBox } from './imageGen.js';
+import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy, openModal } from '../ui.js';
 import { state, refreshBrands, go, renderChrome } from '../app.js';
 
@@ -73,7 +74,9 @@ export async function renderBrandEditor(view, brandId, initialTab) {
 
   function profileForm() {
     const fields = state.meta.profileFields;
-    return `<div class="form-grid">${Object.entries(fields).map(([key, f]) => `
+    return `<div class="ai-fill mb-4"><div><b>Kimliği AI ile doldur</b><div class="small muted">Web sitendeki "Hakkımızda" yazısını, Instagram biyografini ya da tanıtım metnini yapıştır; alanlar taslak olarak dolsun, sen kontrol edip kaydet.</div></div>
+      <button type="button" class="btn" data-action="ai-fill">${icon('sparkle')}AI ile doldur</button></div>
+      <div class="form-grid">${Object.entries(fields).map(([key, f]) => `
       <div class="field ${LONG_FIELDS.has(key) ? 'full' : ''}">
         <label for="f-${key}">${esc(f.label)}${f.required ? ' *' : ''}</label>
         ${LONG_FIELDS.has(key)
@@ -175,6 +178,35 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     } finally { btn.disabled = false; }
   }
 
+  // Yapıştırılan metinden kimlik taslağı: varsayılan olarak yalnızca boş alanlar doldurulur; kaydetmek kullanıcıya kalır
+  async function aiFill() {
+    let models;
+    try { models = await aiModels(); } catch (err) { return toast(err.message, 'error'); }
+    if (!models.ov.providers.some(p => p.configured)) return toast('Önce Yapay zekâ → Sağlayıcılar bölümünden bir AI bağla.', 'error');
+    openModal({
+      title: 'Kimliği AI ile doldur', submitLabel: 'Taslağı çıkar',
+      body: `<div class="field"><label for="af-text">Metin *</label><textarea class="textarea" id="af-text" name="text" rows="9" maxlength="20000" required placeholder="Web sitesi Hakkımızda yazısı, Instagram biyografisi, menü açıklaması, tanıtım metni…"></textarea></div>
+        <div class="form-grid mt-3"><div class="field"><label for="af-model">Model</label>${modelSelect(models, 'yazim', { id: 'af-model' })}</div>
+        <label class="check"><input type="checkbox" name="onlyEmpty" checked> Yalnızca boş alanları doldur</label></div>
+        <p class="xsmall muted mt-2">Metinde olmayan bilgi uydurulmaz; o alanlar boş kalır. Renk ve font yalnızca metinde açıkça geçiyorsa alınır.</p>`,
+      onSubmit: async (fd, form) => {
+        const r = await busyTimer(form.querySelector('[type=submit]'), () => api.identityDraft({ text: fd.get('text'), model: form.querySelector('#af-model').value || null, brandId: isNew ? null : brand.id }), 'Çıkarıyor');
+        const onlyEmpty = fd.get('onlyEmpty') === 'on';
+        const filled = [];
+        for (const [k, v] of Object.entries(r.profile)) if (v && (!onlyEmpty || !String(draft[k] || '').trim())) { draft[k] = v; filled.push(k); }
+        if (r.colors.primary && (!onlyEmpty || !draft.colors.primary)) { draft.colors.primary = r.colors.primary; filled.push('renk'); }
+        if (r.colors.secondary && (!onlyEmpty || !draft.colors.secondary.length)) { draft.colors.secondary = r.colors.secondary; filled.push('renkler'); }
+        for (const k of ['heading', 'body']) if (r.fonts[k] && (!onlyEmpty || !draft.fonts[k])) { draft.fonts[k] = r.fonts[k]; filled.push('font'); }
+        if (!filled.length) return toast(`Doldurulacak yeni bilgi bulunamadı.${r.notes ? ' ' + r.notes : ''}`, 'info', 6000);
+        markDirty();
+        tab = 'profil';
+        renderTab();
+        filled.forEach(k => { const el = view.querySelector(`#f-${k}`); if (el) el.classList.add('ai-filled'); });
+        toast(`${filled.length} alan dolduruldu (${aiNote(r.ai)}). Kontrol edip Kaydet'e bas.${r.notes ? ' Not: ' + r.notes : ''}`, 'success', 8000);
+      }
+    });
+  }
+
   view.oninput = e => {
     const t = e.target;
     if (t.dataset.field) { draft[t.dataset.field] = t.value; markDirty(); }
@@ -222,6 +254,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         toast(`Drive klasörüne erişildi${r.folderName ? ': ' + r.folderName : ''}.`, 'success');
       } catch (err) { toast(err.message, 'error'); } finally { t.disabled = false; }
     }
+    else if (t.dataset.action === 'ai-fill') aiFill();
     else if (t.dataset.addColor) {
       const list = draft.colors[t.dataset.addColor];
       if (list.length < MAX_COLORS) { list.push(t.dataset.addColor === 'backgrounds' ? '#ffffff' : '#888888'); markDirty(); renderTab(); }
