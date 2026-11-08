@@ -29,7 +29,16 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
         <div class="field"><label for="c-time">Saat</label><input class="input" type="time" id="c-time" name="time" value="${when ? timeStr(when) : '12:00'}"></div>
         <div class="field full"><label for="c-status">Durum</label><select class="select" id="c-status" name="status">${options(m.contentStatuses, c.status || 'taslak')}</select></div>
         <div class="field full"><label for="c-notes">Not</label><textarea class="textarea" id="c-notes" name="notes" maxlength="2000" placeholder="Görsel fikri, metin taslağı, hatırlatma…">${esc(c.notes || '')}</textarea></div>
-      </div>`,
+      </div>
+      ${content ? `<details class="disclosure mt-4" ${c.metrics || c.status === 'yayinlandi' ? 'open' : ''}>
+        <summary>Paylaşım sonucu${c.rate != null ? ` · etkileşim %${String(c.rate).replace('.', ',')}` : ''}</summary>
+        <p class="xsmall muted mb-3">Instagram istatistiklerindeki sayıları gir. Asistan ve üretim ekranları en çok tutan giriş cümlelerinden ve temalardan öğrenir; Analizler'de "Ne işe yaradı" bölümü bunlardan hesaplanır.${c.metrics && c.metrics.at ? ` Son giriş: ${esc(new Date(c.metrics.at).toLocaleDateString('tr-TR'))}.` : ''}</p>
+        <div class="form-grid metrics-grid">${Object.entries(m.metricFields).map(([k, label]) => `<div class="field"><label for="cm-${k}">${esc(label)}</label><input class="input" type="number" min="0" step="1" id="cm-${k}" name="m_${k}" value="${c.metrics && c.metrics[k] != null ? c.metrics[k] : ''}"></div>`).join('')}</div>
+        <div class="form-grid mt-3">
+          <div class="field full"><label for="c-hook">Giriş cümlesi (ilk saniye / ilk satır)</label><input class="input" id="c-hook" name="hook" maxlength="300" value="${esc(c.hook || '')}" placeholder="Ör. Vize sabahı bu kuyruğu gören herkes aynı şeyi düşündü…"></div>
+          <div class="field full"><label for="c-theme">Tema</label><input class="input" id="c-theme" name="theme" maxlength="60" value="${esc(c.theme || '')}" placeholder="Ör. sınav haftası, kampanya, kulis"></div>
+        </div>
+      </details>` : ''}`,
     danger: content ? { label: 'Sil', confirm: 'Bu içerik silinsin mi?', onClick: async () => { await api.deleteContent(content.id); onSaved && onSaved(); } } : null,
     onSubmit: async fd => {
       const d = fd.get('date');
@@ -37,7 +46,12 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
       const scheduledAt = d ? new Date(`${d}T${fd.get('time') || '12:00'}`).toISOString() : null;
       const body = { title: fd.get('title'), type: fd.get('type'), status: fd.get('status'), notes: fd.get('notes'), scheduledAt };
       if (!lockBrand) body.brandId = fd.get('brandId'); else if (!content) body.brandId = selectedBrand;
-      if (content) await api.updateContent(content.id, body);
+      if (content) {
+        const metrics = {};
+        Object.keys(m.metricFields).forEach(k => { const v = fd.get('m_' + k); if (v !== null && v !== '') metrics[k] = Number(v); });
+        Object.assign(body, { metrics: Object.keys(metrics).length ? metrics : null, hook: fd.get('hook') || '', theme: fd.get('theme') || '' });
+        await api.updateContent(content.id, body);
+      }
       else await api.createContent(Object.assign(body, ideaId ? { ideaId } : {}));
       onSaved && onSaved();
     }

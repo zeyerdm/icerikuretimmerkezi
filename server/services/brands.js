@@ -2,6 +2,7 @@
 // Her sorgu marka sahibine göre süzülür; bir markanın verisi başka markanın işlemine karışmaz.
 import { badRequest, notFound, newId, now, text, HEX, parseJson } from '../lib/http.js';
 import { parseFolder, folderUrl } from './drive.js';
+import { engagementRate } from './workspace.js';
 
 export const PROFILE_FIELDS = {
   name: { label: 'Marka adı', max: 80, required: true },
@@ -203,6 +204,12 @@ export function createBrandService(db, ownerId) {
       const mascots = db.prepare("SELECT label FROM assets WHERE brand_id = ? AND category = 'mascot' AND label != '' LIMIT 12").all(b.id).map(r => r.label);
       const recentIdeas = db.prepare('SELECT title, category FROM ideas WHERE brand_id = ? ORDER BY created_at DESC LIMIT 20').all(b.id);
       const favIdeas = db.prepare('SELECT title FROM ideas WHERE brand_id = ? AND favorite = 1 ORDER BY created_at DESC LIMIT 8').all(b.id);
+      // Paylaşım sonuçlarından öğrenme: en çok ve en az tutan içerikler, giriş cümleleri ve temalar
+      const measured = db.prepare("SELECT title, type, hook, theme, metrics FROM contents WHERE brand_id = ? AND metrics <> '' ORDER BY scheduled_at DESC LIMIT 60").all(b.id)
+        .map(r => Object.assign(r, { rate: engagementRate(parseJson(r.metrics, null)) })).filter(r => r.rate != null).sort((x, y) => y.rate - x.rate);
+      const perfLine = r => `- ${r.title} (${r.type}, etkileşim %${r.rate})${r.hook ? ` · giriş: "${r.hook}"` : ''}${r.theme ? ` · tema: ${r.theme}` : ''}`;
+      const best = measured.slice(0, 5);
+      const worst = measured.length >= 6 ? measured.slice(-3).reverse() : [];
       const line = (label, v) => (v ? `${label}: ${v}` : null);
       return [
         line('Marka adı', b.name),
@@ -220,7 +227,9 @@ export function createBrandService(db, ownerId) {
         line('Logo', counts.logo ? 'yüklü' : ''),
         line('Maskot pozları', mascots.join(', ') || (counts.mascot ? `${counts.mascot} görsel` : '')),
         recentIdeas.length ? 'Daha önce üretilen fikirler (tekrar etme):\n' + recentIdeas.map(i => `- ${i.title} (${i.category})`).join('\n') : null,
-        favIdeas.length ? 'Ekibin beğendiği fikirler (bu tarzı örnek al):\n' + favIdeas.map(i => `- ${i.title}`).join('\n') : null
+        favIdeas.length ? 'Ekibin beğendiği fikirler (bu tarzı örnek al):\n' + favIdeas.map(i => `- ${i.title}`).join('\n') : null,
+        best.length ? 'Paylaşım sonuçlarına göre EN ÇOK TUTAN içerikler (giriş cümlesi, tema ve yaklaşımlarından öğren; kopyalama):\n' + best.map(perfLine).join('\n') : null,
+        worst.length ? 'En az tutan içerikler (bu yaklaşımlardan kaçın):\n' + worst.map(perfLine).join('\n') : null
       ].filter(Boolean).join('\n');
     }
   };
