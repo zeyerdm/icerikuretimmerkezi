@@ -2,6 +2,7 @@
 // Üretilen görsel markanın kütüphanesine "AI görseli" olarak kaydedilir; üretim ayrıntıları (prompt, model) etikette ve
 // üretim kaydında tutulur. Görsel servisi bağlı değilse açık hata döner: sahte ya da yer tutucu görsel üretilmez.
 import fs from 'node:fs';
+import { detectImage } from './assets.js';
 import { newId, now, text, badRequest, oneOf, parseJson } from '../lib/http.js';
 
 const MAX_REFS = 3;
@@ -64,6 +65,26 @@ export function createImageService({ db, ai, brands, assets }) {
         .run(newId(), b.id, asset.id, body.promptId ? String(body.promptId).slice(0, 40) : null, prompt, r.ref, aspect, r.usedRefs ? 1 : 0, r.cost || 0, now());
       brands.logActivity(b.id, 'image.generated', `${r.label} ile görsel üretildi`);
       return { asset, ai: { model: r.ref, modelLabel: r.label, cost: r.cost, ms: r.ms, usedRefs: r.usedRefs } };
+    },
+
+    // Alan düzenleme: asıl görsel + düzenlenecek alanların kırmızıyla işaretlendiği kopya modele gider;
+    // yalnızca işaretli alan değişir, sonuç yeni "AI görseli" olarak kaydedilir (asıl görsel korunur)
+    async editRegion(brandId, { assetId, marked, instruction, modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const ins = text(instruction, { field: 'Talimat', max: 1000, required: true });
+      if (!Buffer.isBuffer(marked) || !detectImage(marked)) throw badRequest('İşaretli görsel okunamadı.');
+      const ov = ai.imageOverview();
+      const chosen = ov.models.find(m => m.ref === (modelRef || ov.default));
+      if (chosen && !chosen.refs) throw badRequest('Alan düzenleme için görsel referansı alan bir model seç (ör. Gemini Flash Image / Nano Banana).');
+      const f = assets.file(b.id, String(assetId));
+      const original = { mime: f.mime, data: fs.readFileSync(f.path) };
+      const prompt = `Edit the image. Image 1 is the original. Image 2 is the same image where the area(s) to change are highlighted with red semi-transparent rectangles. Apply the following change ONLY inside the highlighted area(s); keep everything else pixel-identical (composition, characters, colors, lighting). Output the full edited image without any red marks or rectangles.\n\nChange: ${ins}\n\nDo not render any text, letters or watermarks.`;
+      const r = await ai.image({ brandId: b.id, prompt, modelRef: modelRef || null, aspect: '1:1', refs: [original, { mime: detectImage(marked).mime, data: marked }], keepAspect: true });
+      const asset = assets.create(b.id, { buffer: r.buffer, category: 'ai_image', label: `Düzenlendi: ${ins.replace(/\s+/g, ' ').slice(0, 60)}` });
+      db.prepare('INSERT INTO image_generations (id, brand_id, asset_id, prompt_id, prompt, model, aspect, used_refs, cost_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(newId(), b.id, asset.id, null, `Alan düzenleme: ${ins}`, r.ref, 'kaynak', 1, r.cost || 0, now());
+      brands.logActivity(b.id, 'image.edited', `${r.label} ile görselde alan düzenlendi`);
+      return { asset, ai: { model: r.ref, modelLabel: r.label, cost: r.cost, ms: r.ms, usedRefs: true } };
     },
 
     // Bir markanın (isteğe bağlı: bir prompt'un) üretim geçmişi; silinmiş görseller listelenmez

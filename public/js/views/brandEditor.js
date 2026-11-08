@@ -301,7 +301,7 @@ async function renderAssets(body, brand, driveOk) {
       </div>`;
     // Yükleme alanı liste beklenmeden hemen bağlanır; seçilen dosya kaybolmaz
     wireUpload();
-    if (current === 'ai_image') imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, onCreated: () => draw() });
+    if (current === 'ai_image') imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, historyAll: true });
     const grid = body.querySelector('#asset-grid');
     try {
       const [{ assets: all }, { packs: allPacks }] = await Promise.all([api.assets(brand.id, current), api.assetPacks(brand.id)]);

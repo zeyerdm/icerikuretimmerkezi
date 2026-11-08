@@ -590,6 +590,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/ai/images', (req, res) => res.json(ai.setImageDefault((req.body || {}).model || '')));
   api.get('/brands/:brandId/images', (req, res) => res.json({ images: images.history(req.brand.id, { promptId: req.query.promptId || null }) }));
   api.post('/brands/:brandId/images', route(async (req, res) => res.status(201).json(await images.generate(req.brand.id, req.body || {}))));
+  // Alan düzenleme: gövde işaretli görselin kendisi (PNG/JPEG), diğerleri adres parametresi
+  api.post('/brands/:brandId/images/edit', express.raw({ type: () => true, limit: MAX_ASSET_BYTES }), route(async (req, res) => res.status(201).json(await images.editRegion(req.brand.id, { assetId: String(req.query.assetId || ''), marked: req.body, instruction: String(req.query.instruction || ''), modelRef: req.query.model ? String(req.query.model) : null }))));
 
   // --- Tasarım referansı analizi ---
   api.post('/brands/:brandId/design-ref', route(async (req, res) => {

@@ -168,7 +168,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       models: IMAGE_MODELS.map(m => Object.assign({}, m, { ref: modelRef(m.provider, m.id), available: isConfigured(m.provider), providerLabel: PROVIDERS[m.provider].label }))
     };
   }
-  async function image({ brandId = null, prompt, modelRef: ref = null, aspect = '1:1', refs = [] }) {
+  async function image({ brandId = null, prompt, modelRef: ref = null, aspect = '1:1', refs = [], keepAspect = false }) {
     checkBudget();
     const chosen = ref || imageDefault();
     if (!chosen) throw new HttpError(409, 'AI_IMAGE_NOT_CONFIGURED', 'Görsel üretimi için Gemini, OpenAI ya da OpenRouter anahtarı gerekli. Yapay zekâ → Sağlayıcılar bölümünden ekle.');
@@ -179,7 +179,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     const cat = imageCatalog(chosen);
     const started = Date.now();
     try {
-      const r = await providers[p.provider].image({ model: p.id, prompt, aspect, refs: cat && cat.refs === false ? [] : refs });
+      const r = await providers[p.provider].image({ model: p.id, prompt, aspect: keepAspect ? null : aspect, refs: cat && cat.refs === false ? [] : refs });
       const cost = typeof r.cost === 'number' ? r.cost : (cat ? cat.perImage : 0);
       record({ ref: chosen, task: 'gorsel', brandId, usage: r.usage || {}, cost });
       return { buffer: r.buffer, mime: r.mime, ref: chosen, label: cat ? cat.label : p.id, cost, ms: Date.now() - started, usedRefs: Boolean(refs.length && (!cat || cat.refs)) };

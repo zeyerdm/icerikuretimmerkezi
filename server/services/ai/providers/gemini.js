@@ -57,7 +57,7 @@ export function createGeminiProvider({ getApiKey, fetchImpl = fetch }) {
       const parts = [{ text: prompt }, ...refs.map(r => ({ inline_data: { mime_type: r.mime, data: r.data.toString('base64') } }))];
       const data = await request(encodeURIComponent(model) + ':generateContent', {
         method: 'POST',
-        body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: aspect } } })
+        body: JSON.stringify({ contents: [{ parts }], generationConfig: Object.assign({ responseModalities: ['TEXT', 'IMAGE'] }, aspect ? { imageConfig: { aspectRatio: aspect } } : {}) })
       });
       const out = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
       const img = out.map(p => p.inlineData || p.inline_data).find(Boolean);
