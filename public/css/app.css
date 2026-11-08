@@ -1076,3 +1076,11 @@ body.editor-mode #daily-slot { display: none; }
 .hero p { margin-top: var(--s-1); }
 .hero .orb { width: 170px; height: 170px; right: -30px; top: -50px; }
 .hero-mascot { max-height: 124px; right: var(--s-4); }
+/* U.2 düzeltme: menü içerik kartlarıyla aynı dilde "yüzen" panel — dört yanda eşit boşluk, dört köşe yuvarlak, yine tam boy ve sabit */
+@media (min-width: 761px) {
+  .app { grid-template-columns: calc(var(--sidebar-w) + 12px) minmax(0, 1fr); }
+  .sidebar { margin: 12px 0 12px 12px; top: 12px; height: calc(100vh - 24px); height: calc(100dvh - 24px); border-radius: var(--r-xl); box-shadow: 0 12px 32px color-mix(in srgb, var(--brand-deep) 22%, transparent); }
+  .topbar { min-height: 64px; padding-top: 12px; }
+}
+/* Geniş ekranda içerik menüden kopuk ortada durmasın: alan menünün yanından başlayıp ekranı doldurur */
+@media (min-width: 1500px) { :root { --content-max: 1560px; } }
