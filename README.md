@@ -21,7 +21,7 @@ Uygulama açılınca **Yönetim Merkezi** gelir. Burası bütün kullanıcılard
 
 Bir markaya girildiğinde **marka çalışma alanı** açılır ve arayüz markanın kendi renklerini, logosunu ve maskotunu alır (bu tema yalnızca o markanın alanında geçerlidir):
 
-- **Marka ana sayfası:** markanın hafızasıyla çalışan AI asistanı, hızlı işlemler, kimlik durumu, fikir grafiği.
+- **Marka ana sayfası:** markanın hafızasıyla çalışan AI asistanı (sohbetten gerçekten iş yapar: fikir kaydeder/düzenler, Reels fikri ekler, senaryo yazar, post tasarlar, prompt üretir, takvime içerik ve görev ekler), hızlı işlemler, kimlik durumu, fikir grafiği.
 - **Dijital kimlik:** profil, renkler, fontlar, canlı post önizlemesi.
 - **İçerik fikirleri:** kategorili fikir havuzu, favoriler, tek tıkla takvime ekleme.
 - **Kütüphane:** logo, maskot pozları, sticker, görseller (her marka yalnızca kendi dosyalarını görür).

@@ -12,6 +12,8 @@ const QUICK = [
 ];
 
 const CHIPS = [
+  'Haftaya 5 Reels fikri üret',
+  'Son fikre göre carousel tasarla',
   'Satış odaklı 3 fikir üret',
   'Yaklaşan özel günler için fikir öner',
   'Son fikirlerden hangisiyle başlamalıyım?'
@@ -152,17 +154,33 @@ function ideaList(ideas) {
     </div>`).join('')}</div>`;
 }
 
-function messageHtml(m) {
-  const actions = (m.actions || []).filter(a => a.type === 'save_ideas' && a.ideas && a.ideas.length).map(a => `
-    <div class="msg-actions"><div class="act-title">✓ ${a.ideas.length} fikir fikir havuzuna kaydedildi</div>
-      <ul>${a.ideas.map(i => `<li>${esc(i.title)} <span class="muted small">· ${esc(i.categoryLabel)}</span></li>`).join('')}</ul></div>`).join('');
+// Asistanın uyguladığı işlemler: her biri ilgili modüle bağlantıyla; başarısız olan açıkça gösterilir
+const ACTION_ERR = { save_ideas: 'Fikirler kaydedilemedi', update_idea: 'Fikir güncellenemedi', add_reels_ideas: 'Reels fikirleri eklenemedi', create_reels: 'Reels senaryosu yazılamadı',
+  create_post: 'Post tasarımı üretilemedi', create_prompt: 'Prompt üretilemedi', plan_content: 'Takvime eklenemedi', add_task: 'Görev eklenemedi' };
+function actionHtml(a, brand) {
+  const m = `#/m/${encodeURIComponent(brand.id)}`;
+  const box = (title, inner = '') => `<div class="msg-actions"><div class="act-title">${title}</div>${inner}</div>`;
+  const li = items => `<ul>${items.join('')}</ul>`;
+  if (a.ok === false) return box(`<span class="act-fail">✗ ${esc(ACTION_ERR[a.type] || 'İşlem yapılamadı')}</span>`, `<div class="small muted">${esc(a.error || '')}</div>`);
+  if (a.type === 'save_ideas' && a.ideas && a.ideas.length) return box(`✓ ${a.ideas.length} fikir fikir havuzuna kaydedildi`, li(a.ideas.map(i => `<li>${esc(i.title)} <span class="muted small">· ${esc(i.categoryLabel)}</span></li>`)));
+  if (a.type === 'update_idea') return box(`✓ Fikir güncellendi: ${esc(a.idea.title)}`, `<a class="small" href="${m}/fikirler">Fikirlerde gör</a>`);
+  if (a.type === 'add_reels_ideas') return box(`✓ ${a.items.length} Reels fikri havuza eklendi`, li(a.items.map(i => `<li>${esc(i.text)}</li>`)) + `<a class="small" href="${m}/reels">Reels fikir havuzunu aç</a>`);
+  if (a.type === 'create_reels') return box(`✓ Reels senaryosu yazıldı: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/reels/${esc(a.id)}">Senaryoyu aç</a>`);
+  if (a.type === 'create_post') return box(`✓ Post tasarımı hazır: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/post/${esc(a.id)}">Tasarımı aç</a>`);
+  if (a.type === 'create_prompt') return box(`✓ ${esc(a.kindLabel || '')} prompt'u yazıldı: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/prompt/${esc(a.id)}">Prompt'u aç</a>`);
+  if (a.type === 'plan_content') return box(`✓ ${a.items.length} içerik takvime eklendi`, li(a.items.map(c => `<li>${esc(c.title)} <span class="muted small">· ${esc(c.typeLabel)}${c.scheduledAt ? ' · ' + esc(new Date(c.scheduledAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) : ''}</span></li>`)) + `<a class="small" href="${m}/takvim">Takvimi aç</a>`);
+  if (a.type === 'add_task') return box(`✓ Görev eklendi: ${esc(a.task.title)}${a.task.dueDate ? ` <span class="muted small">· son tarih ${esc(a.task.dueDate)}</span>` : ''}`, '<a class="small" href="#/gorevler">Görevleri aç</a>');
+  return '';
+}
+function messageHtml(m, brand) {
+  const actions = (m.actions || []).map(a => actionHtml(a, brand)).join('');
   return `<div class="msg msg-${m.role}">${esc(m.content)}${actions}</div>`;
 }
 
 function renderMessages(body, messages, brand) {
   body.innerHTML = messages.length
-    ? messages.map(messageHtml).join('')
-    : `<div class="msg msg-assistant">Merhaba! Ben ${esc(brand.name)} için çalışan içerik asistanınım. Marka kimliğini bilerek içerik fikirleri üretebilir, ürettiklerimi fikir havuzuna kaydedebilir ve içerik planı önerebilirim. Nereden başlayalım?</div>`;
+    ? messages.map(x => messageHtml(x, brand)).join('')
+    : `<div class="msg msg-assistant">Merhaba! Ben ${esc(brand.name)} için çalışan içerik asistanınım. Marka kimliğini bilerek fikir üretip kaydedebilir, Reels fikir havuzunu doldurabilir, senaryo yazabilir, post tasarlayabilir, prompt hazırlayabilir, takvime içerik ve görev ekleyebilirim. Ör. "Haftaya 5 Reels fikri üret", "Bu senaryoya göre post tasarla". Nereden başlayalım?</div>`;
   body.scrollTop = body.scrollHeight;
 }
 
@@ -178,19 +196,19 @@ function wire(view, brand, body) {
     form.querySelector('button').disabled = true;
     input.value = '';
     if (body.querySelector('.msg-assistant:only-child')) body.innerHTML = '';
-    body.insertAdjacentHTML('beforeend', messageHtml({ role: 'user', content: message }));
+    body.insertAdjacentHTML('beforeend', messageHtml({ role: 'user', content: message }, brand));
     body.insertAdjacentHTML('beforeend', '<div class="msg msg-assistant msg-typing" id="typing">Düşünüyorum…</div>');
     body.scrollTop = body.scrollHeight;
     try {
       const res = await api.sendChat(brand.id, message);
-      const savedIdeas = (res.assistantMessage.actions || []).some(a => a.type === 'save_ideas');
+      const savedIdeas = (res.assistantMessage.actions || []).some(a => a.ok !== false && ['save_ideas', 'update_idea'].includes(a.type));
       if (savedIdeas) {
         // Fikir kaydedildiyse sağ paneller ve marka özeti de güncellensin
         await refreshBrands();
         return renderHome(view, brand);
       }
       body.querySelector('#typing').remove();
-      body.insertAdjacentHTML('beforeend', messageHtml(res.assistantMessage));
+      body.insertAdjacentHTML('beforeend', messageHtml(res.assistantMessage, brand));
       body.scrollTop = body.scrollHeight;
     } catch (err) {
       body.querySelector('#typing').remove();

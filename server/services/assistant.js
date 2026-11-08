@@ -1,13 +1,20 @@
-// AI asistanı: seçili markanın hafızasıyla konuşur ve desteklenen işlemleri gerçekten uygular.
-// Yanıt biçimi: { reply, actions: [...] }. Bilinmeyen veya geçersiz işlemler uygulanmaz, sessizce de yutulmaz.
+// AI asistanı: seçili markanın hafızasıyla konuşur ve modüllerde işlemleri gerçekten uygular
+// (fikir kaydetme/düzenleme, Reels fikir havuzu, Reels senaryosu, post tasarımı, prompt, takvim, görev).
+// Yanıt biçimi: { reply, actions: [...] }. Bilinmeyen veya geçersiz işlemler uygulanmaz; başarısız olan işlem
+// sonuç listesinde hata olarak görünür (yapılmış gibi gösterilmez).
 import { newId, now, text, parseJson } from '../lib/http.js';
 import { transaction } from '../db.js';
 import { IDEA_CATEGORIES } from './ideas.js';
+import { CONTENT_TYPES } from './workspace.js';
+import { PROMPT_KINDS } from './prompts.js';
 
 const HISTORY_LIMIT = 12;
 const MAX_IDEAS_PER_ACTION = 12;
+// AI çağıran ağır işlemler (senaryo, post, prompt) tek mesajda en çok bu kadar
+const MAX_HEAVY = 3;
+const HEAVY = ['create_reels', 'create_post', 'create_prompt'];
 
-export function createAssistantService({ db, ai, brands, ideas }) {
+export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null }) {
   const toMessage = r => ({ id: r.id, role: r.role, content: r.content, actions: parseJson(r.actions, []), createdAt: r.created_at });
   const save = (brandId, role, content, actions = []) => {
     const row = { id: newId(), brand_id: brandId, role, content, actions: JSON.stringify(actions), created_at: now() };
@@ -33,38 +40,109 @@ export function createAssistantService({ db, ai, brands, ideas }) {
       '',
       past.length ? 'SON KONUŞMA:\n' + past.map(m => `${m.role === 'user' ? 'Kullanıcı' : 'Asistan'}: ${m.content}`).join('\n') : '',
       '',
-      'YAPABİLECEĞİN İŞLEMLER:',
-      `- save_ideas: Kullanıcı içerik fikri isterse fikirleri üret ve bu işlemle markanın fikir havuzuna kaydet. Her fikirde title (kısa, somut başlık), description (1-2 cümle: ne anlatılacak, neden işe yarar) ve category olsun. Kategoriler: ${categories}. Tek seferde en fazla ${MAX_IDEAS_PER_ACTION} fikir.`,
-      'Şu an bunların dışında işlem yapamıyorsun. Reels senaryosu, prompt üretimi veya post tasarımı istenirse bunun bu sürümde henüz olmadığını dürüstçe söyle ve yapabileceğin işi öner. Yapmadığın bir işlemi yapmış gibi anlatma.',
-      'Kullanıcı yalnızca sohbet ediyor, soru soruyor veya fikir istemiyorsa actions boş liste olsun.',
+      'MARKANIN SON KAYITLARI (kullanıcı "bu fikir", "bu senaryo" derse buradaki id ile işlem yap):',
+      context(brand.id),
+      '',
+      `BUGÜN: ${new Date().toISOString().slice(0, 10)}`,
+      '',
+      'YAPABİLECEĞİN İŞLEMLER (actions listesine ekle; uygulama gerçekten yapar):',
+      `- save_ideas: {ideas: [{title, description, category}]} içerik fikirlerini fikir havuzuna kaydeder. Kategoriler: ${categories}. En fazla ${MAX_IDEAS_PER_ACTION}.`,
+      '- update_idea: {id, title, description} kayıtlı bir fikri değiştirir ("bu fikri daha eğlenceli yap" gibi).',
+      `- add_reels_ideas: {ideas: [{text, category}]} Reels fikir havuzuna kısa Reels fikirleri ekler ("haftaya 5 Reels fikri üret"). En fazla ${MAX_IDEAS_PER_ACTION}.`,
+      '- create_reels: {topic} konudan saniye saniye Reels senaryosu yazar (ayrı bir üretim; birkaç saniye sürer).',
+      '- create_post: {topic, kind: "carousel"|"post", slides: 3-10, fromReelsId?} carousel/post tasarımı üretir; "bu senaryoya göre post tasarla" ise fromReelsId ver.',
+      `- create_prompt: {kind, brief} Prompt Studio'da prompt üretir. Türler: ${Object.entries(PROMPT_KINDS).map(([k, v]) => `${k} (${v.label})`).join(', ')}.`,
+      `- plan_content: {items: [{title, type, date: "YYYY-MM-DD", time?: "HH:MM", ideaId?}]} takvime içerik planlar. Türler: ${Object.keys(CONTENT_TYPES).join(', ')}.`,
+      '- add_task: {title, dueDate?: "YYYY-MM-DD", priority?: "dusuk"|"orta"|"yuksek"} bu marka için görev ekler.',
+      `Senaryo, post ve prompt üretimi ayrı AI çağrısıdır: tek mesajda en çok ${MAX_HEAVY} tane. Kullanıcı açıkça istemedikçe bunları başlatma.`,
+      'İşlem sonucunu reply içinde "kaydettim/oluşturdum" diye anlatabilirsin; uygulama başarısız olanları ayrıca gösterir. Listede olmayan bir işi yapmış gibi anlatma.',
+      'Kullanıcı yalnızca sohbet ediyor veya soru soruyorsa actions boş liste olsun.',
       '',
       `KULLANICININ MESAJI: ${message}`,
       '',
       'Sadece şu JSON biçiminde yanıt ver:',
-      '{"reply": "Kullanıcıya Türkçe, samimi ve net yanıt (fikir kaydettiysen kısaca özetle)", "actions": [{"type": "save_ideas", "ideas": [{"title": "...", "description": "...", "category": "egitici"}]}]}'
+      '{"reply": "Kullanıcıya Türkçe, samimi ve net yanıt (yaptığın işlemleri kısaca özetle)", "actions": [{"type": "save_ideas", "ideas": [{"title": "...", "description": "...", "category": "egitici"}]}, {"type": "create_post", "topic": "...", "kind": "carousel", "slides": 6}]}'
     ].filter(s => s !== null).join('\n');
   }
 
-  // Modelin önerdiği işlemleri doğrular ve uygular; uygulanan sonuçları döndürür
-  function applyActions(brandId, rawActions) {
+  // Asistanın "bu fikir / bu senaryo" diyebilmesi için son kayıtlar (id'leriyle)
+  function context(brandId) {
+    const lines = [];
+    const short = t => String(t || '').replace(/\s+/g, ' ').slice(0, 110);
+    const idList = ideas.list(brandId, { limit: 8 });
+    if (idList.length) lines.push('Fikirler:', ...idList.map(i => `  [${i.id}] ${short(i.title)}: ${short(i.description)}`));
+    if (reels) { const r = reels.list(brandId).slice(0, 5); if (r.length) lines.push('Reels senaryoları:', ...r.map(x => `  [${x.id}] ${short(x.title)}`)); }
+    if (posts) { const p = posts.list(brandId).slice(0, 5); if (p.length) lines.push('Post tasarımları:', ...p.map(x => `  [${x.id}] ${short(x.title)}`)); }
+    return lines.length ? lines.join('\n') : '(henüz kayıt yok)';
+  }
+
+  // Modelin önerdiği işlemleri doğrular ve uygular. Her işlem kendi sonucunu döndürür: { type, ok, ...ya da error }.
+  // AI çağıran işlemler sohbet kaydından önce, tek tek yapılır; biri başarısız olursa diğerleri yine denenir.
+  async function applyActions(brandId, rawActions) {
     const results = [];
-    const list = Array.isArray(rawActions) ? rawActions : [];
-    for (const action of list) {
-      if (!action || action.type !== 'save_ideas' || !Array.isArray(action.ideas)) continue;
-      const saved = [];
-      const skipped = [];
-      for (const item of action.ideas.slice(0, MAX_IDEAS_PER_ACTION)) {
-        const category = item && Object.prototype.hasOwnProperty.call(IDEA_CATEGORIES, item.category) ? item.category : 'bilgilendirici';
-        try {
-          saved.push(ideas.create(brandId, { title: String(item.title || ''), description: String(item.description || ''), category }, 'assistant'));
-        } catch {
-          skipped.push(item && item.title);
+    const list = (Array.isArray(rawActions) ? rawActions : []).filter(a => a && typeof a.type === 'string').slice(0, 10);
+    let heavy = 0;
+    const fail = (type, err) => results.push({ type, ok: false, error: String((err && err.message) || err).slice(0, 200) });
+    for (const a of list) {
+      try {
+        if (a.type === 'save_ideas' && Array.isArray(a.ideas)) {
+          const saved = [];
+          let skipped = 0;
+          for (const item of a.ideas.slice(0, MAX_IDEAS_PER_ACTION)) {
+            const category = item && Object.prototype.hasOwnProperty.call(IDEA_CATEGORIES, item.category) ? item.category : 'bilgilendirici';
+            try { saved.push(ideas.create(brandId, { title: String(item.title || ''), description: String(item.description || ''), category }, 'assistant')); } catch { skipped++; }
+          }
+          if (saved.length) {
+            brands.logActivity(brandId, 'ideas.generated', `AI asistanı ${saved.length} içerik fikri kaydetti`);
+            results.push({ type: 'save_ideas', ok: true, ideas: saved, skipped });
+          }
+        } else if (a.type === 'update_idea' && a.id) {
+          const body = {};
+          if (a.title) body.title = String(a.title);
+          if (a.description != null) body.description = String(a.description);
+          results.push({ type: 'update_idea', ok: true, idea: ideas.update(brandId, String(a.id), body) });
+        } else if (a.type === 'add_reels_ideas' && reels && Array.isArray(a.ideas)) {
+          const added = [];
+          for (const item of a.ideas.slice(0, MAX_IDEAS_PER_ACTION)) {
+            const category = item && Object.prototype.hasOwnProperty.call(IDEA_CATEGORIES, item.category) ? item.category : 'eglenceli';
+            try { added.push(reels.addPool(brandId, { text: String((item && (item.text || item.title)) || '').slice(0, 300), category }, 'ai')); } catch { /* boş ya da tekrar eden fikir atlanır */ }
+          }
+          if (added.length) results.push({ type: 'add_reels_ideas', ok: true, items: added });
+        } else if (HEAVY.includes(a.type)) {
+          if (++heavy > MAX_HEAVY) { fail(a.type, `Tek mesajda en çok ${MAX_HEAVY} üretim yapılır; kalanını ayrı iste.`); continue; }
+          if (a.type === 'create_reels' && reels) {
+            const r = await reels.create(brandId, { topic: String(a.topic || '').slice(0, 1000) });
+            results.push({ type: 'create_reels', ok: true, id: r.id, title: r.title });
+          } else if (a.type === 'create_post' && posts) {
+            let topic = String(a.topic || '');
+            if (a.fromReelsId && reels) {
+              const src = reels.get(brandId, String(a.fromReelsId));
+              topic = `${topic ? topic + '\n' : ''}Şu Reels senaryosuna dayanarak: ${src.title}. ${String(src.script || '').slice(0, 700)}`;
+            }
+            const kind = a.kind === 'post' ? 'post' : 'carousel';
+            const p = await posts.create(brandId, { topic: topic.slice(0, 1000), kind, slides: Math.max(3, Math.min(10, Number(a.slides) || 6)) });
+            results.push({ type: 'create_post', ok: true, id: p.id, title: p.title });
+          } else if (a.type === 'create_prompt' && prompts) {
+            const p = await prompts.create(brandId, { kind: PROMPT_KINDS[a.kind] ? a.kind : 'gorsel', brief: String(a.brief || a.topic || '').slice(0, 2000) });
+            results.push({ type: 'create_prompt', ok: true, id: p.id, title: p.title, kindLabel: p.kindLabel });
+          }
+        } else if (a.type === 'plan_content' && workspace && Array.isArray(a.items)) {
+          const planned = [];
+          for (const it of a.items.slice(0, 14)) {
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(String(it && it.date)) ? it.date : null;
+            const time = /^\d{2}:\d{2}$/.test(String(it && it.time)) ? it.time : '10:00';
+            try {
+              planned.push(workspace.createContent({ brandId, title: String((it && it.title) || '').slice(0, 200), type: CONTENT_TYPES[it && it.type] ? it.type : 'post',
+                scheduledAt: date ? new Date(`${date}T${time}:00`).toISOString() : null, ideaId: (it && it.ideaId) || null }));
+            } catch { /* geçersiz satır atlanır */ }
+          }
+          if (planned.length) results.push({ type: 'plan_content', ok: true, items: planned.map(c => ({ id: c.id, title: c.title, typeLabel: c.typeLabel, scheduledAt: c.scheduledAt })) });
+        } else if (a.type === 'add_task' && workspace && a.title) {
+          const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(String(a.dueDate)) ? a.dueDate : null;
+          const t = workspace.createTask({ brandId, title: String(a.title).slice(0, 200), dueDate, priority: ['dusuk', 'orta', 'yuksek'].includes(a.priority) ? a.priority : 'orta' });
+          results.push({ type: 'add_task', ok: true, task: { id: t.id, title: t.title, dueDate: t.dueDate } });
         }
-      }
-      if (saved.length) {
-        brands.logActivity(brandId, 'ideas.generated', `AI asistanı ${saved.length} içerik fikri kaydetti`);
-        results.push({ type: 'save_ideas', ideas: saved, skipped: skipped.length });
-      }
+      } catch (err) { fail(a.type, err); }
     }
     return results;
   }
@@ -84,10 +162,10 @@ export function createAssistantService({ db, ai, brands, ideas }) {
       const reply = typeof (response && response.reply) === 'string' && response.reply.trim()
         ? response.reply.trim()
         : 'Yanıt oluşturulamadı, mesajını biraz farklı yazıp tekrar dener misin?';
-      // Kullanıcı mesajı, yanıt ve uygulanan işlemler birlikte kaydedilir
+      // İşlemler uygulanır (AI çağıranlar dahil), sonra mesaj ve sonuçları birlikte kaydedilir
+      const actions = await applyActions(brand.id, response && response.actions);
       return transaction(db, () => {
         const userMessage = save(brand.id, 'user', message);
-        const actions = applyActions(brand.id, response && response.actions);
         const assistantMessage = save(brand.id, 'assistant', reply, actions);
         return { userMessage, assistantMessage };
       });
