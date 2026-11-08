@@ -107,11 +107,12 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.11 Hatırlatmalar:** özet hesaplaması (bugün/geçmiş/görev/özel gün; yerel saat), şeridin günde bir kez çıkması ve kapanınca gelmemesi, zil rozeti, bildirimin bir içerik için bir kez gönderilmesi.
 - ⬜ **T.12 Marka hafızası:** liste temizleme ve sınırlar, bilgi kartı CRUD ve marka izolasyonu, hafıza metnine girmesi, denetçinin yasaklı kelimeyi yakalaması, asistanın remember/forbid_words işlemleri.
 - ⬜ **T.13 Ortak şablonlar:** rol çıkarma (renk/font/görsel), hedef markaya çevirme ve yedek renkler, dosyaların taşınmaması, okunurluk düzeltmesi, kullan/sil uç noktaları.
+- ⬜ **T.14 Kalıp arşivi:** analiz çıktısının temizlenmesi, kaynak türü doğrulaması, favori/düzenleme/silme, senaryo istemine seçilen kalıbın ya da favorilerin girmesi, marka izolasyonu.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
 
-- ⬜ **5.1 Kalıp arşivi** *(Nailing AI)*: beğenilen/rakip Reels metinlerinden ve kendi videolarından giriş cümlesi, tema, akış ve CTA çıkarıp markanın arşivine kaydetme; senaryo yazarken bu arşivin kullanılması.
+- ✅ **5.1 Kalıp arşivi** *(Nailing AI)*: Reels → "Kalıp arşivi" sekmesi; beğenilen, rakip ya da kendi Reels metni yapıştırılır, model seçilir; giriş tipi ve kalıbı, tema, 3–6 adımlık akış, kapanış/CTA, neden işe yaradığı ve uyarlama önerisi çıkarılıp markanın arşivine kaydedilir (metin ve espri kopyalanmaz). Favori kalıplar her senaryo yazımında örnek olarak isteme girer; "Bu kalıpla senaryo yaz" ya da senaryo penceresindeki "Kalıp" seçimiyle belirli bir kalıp izlenir.
 - ⬜ **5.2 Satır satır senaryo + görsel ipucu** *(Nailing AI)*: her konuşma satırının altında çekim notu.
 - ⬜ **5.3 Rakip profilleri** *(Nailing AI)*: her rakip için ayrı kayıt; ne paylaşıyor, hangi kalıpları kullanıyor, nerede boşluk var.
 - ⬜ **5.4 Geliştir + Geri al ve Beyin fırtınası** *(Banana Studio)*: kısa taslaktan ayrıntılı üretim prompt'u; tek brief'ten çok konsept × çok varyasyon.

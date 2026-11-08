@@ -344,7 +344,7 @@ export function scriptText(data, { character = 'Karakter', style = '3d', colors 
 }
 
 // --- AI istekleri ---
-export function scenarioPrompt({ brandName, memory, settings, topic, format, liked = [], disliked = [], existing = [], rewrite = null }) {
+export function scenarioPrompt({ brandName, memory, settings, topic, format, liked = [], disliked = [], existing = [], rewrite = null, pattern = '' }) {
   const name = settings.character;
   const style = STYLES[settings.style] || STYLES['3d'];
   const formats = format && FORMATS[format] ? { [format]: FORMATS[format] } : FORMATS;
@@ -354,6 +354,7 @@ export function scenarioPrompt({ brandName, memory, settings, topic, format, lik
     '', 'MARKA HAFIZASI (karakter, kitle ve dil buna sadık kalmalı):', memory, '',
     'FORMATLAR (fikre en uygun olanı seç):', ...Object.entries(formats).map(([k, f]) => `- ${k}: ${f.desc}`), '',
     `KONU: ${topic}`, 'Senaryoyu bu konuya sadık kalarak yaz; konunun espri veya bilgi özünü koru, hikâyeleştir.', '',
+    pattern ? `${pattern}\n` : '',
     disliked.length ? `BEĞENİLMEYEN FİKİRLER (bunları ve aynı espri tarzını tekrar önerme):\n${disliked.map(t => `- ${t}`).join('\n')}\n` : '',
     liked.length ? `BEĞENİLEN FİKİRLER (bu tarzı ve kaliteyi örnek al ama kopyalama):\n${liked.map(t => `- ${t}`).join('\n')}\n` : '',
     existing.length ? `DAHA ÖNCE YAZILAN SENARYOLAR (bunları tekrar etme):\n${existing.map(t => `- ${t}`).join('\n')}\n` : '',

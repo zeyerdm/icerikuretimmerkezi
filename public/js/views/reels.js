@@ -15,7 +15,7 @@ async function copy(text, msg) {
 }
 
 function tabs(brand, active) {
-  return `<div class="tabs" role="tablist">${[['havuz', 'Fikir havuzu', base(brand)], ['liste', 'Senaryolar', base(brand) + '/liste']].map(([id, label, href]) =>
+  return `<div class="tabs" role="tablist">${[['havuz', 'Fikir havuzu', base(brand)], ['liste', 'Senaryolar', base(brand) + '/liste'], ['kaliplar', 'Kalıp arşivi', base(brand) + '/kaliplar']].map(([id, label, href]) =>
     `<button role="tab" data-href="${href}" class="${active === id ? 'active' : ''}" aria-selected="${active === id}">${label}</button>`).join('')}</div>`;
 }
 
@@ -23,7 +23,7 @@ export async function renderReels(view, brand, sub) {
   view.onclick = null;
   const models = await aiModels();
   const aiReady = models.ov.providers.some(p => p.configured);
-  if (sub && sub !== 'liste') return renderDetail(view, brand, sub, models);
+  if (sub && sub !== 'liste' && sub !== 'kaliplar') return renderDetail(view, brand, sub, models);
   const meta = state.meta.reels;
   const head = pageHead({
     title: 'Reels', desc: `${esc(brand.name)} için Reels fikir havuzu ve saniye saniye senaryolar. Senaryodan Flow/Veo prompt'u, başlık görseli ve altyazı çıkar.`,
@@ -31,6 +31,7 @@ export async function renderReels(view, brand, sub) {
   });
   const notice = aiReady ? '' : `<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Fikirleri elle ekleyebilirsin; senaryo yazdırmak ve havuzu genişletmek için bir yapay zekâ sağlayıcısı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>`;
   if (sub === 'liste') return renderList(view, brand, models, head + notice + tabs(brand, 'liste'), meta, aiReady);
+  if (sub === 'kaliplar') return renderPatterns(view, brand, models, head + notice + tabs(brand, 'kaliplar'), meta, aiReady);
   return renderPool(view, brand, models, head + notice + tabs(brand, 'havuz'), meta, aiReady);
 }
 
@@ -51,7 +52,9 @@ async function settingsModal(brand, meta) {
 }
 
 // Senaryo yazdırma penceresi (havuzdaki fikirden ya da serbest konudan)
-function scenarioModal(brand, models, meta, { poolItem = null } = {}) {
+async function scenarioModal(brand, models, meta, { poolItem = null, patternId = null } = {}) {
+  let pats = [];
+  try { pats = (await api.patterns(brand.id)).patterns; } catch { /* kalıp listesi gelmezse seçim gösterilmez */ }
   openModal({
     title: poolItem ? 'Fikirden senaryo yaz' : 'Yeni senaryo',
     submitLabel: 'Senaryoyu yaz',
@@ -60,11 +63,12 @@ function scenarioModal(brand, models, meta, { poolItem = null } = {}) {
         : '<div class="field full"><label for="sc-topic">Konu *</label><textarea class="textarea" id="sc-topic" name="topic" required maxlength="1000" placeholder="Ör. Sınav haftasında gece yarısı kahve kuyruğu"></textarea></div>'}
       <div class="field"><label for="sc-format">Format</label><select class="select" id="sc-format" name="format"><option value="">Otomatik (fikre en uygun)</option>${Object.entries(meta.formats).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></div>
       <div class="field"><label for="model-pick-modal">Model</label>${modelSelect(models, 'yazim', { id: 'model-pick-modal' })}</div>
+      ${pats.length ? `<div class="field full"><label for="sc-pattern">Kalıp (isteğe bağlı)</label><select class="select" id="sc-pattern" name="patternId"><option value="">Seçme (favori kalıplar örnek olarak kullanılır)</option>${pats.map(p => `<option value="${esc(p.id)}" ${p.id === patternId ? 'selected' : ''}>${p.favorite ? '★ ' : ''}${esc(p.title)} · ${esc(p.hookTypeLabel)}</option>`).join('')}</select></div>` : ''}
       <p class="hint full">Özenli modeller uzun senaryoyu 1-2 dakikada yazabilir; düğmede geçen süre görünür.</p>
     </div>`,
     onSubmit: async (fd, form) => {
       const btn = form.querySelector('[type=submit]');
-      const res = await busyTimer(btn, () => api.createReels(brand.id, { topic: fd.get('topic'), poolId: poolItem ? poolItem.id : null, format: fd.get('format') || null, model: fd.get('model-pick-modal') || form.querySelector('#model-pick-modal').value || null }));
+      const res = await busyTimer(btn, () => api.createReels(brand.id, { topic: fd.get('topic'), poolId: poolItem ? poolItem.id : null, format: fd.get('format') || null, patternId: fd.get('patternId') || null, model: fd.get('model-pick-modal') || form.querySelector('#model-pick-modal').value || null }));
       toast(aiNote(res.reels.ai), 'success', 6000);
       go(base(brand) + '/' + res.reels.id);
     }
@@ -187,6 +191,62 @@ async function renderList(view, brand, models, header, meta, aiReady) {
     if (tab) return go(tab.dataset.href);
     if (e.target.closest('[data-settings]')) return settingsModal(brand, meta);
     if (e.target.closest('[data-new]')) return scenarioModal(brand, models, meta);
+  };
+}
+
+// ------------------------------------------------------------ Kalıp arşivi
+// Beğenilen/rakip/kendi Reels metnini yapıştır → giriş tipi, tema, akış, CTA ve neden işe yaradığı çıkarılır.
+async function renderPatterns(view, brand, models, header, meta, aiReady) {
+  let { patterns, sources } = await api.patterns(brand.id);
+  const draw = () => {
+    view.innerHTML = header + `
+      ${aiReady ? `<section class="card mb-4"><div class="card-head"><h3>Kalıp çıkar</h3></div>
+        <p class="small muted mb-3">Beğendiğin ya da rakip bir Reels'in konuşma metnini / altyazısını / açıklamasını ya da kendi tutan videonun metnini yapıştır. Yapısı (giriş, tema, akış, kapanış) çıkarılıp arşive kaydedilir; senaryo yazarken bu kalıbı seçebilirsin. Metin ve espriler kopyalanmaz.</p>
+        <div class="field"><label for="pt-text">Metin *</label><textarea class="textarea" id="pt-text" rows="6" maxlength="8000" placeholder="Ör. 'Sınav sabahı kahve kuyruğunda bekleyen herkes aynı soruyu çalışıyorsa…' diye başlayan videonun konuşma metni"></textarea></div>
+        <div class="form-grid mt-3">
+          <div class="field"><label for="pt-src">Kaynak</label><select class="select" id="pt-src">${Object.entries(sources).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></div>
+          <div class="field"><label for="pt-note">Kaynak notu</label><input class="input" id="pt-note" maxlength="200" placeholder="Ör. @hesapadi, video linki"></div>
+          <div class="field"><label for="pt-model">Model</label>${modelSelect(models, 'fikir', { id: 'pt-model' })}</div>
+        </div>
+        <div class="row mt-3"><button class="btn btn-primary" data-pt-analyze>${icon('sparkle')}Kalıbı çıkar</button></div></section>` : ''}
+      ${patterns.length ? `<div class="pattern-grid">${patterns.map(p => `
+        <section class="card pattern-card">
+          <div class="card-head"><h3>${p.favorite ? '★ ' : ''}${esc(p.title)}</h3><span class="tag">${esc(p.sourceLabel)}</span></div>
+          ${p.sourceNote ? `<div class="xsmall muted mb-2">${esc(p.sourceNote)}</div>` : ''}
+          <dl class="kv"><dt>Giriş (${esc(p.hookTypeLabel)})</dt><dd>${esc(p.hook)}</dd><dt>Tema</dt><dd>${esc(p.theme)}</dd>
+            <dt>Akış</dt><dd><ol class="pattern-steps">${(p.structure || []).map(s => `<li>${esc(s)}</li>`).join('')}</ol></dd>
+            ${p.cta ? `<dt>Kapanış / CTA</dt><dd>${esc(p.cta)}</dd>` : ''}<dt>Neden işe yarıyor</dt><dd>${esc(p.why)}</dd>
+            ${p.reuse ? `<dt>Uyarlama</dt><dd>${esc(p.reuse)}</dd>` : ''}${p.format || p.duration ? `<dt>Format</dt><dd>${esc([p.format, p.duration].filter(Boolean).join(' · '))}</dd>` : ''}</dl>
+          <div class="row mt-3">${aiReady ? `<button class="btn btn-sm btn-primary" data-pt-use="${esc(p.id)}">Bu kalıpla senaryo yaz</button>` : ''}
+            <button class="btn btn-sm" data-pt-fav="${esc(p.id)}">${p.favorite ? 'Favoriden çıkar' : '☆ Favori'}</button>
+            <button class="btn btn-sm btn-ghost icon-btn" data-pt-del="${esc(p.id)}" aria-label="Sil">${icon('trash')}</button></div>
+          <details class="disclosure"><summary>Kaynak metin</summary><div class="cmp-text">${esc(p.rawText)}</div></details>
+        </section>`).join('')}</div>`
+        : emptyState({ icon: 'film', title: 'Kalıp arşivi boş', text: 'Tutan Reels metinlerinden kalıp çıkardıkça burada birikir. Favori kalıplar senaryo yazarken kendiliğinden örnek alınır.', compact: true, card: true })}`;
+  };
+  draw();
+  view.onclick = async e => {
+    const tab = e.target.closest('[data-href]');
+    if (tab) return go(tab.dataset.href);
+    if (e.target.closest('[data-settings]')) return settingsModal(brand, meta);
+    if (e.target.closest('[data-new]')) return scenarioModal(brand, models, meta);
+    const an = e.target.closest('[data-pt-analyze]');
+    if (an) {
+      const t = view.querySelector('#pt-text').value.trim();
+      if (t.length < 40) return toast('Biraz daha uzun bir metin yapıştır (en az birkaç cümle).', 'error');
+      try {
+        const { pattern } = await busyTimer(an, () => api.analyzePattern(brand.id, { text: t, sourceType: view.querySelector('#pt-src').value, sourceNote: view.querySelector('#pt-note').value, model: view.querySelector('#pt-model').value || null }), 'Çıkarıyor');
+        toast(`Kalıp arşive eklendi: ${pattern.title} (${aiNote(pattern.ai)})`, 'success', 6000);
+        patterns = (await api.patterns(brand.id)).patterns; draw();
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const use = e.target.closest('[data-pt-use]');
+    if (use) return scenarioModal(brand, models, meta, { patternId: use.dataset.ptUse });
+    const fav = e.target.closest('[data-pt-fav]');
+    if (fav) { const p = patterns.find(x => x.id === fav.dataset.ptFav); try { await api.savePattern(brand.id, p.id, { favorite: !p.favorite }); patterns = (await api.patterns(brand.id)).patterns; draw(); } catch (err) { toast(err.message, 'error'); } return; }
+    const del = e.target.closest('[data-pt-del]');
+    if (del) { if (!confirm('Bu kalıp arşivden silinsin mi?')) return; try { await api.deletePattern(brand.id, del.dataset.ptDel); patterns = (await api.patterns(brand.id)).patterns; draw(); } catch (err) { toast(err.message, 'error'); } }
   };
 }
 

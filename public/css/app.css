@@ -923,3 +923,5 @@ body.editor-mode #daily-slot { display: none; }
 .mem-facts { display: flex; flex-direction: column; gap: 6px; }
 .mem-fact { display: flex; gap: var(--s-2); align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
 .mem-preview { white-space: pre-wrap; font-size: var(--t-xs); background: var(--surface-2, #f7f7fb); padding: 12px; border-radius: 10px; max-height: 420px; overflow: auto; }
+.pattern-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: var(--s-4); }
+.pattern-steps { margin: 0; padding-left: 18px; }

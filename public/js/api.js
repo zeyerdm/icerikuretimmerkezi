@@ -88,6 +88,10 @@ export const api = {
   deleteIdea: (id, ideaId) => request('DELETE', `${b(id)}/ideas/${ideaId}`),
 
   writeContentText: (id, model) => request('POST', `/api/contents/${encodeURIComponent(id)}/write`, { model }),
+  patterns: id => request('GET', b(id) + '/patterns'),
+  analyzePattern: (id, body) => request('POST', b(id) + '/patterns', body),
+  savePattern: (id, pid, body) => request('PUT', `${b(id)}/patterns/${pid}`, body),
+  deletePattern: (id, pid) => request('DELETE', `${b(id)}/patterns/${pid}`),
   memory: id => request('GET', b(id) + '/memory'),
   saveMemoryLists: (id, body) => request('PUT', b(id) + '/memory', body),
   addFact: (id, body) => request('POST', b(id) + '/memory/facts', body),
