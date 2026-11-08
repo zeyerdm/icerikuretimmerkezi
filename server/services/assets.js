@@ -14,6 +14,7 @@ export const ASSET_CATEGORIES = {
   illustration: 'İllüstrasyon',
   background: 'Arka plan',
   reference: 'Tasarım referansı',
+  inspiration: 'İlham rafı',
   other: 'Diğer'
 };
 

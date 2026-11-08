@@ -4,6 +4,7 @@ import { imageBox } from './imageGen.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy, openModal } from '../ui.js';
 import { state, refreshBrands, go, renderChrome } from '../app.js';
+import { INSPIRATION_NOTE, takeLibraryCategory } from '../inspiration.js';
 
 const LONG_FIELDS = new Set(['description', 'audience', 'character', 'tone', 'goals', 'competitors']);
 const PLACEHOLDERS = {
@@ -275,19 +276,47 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   shell();
 }
 
+// İlham rafındaki link ve metinler ("İlham" kategorili marka notları)
+async function drawInspirationNotes(el, brand) {
+  if (!el) return;
+  try {
+    const { notes } = await api.notes({ brandId: brand.id, category: INSPIRATION_NOTE });
+    el.innerHTML = `<h3 class="mb-2">Link ve metinler <span class="muted small">${notes.length}</span></h3>` + (notes.length
+      ? `<div class="insp-list">${notes.map(n => {
+          const link = /^https?:\/\/\S+$/i.test(n.body.trim());
+          return `<div class="insp-item">${link ? `<a href="${esc(n.body.trim())}" target="_blank" rel="noopener noreferrer" class="strong">${esc(n.title || n.body)}</a><div class="xsmall muted">${esc(n.body.trim())}</div>` : `<div class="strong">${esc(n.title)}</div>${(n.body.startsWith(n.title) ? n.body.slice(n.title.length) : n.body).trim() ? `<div class="small pre-wrap">${esc((n.body.startsWith(n.title) ? n.body.slice(n.title.length) : n.body).trim().slice(0, 400))}</div>` : ''}`}
+            <button type="button" class="btn btn-sm btn-ghost icon-btn" data-insp-del="${esc(n.id)}" aria-label="Sil">${icon('trash')}</button></div>`;
+        }).join('')}</div>`
+      : '<div class="small muted">Henüz link ya da metin yok. Bir linki kopyalayıp bu sayfada Ctrl+V yapman yeterli.</div>');
+    el.onclick = async e => {
+      const d = e.target.closest('[data-insp-del]');
+      if (!d) return;
+      try { await api.deleteNote(d.dataset.inspDel); drawInspirationNotes(el, brand); } catch (err) { toast(err.message, 'error'); }
+    };
+  } catch (err) { el.innerHTML = errorNotice(err); }
+}
+
 // --- Varlık kütüphanesi: kategoriye göre yükleme, etiketleme, silme ---
 async function renderAssets(body, brand, driveOk) {
   const canSend = driveOk && Boolean(brand.driveFolderId);
   const cats = state.meta.assetCategories;
-  let current = 'logo';
+  let current = takeLibraryCategory() || 'logo';
+  if (!cats[current]) current = 'logo';
   let packFilter = '';
   let query = '';
+  // Kütüphane açıkken yapıştırılan ilham, İlham rafı görünüyorsa hemen listeye gelir
+  const onInspiration = () => {
+    if (!body.isConnected) return document.removeEventListener('ium:inspiration', onInspiration);
+    if (current === 'inspiration') draw();
+  };
+  document.addEventListener('ium:inspiration', onInspiration);
 
   async function draw() {
     body.innerHTML = `
       <div class="card">
         <div class="asset-cats">${Object.entries(cats).map(([id, label]) => `<button type="button" class="chip ${id === current ? 'active' : ''}" data-cat="${id}">${esc(label)}</button>`).join('')}</div>
         ${current === 'ai_image' ? '<div class="card-section mb-4"><h3 class="mb-2">AI ile görsel üret</h3><div id="lib-image"></div></div>' : ''}
+        ${current === 'inspiration' ? '<div class="notice mb-4"><span>Bu markanın çalışma alanında herhangi bir yerde (yazı alanı dışında) <b>Ctrl+V</b> ile yapıştırdığın ekran görüntüleri buraya, link ve metinler aşağıdaki listeye düşer.</span></div><div id="insp-notes" class="mb-4"></div>' : ''}
         <label class="dropzone" id="dropzone">
           <input type="file" id="asset-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple class="sr-only">
           <div>${icon('upload')}</div>
@@ -301,6 +330,7 @@ async function renderAssets(body, brand, driveOk) {
       </div>`;
     // Yükleme alanı liste beklenmeden hemen bağlanır; seçilen dosya kaybolmaz
     wireUpload();
+    if (current === 'inspiration') drawInspirationNotes(body.querySelector('#insp-notes'), brand);
     if (current === 'ai_image') imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, historyAll: true });
     const grid = body.querySelector('#asset-grid');
     try {

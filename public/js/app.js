@@ -23,6 +23,7 @@ import { renderMemory } from './views/memory.js';
 import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 import { initPalette, openPalette } from './palette.js';
+import { initInspiration } from './inspiration.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -271,6 +272,7 @@ async function start() {
   }
   window.addEventListener('hashchange', route);
   initPalette();
+  initInspiration();
   await route();
   showDailyOnce();
   startNotifier();
