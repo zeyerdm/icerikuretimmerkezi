@@ -63,7 +63,7 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 
 - ✅ **4.1 Prompt Studio:** görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı için prompt oluşturma (marka hafızası ve maskot/stil ayarı otomatik eklenir; görsel/video prompt'ları İngilizce + Türkçesi); düzenleme, kopyalama, kaydetme, elle prompt kaydetme, favoriler, türe göre filtre ve arama.
 - ✅ **4.2 Prompt geliştirme mekanizması:** girişi değiştir, senaryoyu geliştir, daha yaratıcı/profesyonel yap, görsel detay ekle, kamera açısını değiştir, karakter hareketi ekle, kısalt, alternatif üret, seçili bölümü yeniden yaz; **sürüm geçmişi ve önceki sürüme dönme**.
-- ⬜ **4.3 Asistanın modüllere bağlanması:** "bu fikri daha eğlenceli yap", "bu senaryoya göre post tasarla", "haftaya 5 Reels fikri üret" gibi isteklerin ilgili modülde gerçekten işlem yapması.
+- ✅ **4.3 Asistanın modüllere bağlanması:** asistan sohbetten gerçekten işlem yapar: fikir kaydetme ve düzenleme ("bu fikri daha eğlenceli yap"), Reels fikir havuzuna ekleme ("haftaya 5 Reels fikri üret"), Reels senaryosu yazma, post/carousel tasarlama ("bu senaryoya göre post tasarla"), Prompt Studio'da prompt üretme, takvime içerik planlama, görev ekleme. Her sonuç sohbette ilgili modüle bağlantıyla görünür; başarısız işlem açıkça yazılır. Tek mesajda en çok 3 ağır üretim.
 - ⬜ **4.4 Post stüdyosu (tam):** post, story, carousel, Reels kapağı, reklam ve bilgi grafiği; katmanlar, yazı/renk/font, logo/maskot/sticker ekleme, arka plan, konumlandırma, şablon kaydetme.
 - ⬜ **4.5 Görsel üretimi:** seçilen görsel modeliyle üretim; marka renkleri ve maskotla; servis bağlı değilse açık uyarı (sahte üretim yok).
 - ⬜ **4.6 Tasarım referansı analizi:** yüklenen örnek tasarımdan renk paleti, font önerisi, yerleşim ve görsel dil çıkarıp düzenlenebilir şablona çevirme.
@@ -73,6 +73,14 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 - ⬜ **4.10 Özel günler takvimi:** Türkiye'nin özel günleri ve dönemleri takvimde hazır; "bu güne içerik planla" tek tıkla.
 - ⬜ **4.11 Kimliği AI ile doldurma:** web sitesi metni ya da Instagram biyografisi yapıştırılınca marka kimliği taslağının doldurulması.
 - ⬜ **4.12 Hatırlatmalar:** açılışta günün özeti (yayındaki içerikler, geciken görevler); istenirse bilgisayar bildirimi.
+
+## Toplu test (bekleyen)
+
+Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı test yazılmıyor; mevcut testler her değişiklikte çalışmaya devam ediyor. Aşağıdakiler toplu olarak yazılacak:
+
+- ⬜ **T.1 Asistan işlemleri:** update_idea, add_reels_ideas, create_reels, create_post (fromReelsId dahil), create_prompt, plan_content, add_task; en çok 3 ağır üretim sınırı; başarısız işlemin sonuçta hata olarak görünmesi; başka markanın fikrine/senaryosuna erişilememesi.
+- ⬜ **T.2 Asistan arayüzü:** işlem kartları ve bağlantılar, başarısız işlem görünümü.
+- ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
 

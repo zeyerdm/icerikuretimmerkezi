@@ -85,7 +85,6 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const brands = createBrandService(db, ownerId);
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
   const ideas = createIdeaService(db);
-  const assistant = createAssistantService({ db, ai, brands, ideas });
   const workspace = createWorkspaceService(db, ownerId, brands);
   const backups = createBackupService({ db, dataDir, settings });
   const drive = createDriveService(settings, { fetchImpl: driveFetch });
@@ -94,6 +93,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const review = createReviewService({ ai, brands });
   const prompts = createPromptService({ db, ai, brands, reels });
+  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace });
 
   const app = express();
   app.disable('x-powered-by');
