@@ -659,7 +659,7 @@ test('Post stüdyosu: konudan carousel üret, katman seç ve düzenle, slayt ekl
 
     await page.getByRole('button', { name: 'Slayt ekle' }).click();
     await page.locator('.slide-thumb').nth(3).waitFor();
-    await page.getByRole('button', { name: 'Metin', exact: true }).click();
+    await page.getByRole('button', { name: 'Gövde metni ekle' }).click();
     await page.locator('#lp-text').fill('Son söz');
     await page.getByRole('button', { name: 'Kaydet •' }).click();
     await page.getByText('Tasarım kaydedildi.').waitFor();
@@ -669,6 +669,7 @@ test('Post stüdyosu: konudan carousel üret, katman seç ve düzenle, slayt ekl
     assert.ok(saved.data.slides[1].layers.some(l => l.text === 'Son söz'));
 
     const dl = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Paylaş' }).click();
     await page.getByRole('button', { name: 'Bu slaytı PNG indir' }).click();
     const file = await dl;
     assert.match(file.suggestedFilename(), /\.png$/);

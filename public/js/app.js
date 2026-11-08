@@ -191,6 +191,9 @@ export async function route() {
   const view = document.getElementById('view');
   let r = parseRoute();
   if (r.redirect) { location.replace(r.redirect); return; }
+  // Tam ekran düzenleyiciden çıkınca normal yerleşime dönülür
+  document.body.classList.remove('editor-mode');
+  window.onbeforeunload = null;
   // Önceki sayfanın olay dinleyicileri temizlenir; her sayfa kendininkini atar
   view.onclick = view.oninput = view.onchange = view.onsubmit = view.onkeydown = null;
   window.scrollTo(0, 0);
