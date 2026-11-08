@@ -57,6 +57,10 @@ Hedef: eski sistemde çalışan her şey yeni sistemde, istenen düzeltmelerle v
 
 - ✅ **3.9 Ad, slogan ve logo:** uygulama adı **KREATİFHANE**, slogan **"Fikirden üretime, her şey tek merkezde"**, tanım **Creative Management Platform** (Türkçesi: **Kreatif Yönetim Platformu**). Piksel kareli "K" logosunun SVG hâli (koyu lacivert üzerinde turkuaz→mor geçiş; küçük boy ve açık zemin sürümleri). Uygulama başlığı, kenar çubuğu logosu, favicon, karşılama ekranı ve README'ye uygulanır.
 
+## Arayüz düzeni (kullanıcının ekran görüntüleriyle yapılacak)
+
+- ⬜ **U.1 Tasarım ekranlarını sadeleştirme (Canva benzeri yerleşim):** şu an ekranlar karışık ve tasarım ekranları aşağı doğru kayıyor. Hedef: tasarım alanı tek ekranda sabit; solda araç kutusu (metin, görsel, şekil, sticker, şablon, yükleme), sağda seçili öğenin ayarları ve dışa aktarma/paylaşım; uzun ayar listeleri açılır panellere. Post stüdyosu, Reels senaryo ekranı ve Prompt Studio aynı düzene geçer. **Kullanıcı örnek ekran görüntüleri gönderince başlanacak.**
+
 ## Aşama 4 — Geliştirme ve yenileme
 
 Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
@@ -68,7 +72,7 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 - ✅ **4.5 Görsel üretimi:** Gemini (Nano Banana / Flash Image, Imagen 4, Imagen 4 Fast), OpenAI (GPT Image 1, mini) ve OpenRouter üzerinden görsel üretimi; oran seçimi, marka renkleri, maskot referansı (destekleyen modellerde kütüphanedeki maskot pozu gönderilir). Prompt Studio'da (görsel, ürün, reklam, post türleri), Kütüphane → AI görseli sekmesinde ve asistanda ("maskotla bir görsel üret"). Sonuç kütüphaneye kaydedilir, üretim kaydı (prompt, model, oran, tutar) tutulur, harcama "Görsel üretimi" olarak izlenir; Yapay zekâ sayfasında varsayılan görsel modeli seçilir. Görsel servisi bağlı değilse üretim düğmesi yerine nasıl bağlanacağı yazar (sahte üretim yok).
 - ✅ **4.6 Tasarım referansı analizi:** Post stüdyosu → "Referanstan şablon": kütüphanedeki ya da yeni yüklenen örnek tasarımı görseli okuyabilen modelle (Claude, GPT-5, Gemini, görsel destekli OpenRouter) inceleme; renk paleti, font benzerleri (uygulamadaki fontlardan), ruh hâli, boyut ve yerleşim (metin blokları, şekiller, görsel alanları) çıkarılıp düzenlenebilir şablon olarak kaydedilir. Referanstaki metinler ve başka markaların logoları kopyalanmaz; görsel alanlarına markanın kendi logo/maskot/görseli konur, uygun dosya yoksa alan "Görsel alanı" olarak işaretlenir. Metin modelleri artık görsel de okuyabiliyor (diğer modüllerde kullanılmaya hazır).
 - ✅ **4.7 Sticker paketleri ve varlık kütüphanesi genişletme:** her kategoride paket olarak yükleme (ZIP arşivi ya da çoklu görsel; ZIP'teki alt klasör adları etiket olur, görsel olmayan dosyalar atlanır), paket filtresi ve paketi toplu silme, dosyalara etiket ekleme, ad/etiket/paket araması; yeni "AI görseli" kategorisi; Post stüdyosunda sticker seçici paketlere göre filtrelenir.
-- ⬜ **4.8 Paylaşım sonucu girişi:** yayınlanan içeriğe izlenme, beğeni, kaydetme, paylaşım sayılarının girilmesi; analizlerde "ne işe yaradı"; asistanın tutan giriş cümlesi ve temalardan öğrenmesi.
+- ✅ **4.8 Paylaşım sonucu girişi:** içerik penceresinde "Paylaşım sonucu" bölümü (izlenme, erişim, beğeni, yorum, kaydetme, paylaşım, yeni takipçi, giriş cümlesi, tema); etkileşim oranı = (beğeni + yorum + 2×kaydetme + 3×paylaşım) / izlenme. Analizlerde "Ne işe yaradı": en çok/en az tutanlar, türe, güne, saate ve temaya göre etkileşim, tutan giriş cümleleri. En çok ve en az tutan içerikler marka hafızasına eklenir; asistan ve bütün üretim ekranları bunlardan öğrenir.
 - ⬜ **4.9 İçeriğin tamamı tek kartta:** her içerikte açıklama metni, hashtag'ler, ilk yorum ve yapılacaklar listesi (senaryo → çekim → kurgu → kapak → açıklama); açıklama ve hashtag'leri AI'ın yazması.
 - ⬜ **4.10 Özel günler takvimi:** Türkiye'nin özel günleri ve dönemleri takvimde hazır; "bu güne içerik planla" tek tıkla.
 - ⬜ **4.11 Kimliği AI ile doldurma:** web sitesi metni ya da Instagram biyografisi yapıştırılınca marka kimliği taslağının doldurulması.
@@ -84,6 +88,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.4 Görsel üretimi:** Gemini/Imagen/OpenAI/OpenRouter istek biçimleri (sahte fetch ile), maskot referansının yalnızca destekleyen modele gitmesi, anahtar yokken 409, kütüphaneye kayıt ve üretim geçmişi, harcama kaydı, asistanın create_image işlemi.
 - ⬜ **T.5 Tasarım referansı:** görselin modele gitmesi (Claude/OpenAI/Gemini istek biçimleri), oran → piksel dönüşümü, font eşleme, görsel alanına marka dosyası/işaretli alan, şablon kaydı ve şablondan tasarım.
 - ⬜ **T.6 Varlık paketleri:** ZIP paketi içe aktarma (klasör → etiket, görsel olmayan ve __MACOSX atlanır, 200 dosya sınırı), çoklu yükleme paket adıyla, paket listesi ve silme (dosyalar diskten de silinir), etiket temizleme, başka markanın paketine erişilememesi.
+- ⬜ **T.7 Paylaşım sonuçları:** sayı doğrulama, etkileşim oranı, sayılar değişmeyince giriş zamanının korunması, performans özeti (tür/tema/en çok-en az), marka hafızasında en çok/en az tutanlar, başka markanın verisinin görünmemesi.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)

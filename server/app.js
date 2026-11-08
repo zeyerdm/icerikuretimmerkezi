@@ -12,7 +12,7 @@ import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES, MAX_PACK_BYTES }
 import { readZip, ZipError } from './lib/zip.js';
 import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
 import { createAssistantService } from './services/assistant.js';
-import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES, TASK_PRIORITIES, TASK_STATUSES } from './services/workspace.js';
+import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES, TASK_PRIORITIES, TASK_STATUSES, METRIC_FIELDS } from './services/workspace.js';
 import { transaction } from './db.js';
 import { createBackupService } from './services/backup.js';
 import { createDriveService } from './services/drive.js';
@@ -117,6 +117,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     ideaCategories: IDEA_CATEGORIES,
     contentTypes: CONTENT_TYPES,
     contentStatuses: CONTENT_STATUSES,
+    metricFields: METRIC_FIELDS,
     doneStatuses: DONE_STATUSES,
     taskPriorities: TASK_PRIORITIES,
     taskStatuses: TASK_STATUSES,
@@ -302,6 +303,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
       ideaCount: db.prepare('SELECT COUNT(*) AS n FROM ideas WHERE brand_id = ?').get(b.id).n
     };
   };
+
+  api.get('/performance', (req, res) => res.json(workspace.performance({ brandId: req.query.brandId ? String(req.query.brandId) : null })));
 
   api.get('/dashboard', (req, res) => {
     const brandId = req.query.brandId ? brands.get(String(req.query.brandId)).id : null;

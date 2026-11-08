@@ -12,6 +12,28 @@ export const CONTENT_TYPES = {
   grafik: 'Bilgilendirici grafik'
 };
 
+// Paylaşım sonucu alanları. Etkileşim oranı: (beğeni + yorum + 2×kaydetme + 3×paylaşım) / izlenme × 100
+// (kaydetme ve paylaşım Instagram'da daha güçlü sinyal olduğu için ağırlıklı).
+export const METRIC_FIELDS = { views: 'İzlenme / gösterim', reach: 'Erişim', likes: 'Beğeni', comments: 'Yorum', saves: 'Kaydetme', shares: 'Paylaşım', follows: 'Yeni takipçi' };
+export function engagementRate(m) {
+  if (!m || !m.views) return null;
+  return Math.round(((m.likes || 0) + (m.comments || 0) + 2 * (m.saves || 0) + 3 * (m.shares || 0)) / m.views * 1000) / 10;
+}
+function cleanMetrics(v) {
+  if (v == null || v === '') return '';
+  if (typeof v !== 'object') throw badRequest('Paylaşım sonuçları geçersiz.');
+  const out = {};
+  for (const k of Object.keys(METRIC_FIELDS)) {
+    if (v[k] === '' || v[k] == null) continue;
+    const n = Number(v[k]);
+    if (!Number.isFinite(n) || n < 0 || n > 1e10) throw badRequest(`${METRIC_FIELDS[k]} 0 ya da pozitif bir sayı olmalı.`);
+    out[k] = Math.round(n);
+  }
+  if (!Object.keys(out).length) return '';
+  out.at = now();
+  return JSON.stringify(out);
+}
+
 // Taslak ve hazırlanıyor "bekleyen", tamamlandı ve yayınlandı "tamamlanan" sayılır
 export const CONTENT_STATUSES = {
   taslak: 'Taslak',
@@ -42,6 +64,7 @@ export function createWorkspaceService(db, ownerId, brands) {
     id: r.id, title: r.title, type: r.type, typeLabel: CONTENT_TYPES[r.type] || r.type,
     status: r.status, statusLabel: CONTENT_STATUSES[r.status] || r.status, done: DONE_STATUSES.includes(r.status),
     scheduledAt: r.scheduled_at, notes: r.notes, ideaId: r.idea_id, reelsId: r.reels_id || null, postId: r.post_id || null, completedAt: r.completed_at,
+    metrics: r.metrics ? parseJson(r.metrics, null) : null, rate: r.metrics ? engagementRate(parseJson(r.metrics, null)) : null, hook: r.hook || '', theme: r.theme || '',
     createdAt: r.created_at, updatedAt: r.updated_at
   }, brandInfo(r));
 
@@ -128,19 +151,56 @@ export function createWorkspaceService(db, ownerId, brands) {
         type: 'type' in body ? oneOf(body.type, Object.keys(CONTENT_TYPES), 'İçerik türü') : row.type,
         status: 'status' in body ? oneOf(body.status, Object.keys(CONTENT_STATUSES), 'Durum') : row.status,
         scheduled_at: 'scheduledAt' in body ? dateOrNull(body.scheduledAt, 'Yayın tarihi', DATETIME) : row.scheduled_at,
-        notes: 'notes' in body ? text(body.notes, { field: 'Not', max: 2000 }) : row.notes
+        notes: 'notes' in body ? text(body.notes, { field: 'Not', max: 2000 }) : row.notes,
+        metrics: 'metrics' in body ? cleanMetrics(body.metrics) : (row.metrics || ''),
+        hook: 'hook' in body ? text(body.hook, { field: 'Giriş cümlesi', max: 300 }) : (row.hook || ''),
+        theme: 'theme' in body ? text(body.theme, { field: 'Tema', max: 60 }) : (row.theme || '')
       };
+      // Sayılar değişmediyse giriş zamanı korunur
+      if ('metrics' in body && next.metrics && row.metrics) {
+        const a = parseJson(row.metrics, {}); const b2 = parseJson(next.metrics, {});
+        if (Object.keys(METRIC_FIELDS).every(k => a[k] === b2[k])) next.metrics = row.metrics;
+      }
       // Tamamlanma zamanı: tamamlanan duruma ilk geçişte yazılır, geri alınınca silinir
       const wasDone = DONE_STATUSES.includes(row.status);
       const isDone = DONE_STATUSES.includes(next.status);
       next.completed_at = isDone ? (wasDone ? row.completed_at : now()) : null;
       if (next.brand_id !== row.brand_id) next.idea_id = null; else next.idea_id = row.idea_id;
-      db.prepare(`UPDATE contents SET brand_id = ?, idea_id = ?, title = ?, type = ?, status = ?, scheduled_at = ?, notes = ?, completed_at = ?, updated_at = ? WHERE id = ?`)
-        .run(next.brand_id, next.idea_id, next.title, next.type, next.status, next.scheduled_at, next.notes, next.completed_at, now(), row.id);
+      db.prepare(`UPDATE contents SET brand_id = ?, idea_id = ?, title = ?, type = ?, status = ?, scheduled_at = ?, notes = ?, completed_at = ?, metrics = ?, hook = ?, theme = ?, updated_at = ? WHERE id = ?`)
+        .run(next.brand_id, next.idea_id, next.title, next.type, next.status, next.scheduled_at, next.notes, next.completed_at, next.metrics, next.hook, next.theme, now(), row.id);
+      if (next.metrics && next.metrics !== row.metrics) brands.logActivity(next.brand_id, 'content.metrics', `Paylaşım sonucu girildi: ${next.title}`);
       // Marka değişince başka markanın senaryosuna/postuna bağlantı kalmaz
       if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, post_id = NULL WHERE id = ?').run(row.id);
       if (!wasDone && isDone) brands.logActivity(next.brand_id, 'content.completed', `${CONTENT_STATUSES[next.status]}: ${next.title}`);
       return toContent(getContentRow(row.id));
+    },
+
+    // "Ne işe yaradı": sonucu girilmiş içeriklerden özet (marka verilirse yalnızca o marka)
+    performance({ brandId = null } = {}) {
+      let sql = CONTENT_SELECT + " AND c.metrics <> ''";
+      const args = [ownerId];
+      if (brandId) { sql += ' AND c.brand_id = ?'; args.push(ownBrand(brandId).id); }
+      const items = db.prepare(sql + ' ORDER BY c.scheduled_at DESC').all(...args).map(toContent).filter(c => c.metrics);
+      const rated = items.filter(c => c.rate != null);
+      const avg = list => (list.length ? Math.round(list.reduce((n, c) => n + c.rate, 0) / list.length * 10) / 10 : null);
+      const group = key => {
+        const m = new Map();
+        rated.forEach(c => { const k = key(c); if (k == null || k === '') return; if (!m.has(k)) m.set(k, []); m.get(k).push(c); });
+        return [...m.entries()].map(([k, list]) => ({ key: k, count: list.length, rate: avg(list) })).sort((a, b) => b.rate - a.rate);
+      };
+      const sum = k => items.reduce((n, c) => n + (c.metrics[k] || 0), 0);
+      return {
+        count: items.length,
+        totals: Object.fromEntries(Object.keys(METRIC_FIELDS).map(k => [k, sum(k)])),
+        averageRate: avg(rated),
+        top: [...rated].sort((a, b) => b.rate - a.rate).slice(0, 5),
+        bottom: rated.length > 5 ? [...rated].sort((a, b) => a.rate - b.rate).slice(0, 3) : [],
+        byType: group(c => c.type).map(g => Object.assign(g, { label: CONTENT_TYPES[g.key] || g.key })),
+        byTheme: group(c => c.theme),
+        // Gün ve saat yerel saate göre arayüzde hesaplanır; burada ham yayın zamanları gönderilir
+        times: rated.filter(c => c.scheduledAt).map(c => ({ at: c.scheduledAt, rate: c.rate })),
+        hooks: [...rated].filter(c => c.hook).sort((a, b) => b.rate - a.rate).slice(0, 6).map(c => ({ hook: c.hook, rate: c.rate, title: c.title, type: c.typeLabel }))
+      };
     },
 
     deleteContent(id) {

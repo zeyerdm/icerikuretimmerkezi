@@ -292,6 +292,12 @@ const MIGRATIONS = [
   `
   ALTER TABLE assets ADD COLUMN pack TEXT NOT NULL DEFAULT '';
   ALTER TABLE assets ADD COLUMN tags TEXT NOT NULL DEFAULT '';
+  `,
+  // 11: Paylaşım sonuçları: izlenme/beğeni/yorum/kaydetme/paylaşım/takip (JSON), giriş cümlesi ve tema
+  `
+  ALTER TABLE contents ADD COLUMN metrics TEXT NOT NULL DEFAULT '';
+  ALTER TABLE contents ADD COLUMN hook TEXT NOT NULL DEFAULT '';
+  ALTER TABLE contents ADD COLUMN theme TEXT NOT NULL DEFAULT '';
   `
 ];
 
