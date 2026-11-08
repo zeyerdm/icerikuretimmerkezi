@@ -28,6 +28,7 @@ import { createIdentityService } from './services/identity.js';
 import { createMemoryService } from './services/memory.js';
 import { createSharedTemplateService } from './services/sharedTemplates.js';
 import { createPatternService } from './services/patterns.js';
+import { createCompetitorService } from './services/competitors.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -100,6 +101,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const drive = createDriveService(settings, { fetchImpl: driveFetch });
   const compare = createCompareService({ db, ai, brands });
   const patterns = createPatternService({ db, ai, brands });
+  const competitors = createCompetitorService({ db, ai, brands });
   const reels = createReelsService({ db, ai, brands, workspace, patterns });
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
@@ -559,6 +561,13 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     res.json({ review: await review.review(req.brand.id, { text: b.text, kind: b.kind || 'serbest', modelRef: mr(b) }) });
   }));
+
+  // --- Rakip profilleri ---
+  api.get('/brands/:brandId/competitors', (req, res) => res.json({ competitors: competitors.list(req.brand.id) }));
+  api.post('/brands/:brandId/competitors', (req, res) => res.status(201).json({ competitor: competitors.create(req.brand.id, req.body || {}) }));
+  api.put('/brands/:brandId/competitors/:id', (req, res) => res.json({ competitor: competitors.update(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/competitors/:id', (req, res) => { competitors.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.post('/brands/:brandId/competitors/:id/analyze', route(async (req, res) => res.json({ competitor: await competitors.analyze(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
 
   // --- Kalıp arşivi ---
   api.get('/brands/:brandId/patterns', (req, res) => res.json({ patterns: patterns.list(req.brand.id), sources: patterns.sources, hookTypes: patterns.hookTypes }));

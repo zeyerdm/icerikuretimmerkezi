@@ -88,6 +88,11 @@ export const api = {
   deleteIdea: (id, ideaId) => request('DELETE', `${b(id)}/ideas/${ideaId}`),
 
   writeContentText: (id, model) => request('POST', `/api/contents/${encodeURIComponent(id)}/write`, { model }),
+  competitors: id => request('GET', b(id) + '/competitors'),
+  createCompetitor: (id, body) => request('POST', b(id) + '/competitors', body),
+  saveCompetitor: (id, cid, body) => request('PUT', `${b(id)}/competitors/${cid}`, body),
+  deleteCompetitor: (id, cid) => request('DELETE', `${b(id)}/competitors/${cid}`),
+  analyzeCompetitor: (id, cid, model) => request('POST', `${b(id)}/competitors/${cid}/analyze`, { model }),
   patterns: id => request('GET', b(id) + '/patterns'),
   analyzePattern: (id, body) => request('POST', b(id) + '/patterns', body),
   savePattern: (id, pid, body) => request('PUT', `${b(id)}/patterns/${pid}`, body),

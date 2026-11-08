@@ -214,6 +214,8 @@ export function createBrandService(db, ownerId) {
       const banned = parseJson(hm.banned_words, []);
       const preferred = parseJson(hm.preferred_phrases, []);
       const facts = db.prepare('SELECT category, title, content FROM brand_facts WHERE brand_id = ? ORDER BY category, updated_at DESC LIMIT 40').all(b.id);
+      const rivals = db.prepare("SELECT name, analysis FROM competitors WHERE brand_id = ? AND analysis <> '' ORDER BY updated_at DESC LIMIT 5").all(b.id)
+        .map(r => ({ name: r.name, a: parseJson(r.analysis, {}) })).filter(r => (r.a.gaps || []).length);
       const worst = measured.length >= 6 ? measured.slice(-3).reverse() : [];
       const line = (label, v) => (v ? `${label}: ${v}` : null);
       return [
@@ -228,6 +230,7 @@ export function createBrandService(db, ownerId) {
         line('Slogan', b.slogan),
         banned.length ? `ASLA KULLANMA (yasaklı kelime ve ifadeler; metinde, başlıkta, hashtag'de geçmesin): ${banned.join(', ')}` : null,
         preferred.length ? `Tercih edilen ifadeler / imza cümleler (uygun yerde kullan, zorlama): ${preferred.join(' | ')}` : null,
+        rivals.length ? 'Rakip analizlerinden boşluklar (bunlardan yararlan; rakibi kopyalama):\n' + rivals.map(r => `- ${r.name}: ${r.a.gaps.slice(0, 3).join('; ')}`).join('\n') : null,
         facts.length ? 'Marka hakkında bilgiler (doğru kabul et; burada olmayan fiyat, adres, kampanya gibi bilgileri uydurma):\n' + facts.map(f => `- [${f.category}] ${f.title}: ${f.content}`).join('\n') : null,
         line('Ana renk', b.colors.primary),
         line('İkincil renkler', b.colors.secondary.join(', ')),

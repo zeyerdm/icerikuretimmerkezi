@@ -350,6 +350,23 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_patterns ON patterns(brand_id, created_at);
+  `,
+  // 16: Rakip profilleri (marka başına): örnek gönderiler ve AI analizi (sütunlar, ton, güçlü/zayıf, boşluklar)
+  `
+  CREATE TABLE competitors (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    handle TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    samples TEXT NOT NULL DEFAULT '',
+    analysis TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_competitors ON competitors(brand_id);
   `
 ];
 
