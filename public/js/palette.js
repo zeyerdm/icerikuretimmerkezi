@@ -23,6 +23,8 @@ function commands() {
   }, 'yeni not yaz');
   act('Yeni marka oluştur', 'plus', () => go('#/marka/yeni'), 'marka ekle');
   if (brand) BRAND_NAV.filter(n => !n.soon).forEach(n => out.push({ group: brand.name, label: n.label, icon: n.icon, run: () => go(`#/m/${brand.id}${n.path}`), keys: 'git ac sayfa' }));
+  [['Görevler', 'tasks', '#/gorevler'], ['Notlar', 'notes', '#/notlar'], ['Yapay zekâ ayarları', 'sparkle', '#/ai/modeller'], ['Model karşılaştır', 'sparkle', '#/ai'], ['AI harcaması', 'chart', '#/ai/harcama']]
+    .forEach(([label, ic, hash]) => out.push({ group: 'Yönetim Merkezi', label, icon: ic, run: () => go(hash), keys: 'git ac sayfa' }));
   CENTER_NAV.forEach(n => out.push({ group: 'Yönetim Merkezi', label: n.label, icon: n.icon, run: () => go(n.hash), keys: 'git ac sayfa' }));
   state.brands.filter(b => !brand || b.id !== brand.id).forEach(b => out.push({ group: 'Markaya geç', label: b.name + (b.isDemo ? ' (örnek)' : ''), icon: 'brands', run: () => go('#/m/' + b.id), keys: 'marka gec degistir calisma alani' }));
   return out;

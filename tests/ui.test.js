@@ -281,7 +281,10 @@ test('örnek markayla keşfet: rehber, takvim içerikleri, görevler, asistan', 
     await page.getByRole('link', { name: 'Yönetim Merkezine dön' }).click();
     await page.locator('.ag-item').first().waitFor();
     assert.ok(await page.locator('.ag-item').count() >= 2, 'yaklaşan içerikler boş');
-    assert.equal((await page.locator('.kpi.k2 .kpi-num').textContent()).trim(), '7');
+    // "Bu ay üretilen": örnek içeriklerin oluşturulma tarihi ayın başına denk gelebilir; beklenen sayı kayıtlardan hesaplanır
+    const now = new Date();
+    const thisMonth = (await srv.request('GET', '/api/contents')).data.contents.filter(c => { const t = new Date(c.createdAt); return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth(); }).length;
+    assert.equal((await page.locator('.kpi.k2 .kpi-num').textContent()).trim(), String(thisMonth));
     assert.ok((await page.locator('.brand-card').textContent()).includes('Örnek'));
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
@@ -450,7 +453,7 @@ test('tablet genişliği: kenar çubuğu ikonlara iner, menü ögeleri erişileb
     await page.locator('.kpis').waitFor();
     const w = await page.locator('.sidebar').evaluate(e => e.getBoundingClientRect().width);
     assert.ok(w < 100, 'kenar çubuğu daralmadı: ' + w);
-    assert.ok(await page.getByRole('link', { name: 'Görevler' }).isVisible());
+    assert.ok(await page.getByRole('link', { name: 'Çalışma masası', exact: true }).isVisible());
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 0, 'yatay taşma: ' + overflow);
     assert.deepEqual(problems, []);

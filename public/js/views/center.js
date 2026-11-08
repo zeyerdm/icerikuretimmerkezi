@@ -26,7 +26,12 @@ export async function renderCenter(view) {
   view.innerHTML = `
     <div class="center">
       <section class="card welcome">
-        <div class="w-orb"></div><div class="w-orb two"></div>
+        <div class="w-orb"></div>
+        ${d.brands.length ? `<div class="w-side" aria-label="Bu haftanın özeti">
+          <div class="w-side-title">Bu hafta</div>
+          <div class="w-side-stats"><div><b>${week.created}</b><span>üretim</span></div><div><b>${week.completed}</b><span>tamamlanan</span></div><div><b>${week.scheduledPending}</b><span>yayın bekliyor</span></div></div>
+          ${d.activity[0] ? `<div class="w-side-last" title="${esc(d.activity[0].summary)}">${icon('refresh')}<span>${esc(d.activity[0].summary)}</span><em>${timeAgo(d.activity[0].createdAt)}</em></div>` : ''}
+        </div>` : ''}
         <div class="w-text">
           <div class="w-slogan"><img src="/img/logo.svg" alt="">KREATİFHANE · Fikirden üretime, her şey tek merkezde</div>
           <div class="w-date">${esc(fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
@@ -51,16 +56,16 @@ export async function renderCenter(view) {
       </section>
 
       <div class="kpis">
-        ${kpi('k1', k.brands, 'Marka', 'yönetilen marka', 'brands')}
-        ${kpi('k2', k.contents, 'Üretilen içerik', `${k.ideas} fikir havuzda`, 'archive')}
-        ${kpi('k3', k.reels, 'Reels', 'planlanan ve üretilen', 'film')}
-        ${kpi('k4', k.designsDone, 'Tamamlanan tasarım', 'post, carousel, story, reklam', 'palette')}
-        ${kpi('k5', k.pending, 'Bekleyen içerik', 'taslak ve hazırlanıyor', 'calendar')}
+        ${kpi('k1', k.brands, 'Aktif marka', `${k.ideas} fikir havuzda`, 'brands')}
+        ${kpi('k2', k.thisMonth, 'Bu ay üretilen', `toplam ${k.contents} içerik`, 'archive')}
+        ${kpi('k3', k.published, 'Yayınlanan', 'durumu "Yayınlandı"', 'check')}
+        ${kpi('k4', k.ready, 'Yayına hazır', 'tamamlandı, yayın bekliyor', 'palette')}
+        ${kpi('k5', k.planned, 'Planlanan', 'ileri tarihli, bitmemiş', 'calendar')}
       </div>
 
       <div class="grid-2">
         <section class="card">
-          <div class="card-head"><h3>Bu hafta</h3><a class="small link" href="#/analizler">Tüm analizler ›</a></div>
+          <div class="card-head"><h3>Haftalık performans</h3><a class="small link" href="#/analizler">Tüm analizler ›</a></div>
           <div class="week-summary">
             ${ring(perf.completionRate)}
             <div class="ws-stats">
@@ -83,12 +88,12 @@ export async function renderCenter(view) {
 
       <div class="grid-3">
         <section class="card">
-          <div class="card-head"><h3>Görevler</h3><a class="small link" href="#/gorevler">Tümü ›</a></div>
+          <div class="card-head"><h3>Görevler</h3><a class="small link" href="#/masa">Çalışma masası ›</a></div>
           <form id="quick-task" class="quick-add"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button class="btn icon-btn" type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
           ${openTasks.length ? `<ul class="task-mini">${openTasks.slice(0, 6).map(taskRow).join('')}</ul>` : emptyState({ icon: 'check', title: 'Açık görev yok', text: 'Yukarıdan hızlıca ekleyebilirsin.', compact: true })}
         </section>
         <section class="card">
-          <div class="card-head"><h3>Sabit notlar</h3><a class="small link" href="#/notlar">Tüm notlar ›</a></div>
+          <div class="card-head"><h3>Sabit notlar</h3><a class="small link" href="#/masa">Çalışma masası ›</a></div>
           ${d.pinnedNotes.length ? `<div class="note-mini">${d.pinnedNotes.map(n => `
             <button class="note-chip" data-note="${esc(n.id)}"><b>${esc(n.title || n.body.slice(0, 40))}</b><span>${esc(n.body.slice(0, 110))}${n.body.length > 110 ? '…' : ''}</span>${n.brandName ? `<em><i style="background:${esc(n.brandColor || '#999')}"></i>${esc(n.brandName)}</em>` : ''}</button>`).join('')}</div>`
             : emptyState({ icon: 'pin', title: 'Sabit not yok', text: 'Önemli notlarını sabitleyince burada görünür.', compact: true })}
@@ -202,6 +207,6 @@ function agenda(items) {
     <div class="ag-day"><div class="ag-label">${esc(label(g.day))}</div>
       ${g.items.map(c => `<button class="ag-item status-${esc(c.status)}" data-content="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}">
         <span class="ag-time">${timeStr(c.scheduledAt)}</span><span class="ag-title">${esc(c.title)}</span>
-        <span class="ag-meta">${esc(c.brandName)} · ${esc(c.typeLabel)} · <span class="st">${esc(c.statusLabel)}</span></span></button>`).join('')}
+        <span class="ag-meta"><span class="brand-dot"><i style="background:${esc(c.brandColor || '#7d6bf0')}"></i>${esc(c.brandName)}</span><span class="tag">${esc(c.typeLabel)}</span><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></span></button>`).join('')}
     </div>`).join('')}</div>`;
 }

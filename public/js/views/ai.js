@@ -3,6 +3,7 @@
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, errorNotice } from '../ui.js';
 import { state, refreshBrands, renderChrome, go } from '../app.js';
+import { settingsTabs } from './settings.js';
 
 const TABS = [['karsilastir', 'Karşılaştır', '#/ai'], ['modeller', 'Sağlayıcılar ve modeller', '#/ai/modeller'], ['harcama', 'Harcama', '#/ai/harcama']];
 const SOURCE_LABEL = { resmi: 'resmî fiyat', yaklasik: 'yaklaşık', canli: 'canlı (OpenRouter)', elle: 'elle girildi' };
@@ -28,7 +29,8 @@ export async function renderAi(view, tab = 'karsilastir') {
   const connected = ov.providers.filter(p => p.configured);
   view.innerHTML = `
     ${pageHead({ title: 'Yapay zekâ', desc: 'Hangi işte hangi modelin çalışacağını sen seçersin: modelleri aynı istekle karşılaştır, işlere ata, harcamayı takip et.' })}
-    <div class="tabs" role="tablist">${TABS.map(([id, label]) => `<button role="tab" data-go="${id}" class="${tab === id ? 'active' : ''}" aria-selected="${tab === id}">${label}</button>`).join('')}</div>
+    ${settingsTabs('ai')}
+    <div class="tabs tabs-sub" role="tablist">${TABS.map(([id, label]) => `<button role="tab" data-go="${id}" class="${tab === id ? 'active' : ''}" aria-selected="${tab === id}">${label}</button>`).join('')}</div>
     <div id="ai-body"></div>`;
   view.onclick = e => {
     const t = e.target.closest('[data-go]');
