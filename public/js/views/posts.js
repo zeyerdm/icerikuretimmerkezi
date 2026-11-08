@@ -5,7 +5,7 @@ import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, t
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 import { drawSlide, resolveImages, slideBlob, hitTest } from '../postCanvas.js';
-import { downloadBlob, safeName } from '../titlePng.js';
+import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
 
 const base = brand => `#/m/${encodeURIComponent(brand.id)}/post`;
@@ -14,6 +14,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 export async function renderPosts(view, brand, sub) {
   view.onclick = view.onchange = view.oninput = view.onkeydown = null;
   const models = await aiModels();
+  if (sub === 'izgara') return renderGrid(view, brand);
   if (sub) return renderEditor(view, brand, sub, models);
   const aiReady = models.ov.providers.some(p => p.configured);
   const [{ posts }, { templates }, { templates: sharedTpls }] = await Promise.all([api.posts(brand.id), api.postTemplates(brand.id), api.sharedTemplates(brand.id)]);
@@ -21,7 +22,7 @@ export async function renderPosts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
-      actions: `<button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn" data-ref>${icon('image')}Referanstan şablon</button><button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : ''}`
+      actions: `<a class="btn btn-ghost" href="${base(brand)}/izgara">${icon('grid')}Izgara önizlemesi</a><button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn" data-ref>${icon('image')}Referanstan şablon</button><button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : ''}`
     })}
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     ${posts.length ? `<div class="post-grid">${posts.map(p => `
@@ -130,6 +131,80 @@ export async function renderPosts(view, brand, sub) {
       return wireKind(m);
     }
   };
+}
+
+// ------------------------------------------------------------ Instagram ızgara önizlemesi
+// Takvimdeki tasarımlar ve Reels, en yenisi sol üstte olacak şekilde profil ızgarasında (3 sütun, 4:5 hücre) gösterilir.
+// 9:16 tasarımlar ve Reels kapakları Instagram'daki gibi ortadan kırpılır. Reels'in kapak tasarımı yoksa ekran başlığı
+// marka renginde kapak gibi çizilir. Takvimde olmayan tasarımlar istenirse "taslak" olarak en üste eklenir.
+async function renderGrid(view, brand) {
+  view.onclick = view.onchange = null;
+  const meta = state.meta.posts;
+  let withDrafts = false;
+  try { withDrafts = localStorage.getItem('ium.grid.drafts') === '1'; } catch { /* varsayılan */ }
+  const [{ posts }, { reels }, { contents }, logos] = await Promise.all([api.posts(brand.id), api.reelsList(brand.id), api.contents({ brandId: brand.id }), api.assets(brand.id, 'logo')]);
+  const logo = logos.assets[0];
+  const postById = new Map(posts.map(p => [p.id, p]));
+  const reelsById = new Map(reels.map(r => [r.id, r]));
+
+  function items() {
+    const sched = contents.filter(c => (c.postId && postById.has(c.postId)) || (c.reelsId && reelsById.has(c.reelsId)))
+      .sort((a, b) => new Date(b.scheduledAt || 0) - new Date(a.scheduledAt || 0))
+      .map(c => ({ key: c.id, when: c.scheduledAt, status: c.statusLabel, post: c.postId ? postById.get(c.postId) : null, reels: c.reelsId ? reelsById.get(c.reelsId) : null, title: c.title }));
+    if (!withDrafts) return sched;
+    const used = new Set(sched.filter(x => x.post).map(x => x.post.id));
+    const drafts = posts.filter(p => !used.has(p.id)).map(p => ({ key: 'd' + p.id, when: null, status: 'Taslak', post: p, title: p.title, draft: true }));
+    return drafts.concat(sched);
+  }
+
+  function draw() {
+    const list = items();
+    view.innerHTML = `
+      ${pageHead({ title: 'Izgara önizlemesi', desc: 'Planlanan gönderilerin Instagram profilinde nasıl duracağı (en yeni sol üstte). Renk dengesi ve tekrar eden düzenleri paylaşmadan önce gör.',
+        actions: `<label class="check"><input type="checkbox" id="gr-drafts" ${withDrafts ? 'checked' : ''}> Takvimde olmayan tasarımları da göster</label><a class="btn btn-ghost" href="${base(brand)}">${icon('back')}Post stüdyosu</a>` })}
+      <div class="ig-phone">
+        <div class="ig-head">${logo ? `<img class="ig-avatar" src="${esc(logo.url)}" alt="">` : `<div class="ig-avatar ig-avatar-txt" style="background:${esc(brand.colors.primary || '#5b55e6')}">${esc(brand.name.charAt(0))}</div>`}
+          <div><div class="strong">${esc(brand.name)}</div><div class="xsmall muted">${esc(brand.slogan || brand.sector || '')}</div><div class="xsmall">${list.length} gönderi</div></div></div>
+        ${list.length ? `<div class="ig-grid">${list.map(x => `<a class="ig-cell ${x.draft ? 'is-draft' : ''}" href="${x.post ? `${base(brand)}/${esc(x.post.id)}` : `#/m/${esc(brand.id)}/reels/${esc(x.reels.id)}`}" title="${esc(x.title)}${x.when ? ' · ' + esc(new Date(x.when).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })) : ''} · ${esc(x.status)}">
+            <canvas data-cell="${esc(x.key)}" width="1080" height="1350"></canvas>
+            ${x.reels ? `<span class="ig-badge">${icon('film')}</span>` : x.post && x.post.data.slides.length > 1 ? `<span class="ig-badge">${icon('grid')}</span>` : ''}
+            <span class="ig-date">${x.draft ? 'taslak' : x.when ? esc(new Date(x.when).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })) : 'tarihsiz'}</span></a>`).join('')}</div>`
+          : `<div class="p-4">${emptyState({ icon: 'grid', title: 'Izgarada gösterilecek gönderi yok', text: 'Post stüdyosundaki tasarımları ya da Reels senaryolarını takvime ekledikçe burada sıralanır. Yukarıdaki kutuyla takvimde olmayan tasarımları da görebilirsin.', compact: true })}</div>`}
+      </div>`;
+    list.forEach(x => drawCell(x));
+  }
+
+  // Hücre: tasarımın ilk slaytı ya da Reels kapağı, 4:5'e ortadan kırpılmış (cover)
+  async function drawCell(x) {
+    const c = view.querySelector(`[data-cell="${CSS.escape(x.key)}"]`);
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    const src = document.createElement('canvas');
+    if (x.post) {
+      const F = meta.formats[x.post.data.format];
+      await resolveImages(x.post.data.slides[0]);
+      drawSlide(src, x.post.data.slides[0], F);
+    } else {
+      src.width = 1080; src.height = 1920;
+      const s = src.getContext('2d');
+      s.fillStyle = brand.colors.primary || '#5b55e6'; s.fillRect(0, 0, 1080, 1920);
+      await ensureTitleFonts();
+      const t = drawTitle(document.createElement('canvas'), { title: x.reels.screenTitle || x.reels.title, keyword: '', style: 'marka', colors: brand.colors });
+      s.drawImage(t, 0, 0);
+    }
+    if (!c.isConnected) return;
+    const k = Math.max(1080 / src.width, 1350 / src.height);
+    const w = src.width * k; const h = src.height * k;
+    ctx.drawImage(src, (1080 - w) / 2, (1350 - h) / 2, w, h);
+  }
+
+  view.onchange = e => {
+    if (e.target.id !== 'gr-drafts') return;
+    withDrafts = e.target.checked;
+    try { localStorage.setItem('ium.grid.drafts', withDrafts ? '1' : '0'); } catch { /* tercih kaydedilemezse sorun değil */ }
+    draw();
+  };
+  draw();
 }
 
 // ------------------------------------------------------------ Tasarım referansı → şablon

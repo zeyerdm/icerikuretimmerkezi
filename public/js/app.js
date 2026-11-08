@@ -106,7 +106,7 @@ export function parseRoute(hash = location.hash || '#/') {
     // Reels: /reels (fikir havuzu), /reels/liste (senaryolar), /reels/<id> (senaryo); Post: /post, /post/<id>
     let mm;
     if ((mm = rest.match(/^\/reels(?:\/(liste|kaliplar|[A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'reels', brandId: id, sub: mm[1] || null };
-    if ((mm = rest.match(/^\/post(?:\/([A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'post', brandId: id, sub: mm[1] || null };
+    if ((mm = rest.match(/^\/post(?:\/(izgara|[A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'post', brandId: id, sub: mm[1] || null };
     if ((mm = rest.match(/^\/prompt(?:\/([A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'prompt', brandId: id, sub: mm[1] || null };
     const sub = BRAND_NAV.find(n => n.path === rest && !n.soon);
     if (sub) return { layer: 'brand', page: sub.page, brandId: id };
