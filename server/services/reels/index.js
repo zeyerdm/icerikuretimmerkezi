@@ -8,7 +8,7 @@ import { FORMATS, STYLES, STATUSES, TITLE_STYLES, LIMITS, normalizeScenario, che
 
 const MAX_POOL_TEXT = 300;
 
-export function createReelsService({ db, ai, brands, workspace }) {
+export function createReelsService({ db, ai, brands, workspace, patterns = null }) {
   // --- Marka ayarları: karakter adı, görsel stil, varsayılan başlık stili ---
   function settings(brandId) {
     const b = brands.get(brandId);
@@ -124,13 +124,14 @@ export function createReelsService({ db, ai, brands, workspace }) {
     };
   }
 
-  async function create(brandId, { topic, poolId = null, format = null, modelRef = null } = {}) {
+  async function create(brandId, { topic, poolId = null, format = null, modelRef = null, patternId = null } = {}) {
     const b = brands.get(brandId);
     const pool = poolId ? poolRow(b.id, poolId) : null;
     const t = pool ? pool.text : text(topic, { field: 'Konu', max: 1000, required: true });
     if (format && !FORMATS[format]) throw badRequest('Geçersiz format.');
     const s = settings(b.id);
-    const prompt = scenarioPrompt(Object.assign({ brandName: b.name, memory: brands.memory(b.id), settings: s, topic: t, format }, promptContext(b)));
+    const pattern = patterns ? patterns.promptBlock(b.id, patternId || null) : '';
+    const prompt = scenarioPrompt(Object.assign({ brandName: b.name, memory: brands.memory(b.id), settings: s, topic: t, format, pattern }, promptContext(b)));
     const r = await run(b.id, 'yazim', prompt, { modelRef });
     const data = normalizeScenario(r.output, { titleStyle: s.titleStyle });
     if (!data) throw new HttpError(502, 'AI_BAD_SCENARIO', 'Model kullanılabilir bir senaryo döndürmedi. Tekrar dene ya da başka bir model seç.');

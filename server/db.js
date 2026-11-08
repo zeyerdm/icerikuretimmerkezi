@@ -334,6 +334,22 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_shared_templates ON shared_templates(owner_id, created_at);
+  `,
+  // 15: Kalıp arşivi: beğenilen/rakip/kendi Reels metinlerinden çıkarılan giriş, tema, akış ve CTA
+  `
+  CREATE TABLE patterns (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    source_type TEXT NOT NULL,
+    source_note TEXT NOT NULL DEFAULT '',
+    raw_text TEXT NOT NULL,
+    title TEXT NOT NULL,
+    data TEXT NOT NULL,
+    favorite INTEGER NOT NULL DEFAULT 0,
+    model TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_patterns ON patterns(brand_id, created_at);
   `
 ];
 

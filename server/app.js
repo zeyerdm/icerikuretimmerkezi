@@ -27,6 +27,7 @@ import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
 import { createMemoryService } from './services/memory.js';
 import { createSharedTemplateService } from './services/sharedTemplates.js';
+import { createPatternService } from './services/patterns.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -98,7 +99,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const backups = createBackupService({ db, dataDir, settings });
   const drive = createDriveService(settings, { fetchImpl: driveFetch });
   const compare = createCompareService({ db, ai, brands });
-  const reels = createReelsService({ db, ai, brands, workspace });
+  const patterns = createPatternService({ db, ai, brands });
+  const reels = createReelsService({ db, ai, brands, workspace, patterns });
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
@@ -515,7 +517,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/reels', (req, res) => res.json({ reels: reels.list(req.brand.id) }));
   api.post('/brands/:brandId/reels', route(async (req, res) => {
     const b = req.body || {};
-    res.status(201).json({ reels: await reels.create(req.brand.id, { topic: b.topic, poolId: b.poolId || null, format: b.format || null, modelRef: mr(b) }) });
+    res.status(201).json({ reels: await reels.create(req.brand.id, { topic: b.topic, poolId: b.poolId || null, format: b.format || null, patternId: b.patternId || null, modelRef: mr(b) }) });
   }));
   api.get('/brands/:brandId/reels/:id', (req, res) => res.json({ reels: reels.get(req.brand.id, req.params.id) }));
   api.patch('/brands/:brandId/reels/:id', (req, res) => res.json({ reels: reels.update(req.brand.id, req.params.id, req.body || {}) }));
@@ -557,6 +559,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     res.json({ review: await review.review(req.brand.id, { text: b.text, kind: b.kind || 'serbest', modelRef: mr(b) }) });
   }));
+
+  // --- Kalıp arşivi ---
+  api.get('/brands/:brandId/patterns', (req, res) => res.json({ patterns: patterns.list(req.brand.id), sources: patterns.sources, hookTypes: patterns.hookTypes }));
+  api.post('/brands/:brandId/patterns', route(async (req, res) => {
+    const b = req.body || {};
+    res.status(201).json({ pattern: await patterns.analyze(req.brand.id, { text: b.text, sourceType: b.sourceType, sourceNote: b.sourceNote, modelRef: mr(b) }) });
+  }));
+  api.put('/brands/:brandId/patterns/:id', (req, res) => res.json({ pattern: patterns.update(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/patterns/:id', (req, res) => { patterns.remove(req.brand.id, req.params.id); res.status(204).end(); });
 
   // --- Akıllı marka hafızası ---
   api.get('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.get(req.brand.id), categories: memory.categories }));
