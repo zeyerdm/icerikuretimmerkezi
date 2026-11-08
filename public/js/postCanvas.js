@@ -19,7 +19,7 @@ export async function prepareSlide(slide) {
   const fonts = [...new Set(slide.layers.filter(l => l.type === 'text').map(l => l.font))];
   loadFonts(fonts);
   try { await Promise.all(fonts.map(f => document.fonts.load(`700 40px "${f}"`))); } catch { /* yedek yazı tipi */ }
-  await Promise.all(slide.layers.filter(l => l.type === 'image').map(l => loadImage(l.src)));
+  await Promise.all([...slide.layers.filter(l => l.type === 'image').map(l => loadImage(l.src)), slide.bgImage ? loadImage(slide.bgImage.src) : null]);
 }
 
 export function wrapLines(ctx, text, width) {
@@ -54,12 +54,27 @@ export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = slide.bg || '#ffffff';
   ctx.fillRect(0, 0, format.w, format.h);
+  // Zemin görseli: kapla (taşan kırpılır) ya da sığdır; üstüne isteğe bağlı karartma
+  if (slide.bgImage) {
+    const p = imageCache.get(slide.bgImage.src);
+    const img = p && p.resolved;
+    if (img) {
+      const k = (slide.bgImage.fit === 'contain' ? Math.min : Math.max)(format.w / img.naturalWidth, format.h / img.naturalHeight);
+      const w = img.naturalWidth * k;
+      const h = img.naturalHeight * k;
+      ctx.drawImage(img, (format.w - w) / 2, (format.h - h) / 2, w, h);
+    }
+    if (slide.bgImage.dim) { ctx.fillStyle = `rgba(0,0,0,${slide.bgImage.dim / 100})`; ctx.fillRect(0, 0, format.w, format.h); }
+  }
   for (const l of slide.layers) {
+    ctx.globalAlpha = l.opacity != null ? Math.max(0, Math.min(1, l.opacity / 100)) : 1;
     if (l.type === 'shape') {
       ctx.fillStyle = l.color;
       const r = Math.min(l.radius || 0, l.w / 2, l.h / 2);
       ctx.beginPath();
-      ctx.roundRect ? ctx.roundRect(l.x, l.y, l.w, l.h, r) : ctx.rect(l.x, l.y, l.w, l.h);
+      if (l.shape === 'circle') ctx.ellipse(l.x + l.w / 2, l.y + l.h / 2, l.w / 2, l.h / 2, 0, 0, Math.PI * 2);
+      else if (ctx.roundRect) ctx.roundRect(l.x, l.y, l.w, l.h, r);
+      else ctx.rect(l.x, l.y, l.w, l.h);
       ctx.fill();
     } else if (l.type === 'image') {
       const p = imageCache.get(l.src);
@@ -79,6 +94,7 @@ export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
       wrapLines(ctx, l.text, l.w).forEach((line, i) => ctx.fillText(line, x, l.y + i * l.size * 1.2));
       ctx.textAlign = 'left';
     }
+    ctx.globalAlpha = 1;
     if (l.id === selectedId) {
       const b = layerBox(ctx, l);
       ctx.save();
@@ -95,7 +111,8 @@ export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
 // Görseller yüklendikten sonra eşzamanlı çizim için önbelleğe "resolved" yazılır
 export async function resolveImages(slide) {
   await prepareSlide(slide);
-  await Promise.all(slide.layers.filter(l => l.type === 'image').map(async l => { const p = imageCache.get(l.src); p.resolved = await p; }));
+  const srcs = [...slide.layers.filter(l => l.type === 'image').map(l => l.src), ...(slide.bgImage ? [slide.bgImage.src] : [])];
+  await Promise.all(srcs.map(async src => { const p = imageCache.get(src); if (p) p.resolved = await p; }));
 }
 
 export async function slideBlob(slide, format) {

@@ -117,7 +117,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     taskStatuses: TASK_STATUSES,
     maxAssetBytes: MAX_ASSET_BYTES,
     reels: reels.meta,
-    posts: { kinds: posts.kinds, formats: posts.formats },
+    posts: { kinds: posts.kinds, formats: posts.formats, kindDefaults: posts.kindDefaults },
     reviewKinds: review.kinds,
     prompts: { kinds: prompts.kinds, actions: prompts.actions }
   }));
@@ -501,12 +501,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/posts', (req, res) => res.json({ posts: posts.list(req.brand.id) }));
   api.post('/brands/:brandId/posts', route(async (req, res) => {
     const b = req.body || {};
-    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format, slides: b.slides, modelRef: mr(b) });
+    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b) });
     res.status(201).json({ post });
   }));
   api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
   api.put('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.update(req.brand.id, req.params.id, req.body || {}) }));
   api.delete('/brands/:brandId/posts/:id', (req, res) => { posts.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
+  api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
   api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
   api.post('/brands/:brandId/posts/:id/schedule', (req, res) => res.status(201).json({ content: posts.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));
 

@@ -16,11 +16,11 @@ export async function renderPosts(view, brand, sub) {
   const models = await aiModels();
   if (sub) return renderEditor(view, brand, sub, models);
   const aiReady = models.ov.providers.some(p => p.configured);
-  const { posts } = await api.posts(brand.id);
+  const [{ posts }, { templates }] = await Promise.all([api.posts(brand.id), api.postTemplates(brand.id)]);
   const meta = state.meta.posts;
   view.innerHTML = `
     ${pageHead({
-      title: 'Post stüdyosu', desc: `${esc(brand.name)} için carousel ve post tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
+      title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
       actions: `<button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : ''}`
     })}
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
@@ -32,6 +32,19 @@ export async function renderPosts(view, brand, sub) {
       </a>`).join('')}</div>`
       : emptyState({ icon: 'palette', title: 'Henüz tasarım yok', text: 'Bir konu yaz; carousel slaytları marka renkleri, fontları, logosu ve maskotuyla hazırlansın. Sonra her şeyi düzenleyebilirsin.', action: aiReady ? `<button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : '', card: true })}`;
 
+  if (templates.length) {
+    view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Şablonlar</h3><span class="small muted">${templates.length}</span></div>
+      <div class="post-grid">${templates.map(t => `<div class="post-card tpl-card">
+        <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
+        <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)}</div>
+        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
+      </div>`).join('')}</div></section>`);
+    for (const t of templates) {
+      const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
+      if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format]); });
+    }
+  }
+
   // Küçük resimler: ilk slayt
   for (const p of posts) {
     const c = view.querySelector(`[data-thumb="${CSS.escape(p.id)}"]`);
@@ -39,15 +52,36 @@ export async function renderPosts(view, brand, sub) {
     resolveImages(p.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, p.data.slides[0], meta.formats[p.data.format]); });
   }
 
-  view.onclick = e => {
+  // Tür seçilince boyut o türün varsayılanına geçer; slayt sayısı yalnız carousel'de görünür
+  const wireKind = m => {
+    const k = m.form.querySelector('[name=kind]');
+    const f = m.form.querySelector('[name=format]');
+    const sl = m.form.querySelector('[data-slides-field]');
+    const sync = () => { if (f) f.value = meta.kindDefaults[k.value].format; if (sl) sl.hidden = k.value !== 'carousel'; };
+    k.addEventListener('change', sync);
+    sync();
+  };
+  view.onclick = async e => {
+    const useTpl = e.target.closest('[data-use-tpl]');
+    if (useTpl) {
+      const t = templates.find(x => x.id === useTpl.dataset.useTpl);
+      try { const { post } = await api.createPost(brand.id, { blank: true, templateId: t.id, title: t.name }); go(base(brand) + '/' + post.id); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const delTpl = e.target.closest('[data-del-tpl]');
+    if (delTpl) {
+      if (!confirm('Şablon silinsin mi? Ondan oluşturulan tasarımlar etkilenmez.')) return;
+      try { await api.deleteTemplate(brand.id, delTpl.dataset.delTpl); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     if (e.target.closest('[data-new]')) {
-      return openModal({
+      const m = openModal({
         title: 'Konudan üret', submitLabel: 'Üret',
         body: `<div class="form-grid">
           <div class="field full"><label for="pc-topic">Konu *</label><textarea class="textarea" id="pc-topic" name="topic" required maxlength="1000" placeholder="Ör. Sınav haftasında odaklanmak için 5 ipucu"></textarea></div>
           <div class="field"><label for="pc-kind">Tür</label><select class="select" id="pc-kind" name="kind">${Object.entries(meta.kinds).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></div>
           <div class="field"><label for="pc-format">Boyut</label><select class="select" id="pc-format" name="format">${Object.entries(meta.formats).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select></div>
-          <div class="field"><label for="pc-slides">Slayt sayısı (carousel)</label><input class="input" id="pc-slides" name="slides" type="number" min="3" max="10" value="6"></div>
+          <div class="field" data-slides-field><label for="pc-slides">Slayt sayısı (carousel)</label><input class="input" id="pc-slides" name="slides" type="number" min="3" max="10" value="6"></div>
           <div class="field"><label for="pc-model">Model</label>${modelSelect(models, 'yazim', { id: 'pc-model' })}</div>
         </div>`,
         onSubmit: async (fd, form) => {
@@ -56,17 +90,20 @@ export async function renderPosts(view, brand, sub) {
           go(base(brand) + '/' + res.post.id);
         }
       });
+      return wireKind(m);
     }
     if (e.target.closest('[data-blank]')) {
-      return openModal({
+      const m = openModal({
         title: 'Boş tasarım', submitLabel: 'Oluştur',
         body: `<div class="form-grid">
           <div class="field full"><label for="pb-title">Ad *</label><input class="input" id="pb-title" name="title" required maxlength="120" placeholder="Ör. Yeni menü duyurusu"></div>
           <div class="field"><label for="pb-kind">Tür</label><select class="select" id="pb-kind" name="kind">${Object.entries(meta.kinds).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
           <div class="field"><label for="pb-format">Boyut</label><select class="select" id="pb-format" name="format">${Object.entries(meta.formats).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select></div>
+          ${templates.length ? `<div class="field full"><label for="pb-tpl">Şablon (isteğe bağlı)</label><select class="select" id="pb-tpl" name="templateId"><option value="">Marka şablonuyla boş başla</option>${templates.map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>` : ''}
         </div>`,
-        onSubmit: async fd => { const { post } = await api.createPost(brand.id, { blank: true, title: fd.get('title'), kind: fd.get('kind'), format: fd.get('format') }); go(base(brand) + '/' + post.id); }
+        onSubmit: async fd => { const { post } = await api.createPost(brand.id, { blank: true, title: fd.get('title'), kind: fd.get('kind'), format: fd.get('format'), templateId: fd.get('templateId') || null }); go(base(brand) + '/' + post.id); }
       });
+      return wireKind(m);
     }
   };
 }
@@ -114,10 +151,13 @@ async function renderEditor(view, brand, id, models) {
             <div class="row mt-3">
               <button class="btn btn-sm" data-add="text">${icon('plus')}Metin</button>
               <button class="btn btn-sm" data-add="image">${icon('image')}Görsel / maskot</button>
-              <button class="btn btn-sm" data-add="shape">Şekil</button>
+              <button class="btn btn-sm" data-add="shape">Dikdörtgen</button>
+              <button class="btn btn-sm" data-add="circle">Daire</button>
+              <button class="btn btn-sm" data-add="sticker">Sticker</button>
               <span class="spacer"></span>
               <label class="small muted" for="slide-bg">Zemin</label><input type="color" id="slide-bg" value="${esc(slide().bg)}" aria-label="Slayt zemin rengi">
             </div>
+            <div class="row mt-2" id="bg-image-row"></div>
           </div>
           <section class="card mt-4">
             <div class="card-head"><h3>Açıklama ve hashtag</h3></div>
@@ -138,6 +178,9 @@ async function renderEditor(view, brand, id, models) {
               ${driveReady ? `<button class="btn" data-drive="one">Bu slaytı Drive'a gönder</button><button class="btn" data-drive="all" ${data.slides.length > 1 ? '' : 'hidden'}>Bütün slaytları Drive'a gönder</button>` : ''}
               ${post.content ? `<a class="btn" href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde</a>` : `<button class="btn" data-schedule>${icon('calendar')}Takvime ekle</button>`}
             </div></section>
+          <section class="card"><div class="card-head"><h3>Şablon</h3></div>
+            <p class="card-text mb-3">Bu tasarımın yerleşimini, renklerini ve görsellerini markanın şablonu olarak sakla; yeni tasarımları ondan başlat.</p>
+            <button class="btn w-full" data-save-tpl>Şablon olarak kaydet</button></section>
           <section class="card"><button class="btn btn-danger w-full" data-delete>${icon('trash')}Tasarımı sil</button></section>
         </aside>
       </div>`;
@@ -157,6 +200,19 @@ async function renderEditor(view, brand, id, models) {
     drawSlide(c, s, format(), { selectedId: selected });
     drawList();
     drawPanel();
+    drawBgRow();
+  }
+
+  function drawBgRow() {
+    const row = view.querySelector('#bg-image-row');
+    if (!row) return;
+    const bi = slide().bgImage;
+    row.innerHTML = bi
+      ? `<span class="small muted">Zemin görseli</span>
+        <div class="seg">${[['cover', 'Kapla'], ['contain', 'Sığdır']].map(([k, v]) => `<button type="button" data-bg-fit="${k}" class="${bi.fit === k ? 'active' : ''}">${v}</button>`).join('')}</div>
+        <label class="small muted" for="bg-dim">Karartma</label><input type="range" id="bg-dim" min="0" max="80" step="5" value="${bi.dim || 0}" aria-label="Zemin karartma">
+        <button class="btn btn-sm" data-bg-image>Değiştir</button><button class="btn btn-sm btn-ghost" data-bg-remove>Kaldır</button>`
+      : `<button class="btn btn-sm btn-ghost" data-bg-image>${icon('image')}Zemine görsel koy</button>`;
   }
 
   function drawList() {
@@ -173,7 +229,7 @@ async function renderEditor(view, brand, id, models) {
       return;
     }
     const swatches = (key, value) => `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === value ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" data-prop="${key}" value="${esc(value)}" aria-label="Özel renk"></div>`;
-    p.innerHTML = `<div class="card-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : 'Şekil'}</h3>
+    p.innerHTML = `<div class="card-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
       <div class="row"><button class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil">${icon('trash')}</button></div></div>
       <div class="stack-sm">
       ${l.type === 'text' ? `
@@ -194,6 +250,7 @@ async function renderEditor(view, brand, id, models) {
           <div class="field"><label for="lp-sh">Yükseklik</label><input class="input" id="lp-sh" type="number" min="1" max="4000" data-prop="h" value="${l.h}"></div>
           <div class="field"><label for="lp-r">Köşe</label><input class="input" id="lp-r" type="number" min="0" max="1000" data-prop="radius" value="${l.radius || 0}"></div></div>
         <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>`}
+      <div class="field"><label for="lp-op">Saydamlık: ${l.opacity != null ? l.opacity : 100}%</label><input type="range" id="lp-op" min="10" max="100" step="5" data-prop="opacity" value="${l.opacity != null ? l.opacity : 100}"></div>
       <div class="form-grid"><div class="field"><label for="lp-x">X</label><input class="input" id="lp-x" type="number" data-prop="x" value="${l.x}"></div><div class="field"><label for="lp-y">Y</label><input class="input" id="lp-y" type="number" data-prop="y" value="${l.y}"></div></div>
       </div>`;
   }
@@ -232,18 +289,27 @@ async function renderEditor(view, brand, id, models) {
     });
   }
 
-  function pickAsset(onPick) {
-    api.assets(brand.id).then(({ assets }) => {
+  function pickAsset(onPick, only = null) {
+    api.assets(brand.id).then(({ assets: all }) => {
+      const cats = [...new Map(all.map(a => [a.category, a.categoryLabel])).entries()];
+      const assets = only ? all.filter(a => a.category === only) : all;
       const m = openModal({
-        title: 'Kütüphaneden görsel', submitLabel: 'Kapat',
-        body: assets.length ? `<div class="asset-grid">${assets.map(a => `<button type="button" class="asset asset-pick" data-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || a.categoryLabel)}</div></button>`).join('')}</div>`
-          : emptyState({ icon: 'image', title: 'Kütüphane boş', text: `<a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> logo, maskot pozu veya görsel yükle.`, compact: true }),
+        title: only === 'sticker' ? 'Sticker seç' : 'Kütüphaneden görsel', submitLabel: 'Kapat',
+        body: assets.length ? `${!only && cats.length > 1 ? `<div class="chips mb-3"><button type="button" class="chip active" data-cat="">Tümü</button>${cats.map(([k, v]) => `<button type="button" class="chip" data-cat="${esc(k)}">${esc(v)}</button>`).join('')}</div>` : ''}
+          <div class="asset-grid">${assets.map(a => `<button type="button" class="asset asset-pick" data-pick="${esc(a.id)}" data-pcat="${esc(a.category)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || a.categoryLabel)}</div></button>`).join('')}</div>`
+          : emptyState({ icon: 'image', title: only === 'sticker' ? 'Henüz sticker yok' : 'Kütüphane boş', text: `<a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> logo, maskot pozu veya görsel yükle.`, compact: true }),
         onSubmit: async () => {}
       });
       m.form.addEventListener('click', e => {
+        const cat = e.target.closest('[data-cat]');
+        if (cat) {
+          m.form.querySelectorAll('[data-cat]').forEach(x => x.classList.toggle('active', x === cat));
+          m.form.querySelectorAll('[data-pcat]').forEach(x => { x.hidden = Boolean(cat.dataset.cat) && x.dataset.pcat !== cat.dataset.cat; });
+          return;
+        }
         const b = e.target.closest('[data-pick]');
         if (!b) return;
-        onPick(assets.find(a => a.id === b.dataset.pick));
+        onPick(all.find(a => a.id === b.dataset.pick));
         m.close();
       });
     }).catch(err => toast(err.message, 'error'));
@@ -263,6 +329,7 @@ async function renderEditor(view, brand, id, models) {
     const t = e.target;
     if (t.id === 'pc-caption') { data.caption = t.value; markDirty(); return; }
     if (t.id === 'pc-tags') { data.hashtags = t.value.split(/[\s,]+/).filter(Boolean).map(h => h.replace(/^#?/, '#')); markDirty(); return; }
+    if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(); drawSlide(view.querySelector('#stage'), slide(), format(), { selectedId: selected }); return; }
     if (t.id === 'slide-bg') { slide().bg = t.value; markDirty(); drawSlide(view.querySelector('#stage'), slide(), format(), { selectedId: selected }); return; }
     const prop = t.dataset.prop;
     const l = layer();
@@ -286,6 +353,8 @@ async function renderEditor(view, brand, id, models) {
     if (add) {
       const F = format();
       if (add.dataset.add === 'text') { const l = { id: uid(), type: 'text', role: 'text', text: 'Yeni metin', x: 90, y: Math.round(F.h / 2), w: 800, size: 56, color: brand.colors.heading || '#1b1f3b', font: brand.fonts.heading || 'Poppins', weight: 700, align: 'left' }; slide().layers.push(l); selected = l.id; markDirty(); return redraw(); }
+      if (add.dataset.add === 'circle') { const l = { id: uid(), type: 'shape', shape: 'circle', x: 120, y: 120, w: 260, h: 260, color: brand.colors.primary || '#5b55e6', radius: 0 }; slide().layers.push(l); selected = l.id; markDirty(); return redraw(); }
+      if (add.dataset.add === 'sticker') return pickAsset(a => { const l = { id: uid(), type: 'image', src: a.url, assetId: a.id, x: F.w - 360, y: 120, w: 240, h: 240 }; slide().layers.push(l); selected = l.id; markDirty(); redraw(); }, 'sticker');
       if (add.dataset.add === 'shape') { const l = { id: uid(), type: 'shape', shape: 'rect', x: 90, y: 90, w: 300, h: 300, color: brand.colors.primary || '#5b55e6', radius: 24 }; slide().layers.push(l); selected = l.id; markDirty(); return redraw(); }
       return pickAsset(a => { const l = { id: uid(), type: 'image', src: a.url, assetId: a.id, x: 120, y: 120, w: 420, h: 420 }; slide().layers.push(l); selected = l.id; markDirty(); redraw(); });
     }
@@ -296,6 +365,21 @@ async function renderEditor(view, brand, id, models) {
     const ord = t.closest('[data-order]');
     if (ord && layer()) { const arr = slide().layers; const i = arr.findIndex(x => x.id === selected); const j = i + Number(ord.dataset.order); if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; markDirty(); return redraw(); }
     if (t.closest('[data-layer-del]')) { slide().layers = slide().layers.filter(x => x.id !== selected); selected = null; markDirty(); return redraw(); }
+    if (t.closest('[data-bg-image]')) return pickAsset(a => { slide().bgImage = Object.assign({ fit: 'cover', dim: 0 }, slide().bgImage || {}, { src: a.url }); markDirty(); redraw(); });
+    if (t.closest('[data-bg-remove]')) { delete slide().bgImage; markDirty(); return redraw(); }
+    const fit = t.closest('[data-bg-fit]');
+    if (fit && slide().bgImage) { slide().bgImage.fit = fit.dataset.bgFit; markDirty(); return redraw(); }
+    const tplBtn = t.closest('[data-save-tpl]');
+    if (tplBtn) {
+      const name = prompt('Şablon adı', post.title);
+      if (name === null) return;
+      try {
+        if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
+        await busy(tplBtn, () => api.saveTemplate(brand.id, post.id, name.trim() || post.title));
+        toast('Şablon kaydedildi; Post stüdyosu ana sayfasında "Bu şablonla başla" ile kullanabilirsin.', 'success', 5000);
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     if (t.closest('[data-replace-image]') && layer()) return pickAsset(a => { Object.assign(layer(), { src: a.url, assetId: a.id }); markDirty(); redraw(); });
     const save = t.closest('[data-save]');
     if (save) {

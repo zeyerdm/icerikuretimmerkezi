@@ -259,6 +259,18 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_prompt_versions ON prompt_versions(prompt_id, created_at);
+  `,
+  // 8: Post stüdyosu şablonları (marka başına)
+  `
+  CREATE TABLE post_templates (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_post_templates ON post_templates(brand_id, created_at);
   `
 ];
 
