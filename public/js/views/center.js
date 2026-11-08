@@ -87,6 +87,7 @@ export async function renderCenter(view) {
       </div>
 
       <div class="grid-3">
+        <section class="card mini-cal-card" id="mini-cal"></section>
         <section class="card">
           <div class="card-head"><h3>Görevler</h3><a class="small link" href="#/masa">Çalışma masası ›</a></div>
           <form id="quick-task" class="quick-add"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button class="btn icon-btn" type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
@@ -98,10 +99,6 @@ export async function renderCenter(view) {
             <button class="note-chip" data-note="${esc(n.id)}"><b>${esc(n.title || n.body.slice(0, 40))}</b><span>${esc(n.body.slice(0, 110))}${n.body.length > 110 ? '…' : ''}</span>${n.brandName ? `<em><i style="background:${esc(n.brandColor || '#999')}"></i>${esc(n.brandName)}</em>` : ''}</button>`).join('')}</div>`
             : emptyState({ icon: 'pin', title: 'Sabit not yok', text: 'Önemli notlarını sabitleyince burada görünür.', compact: true })}
           <div class="card-foot"><button class="btn btn-sm" data-act="note">${icon('plus')}Not al</button></div>
-        </section>
-        <section class="card activity">
-          <div class="card-head"><h3>Son işlemler</h3></div>
-          ${d.activity.length ? `<ul>${d.activity.slice(0, 6).map(a => `<li><span class="a-dot" style="background:${esc(a.brandColor || 'var(--c-violet)')}"></span><div>${esc(a.summary)}<div class="muted xsmall">${a.brandName ? esc(a.brandName) + ' · ' : ''}${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>` : emptyState({ icon: 'refresh', title: 'Henüz işlem yok', compact: true })}
         </section>
       </div>
 
@@ -128,6 +125,7 @@ export async function renderCenter(view) {
     } catch { box.remove(); }
   })();
 
+  miniCalendar(view.querySelector('#mini-cal'), d.contents);
   const refresh = () => renderCenter(view);
   const onboard = view.querySelector('#onboard-form');
   if (onboard) onboard.addEventListener('submit', async e => {
@@ -209,4 +207,36 @@ function agenda(items) {
         <span class="ag-time">${timeStr(c.scheduledAt)}</span><span class="ag-title">${esc(c.title)}</span>
         <span class="ag-meta"><span class="brand-dot"><i style="background:${esc(c.brandColor || '#7d6bf0')}"></i>${esc(c.brandName)}</span><span class="tag">${esc(c.typeLabel)}</span><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></span></button>`).join('')}
     </div>`).join('')}</div>`;
+}
+
+// Mini takvim: ayın günleri, içerik olan günlerde marka renginde noktalar; güne tıklayınca Çalışma masasındaki büyük takvim açılır
+function miniCalendar(el, contents) {
+  if (!el) return;
+  let cursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const draw = () => {
+    const from = startOfWeekLocal(cursor);
+    const today = new Date();
+    const days = Array.from({ length: 42 }, (_, i) => addDays(from, i));
+    const monthName = fmtDate(cursor, { month: 'long', year: 'numeric' });
+    el.innerHTML = `<div class="card-head"><h3>Takvim</h3><a class="small link" href="#/masa">Çalışma masası ›</a></div>
+      <div class="mc-bar"><button class="btn btn-sm btn-ghost icon-btn" data-mc="-1" aria-label="Önceki ay">${icon('chevronLeft')}</button><b>${esc(monthName)}</b><button class="btn btn-sm btn-ghost icon-btn" data-mc="1" aria-label="Sonraki ay">${icon('chevronRight')}</button></div>
+      <div class="mc-grid">${['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'].map(x => `<span class="mc-dow">${x}</span>`).join('')}
+        ${days.map(day => {
+          const list = contents.filter(c => c.scheduledAt && sameDay(c.scheduledAt, day));
+          const colors = [...new Set(list.map(c => c.brandColor || '#7d6bf0'))].slice(0, 3);
+          return `<a class="mc-day ${day.getMonth() !== cursor.getMonth() ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''} ${list.length ? 'has' : ''}" href="#/masa" title="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}${list.length ? ` · ${list.length} içerik: ${esc(list.map(c => c.title).slice(0, 3).join(', '))}` : ''}"><span>${day.getDate()}</span><i>${colors.map(c => `<b style="background:${esc(c)}"></b>`).join('')}</i></a>`;
+        }).join('')}</div>`;
+  };
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-mc]');
+    if (!b) return;
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + Number(b.dataset.mc), 1);
+    draw();
+  });
+  draw();
+}
+
+function startOfWeekLocal(d) {
+  const x = startOfDay(d);
+  return addDays(x, -((x.getDay() + 6) % 7));
 }

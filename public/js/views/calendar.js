@@ -9,7 +9,7 @@ const PREF = 'ium.calendar.mode';
 const SPECIAL_PREF = 'ium.calendar.special';
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-export async function renderCalendar(view, { brand } = {}) {
+export async function renderCalendar(view, { brand, embedded = false } = {}) {
   let mode = 'ay';
   try { mode = localStorage.getItem(PREF) === 'hafta' ? 'hafta' : 'ay'; } catch { /* tercih okunamazsa aylık */ }
   let cursor = startOfDay(new Date());
@@ -95,7 +95,7 @@ export async function renderCalendar(view, { brand } = {}) {
     await load();
     const statuses = state.meta.contentStatuses;
     view.innerHTML = `
-      ${pageHead({
+      ${embedded ? '' : pageHead({
         title: brand ? 'Takvim' : 'İçerik Takvimi',
         desc: brand ? esc(brand.name) + ' markasının planlanan ve yayınlanan içerikleri. Bir güne tıklayarak içerik planla.' : 'Bütün markaların planlanan gönderileri. Boş bir güne tıklayarak içerik planla.',
         actions: `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
@@ -109,6 +109,7 @@ export async function renderCalendar(view, { brand } = {}) {
             <h2 class="cal-title">${esc(title())}</h2>
           </div>
           <div class="row">
+            ${embedded ? `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>` : ''}
             ${brand ? '' : `<select class="select w-auto" id="cal-brand" aria-label="Marka filtresi"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`}
             <label class="check"><input type="checkbox" id="cal-special" ${showSpecial ? 'checked' : ''}> Özel günler</label>
             <div class="seg" role="tablist" aria-label="Görünüm">

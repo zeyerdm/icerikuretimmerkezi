@@ -1084,3 +1084,60 @@ body.editor-mode #daily-slot { display: none; }
 }
 /* Geniş ekranda içerik menüden kopuk ortada durmasın: alan menünün yanından başlayıp ekranı doldurur */
 @media (min-width: 1500px) { :root { --content-max: 1560px; } }
+
+/* ============ Çalışma masası: ortada takvim, solda görevler, sağda notlar ============ */
+.desk { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.desk-cal { min-width: 0; }
+.desk-cal .cal-card { padding: var(--s-4); }
+.desk-cal .cal-cell { min-height: 104px; }
+.widget { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-3); position: sticky; top: 16px; max-height: calc(100dvh - 32px); min-width: 0; }
+.w-head { display: flex; align-items: center; gap: var(--s-2); }
+.w-head h2 { font-size: var(--t-lg); }
+.w-icon { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: color-mix(in srgb, var(--c-violet) 14%, #fff); color: var(--c-violet); flex: none; }
+.desk-notes .w-icon { background: color-mix(in srgb, var(--c-amber) 20%, #fff); color: #a86b00; }
+.w-icon svg { width: 16px; height: 16px; }
+.w-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--surface-3); font-size: var(--t-xs); font-weight: 800; display: grid; place-items: center; }
+.w-progress { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.w-progress span { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--c-violet), var(--c-teal)); }
+.w-quick { display: flex; gap: var(--s-2); }
+.w-quick .input { flex: 1; min-width: 0; }
+.w-scroll { overflow-y: auto; min-height: 0; flex: 1; margin: 0 calc(-1 * var(--s-2)); padding: 0 var(--s-2); }
+.w-group { font-size: var(--t-xs); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: var(--s-3) 0 var(--s-1); }
+.w-group.gecikmis { color: var(--danger, #c0392b); }
+.w-group span { opacity: .7; }
+.wt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.wt-row { display: flex; gap: var(--s-2); align-items: flex-start; padding: 8px; border-radius: var(--r-sm); background: var(--surface-2); }
+.wt-row.late { background: color-mix(in srgb, #e5484d 8%, #fff); }
+.wt-main { flex: 1; min-width: 0; display: grid; gap: 3px; text-align: left; border: 0; background: none; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.wt-title { font-weight: 700; font-size: var(--t-sm); line-height: 1.3; }
+.wt-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: var(--t-xs); color: var(--muted); }
+.wt-meta span { display: inline-flex; align-items: center; gap: 3px; }
+.wt-meta svg { width: 12px; height: 12px; }
+.w-empty { display: grid; justify-items: center; gap: var(--s-2); text-align: center; padding: var(--s-5) var(--s-3); color: var(--muted); font-size: var(--t-sm); }
+.w-empty svg { width: 24px; height: 24px; color: var(--c-violet); }
+.w-note { display: grid; gap: var(--s-2); }
+.w-note .textarea { min-height: 64px; resize: vertical; }
+.w-search { height: var(--h-control-sm, 32px); }
+.wn-card { position: relative; display: flex; gap: 4px; padding: 10px 10px 10px 12px; border-radius: var(--r-sm); background: var(--surface-2); margin-bottom: 6px; border-left: 3px solid transparent; }
+.wn-card.pinned { background: #fff8e6; border-left-color: #f2b23a; }
+.wn-main { flex: 1; min-width: 0; display: grid; gap: 3px; text-align: left; border: 0; background: none; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.wn-main b { font-size: var(--t-sm); }
+.wn-main span { font-size: var(--t-xs); color: var(--ink-2); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.wn-main em { font-style: normal; font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.wn-main em i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+@media (max-width: 1499px) {
+  .desk { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .desk-cal { grid-column: 1 / -1; order: -1; }
+  .widget { position: static; max-height: 640px; }
+}
+@media (max-width: 900px) { .desk { grid-template-columns: minmax(0, 1fr); } }
+/* Ana sayfa mini takvim */
+.mc-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-2); text-transform: capitalize; }
+.mc-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.mc-dow { font-size: 10px; font-weight: 800; color: var(--muted); text-align: center; padding: 2px 0 4px; }
+.mc-day { display: grid; justify-items: center; gap: 2px; padding: 5px 0 4px; border-radius: 8px; text-decoration: none; color: var(--ink); font-size: var(--t-xs); font-weight: 700; }
+.mc-day:hover { background: var(--surface-2); }
+.mc-day.out { color: var(--line-strong); }
+.mc-day.today span { background: var(--c-violet); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: grid; place-items: center; }
+.mc-day i { display: flex; gap: 2px; height: 5px; }
+.mc-day i b { width: 5px; height: 5px; border-radius: 50%; }
