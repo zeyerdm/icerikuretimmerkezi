@@ -22,6 +22,7 @@ import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
 import { createDesignRefService } from './services/designRef.js';
+import { createCaptionService } from './services/captions.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -98,6 +99,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const prompts = createPromptService({ db, ai, brands, reels });
   const images = createImageService({ db, ai, brands, assets });
   const designRef = createDesignRefService({ db, ai, brands, assets });
+  const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images });
 
   const app = express();
@@ -335,6 +337,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     }) });
   });
   api.post('/contents', (req, res) => res.status(201).json({ content: workspace.createContent(req.body || {}) }));
+  api.post('/contents/:id/write', route(async (req, res) => res.json(await captions.write(req.params.id, { modelRef: mr(req.body) }))));
   api.patch('/contents/:id', (req, res) => res.json({ content: workspace.updateContent(req.params.id, req.body || {}) }));
   api.delete('/contents/:id', (req, res) => { workspace.deleteContent(req.params.id); res.status(204).end(); });
 

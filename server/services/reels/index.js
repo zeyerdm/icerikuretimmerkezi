@@ -234,7 +234,8 @@ export function createReelsService({ db, ai, brands, workspace }) {
   function schedule(brandId, id, { scheduledAt = null } = {}) {
     const b = brands.get(brandId);
     const row = scenarioRow(b.id, id);
-    const content = workspace.createContent({ brandId: b.id, title: row.title, type: 'reels', status: row.status === 'paylasildi' ? 'yayinlandi' : 'hazirlaniyor', scheduledAt, notes: 'Reels senaryosundan oluşturuldu.' });
+    const sd = parseJson(row.data, {});
+    const content = workspace.createContent({ brandId: b.id, title: row.title, type: 'reels', status: row.status === 'paylasildi' ? 'yayinlandi' : 'hazirlaniyor', scheduledAt, notes: 'Reels senaryosundan oluşturuldu.', caption: String(sd.caption || '').slice(0, 2200), hashtags: sd.hashtags || [] });
     db.prepare('UPDATE contents SET reels_id = ? WHERE id = ?').run(row.id, content.id);
     return Object.assign(content, { reelsId: row.id });
   }

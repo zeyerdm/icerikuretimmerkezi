@@ -34,6 +34,22 @@ function cleanMetrics(v) {
   return JSON.stringify(out);
 }
 
+// İçerik türüne göre varsayılan yapılacaklar (kart ilk açıldığında); kullanıcı adım ekleyip silebilir
+export const CHECKLIST_DEFAULTS = {
+  reels: ['Senaryo', 'Çekim', 'Kurgu', 'Kapak', 'Açıklama'],
+  post: ['Metin', 'Tasarım', 'Açıklama', 'Son kontrol'],
+  carousel: ['Metin', 'Slayt tasarımı', 'Açıklama', 'Son kontrol'],
+  story: ['Metin', 'Tasarım', 'Etkileşim (anket/soru)', 'Son kontrol'],
+  reklam: ['Metin', 'Tasarım', 'Hedef kitle ve bütçe', 'Onay'],
+  grafik: ['Bilgi ve kaynak', 'Tasarım', 'Açıklama', 'Son kontrol']
+};
+const defaultChecklist = type => (CHECKLIST_DEFAULTS[type] || CHECKLIST_DEFAULTS.post).map(label => ({ label, done: false }));
+function cleanChecklist(v) {
+  if (!Array.isArray(v)) throw badRequest('Yapılacaklar listesi geçersiz.');
+  return JSON.stringify(v.slice(0, 15).map(i => ({ label: String((i && i.label) || '').trim().slice(0, 60), done: Boolean(i && i.done) })).filter(i => i.label));
+}
+const cleanTags = v => (Array.isArray(v) ? v : String(v || '').split(/[\s,]+/)).map(h => String(h).trim().replace(/^#*/, '')).filter(Boolean).map(h => '#' + h.slice(0, 40)).slice(0, 30).join(' ');
+
 // Taslak ve hazırlanıyor "bekleyen", tamamlandı ve yayınlandı "tamamlanan" sayılır
 export const CONTENT_STATUSES = {
   taslak: 'Taslak',
@@ -64,6 +80,8 @@ export function createWorkspaceService(db, ownerId, brands) {
     id: r.id, title: r.title, type: r.type, typeLabel: CONTENT_TYPES[r.type] || r.type,
     status: r.status, statusLabel: CONTENT_STATUSES[r.status] || r.status, done: DONE_STATUSES.includes(r.status),
     scheduledAt: r.scheduled_at, notes: r.notes, ideaId: r.idea_id, reelsId: r.reels_id || null, postId: r.post_id || null, completedAt: r.completed_at,
+    caption: r.caption || '', hashtags: r.hashtags ? r.hashtags.split(' ').filter(Boolean) : [], firstComment: r.first_comment || '',
+    checklist: r.checklist ? parseJson(r.checklist, []) : defaultChecklist(r.type),
     metrics: r.metrics ? parseJson(r.metrics, null) : null, rate: r.metrics ? engagementRate(parseJson(r.metrics, null)) : null, hook: r.hook || '', theme: r.theme || '',
     createdAt: r.created_at, updatedAt: r.updated_at
   }, brandInfo(r));
@@ -118,6 +136,8 @@ export function createWorkspaceService(db, ownerId, brands) {
       return db.prepare(sql).all(...args).map(toContent);
     },
 
+    getContent(id) { return toContent(getContentRow(id)); },
+
     createContent(body) {
       const brand = ownBrand(body.brandId);
       const status = body.status == null ? 'taslak' : oneOf(body.status, Object.keys(CONTENT_STATUSES), 'Durum');
@@ -139,6 +159,9 @@ export function createWorkspaceService(db, ownerId, brands) {
       db.prepare(`INSERT INTO contents (id, brand_id, idea_id, title, type, status, scheduled_at, notes, completed_at, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(row.id, row.brand_id, row.idea_id, row.title, row.type, row.status, row.scheduled_at, row.notes, row.completed_at, row.created_at, row.updated_at);
+      if (body.caption || body.hashtags) {
+        db.prepare('UPDATE contents SET caption = ?, hashtags = ? WHERE id = ?').run(text(body.caption, { field: 'Açıklama', max: 2200 }), cleanTags(body.hashtags), row.id);
+      }
       brands.logActivity(brand.id, 'content.created', `${CONTENT_TYPES[row.type]} planlandı: ${row.title}`);
       return toContent(getContentRow(row.id));
     },
@@ -154,7 +177,11 @@ export function createWorkspaceService(db, ownerId, brands) {
         notes: 'notes' in body ? text(body.notes, { field: 'Not', max: 2000 }) : row.notes,
         metrics: 'metrics' in body ? cleanMetrics(body.metrics) : (row.metrics || ''),
         hook: 'hook' in body ? text(body.hook, { field: 'Giriş cümlesi', max: 300 }) : (row.hook || ''),
-        theme: 'theme' in body ? text(body.theme, { field: 'Tema', max: 60 }) : (row.theme || '')
+        theme: 'theme' in body ? text(body.theme, { field: 'Tema', max: 60 }) : (row.theme || ''),
+        caption: 'caption' in body ? text(body.caption, { field: 'Açıklama', max: 2200 }) : (row.caption || ''),
+        hashtags: 'hashtags' in body ? cleanTags(body.hashtags) : (row.hashtags || ''),
+        first_comment: 'firstComment' in body ? text(body.firstComment, { field: 'İlk yorum', max: 2200 }) : (row.first_comment || ''),
+        checklist: 'checklist' in body ? cleanChecklist(body.checklist) : (row.checklist || '')
       };
       // Sayılar değişmediyse giriş zamanı korunur
       if ('metrics' in body && next.metrics && row.metrics) {
@@ -166,8 +193,10 @@ export function createWorkspaceService(db, ownerId, brands) {
       const isDone = DONE_STATUSES.includes(next.status);
       next.completed_at = isDone ? (wasDone ? row.completed_at : now()) : null;
       if (next.brand_id !== row.brand_id) next.idea_id = null; else next.idea_id = row.idea_id;
-      db.prepare(`UPDATE contents SET brand_id = ?, idea_id = ?, title = ?, type = ?, status = ?, scheduled_at = ?, notes = ?, completed_at = ?, metrics = ?, hook = ?, theme = ?, updated_at = ? WHERE id = ?`)
-        .run(next.brand_id, next.idea_id, next.title, next.type, next.status, next.scheduled_at, next.notes, next.completed_at, next.metrics, next.hook, next.theme, now(), row.id);
+      db.prepare(`UPDATE contents SET brand_id = ?, idea_id = ?, title = ?, type = ?, status = ?, scheduled_at = ?, notes = ?, completed_at = ?, metrics = ?, hook = ?, theme = ?,
+        caption = ?, hashtags = ?, first_comment = ?, checklist = ?, updated_at = ? WHERE id = ?`)
+        .run(next.brand_id, next.idea_id, next.title, next.type, next.status, next.scheduled_at, next.notes, next.completed_at, next.metrics, next.hook, next.theme,
+          next.caption, next.hashtags, next.first_comment, next.checklist, now(), row.id);
       if (next.metrics && next.metrics !== row.metrics) brands.logActivity(next.brand_id, 'content.metrics', `Paylaşım sonucu girildi: ${next.title}`);
       // Marka değişince başka markanın senaryosuna/postuna bağlantı kalmaz
       if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, post_id = NULL WHERE id = ?').run(row.id);

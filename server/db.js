@@ -298,6 +298,13 @@ const MIGRATIONS = [
   ALTER TABLE contents ADD COLUMN metrics TEXT NOT NULL DEFAULT '';
   ALTER TABLE contents ADD COLUMN hook TEXT NOT NULL DEFAULT '';
   ALTER TABLE contents ADD COLUMN theme TEXT NOT NULL DEFAULT '';
+  `,
+  // 12: İçerik kartı: açıklama, hashtag'ler, ilk yorum ve yapılacaklar listesi (JSON)
+  `
+  ALTER TABLE contents ADD COLUMN caption TEXT NOT NULL DEFAULT '';
+  ALTER TABLE contents ADD COLUMN hashtags TEXT NOT NULL DEFAULT '';
+  ALTER TABLE contents ADD COLUMN first_comment TEXT NOT NULL DEFAULT '';
+  ALTER TABLE contents ADD COLUMN checklist TEXT NOT NULL DEFAULT '';
   `
 ];
 

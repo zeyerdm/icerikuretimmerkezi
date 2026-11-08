@@ -792,3 +792,6 @@ a.kpi { text-decoration: none; color: inherit; transition: transform .15s, box-s
 .input-sm { height: var(--h-control-sm); font-size: var(--t-xs); }
 .chip .muted { margin-left: 6px; font-weight: 500; }
 .asset .meta .input-sm { flex: 1; min-width: 0; }
+.check-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.check-item { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.check-item input:checked + span { text-decoration: line-through; color: var(--ink-3, #8a8fa8); }
