@@ -115,6 +115,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.19 Komut paleti:** Ctrl+K ile açılma/Esc ile kapanma, Türkçe karaktersiz arama, Enter ile markaya geçiş, paletten not/görev/içerik kaydı (açık markaya bağlı), form açıkken açılmaması.
 - ⬜ **T.20 İlham rafı:** görsel/link/metin yapıştırma, yazı alanında ve açık formda yapıştırmanın etkilenmemesi, marka dışında uyarı, 10 MB sınırı, İlham rafı sekmesinde liste ve silme, `inspiration` kategorisinin API'de kabulü.
 - ⬜ **T.21 Görsel okuma / etiketleme:** görselin modele gitmesi, yazı ve etiketlerin kaydı (mevcut etiketlerle birleşme, 12 sınırı, dolu adın korunması), arama ile bulunma, başka markanın görseline erişimin reddi, AI bağlı değilken düğmelerin gizlenmesi, toplu okuma.
+- ⬜ **T.22 Çöp kutusu:** her türün silinip geri alınması, alt kayıtların (sürümler) ve takvim bağlantısının geri gelmesi, başka markadan silme denemesinde çöpe kayıt düşmemesi, 30 günlük temizlik, marka silinince çöpün de silinmesi, bağlı fikir silinmişken içeriğin geri alınması, Geri al bildirimi ve Çöp kutusu sayfası.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
@@ -130,7 +131,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ✅ **5.9 Komut paleti (Ctrl+K)** *(ClipBoardLine)*: her yerden Ctrl+K / ⌘K ya da üst çubuktaki "Ara / komut" ile açılır. Eylemler (içerik planla, görev ekle, not al, yeni marka; açık markaya bağlı), açık markanın sayfaları, Yönetim Merkezi sayfaları ve "markaya geç". Türkçe karakterden bağımsız arama, ok tuşları + Enter.
 - ✅ **5.10 İlham rafı (Ctrl+V)** *(ClipBoardLine)*: marka çalışma alanında yazı alanı dışında Ctrl+V → görsel Kütüphane'nin yeni "İlham rafı" kategorisine, link/metin "İlham" kategorili marka notu olarak kaydedilir. Bildirimde "İlham rafına git"; İlham rafı sekmesi link ve metinleri de listeler (açma, silme). Yönetim Merkezi'nde yapıştırınca marka seçme uyarısı.
 - ✅ **5.11 Görselde yazı arama (OCR) ve etiketler** *(ClipBoardLine)*: Kütüphanede her görselde "Yazıyı oku ve etiketle" ve kategori başına "Okunmamışları oku ve etiketle (n)". Görsel, görsel girdisi alan bağlı AI modeline gönderilir; okunan yazı kartta görünür ve kütüphane aramasına katılır, önerilen etiketler mevcutlara eklenir, ad boşsa önerilen ad kullanılır. AI bağlı değilse düğmeler görünmez (göçüş 18: `assets.ocr_text`, `analyzed_at`).
-- ⬜ **5.12 Çöp kutusu ve geri al** *(ClipBoardLine)*: silinenler 30 gün geri alınabilir.
+- ✅ **5.12 Çöp kutusu ve geri al** *(ClipBoardLine)*: fikir, not, görev, takvim içeriği, tasarım, prompt (sürümleriyle), Reels senaryosu (sürümleriyle), kalıp ve rakip silinince anlık görüntüsü çöpe alınır; takvimdeki bağlantılar geri alınca yeniden kurulur. Silme sonrası "Geri al" bildirimi, Yönetim Merkezi → Çöp kutusu (geri al, kalıcı sil, boşalt), 30 gün sonra kendiliğinden silinir. Kütüphane dosyaları kapsam dışı (göçüş 19: `trash`).
 - ⬜ **5.13 Dışa aktarma merkezi** *(Nashi)*: 1:1 / 4:5 / 9:16 kırpma, sıkıştırma, format dönüştürme, metadata temizleme.
 - ⬜ **5.14 Video kesme ve altyazı gömme** *(Nashi)*: Flow kliplerini kesme/birleştirme, `.srt`'yi videoya basma (ffmpeg doğrulamalı kurulum).
 - ⬜ **5.15 QR kod** *(Nashi)*: kampanya postlarına QR ekleme.

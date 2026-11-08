@@ -23,6 +23,7 @@ import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
+import { createTrashService, TRASH_DAYS } from './services/trash.js';
 import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
@@ -97,6 +98,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
   const ideas = createIdeaService(db);
   const workspace = createWorkspaceService(db, ownerId, brands);
+  const trash = createTrashService(db, ownerId);
+  // Çöpe atarak sil: kaydın görüntüsü alınır, kimliği X-Trash-Id başlığıyla döner (arayüz "Geri al" gösterir)
+  const trashed = (res, kind, id, remove) => { const tid = trash.capture(kind, id, remove); if (tid) res.set('X-Trash-Id', tid); res.status(204).end(); };
   const memory = createMemoryService({ db, brands });
   const backups = createBackupService({ db, dataDir, settings });
   const drive = createDriveService(settings, { fetchImpl: driveFetch });
@@ -368,12 +372,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/contents', (req, res) => res.status(201).json({ content: workspace.createContent(req.body || {}) }));
   api.post('/contents/:id/write', route(async (req, res) => res.json(await captions.write(req.params.id, { modelRef: mr(req.body) }))));
   api.patch('/contents/:id', (req, res) => res.json({ content: workspace.updateContent(req.params.id, req.body || {}) }));
-  api.delete('/contents/:id', (req, res) => { workspace.deleteContent(req.params.id); res.status(204).end(); });
+  api.delete('/contents/:id', (req, res) => trashed(res, 'content', req.params.id, () => workspace.deleteContent(req.params.id)));
 
   api.get('/tasks', (req, res) => res.json({ tasks: workspace.listTasks({ brandId: req.query.brandId ? String(req.query.brandId) : null, status: req.query.status ? String(req.query.status) : null }) }));
   api.post('/tasks', (req, res) => res.status(201).json({ task: workspace.createTask(req.body || {}) }));
   api.patch('/tasks/:id', (req, res) => res.json({ task: workspace.updateTask(req.params.id, req.body || {}) }));
-  api.delete('/tasks/:id', (req, res) => { workspace.deleteTask(req.params.id); res.status(204).end(); });
+  api.delete('/tasks/:id', (req, res) => trashed(res, 'task', req.params.id, () => workspace.deleteTask(req.params.id)));
 
   api.get('/notes', (req, res) => res.json({
     notes: workspace.listNotes({ brandId: req.query.brandId ? String(req.query.brandId) : null, category: req.query.category ? String(req.query.category) : null, q: req.query.q ? String(req.query.q) : null }),
@@ -381,7 +385,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.post('/notes', (req, res) => res.status(201).json({ note: workspace.createNote(req.body || {}) }));
   api.patch('/notes/:id', (req, res) => res.json({ note: workspace.updateNote(req.params.id, req.body || {}) }));
-  api.delete('/notes/:id', (req, res) => { workspace.deleteNote(req.params.id); res.status(204).end(); });
+  api.delete('/notes/:id', (req, res) => trashed(res, 'note', req.params.id, () => workspace.deleteNote(req.params.id)));
 
   // --- Markalar ---
   api.get('/brands', (req, res) => {
@@ -525,7 +529,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.get('/brands/:brandId/reels/:id', (req, res) => res.json({ reels: reels.get(req.brand.id, req.params.id) }));
   api.patch('/brands/:brandId/reels/:id', (req, res) => res.json({ reels: reels.update(req.brand.id, req.params.id, req.body || {}) }));
-  api.delete('/brands/:brandId/reels/:id', (req, res) => { reels.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.delete('/brands/:brandId/reels/:id', (req, res) => trashed(res, 'reels', req.params.id, () => reels.remove(req.brand.id, req.params.id)));
   api.post('/brands/:brandId/reels/:id/regenerate', route(async (req, res) => {
     const b = req.body || {};
     res.json({ reels: await reels.regenerate(req.brand.id, req.params.id, { sceneIndex: b.sceneIndex, modelRef: mr(b) }) });
@@ -546,7 +550,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
   api.put('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.update(req.brand.id, req.params.id, req.body || {}) }));
-  api.delete('/brands/:brandId/posts/:id', (req, res) => { posts.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.delete('/brands/:brandId/posts/:id', (req, res) => trashed(res, 'post', req.params.id, () => posts.remove(req.brand.id, req.params.id)));
   // Ortak (markalar arası) şablonlar: liste hedef markanın kimliğiyle önizlenir
   api.get('/brands/:brandId/shared-templates', (req, res) => res.json({ templates: shared.list(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/share-template', (req, res) => res.status(201).json({ template: shared.saveFromPost(req.brand.id, req.params.id, req.body || {}) }));
@@ -568,7 +572,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/competitors', (req, res) => res.json({ competitors: competitors.list(req.brand.id) }));
   api.post('/brands/:brandId/competitors', (req, res) => res.status(201).json({ competitor: competitors.create(req.brand.id, req.body || {}) }));
   api.put('/brands/:brandId/competitors/:id', (req, res) => res.json({ competitor: competitors.update(req.brand.id, req.params.id, req.body || {}) }));
-  api.delete('/brands/:brandId/competitors/:id', (req, res) => { competitors.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.delete('/brands/:brandId/competitors/:id', (req, res) => trashed(res, 'competitor', req.params.id, () => competitors.remove(req.brand.id, req.params.id)));
   api.post('/brands/:brandId/competitors/:id/analyze', route(async (req, res) => res.json({ competitor: await competitors.analyze(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
 
   // --- Kalıp arşivi ---
@@ -578,7 +582,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     res.status(201).json({ pattern: await patterns.analyze(req.brand.id, { text: b.text, sourceType: b.sourceType, sourceNote: b.sourceNote, modelRef: mr(b) }) });
   }));
   api.put('/brands/:brandId/patterns/:id', (req, res) => res.json({ pattern: patterns.update(req.brand.id, req.params.id, req.body || {}) }));
-  api.delete('/brands/:brandId/patterns/:id', (req, res) => { patterns.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.delete('/brands/:brandId/patterns/:id', (req, res) => trashed(res, 'pattern', req.params.id, () => patterns.remove(req.brand.id, req.params.id)));
 
   // --- Akıllı marka hafızası ---
   api.get('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.get(req.brand.id), categories: memory.categories }));
@@ -612,7 +616,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/prompts/enhance', route(async (req, res) => { const b = req.body || {}; res.json(await prompts.enhance(req.brand.id, { kind: b.kind, text: b.text, modelRef: mr(b) })); }));
   api.get('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.get(req.brand.id, req.params.id) }));
   api.put('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.update(req.brand.id, req.params.id, req.body || {}) }));
-  api.delete('/brands/:brandId/prompts/:id', (req, res) => { prompts.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.delete('/brands/:brandId/prompts/:id', (req, res) => trashed(res, 'prompt', req.params.id, () => prompts.remove(req.brand.id, req.params.id)));
   api.post('/brands/:brandId/prompts/:id/improve', route(async (req, res) => {
     const b = req.body || {};
     res.json({ prompt: await prompts.improve(req.brand.id, req.params.id, { action: b.action, brief: b.brief, selection: b.selection, instruction: b.instruction, modelRef: mr(b) }) });
@@ -669,7 +673,13 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
 
   api.patch('/brands/:brandId/ideas/:ideaId', (req, res) => res.json({ idea: ideas.update(req.brand.id, req.params.ideaId, req.body || {}) }));
 
-  api.delete('/brands/:brandId/ideas/:ideaId', (req, res) => { ideas.remove(req.brand.id, req.params.ideaId); res.status(204).end(); });
+  api.delete('/brands/:brandId/ideas/:ideaId', (req, res) => trashed(res, 'idea', req.params.ideaId, () => ideas.remove(req.brand.id, req.params.ideaId)));
+
+  // Çöp kutusu
+  api.get('/trash', (req, res) => res.json({ items: trash.list({ brandId: req.query.brandId ? String(req.query.brandId) : null }), days: TRASH_DAYS }));
+  api.post('/trash/:id/restore', (req, res) => res.json({ restored: trash.restore(req.params.id) }));
+  api.delete('/trash/:id', (req, res) => { trash.remove(req.params.id); res.status(204).end(); });
+  api.delete('/trash', (req, res) => res.json({ removed: trash.empty() }));
 
   // --- AI asistanı ---
   api.get('/brands/:brandId/chat', (req, res) => res.json({ messages: assistant.history(req.brand.id) }));

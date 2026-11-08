@@ -17,7 +17,12 @@ async function request(method, url, body, headers = {}) {
   } catch {
     throw new ApiError(0, 'NETWORK', 'Sunucuya ulaşılamadı. Uygulama çalışıyor mu? (npm start)');
   }
-  if (res.status === 204) return null;
+  if (res.status === 204) {
+    // Çöpe atılan kayıt: arayüz "Geri al" bildirimi gösterir (views/trash.js)
+    const tid = res.headers.get('X-Trash-Id');
+    if (tid) document.dispatchEvent(new CustomEvent('ium:trashed', { detail: { id: tid } }));
+    return null;
+  }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const e = (data && data.error) || {};
@@ -81,6 +86,10 @@ export const api = {
   assetPacks: id => request('GET', b(id) + '/asset-packs'),
   deleteAssetPack: (id, pack) => request('DELETE', `${b(id)}/asset-packs?pack=${encodeURIComponent(pack)}`),
   analyzeAsset: (id, assetId, body = {}) => request('POST', `${b(id)}/assets/${assetId}/analyze`, body),
+  trash: (brandId = '') => request('GET', '/api/trash' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
+  restoreTrash: id => request('POST', `/api/trash/${encodeURIComponent(id)}/restore`),
+  deleteTrash: id => request('DELETE', `/api/trash/${encodeURIComponent(id)}`),
+  emptyTrash: () => request('DELETE', '/api/trash'),
   updateAsset: (id, assetId, body) => request('PATCH', `${b(id)}/assets/${assetId}`, body),
   deleteAsset: (id, assetId) => request('DELETE', `${b(id)}/assets/${assetId}`),
 
