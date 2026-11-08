@@ -587,7 +587,9 @@ test('Reels: havuza fikir ekle, genişlet, senaryo yaz, tek sahneyi yeniden yaz,
 
     // Tek sahneyi yeniden yaz
     await page.locator('[data-scene="1"]').getByRole('button', { name: 'Bu sahneyi yeniden yaz' }).click();
-    await page.getByText('Sahne 2 yeniden yazıldı').waitFor();
+    // Sürüm notu Sürümler panelinde; yeniden yazılan replik sahnede görünür
+    await page.waitForFunction(() => document.querySelector('#line-1') && document.querySelector('#line-1').value.includes('yepyeni'));
+    assert.equal(await page.locator('.version-list li').first().locator('.strong').textContent(), 'Sahne 2 yeniden yazıldı');
     assert.match(await page.locator('#line-1').inputValue(), /yepyeni/);
 
     // Türkçe tarifi düzelt → İngilizceye çevir
@@ -598,15 +600,18 @@ test('Reels: havuza fikir ekle, genişlet, senaryo yaz, tek sahneyi yeniden yaz,
     assert.match(await page.locator('[data-scene="0"]').textContent(), /grabs the cup fast/);
 
     // İlk sürüme dön
+    await page.locator('.ed-rail').getByRole('button', { name: 'Sürümler' }).click();
     await page.locator('.version-list li').last().getByRole('button', { name: 'Geri dön' }).click();
     await page.getByText('Önceki sürüme dönüldü.').waitFor();
     assert.doesNotMatch(await page.locator('#line-1').inputValue(), /yepyeni/);
 
     // Açıklamayı denetle ve önerilen metni kullan
+    await page.locator('.ed-rail').getByRole('button', { name: 'Açıklama' }).click();
     await page.locator('#rs-review').getByRole('button', { name: 'Denetle' }).click();
     await page.getByText('Puan: 80/100').waitFor();
 
     // Telepromter
+    await page.getByRole('button', { name: 'Dışa aktar' }).click();
     await page.getByRole('button', { name: 'Telepromter' }).click();
     await page.getByRole('dialog', { name: 'Telepromter' }).waitFor();
     await page.keyboard.press('Escape');
@@ -614,6 +619,7 @@ test('Reels: havuza fikir ekle, genişlet, senaryo yaz, tek sahneyi yeniden yaz,
 
     // Altyazı indir
     const dl = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Dışa aktar' }).click();
     await page.getByRole('button', { name: 'Altyazı indir (.srt)' }).click();
     assert.match((await dl).suggestedFilename(), /_altyazi\.srt$/);
 
@@ -721,7 +727,8 @@ test('Prompt Studio: tür seç, üret, kopyala, geliştir, seçili bölümü yen
     await page.waitForFunction(() => document.querySelector('#pp-text') && document.querySelector('#pp-text').value.includes('neon'));
     assert.equal(await page.locator('.version-list li').count(), 3);
 
-    // İlk sürüme dön
+    // İlk sürüme dön (Sürümler panelinden)
+    await page.locator('.ed-rail').getByRole('button', { name: 'Sürümler' }).click();
     await page.locator('.version-list li').last().getByRole('button', { name: 'Geri dön' }).click();
     // Seçili bölüm sonrası metin de "A cheerful" ile başlıyor: geri dönüşü sürüm sayısıyla ve "neon"un gitmesiyle bekle
     await page.waitForFunction(() => document.querySelectorAll('.version-list li').length === 4);
@@ -735,6 +742,7 @@ test('Prompt Studio: tür seç, üret, kopyala, geliştir, seçili bölümü yen
     await page.locator('#ps-list .pool-item').first().waitFor();
     assert.match(await page.locator('#ps-list').textContent(), /Elle düzeltilmiş prompt/);
     await page.locator('#ps-list a').first().click();
+    await page.getByRole('button', { name: 'Dosya' }).click();
     await page.getByRole('button', { name: "Prompt'u sil" }).click();
     await page.getByText('Henüz prompt yok').waitFor();
     assert.deepEqual(problems, []);

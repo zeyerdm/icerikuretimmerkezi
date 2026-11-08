@@ -199,38 +199,67 @@ async function renderDetail(view, brand, id, models) {
   const aiReady = models.ov.providers.some(p => p.configured);
   const driveReady = Boolean(state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId);
   let lastAi = null;
+  let panel = 'ozet';
 
   function draw() {
     const d = r.data;
     let offset = 0;
+    const panelBox = (k, title, inner) => `<div class="ed-pane" data-pane="${k}" ${panel === k ? '' : 'hidden'}><h3 class="ed-panel-title">${title}</h3>${inner}</div>`;
+    let t0 = 0;
+    const chips = d.scenes.map((sc, i) => { const a = t0; t0 += sc.duration; return `<button type="button" class="ed-scene-chip" data-goto="${i}"><b>Sahne ${i + 1}</b><span>${fmt(a)}–${fmt(t0)}</span></button>`; }).join('');
     view.innerHTML = `
-      ${pageHead({
-        title: r.title,
-        desc: `${esc(meta.formats[d.format] || '')} · ${r.totalSeconds} saniye · ${d.scenes.length} sahne${r.modelLabel ? ` · ${esc(r.modelLabel)} ile yazıldı` : ''}`,
-        actions: `<a class="btn btn-ghost" href="${base(brand)}/liste">${icon('back')}Senaryolar</a>${r.content ? `<a class="btn" href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde</a>` : `<button class="btn" data-schedule>${icon('calendar')}Takvime ekle</button>`}`
-      })}
-      ${lastAi ? `<div class="notice notice-ok mb-4"><div>${esc(aiNote(lastAi))}</div></div>` : ''}
-      <div class="reels-layout">
-        <div class="stack">
-          ${aiReady ? `<section class="card">
-            <div class="card-head"><h3>Yeniden yaz</h3><span class="small muted">Seçtiğin modelle; her yeniden yazma yeni bir sürüm olur</span></div>
-            <div class="row">${modelSelect(models, 'yazim', { id: 'rg-model' })}<button class="btn btn-primary" data-regen>${icon('refresh')}Senaryoyu baştan yaz</button></div>
-            <p class="hint mt-2">Tek bir sahneyi değiştirmek için sahnenin üstündeki "Bu sahneyi yeniden yaz"ı kullan; diğer sahneler korunur.</p>
-          </section>` : ''}
-
-          <section class="card">
-            <div class="card-head"><h3>Özet</h3>
-              <select class="select w-auto tr-status" id="rs-status" aria-label="Durum">${Object.entries(meta.statuses).map(([k, v]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-            <dl class="kv">
-              <dt>Konu</dt><dd>${esc(d.topic || '-')}</dd>
-              <dt>Asıl espri</dt><dd>${esc(d.punchline || '-')}</dd>
-              <dt>Neden paylaşılır</dt><dd>${esc(d.why || '-')}</dd>
-              <dt>Görsel ortam</dt><dd>${esc(d.setting || '-')}</dd>
-              <dt>Müzik</dt><dd>${esc(d.music || '-')}</dd>
-            </dl>
-          </section>
-
-          ${d.scenes.map((sc, i) => { const from = offset; offset += sc.duration; const p = r.prompts[i]; return `
+      <div class="ed ed-doc-mode">
+        <header class="ed-top">
+          <a class="ed-top-btn" href="${base(brand)}/liste" title="Senaryolar">${icon('back')}<span>Senaryolar</span></a>
+          <div class="ed-menu"><button type="button" class="ed-top-btn" data-menu="dosya" aria-haspopup="true">Dosya</button>
+            <div class="ed-drop" data-drop="dosya" hidden>
+              <div class="ed-drop-head"><b>${esc(r.title)}</b><span class="xsmall">${esc(meta.formats[d.format] || '')} · ${r.totalSeconds} saniye · ${d.scenes.length} sahne${r.modelLabel ? ` · ${esc(r.modelLabel)}` : ''}</span></div>
+              <button type="button" data-rail="surumler">${icon('refresh')}Sürüm geçmişi</button>
+              <button type="button" data-rail="yaz">${icon('sparkle')}Senaryoyu yeniden yaz</button>
+              <hr><button type="button" class="danger" data-delete>${icon('trash')}Senaryoyu sil</button>
+            </div></div>
+          <select class="select w-auto ed-top-select" id="rs-status" aria-label="Durum">${Object.entries(meta.statuses).map(([k, v]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+          <span class="spacer"></span>
+          <h1 class="ed-title" title="${esc(r.title)}">${esc(r.title)}</h1>
+          ${r.content ? `<a class="ed-top-btn ed-save" href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde</a>` : `<button type="button" class="ed-top-btn ed-save" data-schedule>${icon('calendar')}Takvime ekle</button>`}
+          <div class="ed-menu"><button type="button" class="ed-share" data-menu="disari" aria-haspopup="true">Dışa aktar</button>
+            <div class="ed-drop right" data-drop="disari" hidden>
+              <div class="ed-drop-head"><b>Senaryoyu dışa aktar</b></div>
+              <div class="ed-share-grid">
+                <button type="button" data-export="script">${icon('notes')}<span>Senaryoyu kopyala</span></button>
+                <button type="button" data-export="txt">${icon('download')}<span>Senaryo metni indir (.txt)</span></button>
+                <button type="button" data-export="srt" ${r.srt ? '' : 'disabled'}>${icon('download')}<span>Altyazı indir (.srt)</span></button>
+                <button type="button" data-export="png">${icon('image')}<span>Başlık PNG'si indir</span></button>
+                <button type="button" data-export="prompter">${icon('film')}<span>Telepromter</span></button>
+                ${driveReady ? `<button type="button" data-drive="png">${icon('upload')}<span>Başlık PNG'si → Drive</span></button><button type="button" data-drive="srt" ${r.srt ? '' : 'disabled'}>${icon('upload')}<span>Altyazı → Drive</span></button><button type="button" data-drive="txt">${icon('upload')}<span>Senaryo → Drive</span></button>` : ''}
+              </div>
+            </div></div>
+        </header>
+        <div class="ed-body ${panel ? 'has-panel' : ''}">
+          <nav class="ed-rail" aria-label="Araçlar">${[['ozet', 'Özet', 'notes'], ['yaz', 'Yeniden yaz', 'sparkle'], ['baslik', 'Başlık', 'edit'], ['aciklama', 'Açıklama', 'palette'], ['kalite', `Kalite${r.issues.length ? ` (${r.issues.length})` : ''}`, 'check'], ['surumler', 'Sürümler', 'refresh']].map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
+          <aside class="ed-panel" ${panel ? '' : 'hidden'}>
+            ${panelBox('ozet', 'Özet', `<dl class="kv">
+              <dt>Konu</dt><dd>${esc(d.topic || '-')}</dd><dt>Asıl espri</dt><dd>${esc(d.punchline || '-')}</dd><dt>Neden paylaşılır</dt><dd>${esc(d.why || '-')}</dd>
+              <dt>Görsel ortam</dt><dd>${esc(d.setting || '-')}</dd><dt>Müzik</dt><dd>${esc(d.music || '-')}</dd></dl>
+              <h4 class="ed-sub">Final</h4><dl class="kv"><dt>Tamamlanma</dt><dd>${esc((d.ending || {}).resolution || '-')}</dd><dt>Kapanış</dt><dd>${esc((d.ending || {}).twist || '-')}</dd><dt>Son kare</dt><dd>${esc((d.ending || {}).lastFrame || '-')}${(d.ending || {}).loop ? ` · Döngü: ${esc(d.ending.loop)}` : ''}</dd></dl>`)}
+            ${panelBox('yaz', 'Yeniden yaz', aiReady ? `<p class="small muted mb-2">Seçtiğin modelle; her yeniden yazma yeni bir sürüm olur.</p><div class="stack-sm">${modelSelect(models, 'yazim', { id: 'rg-model' })}<button class="btn btn-primary" data-regen>${icon('refresh')}Senaryoyu baştan yaz</button></div>
+              <p class="hint mt-2">Tek bir sahneyi değiştirmek için sahnenin üstündeki "Bu sahneyi yeniden yaz"ı kullan; diğer sahneler korunur.</p>` : '<div class="notice"><div>AI bağlı değil.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>')}
+            ${panelBox('baslik', 'Ekran başlığı', `<div class="field"><label for="rs-title">Başlık (en fazla 5 kelime)</label><input class="input" id="rs-title" value="${esc(d.screenTitle || '')}" maxlength="80"></div>
+              <div class="form-grid mt-3"><div class="field"><label for="rs-key">Vurgulu kelime</label><input class="input" id="rs-key" value="${esc(d.titleKeyword || '')}" maxlength="40"></div>
+              <div class="field"><label for="rs-tstyle">Stil</label><select class="select" id="rs-tstyle">${Object.entries(meta.titleStyles).map(([k, v]) => `<option value="${k}" ${k === d.titleStyle ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div></div>
+              <div class="title-preview mt-3"><canvas id="title-canvas" aria-label="Başlık önizlemesi"></canvas></div>
+              <p class="hint mt-2">Başlık Flow prompt'una yalnızca ilk sahnede girer. Bütün videoda aynı görünmesi için PNG'yi kurguda videonun üstüne koy.</p>`)}
+            ${panelBox('aciklama', 'Açıklama ve hashtag', `<div class="field"><label for="rs-caption">Instagram açıklaması</label><textarea class="textarea" id="rs-caption" rows="8" maxlength="3000">${esc(d.caption || '')}</textarea></div>
+              <div class="field mt-3"><label for="rs-tags">Hashtag'ler</label><input class="input" id="rs-tags" value="${esc((d.hashtags || []).join(' '))}" maxlength="400"></div><div id="rs-review" class="mt-3"></div>`)}
+            ${panelBox('kalite', 'Kalite kontrolü', `<div class="reels-side">${r.issues.length ? `<span class="status-badge status-hazirlaniyor">${r.issues.length} uyarı</span><ul class="issue-list mt-2">${r.issues.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '<span class="status-badge status-tamamlandi">Sorun yok</span><p class="card-text mt-2">Kodla denetlenen kurallar (zamanlama, konuşma süresi, süreklilik, çağrı, gerçek isim, başlık uzunluğu) sağlanıyor.</p>'}</div>`)}
+            ${panelBox('surumler', `Sürümler <span class="small muted">${r.versions.length}</span>`, `<ul class="version-list">${r.versions.map((v, i) => `<li><div class="grow"><div class="small strong">${esc(v.note)}</div><div class="xsmall muted">${esc(new Date(v.createdAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${v.modelLabel ? ` · ${esc(v.modelLabel)}` : ''}</div></div>
+              ${i === 0 ? '<span class="xsmall muted">Şu anki</span>' : `<button class="btn btn-sm btn-ghost" data-restore="${esc(v.id)}">Geri dön</button>`}</li>`).join('')}</ul>`)}
+            <button type="button" class="ed-collapse" data-rail-close aria-label="Paneli kapat">${icon('chevronLeft')}</button>
+          </aside>
+          <main class="ed-doc" id="ed-doc">
+            <div class="ed-doc-inner">
+              ${lastAi ? `<div class="notice notice-ok mb-4"><div>${esc(aiNote(lastAi))}</div></div>` : ''}
+              ${d.scenes.map((sc, i) => { const from = offset; offset += sc.duration; const p = r.prompts[i]; return `
           <section class="card scene-card" data-scene="${i}">
             <div class="card-head"><h3>Sahne ${i + 1} <span class="muted small">· ${fmt(from)}–${fmt(offset)} · ${sc.duration} sn</span></h3>
               ${aiReady ? `<button class="btn btn-sm" data-regen-scene="${i}">${icon('refresh')}Bu sahneyi yeniden yaz</button>` : ''}</div>
@@ -253,54 +282,12 @@ async function renderDetail(view, brand, id, models) {
             <details class="disclosure"><summary>Prompt önizlemesi</summary><div class="cmp-text">${esc(p.flowEn)}</div></details>
           </section>`; }).join('')}
 
-          <section class="card">
-            <div class="card-head"><h3>Final</h3></div>
-            <dl class="kv"><dt>Tamamlanma</dt><dd>${esc((d.ending || {}).resolution || '-')}</dd><dt>Kapanış</dt><dd>${esc((d.ending || {}).twist || '-')}</dd><dt>Son kare</dt><dd>${esc((d.ending || {}).lastFrame || '-')}${(d.ending || {}).loop ? ` · Döngü: ${esc(d.ending.loop)}` : ''}</dd></dl>
-          </section>
-
-          <section class="card">
-            <div class="card-head"><h3>Açıklama ve hashtag</h3></div>
-            <div class="field"><label for="rs-caption">Instagram açıklaması</label><textarea class="textarea" id="rs-caption" rows="7" maxlength="3000">${esc(d.caption || '')}</textarea></div>
-            <div class="field mt-3"><label for="rs-tags">Hashtag'ler</label><input class="input" id="rs-tags" value="${esc((d.hashtags || []).join(' '))}" maxlength="400"></div>
-            <div id="rs-review" class="mt-3"></div>
-          </section>
+            </div>
+          </main>
         </div>
-
-        <aside class="stack reels-side">
-          <section class="card">
-            <div class="card-head"><h3>Kalite kontrolü</h3>${r.issues.length ? `<span class="status-badge status-hazirlaniyor">${r.issues.length} uyarı</span>` : '<span class="status-badge status-tamamlandi">Sorun yok</span>'}</div>
-            ${r.issues.length ? `<ul class="issue-list">${r.issues.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '<p class="card-text">Kodla denetlenen kurallar (zamanlama, konuşma süresi, süreklilik, çağrı, gerçek isim, başlık uzunluğu) sağlanıyor.</p>'}
-          </section>
-          <section class="card">
-            <div class="card-head"><h3>Ekran başlığı</h3></div>
-            <div class="field"><label for="rs-title">Başlık (en fazla 5 kelime)</label><input class="input" id="rs-title" value="${esc(d.screenTitle || '')}" maxlength="80"></div>
-            <div class="form-grid mt-3">
-              <div class="field"><label for="rs-key">Vurgulu kelime</label><input class="input" id="rs-key" value="${esc(d.titleKeyword || '')}" maxlength="40"></div>
-              <div class="field"><label for="rs-tstyle">Stil</label><select class="select" id="rs-tstyle">${Object.entries(meta.titleStyles).map(([k, v]) => `<option value="${k}" ${k === d.titleStyle ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-            </div>
-            <div class="title-preview mt-3"><canvas id="title-canvas" aria-label="Başlık önizlemesi"></canvas></div>
-            <p class="hint mt-2">Başlık Flow prompt'una yalnızca ilk sahnede girer. Bütün videoda aynı görünmesi için PNG'yi kurguda videonun üstüne koy.</p>
-          </section>
-          <section class="card">
-            <div class="card-head"><h3>Dışa aktar</h3></div>
-            <div class="stack-sm">
-              <button class="btn" data-export="script">${icon('notes')}Senaryoyu kopyala</button>
-              <button class="btn" data-export="txt">Senaryo metni indir (.txt)</button>
-              <button class="btn" data-export="srt" ${r.srt ? '' : 'disabled'}>Altyazı indir (.srt)</button>
-              <button class="btn" data-export="png">Başlık PNG'si indir</button>
-              <button class="btn" data-export="prompter">${icon('film')}Telepromter</button>
-              ${driveReady ? `<details class="disclosure"><summary>Google Drive'a gönder</summary><div class="stack-sm mt-3">
-                <button class="btn btn-sm" data-drive="png">Başlık PNG'si</button><button class="btn btn-sm" data-drive="srt" ${r.srt ? '' : 'disabled'}>Altyazı (.srt)</button><button class="btn btn-sm" data-drive="txt">Senaryo metni</button></div></details>` : ''}
-            </div>
-          </section>
-          <section class="card">
-            <div class="card-head"><h3>Sürümler</h3><span class="small muted">${r.versions.length}</span></div>
-            <ul class="version-list">${r.versions.map((v, i) => `<li><div class="grow"><div class="small strong">${esc(v.note)}</div><div class="xsmall muted">${esc(new Date(v.createdAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${v.modelLabel ? ` · ${esc(v.modelLabel)}` : ''}</div></div>
-              ${i === 0 ? '<span class="xsmall muted">Şu anki</span>' : `<button class="btn btn-sm btn-ghost" data-restore="${esc(v.id)}">Geri dön</button>`}</li>`).join('')}</ul>
-          </section>
-          <section class="card"><button class="btn btn-danger w-full" data-delete>${icon('trash')}Senaryoyu sil</button></section>
-        </aside>
+        <footer class="ed-bottom"><div class="ed-pages">${chips}</div><span class="spacer"></span><span class="small muted">${r.totalSeconds} sn · ${d.scenes.length} sahne</span></footer>
       </div>`;
+    document.body.classList.add('editor-mode');
     drawPreview();
     reviewBox(view.querySelector('#rs-review'), brand, models, () => `${view.querySelector('#rs-caption').value}\n\n${view.querySelector('#rs-tags').value}`, 'caption',
       improved => { view.querySelector('#rs-caption').value = improved; saveFields(); });
@@ -339,6 +326,22 @@ async function renderDetail(view, brand, id, models) {
   };
 
   view.onclick = async e => {
+    const menu = e.target.closest('[data-menu]');
+    if (menu) { const dd = view.querySelector(`[data-drop="${menu.dataset.menu}"]`); const was = dd.hidden; view.querySelectorAll('[data-drop]').forEach(x => { x.hidden = true; }); dd.hidden = !was; return; }
+    if (!e.target.closest('.ed-drop') || e.target.closest('button')) view.querySelectorAll('[data-drop]').forEach(x => { x.hidden = true; });
+    const rail = e.target.closest('[data-rail]');
+    if (rail || e.target.closest('[data-rail-close]')) {
+      const k = rail ? rail.dataset.rail : panel;
+      panel = panel === k && !rail?.closest('.ed-drop') ? null : k; // aynı araca tekrar tıklayınca kapanır
+      view.querySelectorAll('.ed-rail [data-rail]').forEach(b => { b.classList.toggle('active', b.dataset.rail === panel); b.setAttribute('aria-pressed', String(b.dataset.rail === panel)); });
+      view.querySelectorAll('[data-pane]').forEach(p => { p.hidden = p.dataset.pane !== panel; });
+      view.querySelector('.ed-panel').hidden = !panel;
+      view.querySelector('.ed-body').classList.toggle('has-panel', Boolean(panel));
+      if (panel === 'baslik') drawPreview();
+      return;
+    }
+    const go2 = e.target.closest('[data-goto]');
+    if (go2) { const el = view.querySelector(`[data-scene="${go2.dataset.goto}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
     const model = sel => (view.querySelector(sel) || {}).value || null;
     const regen = e.target.closest('[data-regen]');
     if (regen) {
