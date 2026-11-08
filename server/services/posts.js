@@ -303,7 +303,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     schedule(brandId, id, { scheduledAt = null } = {}) {
       const b = brands.get(brandId);
       const p = row(b.id, id);
-      const content = workspace.createContent({ brandId: b.id, title: p.title, type: (KIND_DEFAULTS[p.kind] || KIND_DEFAULTS.post).content, status: 'hazirlaniyor', scheduledAt, notes: 'Post stüdyosundan oluşturuldu.' });
+      const content = workspace.createContent({ brandId: b.id, title: p.title, type: (KIND_DEFAULTS[p.kind] || KIND_DEFAULTS.post).content, status: 'hazirlaniyor', scheduledAt, notes: 'Post stüdyosundan oluşturuldu.', caption: String((parseJson(p.data, {}).caption) || '').slice(0, 2200), hashtags: parseJson(p.data, {}).hashtags || [] });
       db.prepare('UPDATE contents SET post_id = ? WHERE id = ?').run(p.id, content.id);
       return Object.assign(content, { postId: p.id });
     }

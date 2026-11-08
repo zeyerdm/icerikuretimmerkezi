@@ -19,7 +19,7 @@ export async function renderArchive(view, brand) {
           <td class="nowrap">${c.scheduledAt ? `${esc(fmtDate(c.scheduledAt, { day: 'numeric', month: 'short', year: 'numeric' }))} <span class="muted">${timeStr(c.scheduledAt)}</span>` : '<span class="muted">Tarihsiz</span>'}</td>
           <td><b>${esc(c.title)}</b>${c.notes ? `<div class="small muted">${esc(c.notes.slice(0, 90))}</div>` : ''}${c.reelsId ? `<div><a class="link small" href="#/m/${esc(brand.id)}/reels/${esc(c.reelsId)}">Senaryoyu aç</a></div>` : ''}${c.postId ? `<div><a class="link small" href="#/m/${esc(brand.id)}/post/${esc(c.postId)}">Tasarımı aç</a></div>` : ''}</td>
           <td>${esc(c.typeLabel)}</td>
-          <td><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></td>
+          <td><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span>${c.checklist && c.checklist.length ? `<div class="xsmall muted mt-1" title="Yapılacaklar">✓ ${c.checklist.filter(i => i.done).length}/${c.checklist.length}${c.caption ? ' · açıklama hazır' : ''}</div>` : ''}${c.rate != null ? `<div class="xsmall muted">etkileşim %${String(c.rate).replace('.', ',')}</div>` : ''}</td>
           <td><button class="btn btn-sm btn-ghost icon-btn" data-edit="${esc(c.id)}" aria-label="Düzenle">${icon('edit')}</button></td></tr>`).join('')}</tbody>
       </table></div>`
       : emptyState({ icon: all.length ? 'search' : 'archive', title: all.length ? 'Bu filtrede içerik yok' : 'Arşiv boş', text: all.length ? 'Aramayı ya da filtreleri değiştir.' : 'Takvimden ya da fikirlerden içerik planladıkça burada birikir.' });

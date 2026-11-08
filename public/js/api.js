@@ -87,6 +87,7 @@ export const api = {
   createIdea: (id, body) => request('POST', b(id) + '/ideas', body),
   deleteIdea: (id, ideaId) => request('DELETE', `${b(id)}/ideas/${ideaId}`),
 
+  writeContentText: (id, model) => request('POST', `/api/contents/${encodeURIComponent(id)}/write`, { model }),
   performance: brandId => request('GET', '/api/performance' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
   dashboard: brandId => request('GET', '/api/dashboard' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
   contents: (params = {}) => request('GET', '/api/contents?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString()),

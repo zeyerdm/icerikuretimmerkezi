@@ -1,6 +1,9 @@
 // Ortak pencereler: içerik planlama, görev ve not. Takvim, yönetim merkezi, fikir havuzu ve arşiv aynı pencereleri kullanır.
 import { api } from '../api.js';
-import { esc, openModal, dateKey, timeStr } from '../ui.js';
+import { esc, openModal, dateKey, timeStr, toast } from '../ui.js';
+import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
+
+const checkRow = (i, k) => `<li class="check-item"><label class="check"><input type="checkbox" data-ck-done ${i.done ? 'checked' : ''}> <span data-ck-label>${esc(i.label)}</span></label><button type="button" class="btn btn-sm btn-ghost icon-btn" data-ck-del="${k}" aria-label="Adımı sil">×</button></li>`;
 import { state } from '../app.js';
 
 const options = (map, selected) => Object.entries(map).map(([k, v]) => `<option value="${esc(k)}" ${k === selected ? 'selected' : ''}>${esc(v)}</option>`).join('');
@@ -15,7 +18,9 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
   const when = c.scheduledAt ? new Date(c.scheduledAt) : (date ? new Date(date) : null);
   const selectedBrand = c.brandId || brandId || (state.brands[0] && state.brands[0].id);
   const m = state.meta;
-  openModal({
+  const checklist = c.checklist || [];
+  const doneCount = checklist.filter(i => i.done).length;
+  const modal = openModal({
     title: content ? 'İçeriği düzenle' : 'İçerik planla',
     submitLabel: content ? 'Kaydet' : 'Planla',
     body: `
@@ -30,7 +35,21 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
         <div class="field full"><label for="c-status">Durum</label><select class="select" id="c-status" name="status">${options(m.contentStatuses, c.status || 'taslak')}</select></div>
         <div class="field full"><label for="c-notes">Not</label><textarea class="textarea" id="c-notes" name="notes" maxlength="2000" placeholder="Görsel fikri, metin taslağı, hatırlatma…">${esc(c.notes || '')}</textarea></div>
       </div>
-      ${content ? `<details class="disclosure mt-4" ${c.metrics || c.status === 'yayinlandi' ? 'open' : ''}>
+      ${content ? `<details class="disclosure mt-4" open>
+        <summary>Yayın metni</summary>
+        <div class="field"><label for="c-caption">Açıklama <span class="xsmall muted" id="c-cap-count">${(c.caption || '').length}/2200</span></label><textarea class="textarea" id="c-caption" name="caption" rows="6" maxlength="2200" placeholder="Instagram açıklaması">${esc(c.caption || '')}</textarea></div>
+        <div class="field mt-3"><label for="c-tags">Hashtag'ler</label><input class="input" id="c-tags" name="hashtags" maxlength="600" value="${esc((c.hashtags || []).join(' '))}" placeholder="#ornek #marka"></div>
+        <div class="field mt-3"><label for="c-first">İlk yorum</label><textarea class="textarea" id="c-first" name="firstComment" rows="2" maxlength="2200" placeholder="Paylaşınca markanın ilk yorumu">${esc(c.firstComment || '')}</textarea></div>
+        <div class="row mt-3"><button type="button" class="btn btn-sm" data-c-write>AI ile yaz</button><span id="c-model"></span>
+          <button type="button" class="btn btn-sm btn-ghost" data-c-copy="caption">Açıklama + hashtag kopyala</button><button type="button" class="btn btn-sm btn-ghost" data-c-copy="first">İlk yorumu kopyala</button></div>
+        <div class="xsmall muted mt-1" id="c-write-note"></div>
+      </details>
+      <details class="disclosure mt-4" ${checklist.length && doneCount < checklist.length ? 'open' : ''}>
+        <summary>Yapılacaklar <span class="muted" id="c-ck-count">${doneCount}/${checklist.length}</span></summary>
+        <ul class="check-list" id="c-checklist">${checklist.map(checkRow).join('')}</ul>
+        <div class="row mt-2"><input class="input input-sm grow" id="c-ck-new" maxlength="60" placeholder="Yeni adım ekle"><button type="button" class="btn btn-sm" data-ck-add>Ekle</button></div>
+      </details>
+      <details class="disclosure mt-4" ${c.metrics || c.status === 'yayinlandi' ? 'open' : ''}>
         <summary>Paylaşım sonucu${c.rate != null ? ` · etkileşim %${String(c.rate).replace('.', ',')}` : ''}</summary>
         <p class="xsmall muted mb-3">Instagram istatistiklerindeki sayıları gir. Asistan ve üretim ekranları en çok tutan giriş cümlelerinden ve temalardan öğrenir; Analizler'de "Ne işe yaradı" bölümü bunlardan hesaplanır.${c.metrics && c.metrics.at ? ` Son giriş: ${esc(new Date(c.metrics.at).toLocaleDateString('tr-TR'))}.` : ''}</p>
         <div class="form-grid metrics-grid">${Object.entries(m.metricFields).map(([k, label]) => `<div class="field"><label for="cm-${k}">${esc(label)}</label><input class="input" type="number" min="0" step="1" id="cm-${k}" name="m_${k}" value="${c.metrics && c.metrics[k] != null ? c.metrics[k] : ''}"></div>`).join('')}</div>
@@ -49,13 +68,49 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
       if (content) {
         const metrics = {};
         Object.keys(m.metricFields).forEach(k => { const v = fd.get('m_' + k); if (v !== null && v !== '') metrics[k] = Number(v); });
-        Object.assign(body, { metrics: Object.keys(metrics).length ? metrics : null, hook: fd.get('hook') || '', theme: fd.get('theme') || '' });
+        Object.assign(body, { metrics: Object.keys(metrics).length ? metrics : null, hook: fd.get('hook') || '', theme: fd.get('theme') || '',
+          caption: fd.get('caption') || '', hashtags: fd.get('hashtags') || '', firstComment: fd.get('firstComment') || '',
+          checklist: [...document.querySelectorAll('#c-checklist .check-item')].map(li => ({ label: li.querySelector('[data-ck-label]').textContent, done: li.querySelector('[data-ck-done]').checked })) });
         await api.updateContent(content.id, body);
       }
       else await api.createContent(Object.assign(body, ideaId ? { ideaId } : {}));
       onSaved && onSaved();
     }
   });
+  if (content) wireContentCard(modal.form, content);
+}
+
+// İçerik kartı: AI ile açıklama/hashtag/ilk yorum yazma, kopyalama, yapılacaklar listesi
+async function wireContentCard(form, content) {
+  const $ = s => form.querySelector(s);
+  const cap = $('#c-caption');
+  cap.addEventListener('input', () => { $('#c-cap-count').textContent = `${cap.value.length}/2200`; });
+  const count = () => { const items = form.querySelectorAll('#c-checklist .check-item'); $('#c-ck-count').textContent = `${form.querySelectorAll('#c-checklist [data-ck-done]:checked').length}/${items.length}`; };
+  form.addEventListener('change', e => { if (e.target.matches('[data-ck-done]')) count(); });
+  const add = () => { const v = $('#c-ck-new').value.trim(); if (!v) return; $('#c-checklist').insertAdjacentHTML('beforeend', checkRow({ label: v.slice(0, 60), done: false }, Date.now())); $('#c-ck-new').value = ''; count(); };
+  $('#c-ck-new').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  const copy = async t => { try { await navigator.clipboard.writeText(t); toast('Kopyalandı.', 'success'); } catch { toast('Kopyalanamadı; metni seçip Ctrl+C ile kopyala.', 'error'); } };
+  form.addEventListener('click', async e => {
+    if (e.target.closest('[data-ck-add]')) return add();
+    const del = e.target.closest('[data-ck-del]');
+    if (del) { del.closest('.check-item').remove(); return count(); }
+    const cp = e.target.closest('[data-c-copy]');
+    if (cp) return copy(cp.dataset.cCopy === 'first' ? $('#c-first').value : `${cap.value}\n\n${$('#c-tags').value}`.trim());
+    const w = e.target.closest('[data-c-write]');
+    if (w) {
+      try {
+        const r = await busyTimer(w, () => api.writeContentText(content.id, ($('#c-model select') || {}).value || null));
+        cap.value = r.caption; $('#c-tags').value = r.hashtags.join(' '); $('#c-first').value = r.firstComment;
+        cap.dispatchEvent(new Event('input'));
+        $('#c-write-note').textContent = `${aiNote(r.ai)} · Kaydet'e basınca saklanır.`;
+      } catch (err) { toast(err.message, 'error'); }
+    }
+  });
+  try {
+    const models = await aiModels();
+    if (!models.ov.providers.some(p => p.configured)) { form.querySelector('[data-c-write]').remove(); $('#c-write-note').textContent = 'AI bağlı değilse metni elle yazabilirsin.'; return; }
+    $('#c-model').innerHTML = modelSelect(models, 'yazim', { id: 'c-model-pick' });
+  } catch { /* model listesi gelmezse atanmış model kullanılır */ }
 }
 
 export function taskModal({ task, brandId, lockBrand, onSaved }) {
