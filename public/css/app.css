@@ -983,3 +983,8 @@ body.editor-mode #daily-slot { display: none; }
 .toast .btn { margin-left: 6px; }
 .pre-wrap { white-space: pre-wrap; }
 .ocr-text { padding: 6px 10px 8px; color: var(--ink-2, #445); font-style: italic; line-height: 1.35; word-break: break-word; }
+/* Çöp kutusu */
+.trash-list { display: grid; }
+.trash-item { display: grid; grid-template-columns: auto 1fr auto auto; gap: 12px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.trash-item:last-child { border-bottom: 0; }
+@media (max-width: 720px) { .trash-item { grid-template-columns: 1fr auto auto; } .trash-item .tag { grid-column: 1 / -1; justify-self: start; } }

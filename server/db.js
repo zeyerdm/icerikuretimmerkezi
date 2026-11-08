@@ -376,6 +376,19 @@ const MIGRATIONS = [
   `
   ALTER TABLE assets ADD COLUMN ocr_text TEXT NOT NULL DEFAULT '';
   ALTER TABLE assets ADD COLUMN analyzed_at TEXT;
+  `,
+  // 19: Çöp kutusu: silinen kaydın (ve bağlı alt kayıtlarının) anlık görüntüsü 30 gün saklanır, geri alınabilir
+  `
+  CREATE TABLE trash (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    brand_id TEXT REFERENCES brands(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    deleted_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_trash ON trash(owner_id, deleted_at);
   `
 ];
 

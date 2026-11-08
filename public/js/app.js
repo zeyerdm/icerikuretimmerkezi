@@ -24,6 +24,7 @@ import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 import { initPalette, openPalette } from './palette.js';
 import { initInspiration } from './inspiration.js';
+import { renderTrash, initTrashUndo } from './views/trash.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -76,6 +77,7 @@ export const CENTER_NAV = [
   { hash: '#/notlar', label: 'Notlar', icon: 'notes', page: 'notes' },
   { hash: '#/analizler', label: 'Analizler', icon: 'chart', page: 'analytics' },
   { hash: '#/ai', label: 'Yapay zekâ', icon: 'sparkle', page: 'ai' },
+  { hash: '#/cop', label: 'Çöp kutusu', icon: 'trash', page: 'trash' },
   { hash: '#/ayarlar', label: 'Ayarlar', icon: 'settings', page: 'settings' }
 ];
 
@@ -95,7 +97,7 @@ export const BRAND_NAV = [
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart' }
 ];
 
-const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', newBrand: 'Yeni marka', ai: 'Yapay zekâ' };
+const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', trash: 'Çöp kutusu', newBrand: 'Yeni marka', ai: 'Yapay zekâ' };
 
 export function parseRoute(hash = location.hash || '#/') {
   let m;
@@ -248,6 +250,7 @@ export async function route() {
     else if (r.page === 'calendar') await renderCalendar(view, {});
     else if (r.page === 'tasks') await renderTasks(view);
     else if (r.page === 'notes') await renderNotes(view);
+    else if (r.page === 'trash') await renderTrash(view);
     else if (r.page === 'analytics') await renderAnalytics(view, {});
     else if (r.page === 'settings') await renderSettings(view);
     else if (r.page === 'ai') await renderAi(view, r.tab);
@@ -273,6 +276,7 @@ async function start() {
   window.addEventListener('hashchange', route);
   initPalette();
   initInspiration();
+  initTrashUndo();
   await route();
   showDailyOnce();
   startNotifier();
