@@ -900,3 +900,19 @@ body.editor-mode .view { max-width: none; padding: 0; margin: 0; }
 .upcoming-day > div { grid-row: 1 / span 2; grid-column: 2; min-width: 0; }
 .ai-fill { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-radius: 12px; background: var(--brand-soft); }
 .ai-filled { box-shadow: 0 0 0 2px var(--brand) inset; background: color-mix(in srgb, var(--brand-soft) 50%, #fff); }
+/* Hatırlatmalar */
+.bell { position: relative; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; color: var(--ink-2, #3a3f63); }
+.bell svg { width: 20px; height: 20px; }
+.bell:hover { border-color: var(--brand); }
+.bell-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--rose, #e5486b); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
+.sum-sec { margin-bottom: var(--s-4); }
+.sum-sec h4 { margin: 0 0 6px; font-size: var(--t-sm); }
+.sum-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.sum-list a { display: block; padding: 6px 8px; border-radius: 8px; text-decoration: none; color: inherit; }
+.sum-list a:hover { background: var(--brand-soft); }
+.sum-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+#daily-slot { max-width: calc(var(--content-max) + 2 * var(--gutter)); width: 100%; margin: 0 auto; padding: 0 var(--gutter); }
+.daily { display: flex; align-items: center; gap: var(--s-3); margin-top: var(--s-3); padding: 10px 14px; border-radius: 12px; background: var(--brand-soft); font-size: var(--t-sm); }
+.daily > svg { width: 18px; height: 18px; flex: none; }
+.daily > span { flex: 1; min-width: 0; }
+body.editor-mode #daily-slot { display: none; }

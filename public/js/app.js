@@ -19,6 +19,7 @@ import { renderAi } from './views/ai.js';
 import { renderReels } from './views/reels.js';
 import { renderPosts } from './views/posts.js';
 import { renderPrompts } from './views/prompts.js';
+import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -176,7 +177,15 @@ export function renderChrome() {
         ${state.brands.map(b => `<option value="${esc(b.id)}" ${brand && b.id === brand.id ? 'selected' : ''}>${esc(b.name)}${b.isDemo ? ' (örnek)' : ''}</option>`).join('')}
         ${brand ? '<option value="__center">← Yönetim Merkezi</option>' : ''}
       </select>` : ''}
+    <span id="bell-slot"></span>
     ${aiPill}`;
+  // Zil (bekleyen iş rozeti) ayrı yüklenir; üst çubuğu bekletmez
+  bellHtml().then(({ html, summary }) => {
+    const slot = document.getElementById('bell-slot');
+    if (!slot || !html) return;
+    slot.innerHTML = html;
+    slot.querySelector('#bell').addEventListener('click', () => openSummary(summary));
+  });
   const sw = document.getElementById('brand-switch');
   if (sw) sw.addEventListener('change', () => {
     if (!sw.value) return;
@@ -252,7 +261,9 @@ async function start() {
     return;
   }
   window.addEventListener('hashchange', route);
-  route();
+  await route();
+  showDailyOnce();
+  startNotifier();
 }
 
 start();
