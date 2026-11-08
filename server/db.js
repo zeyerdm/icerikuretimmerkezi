@@ -321,6 +321,19 @@ const MIGRATIONS = [
     updated_at TEXT NOT NULL
   );
   CREATE INDEX idx_brand_facts ON brand_facts(brand_id, category);
+  `,
+  // 14: Markalar arası (ortak) şablon kütüphanesi: katman rolleriyle; uygulandığı markanın kimliğine çevrilir
+  `
+  CREATE TABLE shared_templates (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL,
+    source_brand_id TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_shared_templates ON shared_templates(owner_id, created_at);
   `
 ];
 
