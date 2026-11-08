@@ -59,7 +59,9 @@ Hedef: eski sistemde çalışan her şey yeni sistemde, istenen düzeltmelerle v
 
 ## Arayüz düzeni (kullanıcının ekran görüntüleriyle yapılacak)
 
-- ⬜ **U.1 Tasarım ekranlarını sadeleştirme (Canva benzeri yerleşim):** şu an ekranlar karışık ve tasarım ekranları aşağı doğru kayıyor. Hedef: tasarım alanı tek ekranda sabit; solda araç kutusu (metin, görsel, şekil, sticker, şablon, yükleme), sağda seçili öğenin ayarları ve dışa aktarma/paylaşım; uzun ayar listeleri açılır panellere. Post stüdyosu, Reels senaryo ekranı ve Prompt Studio aynı düzene geçer. **Kullanıcı örnek ekran görüntüleri gönderince başlanacak.**
+- 🔄 **U.1 Tasarım ekranlarını sadeleştirme (Canva benzeri yerleşim):** kullanıcının Canva ekran görüntülerine göre.
+  - ✅ **Post stüdyosu:** tam ekran düzenleyici; üstte Dosya (ad, kaydet, marka şablonu, takvim, sil), Yeniden boyutlandır ve Paylaş (PNG, bütün slaytlar, Drive, takvim, şablon) menüleri; solda araç rayı (Metin, Öğeler, Marka, Yüklemeler, Şablonlar, Zemin, AI, Açıklama) ve tıklandıkça açılıp kapanan panel; ortada ekrana sığan tasarım alanı (sayfa kaymaz); altta sayfa şeridi ve yakınlaştırma; sağda yalnızca öğe seçiliyken ayarlar.
+  - ⬜ Reels senaryo ekranı ve Prompt Studio aynı düzene geçecek.
 
 ## Aşama 4 — Geliştirme ve yenileme
 

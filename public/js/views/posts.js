@@ -167,11 +167,19 @@ async function referenceFlow(brand, models, refresh) {
   }
 }
 
-// ------------------------------------------------------------ Editör
+// ------------------------------------------------------------ Editör (Canva benzeri yerleşim)
+// Tam ekran: üstte Dosya / Yeniden boyutlandır / Paylaş menüleri; solda araç rayı ve tıklandıkça açılıp kapanan panel;
+// ortada sabit tasarım alanı (sayfa kaymaz); altta sayfa şeridi ve yakınlaştırma; sağda yalnızca bir öğe seçiliyken ayarlar.
+const RAIL = [
+  ['metin', 'Metin', 'edit'], ['ogeler', 'Öğeler', 'palette'], ['marka', 'Marka', 'identity'], ['yuklemeler', 'Yüklemeler', 'upload'],
+  ['sablonlar', 'Şablonlar', 'grid'], ['zemin', 'Zemin', 'image'], ['ai', 'AI', 'sparkle'], ['aciklama', 'Açıklama', 'notes']
+];
+
 async function renderEditor(view, brand, id, models) {
   const meta = state.meta.posts;
   let post;
   try { post = (await api.post(brand.id, id)).post; } catch (err) { view.innerHTML = errorNotice(err); return; }
+  document.body.classList.add('editor-mode');
   const aiReady = models.ov.providers.some(p => p.configured);
   const driveReady = Boolean(state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId);
   const fontList = [...new Set([brand.fonts.heading, brand.fonts.body, ...state.meta.fonts].filter(Boolean))];
@@ -180,149 +188,249 @@ async function renderEditor(view, brand, id, models) {
   let current = 0;
   let selected = null;
   let dirty = false;
-  let lastAi = null;
+  let panel = 'metin';
+  let zoom = 100;
+  let assetCache = null;
   const format = () => meta.formats[data.format];
   const slide = () => data.slides[current];
   const layer = () => slide().layers.find(l => l.id === selected) || null;
+  const $ = s => view.querySelector(s);
 
   function shell() {
     view.innerHTML = `
-      ${pageHead({
-        title: post.title,
-        desc: `${esc(post.kindLabel)} · ${esc(format().label)}${post.modelLabel ? ` · metin: ${esc(post.modelLabel)}` : ''}`,
-        actions: `<a class="btn btn-ghost" href="${base(brand)}">${icon('back')}Tasarımlar</a><button class="btn btn-primary" data-save>Kaydet</button>`
-      })}
-      ${lastAi ? `<div class="notice notice-ok mb-4"><div>${esc(aiNote(lastAi))}</div></div>` : ''}
-      <div class="studio">
-        <aside class="card studio-slides">
-          <div class="card-head"><h3>Slaytlar</h3><span class="small muted">${data.slides.length}/10</span></div>
-          <div id="slide-list" class="slide-list"></div>
-          <div class="stack-sm mt-3">
-            <button class="btn btn-sm" data-slide-add ${data.slides.length >= 10 ? 'disabled' : ''}>${icon('plus')}Slayt ekle</button>
-            <button class="btn btn-sm" data-slide-dup ${data.slides.length >= 10 ? 'disabled' : ''}>Çoğalt</button>
-            <div class="row"><button class="btn btn-sm icon-btn" data-slide-move="-1" aria-label="Yukarı taşı">${icon('chevronLeft')}</button><button class="btn btn-sm icon-btn" data-slide-move="1" aria-label="Aşağı taşı">${icon('chevronRight')}</button>
-              <button class="btn btn-sm btn-ghost" data-slide-del ${data.slides.length <= 1 ? 'disabled' : ''}>${icon('trash')}Sil</button></div>
+      <div class="ed">
+        <header class="ed-top">
+          <a class="ed-top-btn" href="${base(brand)}" title="Tasarımlar">${icon('back')}<span>Tasarımlar</span></a>
+          <div class="ed-menu"><button type="button" class="ed-top-btn" data-menu="dosya" aria-haspopup="true">Dosya</button>
+            <div class="ed-drop" data-drop="dosya" hidden>
+              <div class="ed-drop-head"><b>${esc(post.title)}</b><span class="xsmall">${esc(post.kindLabel)} · ${esc(format().label)} · ${format().w}×${format().h} px</span></div>
+              <button type="button" data-act="rename">${icon('edit')}Adını değiştir</button>
+              <button type="button" data-act="save">${icon('check')}Kaydet <span class="ed-hint" id="ed-save-state">${dirty ? 'Kaydedilmemiş değişiklik' : 'Değişiklikler kaydedildi'}</span></button>
+              <button type="button" data-act="template">${icon('grid')}Marka şablonu olarak kaydet</button>
+              ${post.content ? `<a href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde gör</a>` : `<button type="button" data-act="schedule">${icon('calendar')}Takvime ekle</button>`}
+              <a href="${base(brand)}">${icon('plus')}Yeni tasarım oluştur</a>
+              <hr><button type="button" class="danger" data-act="delete">${icon('trash')}Tasarımı sil</button>
+            </div></div>
+          <div class="ed-menu"><button type="button" class="ed-top-btn" data-menu="boyut" aria-haspopup="true">Yeniden boyutlandır</button>
+            <div class="ed-drop" data-drop="boyut" hidden>${Object.entries(meta.formats).map(([k, v]) => `<button type="button" data-format="${k}" class="${k === data.format ? 'on' : ''}">${esc(v.label)} <span class="ed-hint">${v.w}×${v.h}</span></button>`).join('')}</div></div>
+          <span class="spacer"></span>
+          <h1 class="ed-title" title="${esc(post.title)}">${esc(post.title)}</h1>
+          <button type="button" class="ed-top-btn ed-save" data-act="save">${dirty ? 'Kaydet •' : 'Kaydet'}</button>
+          <div class="ed-menu"><button type="button" class="ed-share" data-menu="paylas" aria-haspopup="true">Paylaş</button>
+            <div class="ed-drop right" data-drop="paylas" hidden>
+              <div class="ed-drop-head"><b>Tasarımı paylaş</b></div>
+              <div class="ed-share-grid">
+                <button type="button" data-png="one">${icon('download')}<span>Bu slaytı PNG indir</span></button>
+                ${data.slides.length > 1 ? `<button type="button" data-png="all">${icon('download')}<span>Bütün slaytları indir</span></button>` : ''}
+                ${driveReady ? `<button type="button" data-drive="one">${icon('upload')}<span>Bu slaytı Drive'a gönder</span></button>${data.slides.length > 1 ? `<button type="button" data-drive="all">${icon('upload')}<span>Bütün slaytları Drive'a gönder</span></button>` : ''}` : ''}
+                ${post.content ? '' : `<button type="button" data-act="schedule">${icon('calendar')}<span>Takvime ekle</span></button>`}
+                <button type="button" data-act="template">${icon('grid')}<span>Marka şablonu</span></button>
+              </div>
+              ${driveReady ? '' : '<p class="xsmall muted mt-2">Drive\'a göndermek için markanın Drive klasörünü bağla.</p>'}
+            </div></div>
+        </header>
+        <div class="ed-body ${panel ? 'has-panel' : ''} ${selected ? 'has-props' : ''}">
+          <nav class="ed-rail" aria-label="Araçlar">${RAIL.map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
+          <aside class="ed-panel" ${panel ? '' : 'hidden'}><div id="ed-panel-body"></div><button type="button" class="ed-collapse" data-rail-close aria-label="Paneli kapat">${icon('chevronLeft')}</button></aside>
+          <main class="ed-stage" id="ed-stage-area">
+            <div class="ed-canvas-wrap"><canvas id="stage" tabindex="0" aria-label="Slayt; öğe seçmek için tıkla, taşımak için sürükle, ince ayar için ok tuşları"></canvas></div>
+          </main>
+          <aside class="ed-props" id="layer-panel" ${selected ? '' : 'hidden'}></aside>
+        </div>
+        <footer class="ed-bottom">
+          <div class="ed-pages" id="slide-list"></div>
+          <div class="ed-page-actions">
+            <button type="button" class="btn btn-sm" data-slide-add ${data.slides.length >= 10 ? 'disabled' : ''} title="Slayt ekle">${icon('plus')}Slayt ekle</button>
+            <button type="button" class="btn btn-sm btn-ghost" data-slide-dup ${data.slides.length >= 10 ? 'disabled' : ''}>Çoğalt</button>
+            <button type="button" class="btn btn-sm btn-ghost icon-btn" data-slide-move="-1" aria-label="Sola taşı">${icon('chevronLeft')}</button>
+            <button type="button" class="btn btn-sm btn-ghost icon-btn" data-slide-move="1" aria-label="Sağa taşı">${icon('chevronRight')}</button>
+            <button type="button" class="btn btn-sm btn-ghost icon-btn" data-slide-del ${data.slides.length <= 1 ? 'disabled' : ''} aria-label="Slaytı sil">${icon('trash')}</button>
           </div>
-        </aside>
-        <section class="studio-stage">
-          <div class="card stage-card">
-            <div class="stage-wrap"><canvas id="stage" tabindex="0" aria-label="Slayt ${current + 1}; katman seçmek için tıkla, taşımak için sürükle, ince ayar için ok tuşları"></canvas></div>
-            <div class="row mt-3">
-              <button class="btn btn-sm" data-add="text">${icon('plus')}Metin</button>
-              <button class="btn btn-sm" data-add="image">${icon('image')}Görsel / maskot</button>
-              <button class="btn btn-sm" data-add="shape">Dikdörtgen</button>
-              <button class="btn btn-sm" data-add="circle">Daire</button>
-              <button class="btn btn-sm" data-add="sticker">Sticker</button>
-              <span class="spacer"></span>
-              <label class="small muted" for="slide-bg">Zemin</label><input type="color" id="slide-bg" value="${esc(slide().bg)}" aria-label="Slayt zemin rengi">
-            </div>
-            <div class="row mt-2" id="bg-image-row"></div>
-          </div>
-          <section class="card mt-4">
-            <div class="card-head"><h3>Açıklama ve hashtag</h3></div>
-            <div class="field"><label for="pc-caption">Instagram açıklaması</label><textarea class="textarea" id="pc-caption" rows="5" maxlength="3000">${esc(data.caption || '')}</textarea></div>
-            <div class="field mt-3"><label for="pc-tags">Hashtag'ler</label><input class="input" id="pc-tags" value="${esc((data.hashtags || []).join(' '))}" maxlength="400"></div>
-            <div id="pc-review" class="mt-3"></div>
-          </section>
-        </section>
-        <aside class="stack studio-panel">
-          <section class="card" id="layer-panel"></section>
-          ${aiReady ? `<section class="card"><div class="card-head"><h3>Metni yeniden yaz</h3></div>
-            <p class="card-text mb-3">Bütün slayt metinleri seçtiğin modelle yeniden yazılır; yerleşim marka şablonuyla baştan kurulur.</p>
-            <div class="stack-sm">${modelSelect(models, 'yazim', { id: 'pw-model' })}<button class="btn" data-rewrite>${icon('refresh')}Yeniden yaz</button></div></section>` : ''}
-          <section class="card"><div class="card-head"><h3>Dışa aktar</h3></div>
-            <div class="stack-sm">
-              <button class="btn" data-png="one">Bu slaytı PNG indir</button>
-              <button class="btn" data-png="all" ${data.slides.length > 1 ? '' : 'hidden'}>Bütün slaytları indir</button>
-              ${driveReady ? `<button class="btn" data-drive="one">Bu slaytı Drive'a gönder</button><button class="btn" data-drive="all" ${data.slides.length > 1 ? '' : 'hidden'}>Bütün slaytları Drive'a gönder</button>` : ''}
-              ${post.content ? `<a class="btn" href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde</a>` : `<button class="btn" data-schedule>${icon('calendar')}Takvime ekle</button>`}
-            </div></section>
-          <section class="card"><div class="card-head"><h3>Şablon</h3></div>
-            <p class="card-text mb-3">Bu tasarımın yerleşimini, renklerini ve görsellerini markanın şablonu olarak sakla; yeni tasarımları ondan başlat.</p>
-            <button class="btn w-full" data-save-tpl>Şablon olarak kaydet</button></section>
-          <section class="card"><button class="btn btn-danger w-full" data-delete>${icon('trash')}Tasarımı sil</button></section>
-        </aside>
+          <span class="spacer"></span>
+          <label class="ed-zoom"><input type="range" id="ed-zoom" min="40" max="200" step="10" value="${zoom}" aria-label="Yakınlaştırma"><span id="ed-zoom-val">%${zoom}</span></label>
+          <span class="small muted">${current + 1} / ${data.slides.length}</span>
+        </footer>
       </div>`;
-    reviewBox(view.querySelector('#pc-review'), brand, models, () => `${view.querySelector('#pc-caption').value}\n\n${view.querySelector('#pc-tags').value}`, 'caption',
-      improved => { view.querySelector('#pc-caption').value = improved; data.caption = improved; markDirty(); });
     wireStage();
+    drawPanelBody();
     redraw();
   }
 
-  function markDirty() { dirty = true; const b = view.querySelector('[data-save]'); if (b) b.textContent = 'Kaydet •'; }
+  function markDirty() {
+    dirty = true;
+    const b = $('.ed-save'); if (b) b.textContent = 'Kaydet •';
+    const st = $('#ed-save-state'); if (st) st.textContent = 'Kaydedilmemiş değişiklik';
+  }
+
+  // Tasarım alanı ekrana sığar; yakınlaştırma bunun yüzdesidir
+  function fit() {
+    const c = $('#stage');
+    const area = $('#ed-stage-area');
+    if (!c || !area) return;
+    const F = format();
+    const k = Math.min((area.clientWidth - 48) / F.w, (area.clientHeight - 48) / F.h) * (zoom / 100);
+    c.style.width = `${Math.max(120, Math.round(F.w * k))}px`;
+    c.style.height = `${Math.max(120, Math.round(F.h * k))}px`;
+  }
 
   async function redraw() {
     const s = slide();
     await resolveImages(s);
-    const c = view.querySelector('#stage');
+    const c = $('#stage');
     if (!c) return;
     drawSlide(c, s, format(), { selectedId: selected });
+    fit();
     drawList();
-    drawPanel();
-    drawBgRow();
+    drawProps();
   }
-
-  function drawBgRow() {
-    const row = view.querySelector('#bg-image-row');
-    if (!row) return;
-    const bi = slide().bgImage;
-    row.innerHTML = bi
-      ? `<span class="small muted">Zemin görseli</span>
-        <div class="seg">${[['cover', 'Kapla'], ['contain', 'Sığdır']].map(([k, v]) => `<button type="button" data-bg-fit="${k}" class="${bi.fit === k ? 'active' : ''}">${v}</button>`).join('')}</div>
-        <label class="small muted" for="bg-dim">Karartma</label><input type="range" id="bg-dim" min="0" max="80" step="5" value="${bi.dim || 0}" aria-label="Zemin karartma">
-        <button class="btn btn-sm" data-bg-image>Değiştir</button><button class="btn btn-sm btn-ghost" data-bg-remove>Kaldır</button>`
-      : `<button class="btn btn-sm btn-ghost" data-bg-image>${icon('image')}Zemine görsel koy</button>`;
-  }
+  const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: selected }); };
 
   function drawList() {
-    const list = view.querySelector('#slide-list');
-    list.innerHTML = data.slides.map((s, i) => `<button class="slide-thumb ${i === current ? 'active' : ''}" data-slide="${i}" aria-label="Slayt ${i + 1}" aria-current="${i === current}"><canvas></canvas><span>${i + 1}</span></button>`).join('');
+    const list = $('#slide-list');
+    list.innerHTML = data.slides.map((s, i) => `<button type="button" class="slide-thumb ${i === current ? 'active' : ''}" data-slide="${i}" aria-label="Slayt ${i + 1}" aria-current="${i === current}"><canvas></canvas><span>${i + 1}</span></button>`).join('');
     list.querySelectorAll('canvas').forEach((c, i) => resolveImages(data.slides[i]).then(() => drawSlide(c, data.slides[i], format())));
   }
 
-  function drawPanel() {
-    const p = view.querySelector('#layer-panel');
+  // Seçim değişince sağ panel açılır/kapanır (yerleşim değişir, tasarım alanı yeniden sığdırılır)
+  function setSelected(id) {
+    selected = id;
+    $('.ed-body').classList.toggle('has-props', Boolean(id));
+    $('#layer-panel').hidden = !id;
+  }
+
+  function drawProps() {
+    const p = $('#layer-panel');
     const l = layer();
-    if (!l) {
-      p.innerHTML = `<div class="card-head"><h3>Katman</h3></div><p class="card-text">Düzenlemek için slayttaki bir yazıya, görsele ya da şekle tıkla. Sürükleyerek taşıyabilir, ok tuşlarıyla (Shift ile 10 kat) ince ayar yapabilirsin.</p>`;
-      return;
-    }
+    if (!l) { p.innerHTML = ''; return; }
     const swatches = (key, value) => `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === value ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" data-prop="${key}" value="${esc(value)}" aria-label="Özel renk"></div>`;
-    p.innerHTML = `<div class="card-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
-      <div class="row"><button class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil">${icon('trash')}</button></div></div>
+    p.innerHTML = `<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
+      <div class="row"><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-dup aria-label="Çoğalt" title="Çoğalt">${icon('plus')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil" title="Sil">${icon('trash')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-deselect aria-label="Kapat" title="Kapat">${icon('x')}</button></div></div>
       <div class="stack-sm">
       ${l.type === 'text' ? `
-        <div class="field"><label for="lp-text">Yazı</label><textarea class="textarea" id="lp-text" data-prop="text" rows="4" maxlength="1000">${esc(l.text)}</textarea></div>
+        <div class="field"><label for="lp-text">Yazı</label><textarea class="textarea" id="lp-text" data-prop="text" rows="3" maxlength="1000">${esc(l.text)}</textarea></div>
         <div class="form-grid">
-          <div class="field"><label for="lp-size">Boyut</label><input class="input" id="lp-size" type="number" min="10" max="300" data-prop="size" value="${l.size}"></div>
-          <div class="field"><label for="lp-w">Genişlik</label><input class="input" id="lp-w" type="number" min="40" max="2000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-font">Font</label><select class="select" id="lp-font" data-prop="font">${fontList.map(f => `<option ${f === l.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
           <div class="field"><label for="lp-weight">Kalınlık</label><select class="select" id="lp-weight" data-prop="weight">${[400, 500, 600, 700, 800, 900].map(w => `<option value="${w}" ${w === l.weight ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
+          <div class="field"><label for="lp-size">Boyut</label><input class="input" id="lp-size" type="number" min="10" max="300" data-prop="size" value="${l.size}"></div>
+          <div class="field"><label for="lp-w">Genişlik</label><input class="input" id="lp-w" type="number" min="40" max="2000" data-prop="w" value="${l.w}"></div>
         </div>
         <div class="field"><span class="field-label">Hizalama</span><div class="seg">${[['left', 'Sol'], ['center', 'Orta'], ['right', 'Sağ']].map(([k, v]) => `<button type="button" data-align="${k}" class="${l.align === k ? 'active' : ''}">${v}</button>`).join('')}</div></div>
         <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>`
       : l.type === 'image' ? `
         <div class="form-grid"><div class="field"><label for="lp-iw">Genişlik</label><input class="input" id="lp-iw" type="number" min="10" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-ih">Yükseklik</label><input class="input" id="lp-ih" type="number" min="10" max="4000" data-prop="h" value="${l.h}"></div></div>
-        <button class="btn btn-sm" data-replace-image>Görseli değiştir</button>`
+        <button type="button" class="btn btn-sm" data-replace-image>Görseli değiştir</button>`
       : `<div class="form-grid"><div class="field"><label for="lp-sw">Genişlik</label><input class="input" id="lp-sw" type="number" min="1" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-sh">Yükseklik</label><input class="input" id="lp-sh" type="number" min="1" max="4000" data-prop="h" value="${l.h}"></div>
-          <div class="field"><label for="lp-r">Köşe</label><input class="input" id="lp-r" type="number" min="0" max="1000" data-prop="radius" value="${l.radius || 0}"></div></div>
+          ${l.shape === 'circle' ? '' : `<div class="field"><label for="lp-r">Köşe</label><input class="input" id="lp-r" type="number" min="0" max="1000" data-prop="radius" value="${l.radius || 0}"></div>`}</div>
         <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>`}
       <div class="field"><label for="lp-op">Saydamlık: ${l.opacity != null ? l.opacity : 100}%</label><input type="range" id="lp-op" min="10" max="100" step="5" data-prop="opacity" value="${l.opacity != null ? l.opacity : 100}"></div>
       <div class="form-grid"><div class="field"><label for="lp-x">X</label><input class="input" id="lp-x" type="number" data-prop="x" value="${l.x}"></div><div class="field"><label for="lp-y">Y</label><input class="input" id="lp-y" type="number" data-prop="y" value="${l.y}"></div></div>
       </div>`;
   }
 
+  // ---- Sol panel içerikleri
+  async function assets() { if (!assetCache) assetCache = (await api.assets(brand.id)).assets; return assetCache; }
+  const assetGrid = (list, empty) => (list.length
+    ? `<div class="ed-asset-grid">${list.map(a => `<button type="button" class="ed-asset" data-add-asset="${esc(a.id)}" title="${esc(a.label || a.categoryLabel)}"><img src="${esc(a.url)}" alt="${esc(a.label || '')}" loading="lazy"></button>`).join('')}</div>`
+    : `<p class="small muted">${empty}</p>`);
+
+  async function drawPanelBody() {
+    const box = $('#ed-panel-body');
+    if (!box || !panel) return;
+    const title = (RAIL.find(r => r[0] === panel) || [])[1];
+    const head = `<h3 class="ed-panel-title">${esc(title)}</h3>`;
+    if (panel === 'metin') {
+      box.innerHTML = `${head}<div class="stack-sm">
+        <button type="button" class="ed-text-add h1" data-add="text" data-preset="title">Başlık ekle</button>
+        <button type="button" class="ed-text-add h2" data-add="text" data-preset="sub">Alt başlık ekle</button>
+        <button type="button" class="ed-text-add" data-add="text" data-preset="body">Gövde metni ekle</button></div>
+        <p class="xsmall muted mt-3">Fontlar: ${esc(brand.fonts.heading || 'Poppins')} / ${esc(brand.fonts.body || 'Inter')} (marka kimliğinden)</p>`;
+      return;
+    }
+    if (panel === 'ogeler') {
+      const list = await assets();
+      const stickers = list.filter(a => a.category === 'sticker');
+      const packs = [...new Set(stickers.map(a => a.pack).filter(Boolean))];
+      box.innerHTML = `${head}<h4 class="ed-sub">Şekiller</h4>
+        <div class="ed-shapes"><button type="button" data-add="shape" title="Dikdörtgen"><span class="sh rect"></span></button><button type="button" data-add="shape" data-preset="rounded" title="Yuvarlak köşe"><span class="sh rounded"></span></button><button type="button" data-add="circle" title="Daire"><span class="sh circle"></span></button><button type="button" data-add="shape" data-preset="line" title="Çizgi"><span class="sh line"></span></button></div>
+        <h4 class="ed-sub">Sticker'lar</h4>
+        ${packs.length ? `<div class="chips mb-2"><button type="button" class="chip active" data-sticker-pack="">Tümü</button>${packs.map(p => `<button type="button" class="chip" data-sticker-pack="${esc(p)}">${esc(p)}</button>`).join('')}</div>` : ''}
+        <div id="ed-stickers">${assetGrid(stickers, `Henüz sticker yok. <a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> paket olarak yükleyebilirsin.`)}</div>`;
+      return;
+    }
+    if (panel === 'marka') {
+      const list = await assets();
+      box.innerHTML = `${head}<h4 class="ed-sub">Logo</h4>${assetGrid(list.filter(a => a.category === 'logo'), 'Logo yüklenmemiş.')}
+        <h4 class="ed-sub">Maskot pozları</h4>${assetGrid(list.filter(a => a.category === 'mascot'), 'Maskot pozu yok.')}
+        <h4 class="ed-sub">Marka renkleri</h4><div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn" style="background:${esc(c)}" data-brand-color="${esc(c)}" title="Seçili öğeye ya da zemine uygula" aria-label="${esc(c)}"></button>`).join('')}</div>
+        <p class="xsmall muted mt-1">Renge tıklayınca seçili öğeye, öğe seçili değilse slayt zeminine uygulanır.</p>`;
+      return;
+    }
+    if (panel === 'yuklemeler') {
+      const list = await assets();
+      const cats = [...new Map(list.map(a => [a.category, a.categoryLabel])).entries()];
+      box.innerHTML = `${head}<label class="btn btn-sm w-full mb-3">${icon('upload')}Dosya yükle<input type="file" id="ed-upload" accept="image/png,image/jpeg,image/webp,image/gif" multiple class="sr-only"></label>
+        ${cats.length > 1 ? `<div class="chips mb-2"><button type="button" class="chip active" data-up-cat="">Tümü</button>${cats.map(([k, v]) => `<button type="button" class="chip" data-up-cat="${esc(k)}">${esc(v)}</button>`).join('')}</div>` : ''}
+        <div id="ed-uploads">${assetGrid(list, 'Kütüphane boş.')}</div>`;
+      box.querySelector('#ed-upload').addEventListener('change', async e => {
+        for (const f of e.target.files) { try { await api.uploadAsset(brand.id, f, 'brand_image', f.name.replace(/\.[^.]+$/, '').slice(0, 80)); } catch (err) { toast(`${f.name}: ${err.message}`, 'error'); } }
+        assetCache = null; drawPanelBody();
+      });
+      return;
+    }
+    if (panel === 'sablonlar') {
+      const { templates } = await api.postTemplates(brand.id);
+      box.innerHTML = `${head}<button type="button" class="btn btn-sm w-full mb-3" data-act="template">${icon('plus')}Bu tasarımı şablon olarak kaydet</button>
+        ${templates.length ? `<div class="ed-tpl-grid">${templates.map(t => `<button type="button" class="ed-tpl" data-apply-tpl="${esc(t.id)}" title="Bu slayta uygula"><canvas data-tpl-c="${esc(t.id)}"></canvas><span>${esc(t.name)}</span></button>`).join('')}</div>
+          <p class="xsmall muted mt-2">Şablona tıklayınca ilk slaydı bu slaydın yerine konur (geri almak için kaydetmeden çık).</p>` : '<p class="small muted">Henüz şablon yok. Post stüdyosunda "Referanstan şablon" ile ya da bu tasarımı kaydederek oluşturabilirsin.</p>'}`;
+      box._tpls = templates;
+      templates.forEach(t => { const c = box.querySelector(`[data-tpl-c="${CSS.escape(t.id)}"]`); if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => drawSlide(c, t.data.slides[0], meta.formats[t.data.format] || format())); });
+      return;
+    }
+    if (panel === 'zemin') {
+      const bi = slide().bgImage;
+      box.innerHTML = `${head}<div class="field"><label for="slide-bg">Zemin rengi</label><div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === slide().bg ? 'on' : ''}" style="background:${esc(c)}" data-bg-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" id="slide-bg" value="${esc(slide().bg)}" aria-label="Slayt zemin rengi"></div></div>
+        <h4 class="ed-sub">Zemin görseli</h4>
+        ${bi ? `<div class="seg mb-2">${[['cover', 'Kapla'], ['contain', 'Sığdır']].map(([k, v]) => `<button type="button" data-bg-fit="${k}" class="${bi.fit === k ? 'active' : ''}">${v}</button>`).join('')}</div>
+          <label class="small" for="bg-dim">Karartma</label><input type="range" id="bg-dim" min="0" max="80" step="5" value="${bi.dim || 0}">
+          <div class="row mt-2"><button type="button" class="btn btn-sm" data-bg-image>Değiştir</button><button type="button" class="btn btn-sm btn-ghost" data-bg-remove>Kaldır</button></div>`
+        : `<button type="button" class="btn btn-sm" data-bg-image>${icon('image')}Kütüphaneden zemin görseli seç</button>`}`;
+      return;
+    }
+    if (panel === 'ai') {
+      box.innerHTML = `${head}${aiReady ? `<p class="small muted mb-2">Bütün slayt metinleri seçtiğin modelle yeniden yazılır; yerleşim marka şablonuyla baştan kurulur.</p>
+        <div class="stack-sm">${modelSelect(models, 'yazim', { id: 'pw-model' })}<button type="button" class="btn" data-rewrite>${icon('refresh')}Metni yeniden yaz</button></div>`
+        : '<div class="notice"><div>AI bağlı değil.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}`;
+      return;
+    }
+    if (panel === 'aciklama') {
+      box.innerHTML = `${head}<div class="field"><label for="pc-caption">Instagram açıklaması</label><textarea class="textarea" id="pc-caption" rows="8" maxlength="3000">${esc(data.caption || '')}</textarea></div>
+        <div class="field mt-3"><label for="pc-tags">Hashtag'ler</label><input class="input" id="pc-tags" value="${esc((data.hashtags || []).join(' '))}" maxlength="400"></div>
+        <div id="pc-review" class="mt-3"></div>`;
+      reviewBox(box.querySelector('#pc-review'), brand, models, () => `${box.querySelector('#pc-caption').value}\n\n${box.querySelector('#pc-tags').value}`, 'caption',
+        improved => { box.querySelector('#pc-caption').value = improved; data.caption = improved; markDirty(); });
+    }
+  }
+
+  function openPanel(k) {
+    panel = panel === k ? null : k; // aynı araca tekrar tıklayınca panel kapanır
+    view.querySelectorAll('[data-rail]').forEach(b => { b.classList.toggle('active', b.dataset.rail === panel); b.setAttribute('aria-pressed', String(b.dataset.rail === panel)); });
+    $('.ed-panel').hidden = !panel;
+    $('.ed-body').classList.toggle('has-panel', Boolean(panel));
+    drawPanelBody();
+    fit();
+  }
+
   // Tuval: tıklayınca seç, sürükleyince taşı, ok tuşlarıyla kaydır
   function wireStage() {
-    const c = view.querySelector('#stage');
+    const c = $('#stage');
     let drag = null;
     const point = e => { const r = c.getBoundingClientRect(); return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) }; };
     c.addEventListener('pointerdown', e => {
       const p = point(e);
       const hit = hitTest(c, slide(), p.x, p.y);
-      selected = hit ? hit.id : null;
+      setSelected(hit ? hit.id : null);
       if (hit) { drag = { id: hit.id, dx: p.x - hit.x, dy: p.y - hit.y, moved: false }; c.setPointerCapture(e.pointerId); }
       c.focus();
       redraw();
@@ -333,45 +441,36 @@ async function renderEditor(view, brand, id, models) {
       const l = slide().layers.find(x => x.id === drag.id);
       l.x = Math.round(p.x - drag.dx); l.y = Math.round(p.y - drag.dy);
       drag.moved = true;
-      drawSlide(c, slide(), format(), { selectedId: selected });
+      quick();
     });
     const end = () => { if (drag && drag.moved) { markDirty(); redraw(); } drag = null; };
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', end);
-    c.addEventListener('dblclick', () => { const t = view.querySelector('#lp-text'); if (t) t.focus(); });
+    c.addEventListener('dblclick', () => { const t = $('#lp-text'); if (t) t.focus(); });
     c.addEventListener('keydown', e => {
       const l = layer();
       if (!l) return;
       const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
       if (k) { e.preventDefault(); const s = e.shiftKey ? 10 : 1; l.x += k[0] * s; l.y += k[1] * s; markDirty(); redraw(); }
-      if (e.key === 'Delete') { slide().layers = slide().layers.filter(x => x.id !== l.id); selected = null; markDirty(); redraw(); }
+      if (e.key === 'Delete') { slide().layers = slide().layers.filter(x => x.id !== l.id); setSelected(null); markDirty(); redraw(); }
+      if (e.key === 'Escape') { setSelected(null); redraw(); }
     });
+    // Pencere boyutu değişince tasarım alanı yeniden sığdırılır
+    if (view._ro) view._ro.disconnect();
+    view._ro = new ResizeObserver(() => fit());
+    view._ro.observe($('#ed-stage-area'));
   }
 
   function pickAsset(onPick, only = null) {
-    api.assets(brand.id).then(({ assets: all }) => {
-      const assets = only ? all.filter(a => a.category === only) : all;
-      // Sticker seçicide paketler, genel seçicide kategoriler filtre olur
-      const cats = only ? [...new Set(assets.map(a => a.pack).filter(Boolean))].map(p => [p, p]) : [...new Map(all.map(a => [a.category, a.categoryLabel])).entries()];
+    assets().then(all => {
+      const list = only ? all.filter(a => a.category === only) : all;
       const m = openModal({
-        title: only === 'sticker' ? 'Sticker seç' : 'Kütüphaneden görsel', submitLabel: 'Kapat',
-        body: assets.length ? `${cats.length > (only ? 0 : 1) ? `<div class="chips mb-3"><button type="button" class="chip active" data-cat="">Tümü</button>${cats.map(([k, v]) => `<button type="button" class="chip" data-cat="${esc(k)}">${esc(v)}</button>`).join('')}</div>` : ''}
-          <div class="asset-grid">${assets.map(a => `<button type="button" class="asset asset-pick" data-pick="${esc(a.id)}" data-pcat="${esc(only ? a.pack : a.category)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || a.categoryLabel)}</div></button>`).join('')}</div>`
-          : emptyState({ icon: 'image', title: only === 'sticker' ? 'Henüz sticker yok' : 'Kütüphane boş', text: `<a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> logo, maskot pozu veya görsel yükle.`, compact: true }),
+        title: 'Kütüphaneden görsel', submitLabel: 'Kapat',
+        body: list.length ? `<div class="asset-grid">${list.map(a => `<button type="button" class="asset asset-pick" data-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || a.categoryLabel)}</div></button>`).join('')}</div>`
+          : emptyState({ icon: 'image', title: 'Kütüphane boş', text: `<a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> görsel yükle.`, compact: true }),
         onSubmit: async () => {}
       });
-      m.form.addEventListener('click', e => {
-        const cat = e.target.closest('[data-cat]');
-        if (cat) {
-          m.form.querySelectorAll('[data-cat]').forEach(x => x.classList.toggle('active', x === cat));
-          m.form.querySelectorAll('[data-pcat]').forEach(x => { x.hidden = Boolean(cat.dataset.cat) && x.dataset.pcat !== cat.dataset.cat; });
-          return;
-        }
-        const b = e.target.closest('[data-pick]');
-        if (!b) return;
-        onPick(all.find(a => a.id === b.dataset.pick));
-        m.close();
-      });
+      m.form.addEventListener('click', e => { const b = e.target.closest('[data-pick]'); if (!b) return; onPick(all.find(a => a.id === b.dataset.pick)); m.close(); });
     }).catch(err => toast(err.message, 'error'));
   }
 
@@ -385,38 +484,77 @@ async function renderEditor(view, brand, id, models) {
     }
   }
 
+  const closeMenus = () => view.querySelectorAll('[data-drop]').forEach(d => { d.hidden = true; });
+  const addLayer = l => { slide().layers.push(l); setSelected(l.id); markDirty(); redraw(); };
+  const addAssetLayer = a => { const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
+  async function save(btn) {
+    post = (await busy(btn, () => api.savePost(brand.id, post.id, { data }))).post;
+    data = JSON.parse(JSON.stringify(post.data)); dirty = false;
+    toast('Tasarım kaydedildi.', 'success');
+    shell();
+  }
+
   view.oninput = e => {
     const t = e.target;
     if (t.id === 'pc-caption') { data.caption = t.value; markDirty(); return; }
     if (t.id === 'pc-tags') { data.hashtags = t.value.split(/[\s,]+/).filter(Boolean).map(h => h.replace(/^#?/, '#')); markDirty(); return; }
-    if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(); drawSlide(view.querySelector('#stage'), slide(), format(), { selectedId: selected }); return; }
-    if (t.id === 'slide-bg') { slide().bg = t.value; markDirty(); drawSlide(view.querySelector('#stage'), slide(), format(), { selectedId: selected }); return; }
+    if (t.id === 'slide-bg') { slide().bg = t.value; markDirty(); quick(); return; }
+    if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(); quick(); return; }
+    if (t.id === 'ed-zoom') { zoom = Number(t.value); $('#ed-zoom-val').textContent = `%${zoom}`; fit(); return; }
     const prop = t.dataset.prop;
     const l = layer();
     if (!prop || !l) return;
     l[prop] = ['text', 'font', 'color'].includes(prop) ? t.value : Number(t.value);
     markDirty();
-    drawSlide(view.querySelector('#stage'), slide(), format(), { selectedId: selected });
+    quick();
   };
   view.onchange = e => { if (e.target.dataset.prop || e.target.id === 'slide-bg') redraw(); };
 
   view.onclick = async e => {
     const t = e.target;
+    const menu = t.closest('[data-menu]');
+    if (menu) { const d = view.querySelector(`[data-drop="${menu.dataset.menu}"]`); const was = d.hidden; closeMenus(); d.hidden = !was; return; }
+    if (!t.closest('.ed-drop')) closeMenus();
+    const rail = t.closest('[data-rail]');
+    if (rail) return openPanel(rail.dataset.rail);
+    if (t.closest('[data-rail-close]')) return openPanel(panel);
     const s = t.closest('[data-slide]');
-    if (s) { current = Number(s.dataset.slide); selected = null; view.querySelector('#slide-bg').value = slide().bg; return redraw(); }
-    if (t.closest('[data-slide-add]')) { data.slides.splice(current + 1, 0, { bg: (brand.colors.backgrounds || [])[0] || '#ffffff', layers: [] }); current++; selected = null; markDirty(); return shell(); }
+    if (s) { current = Number(s.dataset.slide); setSelected(null); if (panel === 'zemin') drawPanelBody(); return redraw(); }
+    if (t.closest('[data-slide-add]')) { data.slides.splice(current + 1, 0, { bg: (brand.colors.backgrounds || [])[0] || '#ffffff', layers: [] }); current++; setSelected(null); markDirty(); return shell(); }
     if (t.closest('[data-slide-dup]')) { const copy = JSON.parse(JSON.stringify(slide())); copy.layers.forEach(l => { l.id = uid(); }); data.slides.splice(current + 1, 0, copy); current++; markDirty(); return shell(); }
-    if (t.closest('[data-slide-del]')) { if (!confirm('Bu slayt silinsin mi?')) return; data.slides.splice(current, 1); current = Math.max(0, current - 1); selected = null; markDirty(); return shell(); }
+    if (t.closest('[data-slide-del]')) { if (!confirm('Bu slayt silinsin mi?')) return; data.slides.splice(current, 1); current = Math.max(0, current - 1); setSelected(null); markDirty(); return shell(); }
     const mv = t.closest('[data-slide-move]');
     if (mv) { const j = current + Number(mv.dataset.slideMove); if (j < 0 || j >= data.slides.length) return; [data.slides[current], data.slides[j]] = [data.slides[j], data.slides[current]]; current = j; markDirty(); return redraw(); }
+    const fmt = t.closest('[data-format]');
+    if (fmt) { data.format = fmt.dataset.format; closeMenus(); markDirty(); return shell(); }
     const add = t.closest('[data-add]');
     if (add) {
       const F = format();
-      if (add.dataset.add === 'text') { const l = { id: uid(), type: 'text', role: 'text', text: 'Yeni metin', x: 90, y: Math.round(F.h / 2), w: 800, size: 56, color: brand.colors.heading || '#1b1f3b', font: brand.fonts.heading || 'Poppins', weight: 700, align: 'left' }; slide().layers.push(l); selected = l.id; markDirty(); return redraw(); }
-      if (add.dataset.add === 'circle') { const l = { id: uid(), type: 'shape', shape: 'circle', x: 120, y: 120, w: 260, h: 260, color: brand.colors.primary || '#5b55e6', radius: 0 }; slide().layers.push(l); selected = l.id; markDirty(); return redraw(); }
-      if (add.dataset.add === 'sticker') return pickAsset(a => { const l = { id: uid(), type: 'image', src: a.url, assetId: a.id, x: F.w - 360, y: 120, w: 240, h: 240 }; slide().layers.push(l); selected = l.id; markDirty(); redraw(); }, 'sticker');
-      if (add.dataset.add === 'shape') { const l = { id: uid(), type: 'shape', shape: 'rect', x: 90, y: 90, w: 300, h: 300, color: brand.colors.primary || '#5b55e6', radius: 24 }; slide().layers.push(l); selected = l.id; markDirty(); return redraw(); }
-      return pickAsset(a => { const l = { id: uid(), type: 'image', src: a.url, assetId: a.id, x: 120, y: 120, w: 420, h: 420 }; slide().layers.push(l); selected = l.id; markDirty(); redraw(); });
+      const pr = add.dataset.preset;
+      if (add.dataset.add === 'text') {
+        const spec = pr === 'title' ? { text: 'Başlık', size: 96, weight: 800, font: brand.fonts.heading } : pr === 'sub' ? { text: 'Alt başlık', size: 56, weight: 700, font: brand.fonts.heading } : { text: 'Yeni metin', size: 40, weight: 500, font: brand.fonts.body };
+        return addLayer(Object.assign({ id: uid(), type: 'text', role: 'text', x: 90, y: Math.round(F.h / 2), w: 800, color: brand.colors.heading || '#1b1f3b', align: 'left' }, spec, { font: spec.font || 'Poppins' }));
+      }
+      if (add.dataset.add === 'circle') return addLayer({ id: uid(), type: 'shape', shape: 'circle', x: 120, y: 120, w: 260, h: 260, color: brand.colors.primary || '#5b55e6', radius: 0 });
+      const sh = pr === 'line' ? { w: 600, h: 10, radius: 5 } : pr === 'rounded' ? { w: 360, h: 260, radius: 40 } : { w: 300, h: 300, radius: 0 };
+      return addLayer(Object.assign({ id: uid(), type: 'shape', shape: 'rect', x: 90, y: 90, color: brand.colors.primary || '#5b55e6' }, sh));
+    }
+    const aa = t.closest('[data-add-asset]');
+    if (aa) { const a = (await assets()).find(x => x.id === aa.dataset.addAsset); if (a) addAssetLayer(a); return; }
+    const sp = t.closest('[data-sticker-pack]');
+    if (sp) { view.querySelectorAll('[data-sticker-pack]').forEach(x => x.classList.toggle('active', x === sp)); const list = (await assets()).filter(a => a.category === 'sticker' && (!sp.dataset.stickerPack || a.pack === sp.dataset.stickerPack)); $('#ed-stickers').innerHTML = assetGrid(list, 'Bu pakette sticker yok.'); return; }
+    const uc = t.closest('[data-up-cat]');
+    if (uc) { view.querySelectorAll('[data-up-cat]').forEach(x => x.classList.toggle('active', x === uc)); const list = (await assets()).filter(a => !uc.dataset.upCat || a.category === uc.dataset.upCat); $('#ed-uploads').innerHTML = assetGrid(list, 'Bu kategoride dosya yok.'); return; }
+    const bc = t.closest('[data-brand-color]');
+    if (bc) { const l = layer(); if (l && l.type !== 'image') l.color = bc.dataset.brandColor; else slide().bg = bc.dataset.brandColor; markDirty(); return redraw(); }
+    const bgc = t.closest('[data-bg-color]');
+    if (bgc) { slide().bg = bgc.dataset.bgColor; markDirty(); drawPanelBody(); return redraw(); }
+    const tpl = t.closest('[data-apply-tpl]');
+    if (tpl) {
+      const tt = ($('#ed-panel-body')._tpls || []).find(x => x.id === tpl.dataset.applyTpl);
+      if (!tt || !tt.data.slides || !confirm('Şablonun ilk slaydı bu slaydın yerine konsun mu?')) return;
+      const copy = JSON.parse(JSON.stringify(tt.data.slides[0])); copy.layers.forEach(l => { l.id = uid(); });
+      data.slides[current] = copy; setSelected(null); markDirty(); return redraw();
     }
     const sw = t.closest('[data-swatch]');
     if (sw && layer()) { layer()[sw.dataset.swatch] = sw.dataset.color; markDirty(); return redraw(); }
@@ -424,48 +562,60 @@ async function renderEditor(view, brand, id, models) {
     if (al && layer()) { layer().align = al.dataset.align; markDirty(); return redraw(); }
     const ord = t.closest('[data-order]');
     if (ord && layer()) { const arr = slide().layers; const i = arr.findIndex(x => x.id === selected); const j = i + Number(ord.dataset.order); if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; markDirty(); return redraw(); }
-    if (t.closest('[data-layer-del]')) { slide().layers = slide().layers.filter(x => x.id !== selected); selected = null; markDirty(); return redraw(); }
-    if (t.closest('[data-bg-image]')) return pickAsset(a => { slide().bgImage = Object.assign({ fit: 'cover', dim: 0 }, slide().bgImage || {}, { src: a.url }); markDirty(); redraw(); });
-    if (t.closest('[data-bg-remove]')) { delete slide().bgImage; markDirty(); return redraw(); }
-    const fit = t.closest('[data-bg-fit]');
-    if (fit && slide().bgImage) { slide().bgImage.fit = fit.dataset.bgFit; markDirty(); return redraw(); }
-    const tplBtn = t.closest('[data-save-tpl]');
-    if (tplBtn) {
-      const name = prompt('Şablon adı', post.title);
-      if (name === null) return;
-      try {
-        if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
-        await busy(tplBtn, () => api.saveTemplate(brand.id, post.id, name.trim() || post.title));
-        toast('Şablon kaydedildi; Post stüdyosu ana sayfasında "Bu şablonla başla" ile kullanabilirsin.', 'success', 5000);
-      } catch (err) { toast(err.message, 'error'); }
-      return;
-    }
+    if (t.closest('[data-layer-dup]') && layer()) { const c = Object.assign(JSON.parse(JSON.stringify(layer())), { id: uid() }); c.x += 30; c.y += 30; return addLayer(c); }
+    if (t.closest('[data-layer-del]')) { slide().layers = slide().layers.filter(x => x.id !== selected); setSelected(null); markDirty(); return redraw(); }
+    if (t.closest('[data-deselect]')) { setSelected(null); return redraw(); }
     if (t.closest('[data-replace-image]') && layer()) return pickAsset(a => { Object.assign(layer(), { src: a.url, assetId: a.id }); markDirty(); redraw(); });
-    const save = t.closest('[data-save]');
-    if (save) {
-      try { post = (await busy(save, () => api.savePost(brand.id, post.id, { data }))).post; data = JSON.parse(JSON.stringify(post.data)); dirty = false; toast('Tasarım kaydedildi.', 'success'); shell(); } catch (err) { toast(err.message, 'error'); }
+    if (t.closest('[data-bg-image]')) return pickAsset(a => { slide().bgImage = Object.assign({ fit: 'cover', dim: 0 }, slide().bgImage || {}, { src: a.url }); markDirty(); drawPanelBody(); redraw(); });
+    if (t.closest('[data-bg-remove]')) { delete slide().bgImage; markDirty(); drawPanelBody(); return redraw(); }
+    const fit2 = t.closest('[data-bg-fit]');
+    if (fit2 && slide().bgImage) { slide().bgImage.fit = fit2.dataset.bgFit; markDirty(); drawPanelBody(); return redraw(); }
+    const act = t.closest('[data-act]');
+    if (act) {
+      closeMenus();
+      const a = act.dataset.act;
+      try {
+        if (a === 'save') return await save(act);
+        if (a === 'rename') {
+          const name = prompt('Tasarımın adı', post.title);
+          if (!name || !name.trim()) return;
+          post = (await api.savePost(brand.id, post.id, { title: name.trim() })).post; return shell();
+        }
+        if (a === 'template') {
+          const name = prompt('Şablon adı', post.title);
+          if (name === null) return;
+          if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
+          await api.saveTemplate(brand.id, post.id, name.trim() || post.title);
+          toast('Marka şablonu olarak kaydedildi.', 'success');
+          if (panel === 'sablonlar') drawPanelBody();
+          return;
+        }
+        if (a === 'schedule') {
+          const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(12, 0, 0, 0);
+          await api.schedulePost(brand.id, post.id, d.toISOString());
+          post = (await api.post(brand.id, post.id)).post;
+          toast('Takvime yarın 12:00 için eklendi; takvimden tarihini değiştirebilirsin.', 'success', 5000);
+          return shell();
+        }
+        if (a === 'delete') {
+          if (!confirm(`"${post.title}" tasarımı silinsin mi?`)) return;
+          await api.deletePost(brand.id, post.id); toast('Tasarım silindi.', 'success'); return go(base(brand));
+        }
+      } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const rw = t.closest('[data-rewrite]');
     if (rw) {
       if (dirty && !confirm('Kaydedilmemiş değişiklikler var; yeniden yazınca yerleşim de baştan kurulur. Devam edilsin mi?')) return;
-      try { const res = await busyTimer(rw, () => api.rewritePost(brand.id, post.id, { model: (view.querySelector('#pw-model') || {}).value || null })); post = res.post; lastAi = res.post.ai; data = JSON.parse(JSON.stringify(post.data)); current = 0; selected = null; dirty = false; shell(); } catch (err) { toast(err.message, 'error'); }
+      try { const res = await busyTimer(rw, () => api.rewritePost(brand.id, post.id, { model: ($('#pw-model') || {}).value || null })); post = res.post; data = JSON.parse(JSON.stringify(post.data)); current = 0; selected = null; dirty = false; toast(aiNote(res.post.ai), 'success', 5000); shell(); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const png = t.closest('[data-png]');
-    if (png) return busy(png, () => exportSlides(png.dataset.png, 'download')).catch(err => toast(err.message, 'error'));
+    if (png) { closeMenus(); return busy(png, () => exportSlides(png.dataset.png, 'download')).catch(err => toast(err.message, 'error')); }
     const dr = t.closest('[data-drive]');
-    if (dr) { try { await busy(dr, () => exportSlides(dr.dataset.drive, 'drive')); toast('Google Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); } return; }
-    const sch = t.closest('[data-schedule]');
-    if (sch) {
-      const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(12, 0, 0, 0);
-      try { await busy(sch, () => api.schedulePost(brand.id, post.id, d.toISOString())); post = (await api.post(brand.id, post.id)).post; toast('Takvime yarın 12:00 için eklendi; takvimden tarihini değiştirebilirsin.', 'success', 5000); shell(); } catch (err) { toast(err.message, 'error'); }
-      return;
-    }
-    if (t.closest('[data-delete]')) {
-      if (!confirm(`"${post.title}" tasarımı silinsin mi?`)) return;
-      try { await api.deletePost(brand.id, post.id); toast('Tasarım silindi.', 'success'); go(base(brand)); } catch (err) { toast(err.message, 'error'); }
-    }
+    if (dr) { closeMenus(); try { await busy(dr, () => exportSlides(dr.dataset.drive, 'drive')); toast('Google Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); } }
   };
+  // Kaydedilmemiş değişiklik varken sayfadan ayrılma uyarısı
+  window.onbeforeunload = () => (dirty ? true : undefined);
   shell();
 }
