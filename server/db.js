@@ -271,6 +271,22 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_post_templates ON post_templates(brand_id, created_at);
+  `,
+  // 9: Görsel üretim kaydı (prompt, model, oran, maskot referansı, tutar)
+  `
+  CREATE TABLE image_generations (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    asset_id TEXT NOT NULL,
+    prompt_id TEXT,
+    prompt TEXT NOT NULL,
+    model TEXT NOT NULL,
+    aspect TEXT NOT NULL,
+    used_refs INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_image_generations ON image_generations(brand_id, created_at);
   `
 ];
 

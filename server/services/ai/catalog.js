@@ -62,6 +62,19 @@ export const RECOMMENDED = {
   gemini: { fikir: 'gemini-flash-latest', yazim: 'gemini-pro-latest', ceviri: 'gemini-flash-lite-latest', denetim: 'gemini-flash-latest' }
 };
 
+// Görsel üretim modelleri. refs: marka görseli (maskot) referans olarak gönderilebilir mi.
+// Fiyat görsel başına yaklaşık $ (OpenRouter gerçek tutarı bildirir). Model kimlikleri değişirse ekranda elle yazılabilir.
+export const IMAGE_MODELS = [
+  { provider: 'gemini', id: 'gemini-2.5-flash-image', label: 'Gemini Flash Image (Nano Banana)', refs: true, perImage: 0.039, note: 'Maskotu referans alarak tutarlı karakter; Türkçe tarifi de anlar' },
+  { provider: 'gemini', id: 'imagen-4.0-generate-001', label: 'Imagen 4', refs: false, perImage: 0.04, note: 'Fotoğraf gerçekçiliği yüksek' },
+  { provider: 'gemini', id: 'imagen-4.0-fast-generate-001', label: 'Imagen 4 Fast', refs: false, perImage: 0.02, note: 'Hızlı ve ucuz' },
+  { provider: 'openai', id: 'gpt-image-1', label: 'GPT Image 1', refs: false, perImage: 0.063, note: 'Talimatı iyi izler, sahne kurgusu güçlü' },
+  { provider: 'openai', id: 'gpt-image-1-mini', label: 'GPT Image 1 mini', refs: false, perImage: 0.015, note: 'Ucuz taslak görseller' },
+  { provider: 'openrouter', id: 'google/gemini-2.5-flash-image', label: 'Gemini Flash Image (OpenRouter)', refs: true, perImage: 0.039, note: 'OpenRouter anahtarıyla; maskot referansı' }
+];
+export const IMAGE_DEFAULTS = { gemini: 'gemini-2.5-flash-image', openai: 'gpt-image-1', openrouter: 'google/gemini-2.5-flash-image' };
+export const IMAGE_ASPECTS = { '1:1': 'Kare 1:1', '4:5': 'Dikey 4:5', '9:16': 'Story 9:16', '16:9': 'Yatay 16:9' };
+
 export const modelRef = (provider, id) => `${provider}:${id}`;
 export function parseRef(ref) {
   const s = String(ref || '');

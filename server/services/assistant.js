@@ -12,9 +12,9 @@ const HISTORY_LIMIT = 12;
 const MAX_IDEAS_PER_ACTION = 12;
 // AI çağıran ağır işlemler (senaryo, post, prompt) tek mesajda en çok bu kadar
 const MAX_HEAVY = 3;
-const HEAVY = ['create_reels', 'create_post', 'create_prompt'];
+const HEAVY = ['create_reels', 'create_post', 'create_prompt', 'create_image'];
 
-export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null }) {
+export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null, images = null }) {
   const toMessage = r => ({ id: r.id, role: r.role, content: r.content, actions: parseJson(r.actions, []), createdAt: r.created_at });
   const save = (brandId, role, content, actions = []) => {
     const row = { id: newId(), brand_id: brandId, role, content, actions: JSON.stringify(actions), created_at: now() };
@@ -53,6 +53,7 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       '- create_post: {topic, kind: "carousel"|"post"|"story"|"kapak"(Reels kapağı)|"reklam"|"grafik"(bilgi grafiği), slides: 3-10 (yalnız carousel), fromReelsId?} carousel/post tasarımı üretir; "bu senaryoya göre post tasarla" ise fromReelsId ver.',
       `- create_prompt: {kind, brief} Prompt Studio'da prompt üretir. Türler: ${Object.entries(PROMPT_KINDS).map(([k, v]) => `${k} (${v.label})`).join(', ')}.`,
       `- plan_content: {items: [{title, type, date: "YYYY-MM-DD", time?: "HH:MM", ideaId?}]} takvime içerik planlar. Türler: ${Object.keys(CONTENT_TYPES).join(', ')}.`,
+      '- create_image: {prompt (İngilizce, ayrıntılı görsel tarifi), aspect: "1:1"|"4:5"|"9:16"|"16:9", useMascot: true|false} görsel modeliyle görsel üretir ve kütüphaneye kaydeder (görsel başına ücretlidir; yalnızca kullanıcı görsel isterse).',
       '- add_task: {title, dueDate?: "YYYY-MM-DD", priority?: "dusuk"|"orta"|"yuksek"} bu marka için görev ekler.',
       `Senaryo, post ve prompt üretimi ayrı AI çağrısıdır: tek mesajda en çok ${MAX_HEAVY} tane. Kullanıcı açıkça istemedikçe bunları başlatma.`,
       'İşlem sonucunu reply içinde "kaydettim/oluşturdum" diye anlatabilirsin; uygulama başarısız olanları ayrıca gösterir. Listede olmayan bir işi yapmış gibi anlatma.',
@@ -122,6 +123,9 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
             const kind = ['post', 'carousel', 'story', 'kapak', 'reklam', 'grafik'].includes(a.kind) ? a.kind : 'carousel';
             const p = await posts.create(brandId, { topic: topic.slice(0, 1000), kind, slides: Math.max(3, Math.min(10, Number(a.slides) || 6)) });
             results.push({ type: 'create_post', ok: true, id: p.id, title: p.title });
+          } else if (a.type === 'create_image' && images) {
+            const r = await images.generate(brandId, { prompt: String(a.prompt || '').slice(0, 4000), aspect: ['1:1', '4:5', '9:16', '16:9'].includes(a.aspect) ? a.aspect : '1:1', useMascot: Boolean(a.useMascot) });
+            results.push({ type: 'create_image', ok: true, asset: { id: r.asset.id, url: r.asset.url }, modelLabel: r.ai.modelLabel });
           } else if (a.type === 'create_prompt' && prompts) {
             const p = await prompts.create(brandId, { kind: PROMPT_KINDS[a.kind] ? a.kind : 'gorsel', brief: String(a.brief || a.topic || '').slice(0, 2000) });
             results.push({ type: 'create_prompt', ok: true, id: p.id, title: p.title, kindLabel: p.kindLabel });

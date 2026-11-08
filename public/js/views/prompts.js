@@ -4,6 +4,10 @@ import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
+import { imageBox } from './imageGen.js';
+
+// Görsel üretilebilen prompt türleri (video ve metin türleri için görsel üretilmez)
+const IMAGE_KINDS = { gorsel: '1:1', urun: '1:1', reklam: '4:5', post: '4:5' };
 
 const base = brand => `#/m/${encodeURIComponent(brand.id)}/prompt`;
 const when = iso => new Date(iso).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -155,6 +159,8 @@ async function renderDetail(view, brand, id, models) {
               <textarea class="textarea" id="pp-brief" rows="3" maxlength="2000" placeholder="Yeni isteği yaz; prompt baştan yazılır">${esc(p.brief)}</textarea>
               <div class="row mt-2"><button class="btn" data-rebrief>Yeni girişe göre yeniden yaz</button></div></div>
           </section>` : '<div class="notice"><div><strong>AI bağlı değil.</strong> Geliştirme işlemleri için bir sağlayıcı bağla. Elle düzenleyip kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
+          ${IMAGE_KINDS[p.kind] ? `<section class="card"><div class="card-head"><h3>Bu prompt'la görsel üret</h3></div>
+            <p class="small muted mb-3">Prompt kutusundaki metin seçtiğin görsel modeline gönderilir; sonuç kütüphaneye kaydedilir.</p><div id="pp-image"></div></section>` : ''}
         </div>
         <aside class="stack reels-side">
           <section class="card"><button class="btn w-full" data-fav>${p.favorite ? '★ Favorilerden çıkar' : '☆ Favorilere ekle'}</button></section>
@@ -167,6 +173,7 @@ async function renderDetail(view, brand, id, models) {
           <section class="card"><button class="btn btn-danger w-full" data-delete>${icon('trash')}Prompt'u sil</button></section>
         </aside>
       </div>`;
+    if (IMAGE_KINDS[p.kind]) imageBox(view.querySelector('#pp-image'), brand, { getPrompt: () => val('#pp-text'), promptId: p.id, aspect: IMAGE_KINDS[p.kind] });
   }
   draw();
 
