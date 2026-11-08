@@ -25,6 +25,7 @@ import { createDesignRefService } from './services/designRef.js';
 import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
+import { createMemoryService } from './services/memory.js';
 import { createReviewService } from './services/review.js';
 import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, RESTART_CODES } from '../scripts/updater.js';
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
@@ -92,18 +93,19 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
   const ideas = createIdeaService(db);
   const workspace = createWorkspaceService(db, ownerId, brands);
+  const memory = createMemoryService({ db, brands });
   const backups = createBackupService({ db, dataDir, settings });
   const drive = createDriveService(settings, { fetchImpl: driveFetch });
   const compare = createCompareService({ db, ai, brands });
   const reels = createReelsService({ db, ai, brands, workspace });
   const posts = createPostService({ db, ai, brands, assets, workspace });
-  const review = createReviewService({ ai, brands });
+  const review = createReviewService({ ai, brands, memory });
   const prompts = createPromptService({ db, ai, brands, reels });
   const images = createImageService({ db, ai, brands, assets });
   const designRef = createDesignRefService({ db, ai, brands, assets });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
-  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images });
+  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
   const app = express();
   app.disable('x-powered-by');
@@ -548,6 +550,13 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     res.json({ review: await review.review(req.brand.id, { text: b.text, kind: b.kind || 'serbest', modelRef: mr(b) }) });
   }));
+
+  // --- Akıllı marka hafızası ---
+  api.get('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.get(req.brand.id), categories: memory.categories }));
+  api.put('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.setLists(req.brand.id, req.body || {}) }));
+  api.post('/brands/:brandId/memory/facts', (req, res) => res.status(201).json({ fact: memory.addFact(req.brand.id, req.body || {}) }));
+  api.put('/brands/:brandId/memory/facts/:id', (req, res) => res.json({ fact: memory.updateFact(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/memory/facts/:id', (req, res) => { memory.removeFact(req.brand.id, req.params.id); res.status(204).end(); });
 
   // --- Görsel üretimi ---
   api.get('/ai/images', (req, res) => res.json(images.overview()));

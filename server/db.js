@@ -305,6 +305,22 @@ const MIGRATIONS = [
   ALTER TABLE contents ADD COLUMN hashtags TEXT NOT NULL DEFAULT '';
   ALTER TABLE contents ADD COLUMN first_comment TEXT NOT NULL DEFAULT '';
   ALTER TABLE contents ADD COLUMN checklist TEXT NOT NULL DEFAULT '';
+  `,
+  // 13: Akıllı marka hafızası: yasaklı kelimeler ve tercih edilen ifadeler (JSON dizi), bilgi kartları
+  `
+  ALTER TABLE brands ADD COLUMN banned_words TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE brands ADD COLUMN preferred_phrases TEXT NOT NULL DEFAULT '[]';
+  CREATE TABLE brand_facts (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_brand_facts ON brand_facts(brand_id, category);
   `
 ];
 

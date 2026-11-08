@@ -83,9 +83,9 @@ Hedef: taşınan modülleri ilk talimattaki tam hedefe taşımak.
 
 ## Öncelikli (kullanıcının isteğiyle, Aşama 5'ten önce)
 
-- ⬜ **P.1 Akıllı marka hafızası:** her markanın kendine ait, görülebilen ve düzenlenebilen AI hafızası; yapay zekâya markayı her seferinde yeniden anlatmak gerekmez.
+- ✅ **P.1 Akıllı marka hafızası:** her markanın kendine ait, görülebilen ve düzenlenebilen AI hafızası; yapay zekâya markayı her seferinde yeniden anlatmak gerekmez.
   - Şu an olanlar (her üretime otomatik giriyor): marka dili ve hitap (kimlikteki "İletişim dili"), renkler ve yazı tipleri, hedef kitle, marka açıklaması/karakteri/hedefleri, paylaşım sonuçlarına göre en çok ve en az tutan içerikler (4.8), beğenilen fikirler.
-  - Eklenecekler: **kullanılmaması gereken kelimeler / yasaklı ifadeler** (üretimde kaçınılır, denetçi ve kalite kontrolü yakalar); **marka hakkında bilgiler** (serbest bilgi kartları: ürünler, fiyatlar, adres/çalışma saatleri, kampanyalar, sık sorulanlar); **tercih edilen ifadeler / imza cümleler**; **"Hafıza" sayfası**: yapay zekânın bu marka hakkında bildiği her şeyi tek yerde gösterme, düzenleme ve "bunu hatırla / unut"; asistan sohbetinde "bunu hafızaya kaydet" işlemi.
+  - ✅ Yapıldı: marka menüsünde **Hafıza** sayfası; **kullanılmaması gereken kelimeler** (her üretimde "ASLA KULLANMA" olarak isteme girer, içerik denetçisi metinde geçerse "yüksek" uyarı verir); **tercih edilen ifadeler**; **bilgi kartları** (ürün, fiyat, adres ve iletişim, çalışma saatleri, kampanya, sık sorulan, marka hikâyesi; yapay zekâ bunları doğru kabul eder, olmayanı uydurmaz); yapay zekâya giden hafıza metninin tamamını gösterme; asistanda "bunu hatırla" (remember) ve "şu kelimeyi kullanma" (forbid_words) işlemleri.
 - ⬜ **P.2 Şablon kütüphanesi (markalar arası):** bir kez tasarlanan şablon (Post stüdyosu) bütün markalarda kullanılabilsin; uygulandığı markanın renkleri, yazı tipleri, logosu ve maskotu otomatik yerleşsin.
   - Şu an şablonlar marka başına (4.4); başka markaya taşınamıyor.
   - Eklenecekler: ortak şablon kütüphanesi (Yönetim Merkezi'nde); şablon kaydederken katmanların rolü işaretlenir (ana renk / ikincil renk / zemin / başlık rengi / logo / maskot / ürün görseli); başka markaya uygulanınca bu roller o markanın kimliğiyle değiştirilir; önizleme ve şablonu markaya kopyalama.
@@ -105,6 +105,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.9 Özel günler:** sabit/hesaplanan günler (Anneler Günü mayısın 2. pazarı, Black Friday kasımın son cuması), bayram tablosu ve tablo dışı yıl, aralık filtresi ve dönemler, uç nokta doğrulaması, asistan istemine yaklaşan günlerin girmesi.
 - ⬜ **T.10 Kimlik taslağı:** kısa metin reddi, alan uzunluk sınırları, geçersiz HEX/font'un atılması, boş alanların boş kalması, harcamanın markaya yazılması, arayüzde yalnızca boş alanları doldurma.
 - ⬜ **T.11 Hatırlatmalar:** özet hesaplaması (bugün/geçmiş/görev/özel gün; yerel saat), şeridin günde bir kez çıkması ve kapanınca gelmemesi, zil rozeti, bildirimin bir içerik için bir kez gönderilmesi.
+- ⬜ **T.12 Marka hafızası:** liste temizleme ve sınırlar, bilgi kartı CRUD ve marka izolasyonu, hafıza metnine girmesi, denetçinin yasaklı kelimeyi yakalaması, asistanın remember/forbid_words işlemleri.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)

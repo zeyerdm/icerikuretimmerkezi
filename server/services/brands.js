@@ -209,6 +209,11 @@ export function createBrandService(db, ownerId) {
         .map(r => Object.assign(r, { rate: engagementRate(parseJson(r.metrics, null)) })).filter(r => r.rate != null).sort((x, y) => y.rate - x.rate);
       const perfLine = r => `- ${r.title} (${r.type}, etkileşim %${r.rate})${r.hook ? ` · giriş: "${r.hook}"` : ''}${r.theme ? ` · tema: ${r.theme}` : ''}`;
       const best = measured.slice(0, 5);
+      // Akıllı hafıza: yasaklı kelimeler, tercih edilen ifadeler, bilgi kartları
+      const hm = db.prepare('SELECT banned_words, preferred_phrases FROM brands WHERE id = ?').get(b.id) || {};
+      const banned = parseJson(hm.banned_words, []);
+      const preferred = parseJson(hm.preferred_phrases, []);
+      const facts = db.prepare('SELECT category, title, content FROM brand_facts WHERE brand_id = ? ORDER BY category, updated_at DESC LIMIT 40').all(b.id);
       const worst = measured.length >= 6 ? measured.slice(-3).reverse() : [];
       const line = (label, v) => (v ? `${label}: ${v}` : null);
       return [
@@ -221,6 +226,9 @@ export function createBrandService(db, ownerId) {
         line('İçerik üretim hedefleri', b.goals),
         line('Rakipler ve referans markalar', b.competitors),
         line('Slogan', b.slogan),
+        banned.length ? `ASLA KULLANMA (yasaklı kelime ve ifadeler; metinde, başlıkta, hashtag'de geçmesin): ${banned.join(', ')}` : null,
+        preferred.length ? `Tercih edilen ifadeler / imza cümleler (uygun yerde kullan, zorlama): ${preferred.join(' | ')}` : null,
+        facts.length ? 'Marka hakkında bilgiler (doğru kabul et; burada olmayan fiyat, adres, kampanya gibi bilgileri uydurma):\n' + facts.map(f => `- [${f.category}] ${f.title}: ${f.content}`).join('\n') : null,
         line('Ana renk', b.colors.primary),
         line('İkincil renkler', b.colors.secondary.join(', ')),
         line('Başlık / gövde fontu', [b.fonts.heading, b.fonts.body].filter(Boolean).join(' / ')),

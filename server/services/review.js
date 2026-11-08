@@ -23,7 +23,14 @@ function ruleChecks(t, kind) {
   return out;
 }
 
-export function createReviewService({ ai, brands }) {
+// Markanın yasaklı kelimeleri (büyük/küçük harf ve Türkçe karakter duyarsız)
+function bannedChecks(t, words) {
+  const fold = s => s.toLocaleLowerCase('tr-TR');
+  const hay = fold(t);
+  return words.filter(w => hay.includes(fold(w))).map(w => ({ severity: 'yüksek', problem: `Yasaklı ifade kullanılmış: "${w}"`, suggestion: 'Marka hafızasındaki yasaklı listeye göre bu ifadeyi çıkar ya da değiştir.', source: 'kural' }));
+}
+
+export function createReviewService({ ai, brands, memory = null }) {
   return {
     kinds: Object.fromEntries(Object.entries(REVIEW_KINDS).map(([k, v]) => [k, v.label])),
     async review(brandId, { text: raw, kind = 'serbest', modelRef = null } = {}) {
@@ -48,7 +55,7 @@ export function createReviewService({ ai, brands }) {
       const score = Number.isFinite(Number(o.score)) ? Math.max(0, Math.min(100, Math.round(Number(o.score)))) : null;
       return {
         score, summary: polish(o.summary).slice(0, 400), improved: String(o.improved || '').trim().slice(0, 12000),
-        issues: [...ruleChecks(t, kind), ...aiIssues],
+        issues: [...bannedChecks(t, memory ? memory.banned(b.id) : []), ...ruleChecks(t, kind), ...aiIssues],
         ai: { model: r.servedRef || r.ref, modelLabel: ai.labelOf(r.servedRef || r.ref), cost: r.cost, ms: r.ms, fallbackUsed: Boolean(r.fallbackUsed) }
       };
     }

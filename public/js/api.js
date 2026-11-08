@@ -88,6 +88,11 @@ export const api = {
   deleteIdea: (id, ideaId) => request('DELETE', `${b(id)}/ideas/${ideaId}`),
 
   writeContentText: (id, model) => request('POST', `/api/contents/${encodeURIComponent(id)}/write`, { model }),
+  memory: id => request('GET', b(id) + '/memory'),
+  saveMemoryLists: (id, body) => request('PUT', b(id) + '/memory', body),
+  addFact: (id, body) => request('POST', b(id) + '/memory/facts', body),
+  saveFact: (id, fid, body) => request('PUT', `${b(id)}/memory/facts/${fid}`, body),
+  deleteFact: (id, fid) => request('DELETE', `${b(id)}/memory/facts/${fid}`),
   identityDraft: body => request('POST', '/api/identity-draft', body),
   specialDays: (from, to) => request('GET', `/api/special-days?from=${from}&to=${to}`),
   performance: brandId => request('GET', '/api/performance' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
