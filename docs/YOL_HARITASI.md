@@ -109,6 +109,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.13 Ortak şablonlar:** rol çıkarma (renk/font/görsel), hedef markaya çevirme ve yedek renkler, dosyaların taşınmaması, okunurluk düzeltmesi, kullan/sil uç noktaları.
 - ⬜ **T.14 Kalıp arşivi:** analiz çıktısının temizlenmesi, kaynak türü doğrulaması, favori/düzenleme/silme, senaryo istemine seçilen kalıbın ya da favorilerin girmesi, marka izolasyonu.
 - ⬜ **T.15 Satır satır ve rakipler:** çekim senaryosu metni (zamanlar), rakip CRUD ve doğrulama (hesap/bağlantı), örneksiz analiz reddi, analiz çıktısının temizlenmesi, boşlukların hafızaya girmesi, marka izolasyonu.
+- ⬜ **T.16 Beyin fırtınası, geliştir, @ referanslar:** konsept/varyasyon sınırları ve temizleme, geliştir çıktısı, anma çözümleme (Türkçe harf sadeleştirme), rol talimatları, en çok 3 referans, referans almayan modelde ve olmayan etikette hata.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
@@ -116,8 +117,8 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ✅ **5.1 Kalıp arşivi** *(Nailing AI)*: Reels → "Kalıp arşivi" sekmesi; beğenilen, rakip ya da kendi Reels metni yapıştırılır, model seçilir; giriş tipi ve kalıbı, tema, 3–6 adımlık akış, kapanış/CTA, neden işe yaradığı ve uyarlama önerisi çıkarılıp markanın arşivine kaydedilir (metin ve espri kopyalanmaz). Favori kalıplar her senaryo yazımında örnek olarak isteme girer; "Bu kalıpla senaryo yaz" ya da senaryo penceresindeki "Kalıp" seçimiyle belirli bir kalıp izlenir.
 - ✅ **5.2 Satır satır senaryo + görsel ipucu** *(Nailing AI)*: Reels senaryo ekranında "Sahneler / Satır satır" görünümü: her konuşma satırı (zamanıyla) ve altında o an ekranda olan görsel, kamera ve ses; bitiş kareleri. Dışa aktar → "Satır satır çekim senaryosu (.txt)".
 - ✅ **5.3 Rakip profilleri** *(Nailing AI)*: marka menüsünde "Rakipler"; her rakip için ad, hesap, bağlantı, notlar ve örnek gönderiler; AI analizi (özet, içerik sütunları, ton, formatlar, kalıplar, güçlü/zayıf yanlar, boşluklar, bizim için fikirler); fikirler tek tıkla fikir havuzuna; boşluklar marka hafızasına girer (bütün üretimler bunlardan yararlanır).
-- ⬜ **5.4 Geliştir + Geri al ve Beyin fırtınası** *(Banana Studio)*: kısa taslaktan ayrıntılı üretim prompt'u; tek brief'ten çok konsept × çok varyasyon.
-- ⬜ **5.5 Rollü referanslar ve @ ile anma** *(Banana Studio)*: kütüphanedeki görsellere kimlik/nesne/stil rolü; prompt'ta `@maskot-pozu` ile kullanma.
+- ✅ **5.4 Geliştir + Geri al ve Beyin fırtınası** *(Banana Studio)*: Prompt Studio'da "Beyin fırtınası": tek istekten 2–5 konsept × 1–3 varyasyon; beğenilen varyasyon tek tıkla kaydedilir ya da kopyalanır. Görsel üretim kutusunda "✨ Geliştir": kısa taslak ayrıntılı görsel prompt'una çevrilir, "Geri al" ile önceki metne dönülür (Prompt Studio'daki geliştirmeler zaten sürüm geçmişiyle geri alınabiliyor).
+- ✅ **5.5 Rollü referanslar ve @ ile anma** *(Banana Studio)*: kütüphanede her görsele referans rolü (kimlik / nesne / stil) ve @etiket; görsel tarifinde `@etiket` yazılınca o görsel rolüne uygun talimatla modele referans olarak gider (en çok 3; referans almayan model seçiliyse açık uyarı, olmayan etiket reddedilir). Görsel üretim kutusunda anılabilecek görseller tıklanabilir çip olarak listelenir.
 - ⬜ **5.6 Alan düzenleme** *(Banana Studio)*: görselin seçili bölgesini değiştirme, katmanlı seçim.
 - ⬜ **5.7 Üretim detayları, karşılaştırma ve varyasyon** *(Banana Studio)*: her çıktının prompt/model/referans kaydı; yan yana karşılaştırma; yeniden üret / varyasyon.
 - ⬜ **5.8 Instagram ızgara önizlemesi** *(Banana Studio)*: bitmiş post ve Reels kapağının profil ızgarasında nasıl duracağını gösterme.

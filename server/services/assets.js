@@ -31,10 +31,19 @@ export function detectImage(buffer) {
   return SIGNATURES.find(s => s.test(buffer)) || null;
 }
 
+// @ ile anma için etiketin sade hâli (Türkçe harfler sadeleşir, boşluk → tire); etiket yoksa kimliğin başı
+export const REF_ROLES = { kimlik: 'Kimlik (karakter)', nesne: 'Nesne / ürün', stil: 'Stil' };
+const TRM = { ç: 'c', ğ: 'g', ı: 'i', İ: 'i', ö: 'o', ş: 's', ü: 'u', Ç: 'c', Ğ: 'g', Ö: 'o', Ş: 's', Ü: 'u' };
+export function mentionOf(label, id) {
+  const s = String(label || '').replace(/[çğıİöşüÇĞÖŞÜ]/g, c => TRM[c]).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32);
+  return s || 'gorsel-' + String(id).slice(0, 6);
+}
+
 const toAsset = r => ({
   id: r.id, category: r.category, categoryLabel: ASSET_CATEGORIES[r.category] || r.category,
   label: r.label, mime: r.mime, size: r.size, createdAt: r.created_at, driveUrl: r.drive_url || '',
   pack: r.pack || '', tags: r.tags ? r.tags.split(',').filter(Boolean) : [],
+  refRole: r.ref_role || '', mention: mentionOf(r.label, r.id),
   url: `/api/brands/${r.brand_id}/assets/${r.id}/file`
 });
 
@@ -85,8 +94,9 @@ export function createAssetService(db, uploadDir) {
       const category = 'category' in body ? oneOf(body.category, Object.keys(ASSET_CATEGORIES), 'Kategori') : row.category;
       const pack = 'pack' in body ? cleanPack(body.pack) : (row.pack || '');
       const tags = 'tags' in body ? cleanTags(body.tags) : (row.tags || '');
-      db.prepare('UPDATE assets SET label = ?, category = ?, pack = ?, tags = ? WHERE id = ? AND brand_id = ?').run(label, category, pack, tags, row.id, brandId);
-      return toAsset(Object.assign(row, { label, category, pack, tags }));
+      const refRole = 'refRole' in body ? (body.refRole ? oneOf(body.refRole, Object.keys(REF_ROLES), 'Referans rolü') : '') : (row.ref_role || '');
+      db.prepare('UPDATE assets SET label = ?, category = ?, pack = ?, tags = ?, ref_role = ? WHERE id = ? AND brand_id = ?').run(label, category, pack, tags, refRole, row.id, brandId);
+      return toAsset(Object.assign(row, { label, category, pack, tags, ref_role: refRole }));
     },
 
     remove(brandId, assetId) {

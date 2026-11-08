@@ -157,6 +157,8 @@ export const api = {
   images: (id, promptId) => request('GET', b(id) + '/images' + (promptId ? '?promptId=' + encodeURIComponent(promptId) : '')),
   generateImage: (id, body) => request('POST', b(id) + '/images', body),
   prompts: (id, params = {}) => request('GET', b(id) + '/prompts?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v))),
+  brainstormPrompts: (id, body) => request('POST', b(id) + '/prompts/brainstorm', body),
+  enhancePrompt: (id, body) => request('POST', b(id) + '/prompts/enhance', body),
   createPrompt: (id, body) => request('POST', b(id) + '/prompts', body),
   prompt: (id, pid) => request('GET', `${b(id)}/prompts/${pid}`),
   savePrompt: (id, pid, body) => request('PUT', `${b(id)}/prompts/${pid}`, body),

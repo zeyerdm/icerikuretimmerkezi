@@ -367,6 +367,10 @@ const MIGRATIONS = [
     updated_at TEXT NOT NULL
   );
   CREATE INDEX idx_competitors ON competitors(brand_id);
+  `,
+  // 17: Rollü referanslar: kütüphane görseline kimlik / nesne / stil rolü (görsel üretiminde @etiket ile anılır)
+  `
+  ALTER TABLE assets ADD COLUMN ref_role TEXT NOT NULL DEFAULT '';
   `
 ];
 

@@ -124,6 +124,39 @@ export function createPromptService({ db, ai, brands, reels }) {
       return Object.assign(detail(created), { ai: meta(r) });
     },
 
+    // Beyin fırtınası: tek istekten birkaç konsept × varyasyon (kaydedilmez; beğenilen elle kaydedilir)
+    async brainstorm(brandId, { kind, brief, concepts = 3, variations = 2, modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const k = oneOf(kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
+      const want = text(brief, { field: 'İstek', max: 2000, required: true });
+      const nc = Math.max(2, Math.min(5, Number(concepts) || 3));
+      const nv = Math.max(1, Math.min(3, Number(variations) || 2));
+      const prompt = ['PROMPT BEYİN FIRTINASI', `Sen '${b.name}' markası için yaratıcı yönetmensin.`, '', context(b, k), '', rules(k), '',
+        `İSTEK: ${want}`, '', `GÖREV: Bu istek için birbirinden belirgin biçimde farklı ${nc} konsept öner (farklı fikir, kurgu ya da görsel dil). Her konsept için ${nv} varyasyon prompt yaz (aynı konseptin farklı kompozisyon/ışık/an/ton denemeleri).`,
+        '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ concepts: [{ name: 'Konsept adı', idea: 'Tek cümle fikir', variations: [{ prompt: 'Prompt', promptTr: 'Türkçesi (gerekiyorsa)' }] }] })].join('\n');
+      const r = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 1 });
+      const english = PROMPT_KINDS[k].english;
+      const list = (Array.isArray(r.output && r.output.concepts) ? r.output.concepts : []).slice(0, nc).map(c => ({
+        name: polish(c && c.name).slice(0, 80) || 'Konsept', idea: polish(c && c.idea).slice(0, 300),
+        variations: (Array.isArray(c && c.variations) ? c.variations : []).slice(0, nv).map(v => ({ prompt: String((v && v.prompt) || '').trim().slice(0, MAX_TEXT), promptTr: english ? String((v && v.promptTr) || '').trim().slice(0, MAX_TEXT) : '' })).filter(v => v.prompt)
+      })).filter(c => c.variations.length);
+      if (!list.length) throw badRequest('Model kullanılabilir konsept döndürmedi; tekrar dene ya da başka model seç.');
+      return { kind: k, brief: want, concepts: list, ai: meta(r) };
+    },
+
+    // Geliştir: kısa taslağı ayrıntılı üretim prompt'una çevirir (kaydedilmez; arayüzde "Geri al" ile eskiye dönülür)
+    async enhance(brandId, { kind = 'gorsel', text: draft, modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const k = oneOf(kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
+      const t = text(draft, { field: 'Taslak', max: 4000, required: true });
+      const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k), '',
+        `KISA TASLAK:\n${t}`, '', "GÖREV: Taslağın amacını koruyarak onu ayrıntılı, üretime hazır bir prompt'a çevir (özne, ortam, kompozisyon, ışık, renk, kamera/lens, atmosfer).",
+        '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
+      const r = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 0.7 });
+      const c = clean(r.output, k, t.slice(0, 60));
+      return { prompt: c.text, promptTr: c.textTr, ai: meta(r) };
+    },
+
     // Elle yazılmış prompt'u kaydetme (AI gerekmez)
     createManual(brandId, body = {}) {
       const b = brands.get(brandId);
