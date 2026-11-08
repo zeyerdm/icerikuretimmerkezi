@@ -722,8 +722,9 @@ test('Prompt Studio: tür seç, üret, kopyala, geliştir, seçili bölümü yen
 
     // İlk sürüme dön
     await page.locator('.version-list li').last().getByRole('button', { name: 'Geri dön' }).click();
-    await page.waitForFunction(() => document.querySelector('#pp-text') && document.querySelector('#pp-text').value.startsWith('A cheerful'));
-    assert.equal(await page.locator('.version-list li').count(), 4);
+    // Seçili bölüm sonrası metin de "A cheerful" ile başlıyor: geri dönüşü sürüm sayısıyla ve "neon"un gitmesiyle bekle
+    await page.waitForFunction(() => document.querySelectorAll('.version-list li').length === 4);
+    assert.equal(await page.locator('#pp-text').inputValue(), 'A cheerful coffee bean mascot runs across campus at sunrise');
 
     // Elle düzenleyip kaydet, listede görün, sil
     await page.locator('#pp-text').fill('Elle düzeltilmiş prompt');
