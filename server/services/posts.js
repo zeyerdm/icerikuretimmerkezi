@@ -11,7 +11,7 @@ export const KIND_DEFAULTS = { carousel: { format: '4:5', content: 'carousel' },
 export const POST_FORMATS = { '4:5': { w: 1080, h: 1350, label: 'Dikey 4:5' }, '1:1': { w: 1080, h: 1080, label: 'Kare 1:1' }, '9:16': { w: 1080, h: 1920, label: 'Story 9:16' } };
 const MAX_SLIDES = 10;
 const MAX_LAYERS = 30;
-const LAYER_TYPES = ['text', 'image', 'shape'];
+const LAYER_TYPES = ['text', 'image', 'shape', 'qr'];
 const ASSET_SRC = /^\/api\/brands\/[A-Za-z0-9-]+\/assets\/[A-Za-z0-9-]+\/file$/;
 
 // Açık renk üzerinde koyu, koyu renk üzerinde beyaz yazı
@@ -130,6 +130,12 @@ function cleanLayer(l) {
     // Yalnızca bu uygulamadaki varlık dosyaları (dış adresten görsel çekilmez)
     if (!ASSET_SRC.test(String(l.src || ''))) throw badRequest('Görsel katmanı kütüphanedeki bir dosya olmalı.');
     Object.assign(out, { src: l.src, assetId: l.assetId ? String(l.assetId).slice(0, 40) : null, w: num(l.w, 10, 4000, 300), h: num(l.h, 10, 4000, 300) });
+  } else if (l.type === 'qr') {
+    // QR kod: metin/link kare olarak çizilir (beyaz sessiz bölge her zaman eklenir, okunabilirlik için)
+    const text = String(l.text || '').trim().slice(0, 200);
+    if (!text) throw badRequest('QR kod için bir link ya da metin yaz.');
+    const w = num(l.w, 80, 2000, 300);
+    Object.assign(out, { text, w, h: w, color: HEX.test(l.color || '') ? l.color : '#000000' });
   } else {
     Object.assign(out, { shape: l.shape === 'circle' ? 'circle' : 'rect', w: num(l.w, 1, 4000, 100), h: num(l.h, 1, 4000, 100), color: HEX.test(l.color || '') ? l.color : '#5b55e6', radius: num(l.radius, 0, 1000, 0) });
   }

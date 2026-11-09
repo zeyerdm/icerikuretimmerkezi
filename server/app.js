@@ -77,6 +77,7 @@ function securityHeaders(req, res, next) {
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
     "img-src 'self' data: blob:",
+    "media-src 'self' blob:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "script-src 'self'",

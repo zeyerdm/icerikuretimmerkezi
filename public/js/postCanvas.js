@@ -1,6 +1,10 @@
 // Post stüdyosu çizimi: aynı slayt verisinden hem editör önizlemesi hem PNG dışa aktarma.
 // Metin kutuları genişliğe göre satırlara bölünür; görseller oranı korunarak kutuya sığdırılır.
 import { loadFonts } from './ui.js';
+import { qrMatrix, drawQr } from './qr.js';
+
+const qrCache = new Map();
+function qrOf(text) { if (!qrCache.has(text)) { try { qrCache.set(text, qrMatrix(text)); } catch { qrCache.set(text, null); } } return qrCache.get(text); }
 
 const imageCache = new Map();
 export function loadImage(src) {
@@ -45,6 +49,7 @@ export function layerBox(ctx, l) {
     const lines = wrapLines(ctx, l.text, l.w);
     return { x: l.x, y: l.y, w: l.w, h: Math.max(l.size, lines.length * l.size * 1.2) };
   }
+  if (l.type === 'qr') return { x: l.x, y: l.y, w: l.w, h: l.w };
   return { x: l.x, y: l.y, w: l.w, h: l.h };
 }
 
@@ -76,6 +81,9 @@ export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
       else if (ctx.roundRect) ctx.roundRect(l.x, l.y, l.w, l.h, r);
       else ctx.rect(l.x, l.y, l.w, l.h);
       ctx.fill();
+    } else if (l.type === 'qr') {
+      const mx = qrOf(l.text || '');
+      if (mx) drawQr(ctx, mx, l.x, l.y, l.w, l.color || '#000000', '#ffffff');
     } else if (l.type === 'image') {
       const p = imageCache.get(l.src);
       const img = p && p.resolved;

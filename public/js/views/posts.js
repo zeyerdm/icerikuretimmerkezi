@@ -403,7 +403,7 @@ async function renderEditor(view, brand, id, models) {
     const l = layer();
     if (!l) { p.innerHTML = ''; return; }
     const swatches = (key, value) => `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === value ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" data-prop="${key}" value="${esc(value)}" aria-label="Özel renk"></div>`;
-    p.innerHTML = `<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
+    p.innerHTML = `<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
       <div class="row"><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-dup aria-label="Çoğalt" title="Çoğalt">${icon('plus')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil" title="Sil">${icon('trash')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-deselect aria-label="Kapat" title="Kapat">${icon('x')}</button></div></div>
       <div class="stack-sm">
       ${l.type === 'text' ? `
@@ -416,6 +416,11 @@ async function renderEditor(view, brand, id, models) {
         </div>
         <div class="field"><span class="field-label">Hizalama</span><div class="seg">${[['left', 'Sol'], ['center', 'Orta'], ['right', 'Sağ']].map(([k, v]) => `<button type="button" data-align="${k}" class="${l.align === k ? 'active' : ''}">${v}</button>`).join('')}</div></div>
         <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>`
+      : l.type === 'qr' ? `
+        <div class="field"><label for="lp-qr">Link ya da metin</label><textarea class="textarea" id="lp-qr" data-prop="text" rows="2" maxlength="200">${esc(l.text)}</textarea></div>
+        <div class="field"><label for="lp-qw">Boyut</label><input class="input" id="lp-qw" type="number" min="80" max="2000" data-prop="w" value="${l.w}"></div>
+        <div class="field"><span class="field-label">Renk (koyu renk seç; zemin her zaman beyaz kalır)</span>${swatches('color', l.color || '#000000')}</div>
+        <p class="xsmall muted">Paylaşmadan önce telefon kamerasıyla okutup dene.</p>`
       : l.type === 'image' ? `
         <div class="form-grid"><div class="field"><label for="lp-iw">Genişlik</label><input class="input" id="lp-iw" type="number" min="10" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-ih">Yükseklik</label><input class="input" id="lp-ih" type="number" min="10" max="4000" data-prop="h" value="${l.h}"></div></div>
@@ -454,6 +459,8 @@ async function renderEditor(view, brand, id, models) {
       const packs = [...new Set(stickers.map(a => a.pack).filter(Boolean))];
       box.innerHTML = `${head}<h4 class="ed-sub">Şekiller</h4>
         <div class="ed-shapes"><button type="button" data-add="shape" title="Dikdörtgen"><span class="sh rect"></span></button><button type="button" data-add="shape" data-preset="rounded" title="Yuvarlak köşe"><span class="sh rounded"></span></button><button type="button" data-add="circle" title="Daire"><span class="sh circle"></span></button><button type="button" data-add="shape" data-preset="line" title="Çizgi"><span class="sh line"></span></button></div>
+        <h4 class="ed-sub">QR kod</h4>
+        <div class="row mb-3"><input class="input input-sm" id="ed-qr-text" placeholder="Link ya da metin (ör. kampanya sayfası)" maxlength="200" aria-label="QR kod metni"><button type="button" class="btn btn-sm" data-add="qr">${icon('plus')}Ekle</button></div>
         <h4 class="ed-sub">Sticker'lar</h4>
         ${packs.length ? `<div class="chips mb-2"><button type="button" class="chip active" data-sticker-pack="">Tümü</button>${packs.map(p => `<button type="button" class="chip" data-sticker-pack="${esc(p)}">${esc(p)}</button>`).join('')}</div>` : ''}
         <div id="ed-stickers">${assetGrid(stickers, `Henüz sticker yok. <a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> paket olarak yükleyebilirsin.`)}</div>`;
@@ -606,6 +613,7 @@ async function renderEditor(view, brand, id, models) {
     const l = layer();
     if (!prop || !l) return;
     l[prop] = ['text', 'font', 'color'].includes(prop) ? t.value : Number(t.value);
+    if (l.type === 'qr' && prop === 'w') l.h = l.w;
     markDirty();
     quick();
   };
@@ -635,6 +643,13 @@ async function renderEditor(view, brand, id, models) {
       if (add.dataset.add === 'text') {
         const spec = pr === 'title' ? { text: 'Başlık', size: 96, weight: 800, font: brand.fonts.heading } : pr === 'sub' ? { text: 'Alt başlık', size: 56, weight: 700, font: brand.fonts.heading } : { text: 'Yeni metin', size: 40, weight: 500, font: brand.fonts.body };
         return addLayer(Object.assign({ id: uid(), type: 'text', role: 'text', x: 90, y: Math.round(F.h / 2), w: 800, color: brand.colors.heading || '#1b1f3b', align: 'left' }, spec, { font: spec.font || 'Poppins' }));
+      }
+      if (add.dataset.add === 'qr') {
+        const text = ($('#ed-qr-text') || {}).value || '';
+        if (!text.trim()) { toast('QR kod için bir link ya da metin yaz.', 'error'); return $('#ed-qr-text') && $('#ed-qr-text').focus(); }
+        if (new TextEncoder().encode(text.trim()).length > 200) return toast('QR metni en fazla 200 karakter olabilir.', 'error');
+        const s = Math.round(Math.min(F.w, F.h) * 0.28);
+        return addLayer({ id: uid(), type: 'qr', text: text.trim(), x: F.w - s - 70, y: F.h - s - 70, w: s, h: s, color: '#000000' });
       }
       if (add.dataset.add === 'circle') return addLayer({ id: uid(), type: 'shape', shape: 'circle', x: 120, y: 120, w: 260, h: 260, color: brand.colors.primary || '#5b55e6', radius: 0 });
       const sh = pr === 'line' ? { w: 600, h: 10, radius: 5 } : pr === 'rounded' ? { w: 360, h: 260, radius: 40 } : { w: 300, h: 300, radius: 0 };
