@@ -54,6 +54,7 @@ const cleanTags = v => (Array.isArray(v) ? v : String(v || '').split(/[\s,]+/)).
 export const CONTENT_STATUSES = {
   taslak: 'Taslak',
   hazirlaniyor: 'Hazırlanıyor',
+  onay: 'Onay bekliyor',
   tamamlandi: 'Tamamlandı',
   yayinlandi: 'Yayınlandı'
 };

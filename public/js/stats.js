@@ -17,6 +17,7 @@ export function counts(d) {
     thisMonth: d.contents.filter(c => { const t = new Date(c.createdAt); const n = new Date(); return t.getFullYear() === n.getFullYear() && t.getMonth() === n.getMonth(); }).length,
     published: d.contents.filter(c => c.status === 'yayinlandi').length,
     ready: d.contents.filter(c => c.status === 'tamamlandi').length,
+    approval: d.contents.filter(c => c.status === 'onay').length,
     planned: d.contents.filter(c => !c.done && c.scheduledAt && new Date(c.scheduledAt) >= new Date()).length,
     openTasks: d.tasks.filter(t => !t.done).length,
     overdueTasks: d.tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate + 'T23:59:59') < new Date()).length
@@ -87,7 +88,7 @@ export function byType(d, types) {
 }
 
 export function byStatus(d, statuses) {
-  const colors = { taslak: '#c9cce0', hazirlaniyor: '#f6b93b', tamamlandi: '#12a48f', yayinlandi: '#7d6bf0' };
+  const colors = { taslak: '#c9cce0', hazirlaniyor: '#f6b93b', onay: '#e8590c', tamamlandi: '#12a48f', yayinlandi: '#7d6bf0' };
   return Object.entries(statuses).map(([id, label]) => ({ label, value: d.contents.filter(c => c.status === id).length, color: colors[id] || '#999' }));
 }
 

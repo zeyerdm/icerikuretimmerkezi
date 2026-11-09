@@ -356,6 +356,8 @@ label.btn { cursor: pointer; }
 .status-taslak .st, .status-badge.status-taslak { color: #5c6283; }
 .status-hazirlaniyor .st, .status-badge.status-hazirlaniyor { color: #8a5d00; }
 .status-tamamlandi .st, .status-badge.status-tamamlandi { color: #0b6b5d; }
+.status-onay .st, .status-badge.status-onay { color: #c2410c; }
+.status-badge.status-onay { background: #fff1e6; }
 .status-yayinlandi .st, .status-badge.status-yayinlandi { color: #4f3fcf; }
 .status-badge { display: inline-flex; align-items: center; height: 24px; padding: 0 var(--s-2); border-radius: var(--r-pill); font-size: var(--t-xs); font-weight: 800; background: var(--surface-3); white-space: nowrap; }
 
@@ -1141,3 +1143,10 @@ body.editor-mode #daily-slot { display: none; }
 .mc-day.today span { background: var(--c-violet); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: grid; place-items: center; }
 .mc-day i { display: flex; gap: 2px; height: 5px; }
 .mc-day i b { width: 5px; height: 5px; border-radius: 50%; }
+
+/* Sıcak krem ton (kullanıcının paylaştığı tasarımlardan): zemin ve kartlar hafif sıcak, mor kimlik korunur */
+:root { --bg: #f6f3ee; --surface: #fffdf9; --surface-2: #faf6f0; --surface-3: #f1ece4; --line: #ebe4d9; --line-strong: #dcd3c4; }
+.card, .widget { box-shadow: 0 1px 2px rgba(60, 40, 10, .04), 0 6px 18px rgba(60, 40, 10, .05); }
+.welcome { background: linear-gradient(115deg, #f3ecff 0%, #fffaf3 58%, #fff0ea 100%); }
+.cal-cell:hover { background: #fdf8f1; }
+.cal-cell.out { background: #faf6f0; }

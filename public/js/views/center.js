@@ -59,7 +59,7 @@ export async function renderCenter(view) {
         ${kpi('k1', k.brands, 'Aktif marka', `${k.ideas} fikir havuzda`, 'brands')}
         ${kpi('k2', k.thisMonth, 'Bu ay üretilen', `toplam ${k.contents} içerik`, 'archive')}
         ${kpi('k3', k.published, 'Yayınlanan', 'durumu "Yayınlandı"', 'check')}
-        ${kpi('k4', k.ready, 'Yayına hazır', 'tamamlandı, yayın bekliyor', 'palette')}
+        ${kpi('k4', k.approval, 'Onay bekleyen', `${k.ready} içerik yayına hazır`, 'palette')}
         ${kpi('k5', k.planned, 'Planlanan', 'ileri tarihli, bitmemiş', 'calendar')}
       </div>
 
