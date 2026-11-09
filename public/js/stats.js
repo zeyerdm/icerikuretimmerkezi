@@ -88,7 +88,7 @@ export function byType(d, types) {
 }
 
 export function byStatus(d, statuses) {
-  const colors = { taslak: '#c9cce0', hazirlaniyor: '#f6b93b', onay: '#e8590c', tamamlandi: '#12a48f', yayinlandi: '#7d6bf0' };
+  const colors = { taslak: '#b9bdd0', hazirlaniyor: '#e09612', onay: '#e5486b', tamamlandi: '#3b6fd8', yayinlandi: '#12a48f' };
   return Object.entries(statuses).map(([id, label]) => ({ label, value: d.contents.filter(c => c.status === id).length, color: colors[id] || '#999' }));
 }
 

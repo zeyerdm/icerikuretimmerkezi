@@ -48,6 +48,7 @@ const PATHS = {
   chevronLeft: '<path d="M15 18l-6-6 6-6"/>',
   chevronRight: '<path d="M9 18l6-6-6-6"/>',
   chevronDown: '<path d="M6 9l6 6 6-6"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   chevronUp: '<path d="M6 15l6-6 6 6"/>',
   sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 3v4M17 5h4"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',

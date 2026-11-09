@@ -5,7 +5,6 @@ import { esc, icon, toast, timeAgo, fmtDate, timeStr, columnChart, ring, sameDay
 import { state, refreshBrands, go, openDemoBrand } from '../app.js';
 import * as S from '../stats.js';
 import { contentModal, taskModal, noteModal } from './forms.js';
-import { brandCard } from './brands.js';
 
 export async function renderCenter(view) {
   view.innerHTML = '<div class="center" aria-busy="true"><div class="skeleton" style="height:200px"></div><div class="kpis">' + '<div class="skeleton" style="height:150px"></div>'.repeat(5) + '</div><div class="grid-2"><div class="skeleton" style="height:320px"></div><div class="skeleton" style="height:320px"></div></div></div>';
@@ -23,27 +22,21 @@ export async function renderCenter(view) {
     perf.overdue ? `<b>${perf.overdue}</b> içerik tarihi geçtiği halde tamamlanmadı` : null
   ].filter(Boolean);
 
+  const today = new Date().toISOString().slice(0, 10);
+  const lateTasks = openTasks.filter(t => t.dueDate && t.dueDate < today);
+  const todayTasks = openTasks.filter(t => t.dueDate === today);
+  const restTasks = openTasks.filter(t => !t.dueDate || t.dueDate > today);
+  const lateContents = d.contents.filter(c => !c.done && c.scheduledAt && new Date(c.scheduledAt) < new Date()).length;
+  const notesP = api.notes({}).catch(() => ({ notes: [] }));
+
   view.innerHTML = `
-    <div class="center">
+    <div class="center ops">
       <section class="card welcome">
-        <div class="w-orb"></div>
-        ${d.brands.length ? `<div class="w-side" aria-label="Bu haftanın özeti">
-          <div class="w-side-title">Bu hafta</div>
-          <div class="w-side-stats"><div><b>${week.created}</b><span>üretim</span></div><div><b>${week.completed}</b><span>tamamlanan</span></div><div><b>${week.scheduledPending}</b><span>yayın bekliyor</span></div></div>
-          ${d.activity[0] ? `<div class="w-side-last" title="${esc(d.activity[0].summary)}">${icon('refresh')}<span>${esc(d.activity[0].summary)}</span><em>${timeAgo(d.activity[0].createdAt)}</em></div>` : ''}
-        </div>` : ''}
         <div class="w-text">
-          <div class="w-slogan"><img src="/img/logo.svg" alt="">KREATİFHANE · Fikirden üretime, her şey tek merkezde</div>
           <div class="w-date">${esc(fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
           ${d.brands.length ? `
             <h1>${hello}! Bugün neler üretiyoruz?</h1>
-            <p>${summary.length ? 'Özet: ' + summary.join(', ') + '.' : 'Her şey yolunda görünüyor. Yeni bir içerik planlayarak başlayabilirsin.'}</p>
-            <div class="w-actions">
-              <button class="btn btn-primary" data-act="plan">${icon('calendar')}İçerik planla</button>
-              <button class="btn" data-act="task">${icon('tasks')}Görev ekle</button>
-              <button class="btn" data-act="note">${icon('notes')}Not al</button>
-              <a class="btn" href="#/marka/yeni">${icon('plus')}Yeni marka</a>
-            </div>` : `
+            <p>${summary.length ? 'Özet: ' + summary.join(', ') + '.' : 'Her şey yolunda görünüyor. Yeni bir içerik planlayarak başlayabilirsin.'}</p>` : `
             <h1>İlk markanı oluştur</h1>
             <p>Burası senin yönetim merkezin: bütün markalarının takvimi, görevleri, notları ve üretim istatistikleri burada toplanır. Başlamak için bir marka oluştur.</p>
             <form id="onboard-form" class="w-onboard">
@@ -53,75 +46,79 @@ export async function renderCenter(view) {
             </form>
             <div class="w-actions"><span class="small muted">Önce nasıl çalıştığını görmek mi istersin?</span><button class="btn btn-ghost" type="button" id="demo-btn">☕ Örnek markayla keşfet</button></div>`}
         </div>
+        ${d.brands.length ? `<div class="create-menu">
+          <button class="btn btn-primary" data-create aria-haspopup="menu" aria-expanded="false">${icon('plus')}Oluştur</button>
+          <div class="create-pop" role="menu" hidden>
+            <button role="menuitem" data-act="plan">${icon('calendar')}<span><b>İçerik planla</b><em>Takvime yeni gönderi</em></span></button>
+            <button role="menuitem" data-act="task">${icon('tasks')}<span><b>Görev ekle</b><em>Son tarih ve öncelikle</em></span></button>
+            <button role="menuitem" data-act="note">${icon('notes')}<span><b>Not al</b><em>Fikir, toplantı notu</em></span></button>
+            <a role="menuitem" href="#/marka/yeni">${icon('brands')}<span><b>Yeni marka</b><em>Kimlik ve kütüphane</em></span></a>
+          </div></div>` : ''}
       </section>
 
-      <div class="kpis">
-        ${kpi('k1', k.brands, 'Aktif marka', `${k.ideas} fikir havuzda`, 'brands')}
-        ${kpi('k2', k.thisMonth, 'Bu ay üretilen', `toplam ${k.contents} içerik`, 'archive')}
-        ${kpi('k3', k.published, 'Yayınlanan', 'durumu "Yayınlandı"', 'check')}
-        ${kpi('k4', k.approval, 'Onay bekleyen', `${k.ready} içerik yayına hazır`, 'palette')}
-        ${kpi('k5', k.planned, 'Planlanan', 'ileri tarihli, bitmemiş', 'calendar')}
+      <div class="kpis stat-bar" aria-label="İçerik durumu">
+        ${kpi('k1', k.brands, 'Aktif marka', 'brands', '')}
+        ${kpi('k2', k.thisMonth, 'Bu ay üretilen', 'archive', '')}
+        ${kpi('k3', k.published, 'Yayınlanan', 'check', 'st-pub')}
+        ${kpi('k5', k.planned, 'Planlanan', 'calendar', 'st-plan')}
+        ${kpi('k4', k.approval, 'Onay bekleyen', 'palette', 'st-rev')}
+        ${kpi('k6', lateContents, 'Geciken', 'clock', 'st-late')}
+        <div class="stat-week" title="Bu hafta (pazartesi–pazar); halka: bütün içeriklerin tamamlanma oranı">${ring(perf.completionRate, 44)}<div><b>Bu hafta</b><span>${week.created} üretim · ${week.completed} tamamlanan · ${week.scheduled} planlı</span></div></div>
       </div>
 
-      <div class="grid-2">
-        <section class="card">
-          <div class="card-head"><h3>Haftalık performans</h3><a class="small link" href="#/analizler">Tüm analizler ›</a></div>
-          <div class="week-summary">
-            ${ring(perf.completionRate)}
-            <div class="ws-stats">
-              <div><b>${week.created}</b><span>üretim (içerik ve fikir)</span></div>
-              <div><b>${week.completed}</b><span>tamamlanan içerik</span></div>
-              <div><b>${week.scheduled}</b><span>bu haftaya planlı</span></div>
-            </div>
+      <div class="home-grid">
+        <div class="home-main">
+          <div class="grid-2">
+            <section class="card">
+              <div class="card-head"><h3>Bugünün işleri</h3><a class="small link" href="#/gorevler">Tüm görevler ›</a></div>
+              <form id="quick-task" class="input-plus"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
+              ${openTasks.length ? `<ul class="task-mini">${[...lateTasks, ...todayTasks, ...restTasks].slice(0, 7).map(taskRow).join('')}</ul>${openTasks.length > 7 ? `<a class="small link mt-2" href="#/gorevler">+${openTasks.length - 7} görev daha</a>` : ''}`
+                : emptyCta('check', 'Bugün için görev yok', 'Yapılacakları buraya ekle; gecikenler kırmızıyla öne çıkar.', 'İlk görevini ekle', 'focus-task')}
+            </section>
+            <section class="card">
+              <div class="card-head"><h3>Yaklaşan içerikler</h3><a class="small link" href="#/masa">Takvim ›</a></div>
+              ${soon.length ? agenda(soon) : emptyCta('calendar', 'Önümüzdeki 7 gün boş', 'Yayın akışını doldurmak için bir içerik planla.', 'Hemen planla', 'plan')}
+            </section>
           </div>
-          <p class="small muted chart-note">Halka: bütün içeriklerin tamamlanma oranı.</p>
-          ${columnChart(week.days.map(x => ({ label: x.label, values: [x.created, x.completed] })),
-            [{ name: 'Üretilen', color: 'var(--c-violet)' }, { name: 'Tamamlanan', color: 'var(--c-teal)' }],
-            { height: 150, empty: 'Bu hafta henüz üretim yok. İlk içeriği planlayınca grafik dolmaya başlar.' })}
-        </section>
-
-        <section class="card">
-          <div class="card-head"><h3>Yaklaşan içerikler</h3><a class="small link" href="#/takvim">Takvimi aç ›</a></div>
-          ${agenda(soon)}
-        </section>
+          <section class="card">
+            <div class="card-head"><h3>Haftalık performans</h3><a class="small link" href="#/analizler">Tüm analizler ›</a></div>
+            ${week.created || week.completed ? columnChart(week.days.map(x => ({ label: x.label, values: [x.created, x.completed] })),
+              [{ name: 'Üretilen', color: 'var(--c-violet)' }, { name: 'Tamamlanan', color: 'var(--st-pub)' }], { height: 120 })
+              : emptyCta('chart', 'Bu hafta henüz üretim yok', 'Fikir ekledikçe ve içerikleri tamamladıkça grafik dolar.', 'İçerik planla', 'plan')}
+          </section>
+        </div>
+        <aside class="home-side">
+          <section class="card" id="upcoming-days"><div class="card-head"><h3>Yaklaşan özel günler</h3><a class="small link" href="#/masa">Takvim ›</a></div><div class="skeleton" style="height:120px"></div></section>
+          <section class="card mini-cal-card" id="mini-cal"></section>
+          <section class="card" id="recent-notes"><div class="card-head"><h3>Son notlar</h3><a class="small link" href="#/notlar">Tüm notlar ›</a></div><div class="skeleton" style="height:60px"></div></section>
+        </aside>
       </div>
-
-      <div class="grid-3">
-        <section class="card mini-cal-card" id="mini-cal"></section>
-        <section class="card">
-          <div class="card-head"><h3>Görevler</h3><a class="small link" href="#/masa">Çalışma masası ›</a></div>
-          <form id="quick-task" class="quick-add"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button class="btn icon-btn" type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
-          ${openTasks.length ? `<ul class="task-mini">${openTasks.slice(0, 6).map(taskRow).join('')}</ul>` : emptyState({ icon: 'check', title: 'Açık görev yok', text: 'Yukarıdan hızlıca ekleyebilirsin.', compact: true })}
-        </section>
-        <section class="card">
-          <div class="card-head"><h3>Sabit notlar</h3><a class="small link" href="#/masa">Çalışma masası ›</a></div>
-          ${d.pinnedNotes.length ? `<div class="note-mini">${d.pinnedNotes.map(n => `
-            <button class="note-chip" data-note="${esc(n.id)}"><b>${esc(n.title || n.body.slice(0, 40))}</b><span>${esc(n.body.slice(0, 110))}${n.body.length > 110 ? '…' : ''}</span>${n.brandName ? `<em><i style="background:${esc(n.brandColor || '#999')}"></i>${esc(n.brandName)}</em>` : ''}</button>`).join('')}</div>`
-            : emptyState({ icon: 'pin', title: 'Sabit not yok', text: 'Önemli notlarını sabitleyince burada görünür.', compact: true })}
-          <div class="card-foot"><button class="btn btn-sm" data-act="note">${icon('plus')}Not al</button></div>
-        </section>
-      </div>
-
-      <section class="card" id="upcoming-days"><div class="card-head"><h3>Yaklaşan özel günler</h3><a class="small link" href="#/takvim">Takvim ›</a></div><div class="skeleton" style="height:60px"></div></section>
-
-      <section>
-        <div class="section-head"><h2>Markalar</h2><div class="row">${d.brands.some(b => b.isDemo) || !d.brands.length ? '' : '<button class="btn btn-sm btn-ghost" data-act="demo">☕ Örnek marka ekle</button>'}<a class="btn btn-sm" href="#/markalar">Tümü</a></div></div>
-        <div class="brand-grid">${d.brands.map(brandCard).join('')}<a class="card brand-new" href="#/marka/yeni"><div class="empty-icon">${icon('plus')}</div>Yeni marka oluştur</a></div>
-      </section>
     </div>`;
 
-  // Önümüzdeki 30 gün: özel günler ve başlayan dönemler (takvimden planlanır)
+  // Son notlar: sabitlenenler önce, en fazla 2
+  notesP.then(({ notes }) => {
+    const box = view.querySelector('#recent-notes');
+    if (!box) return;
+    const list = (notes || []).slice(0, 2);
+    box.querySelector('.skeleton').outerHTML = list.length ? `<div class="note-mini">${list.map(n => `
+      <button class="note-chip" data-note-any="${esc(n.id)}"><b>${esc(n.title || n.body.split('\n')[0].slice(0, 60))}</b><span>${esc(n.body.slice(0, 120))}${n.body.length > 120 ? '…' : ''}</span>${n.brandName ? `<em><i style="background:${esc(n.brandColor || '#999')}"></i>${esc(n.brandName)}</em>` : ''}</button>`).join('')}</div>`
+      : emptyCta('notes', 'Henüz not yok', 'Fikirlerini ve toplantı notlarını burada tut.', 'Not al', 'note');
+    box._notes = notes || [];
+  });
+
+  // Önümüzdeki 30 gün: özel günler; her birinde "Planla" o güne başlıklı içerik penceresi açar
   (async () => {
     const box = view.querySelector('#upcoming-days');
     if (!box) return;
     const iso = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
     const now = new Date();
     try {
-      const { days } = await api.specialDays(iso(now), iso(new Date(now.getTime() + 30 * 86400000)));
-      const list = days.filter(x => x.date >= iso(now) || !x.end).slice(0, 8);
+      const { days } = await api.specialDays(iso(now), iso(new Date(now.getTime() + 45 * 86400000)));
+      const list = days.filter(x => x.date >= iso(now) || !x.end).slice(0, 5);
+      box._days = list;
       box.querySelector('.skeleton').outerHTML = list.length
-        ? `<div class="upcoming">${list.map(x => { const dt = new Date(`${x.date}T12:00:00`); const left = Math.round((dt - new Date(iso(now) + 'T12:00:00')) / 86400000); return `<a class="upcoming-day cat-${esc(x.category)}" href="#/takvim" title="${esc(x.tip)}"><b>${dt.getDate()}</b><span>${esc(fmtDate(dt, { month: 'short' }))}</span><div><div class="strong small">${esc(x.name)}</div><div class="xsmall muted">${left <= 0 ? 'bugün' : `${left} gün sonra`} · ${esc(x.categoryLabel)}</div></div></a>`; }).join('')}</div>`
-        : '<p class="card-text">Önümüzdeki 30 günde özel gün yok.</p>';
+        ? `<ul class="sd-list">${list.map((x, i) => { const dt = new Date(`${x.date}T12:00:00`); const left = Math.round((dt - new Date(iso(now) + 'T12:00:00')) / 86400000); return `<li class="sd-item cat-${esc(x.category)}" title="${esc(x.tip)}"><span class="sd-date"><b>${dt.getDate()}</b>${esc(fmtDate(dt, { month: 'short' }))}</span><span class="sd-name"><b>${esc(x.name)}</b><em>${left <= 0 ? 'bugün' : `${left} gün sonra`} · ${esc(x.categoryLabel)}</em></span>${d.brands.length ? `<button class="btn btn-sm" data-sd="${i}">Planla</button>` : ''}</li>`; }).join('')}</ul>`
+        : '<p class="card-text">Önümüzdeki 45 günde özel gün yok.</p>';
     } catch { box.remove(); }
   })();
 
@@ -148,8 +145,15 @@ export async function renderCenter(view) {
     try { await api.createTask({ title: input.value }); toast('Görev eklendi.', 'success'); refresh(); } catch (err) { toast(err.message, 'error'); }
   });
 
+  // Oluştur menüsü dışarı tıklayınca / Esc ile kapanır
+  const closeCreate = ev => { const pop = view.querySelector('.create-pop'); if (!pop || pop.hidden) return; if (ev.type === 'keydown' ? ev.key === 'Escape' : !ev.target.closest('.create-menu')) { pop.hidden = true; view.querySelector('[data-create]').setAttribute('aria-expanded', 'false'); } };
+  document.addEventListener('click', closeCreate, true);
+  document.addEventListener('keydown', closeCreate);
+  window.addEventListener('hashchange', () => { document.removeEventListener('click', closeCreate, true); document.removeEventListener('keydown', closeCreate); }, { once: true });
+
   view.onclick = async e => {
     const act = e.target.closest('[data-act]');
+    if (act && view.querySelector('.create-pop')) view.querySelector('.create-pop').hidden = true;
     try {
       if (act && act.dataset.act === 'plan') return contentModal({ date: addDays(startOfDay(new Date()), 1).setHours(12), onSaved: refresh });
       if (act && act.dataset.act === 'task') return taskModal({ onSaved: refresh });
@@ -169,8 +173,16 @@ export async function renderCenter(view) {
     }
     const taskEdit = e.target.closest('[data-task]');
     if (taskEdit) return taskModal({ task: d.tasks.find(t => t.id === taskEdit.dataset.task), onSaved: refresh });
-    const note = e.target.closest('[data-note]');
-    if (note) return noteModal({ note: d.pinnedNotes.find(n => n.id === note.dataset.note), onSaved: refresh });
+    const note = e.target.closest('[data-note-any]');
+    if (note) { const box = view.querySelector('#recent-notes'); return noteModal({ note: (box._notes || []).find(n => n.id === note.dataset.noteAny), onSaved: refresh }); }
+    const cb = e.target.closest('[data-create]');
+    if (cb) { const pop = view.querySelector('.create-pop'); pop.hidden = !pop.hidden; cb.setAttribute('aria-expanded', String(!pop.hidden)); return; }
+    if (act && act.dataset.act === 'focus-task') return view.querySelector('#quick-task input').focus();
+    const sd = e.target.closest('[data-sd]');
+    if (sd) {
+      const x = view.querySelector('#upcoming-days')._days[Number(sd.dataset.sd)];
+      try { return contentModal({ date: new Date(`${x.date}T12:00:00`), title: `${x.name}: `, onSaved: refresh }); } catch (err) { return toast(err.message, 'error'); }
+    }
     const open = e.target.closest('[data-open]');
     if (open) go('#/m/' + open.dataset.open);
   };
@@ -180,14 +192,19 @@ export async function renderCenter(view) {
   };
 }
 
-function kpi(cls, value, label, sub, iconName) {
-  return `<div class="kpi ${cls}"><div class="kpi-icon">${icon(iconName)}</div><div class="kpi-num">${value}</div><div class="kpi-label">${esc(label)}</div><div class="kpi-sub">${esc(sub)}</div></div>`;
+function kpi(cls, value, label, iconName, tone) {
+  return `<div class="kpi ${cls} ${tone}"><span class="kpi-icon">${icon(iconName)}</span><span class="kpi-num">${value}</span><span class="kpi-label">${esc(label)}</span></div>`;
+}
+
+// Boş durum: küçük ikon, ne yapılacağını söyleyen kısa metin ve gerçek bir eylem düğmesi
+function emptyCta(ic, title, text, cta, act) {
+  return `<div class="empty-cta"><span class="ec-icon">${icon(ic)}</span><div><b>${esc(title)}</b><p>${esc(text)}</p></div><button class="btn btn-sm btn-primary" data-act="${act}">${icon('plus')}${esc(cta)}</button></div>`;
 }
 
 function taskRow(t) {
   const today = new Date().toISOString().slice(0, 10);
   const due = t.dueDate ? (t.dueDate < today ? `<span class="due late">Gecikti · ${esc(fmtDate(t.dueDate + 'T12:00', { day: 'numeric', month: 'short' }))}</span>` : t.dueDate === today ? '<span class="due today">Bugün</span>' : `<span class="due">${esc(fmtDate(t.dueDate + 'T12:00', { day: 'numeric', month: 'short' }))}</span>`) : '';
-  return `<li><button class="check-btn" data-task-done="${esc(t.id)}" aria-label="Tamamlandı olarak işaretle: ${esc(t.title)}"></button>
+  return `<li class="${t.dueDate && t.dueDate < today ? 'is-late' : t.dueDate === today ? 'is-today' : ''}"><button class="check-btn" data-task-done="${esc(t.id)}" aria-label="Tamamlandı olarak işaretle: ${esc(t.title)}"></button>
     <button class="task-title" data-task="${esc(t.id)}"><span>${esc(t.title)}</span><span class="task-meta">${due}<span class="prio prio-${esc(t.priority)}">${esc(t.priorityLabel)}</span>${t.brandName ? `<span class="brand-dot"><i style="background:${esc(t.brandColor || '#999')}"></i>${esc(t.brandName)}</span>` : ''}</span></button></li>`;
 }
 

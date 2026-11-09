@@ -285,6 +285,9 @@ test('örnek markayla keşfet: rehber, takvim içerikleri, görevler, asistan', 
     const now = new Date();
     const thisMonth = (await srv.request('GET', '/api/contents')).data.contents.filter(c => { const t = new Date(c.createdAt); return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth(); }).length;
     assert.equal((await page.locator('.kpi.k2 .kpi-num').textContent()).trim(), String(thisMonth));
+    // Markalar ana sayfadan kalktı; Markalar sayfasında görünür
+    await page.goto(srv.base + '/#/markalar');
+    await page.locator('.brand-card').first().waitFor();
     assert.ok((await page.locator('.brand-card').textContent()).includes('Örnek'));
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }

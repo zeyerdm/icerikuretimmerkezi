@@ -1165,3 +1165,82 @@ body.editor-mode #daily-slot { display: none; }
 .vid-progress span { display: block; height: 100%; background: var(--c-violet); transition: width .2s; }
 .vid-result video { width: 100%; max-height: 420px; border-radius: var(--r-md); background: #000; }
 @media (max-width: 600px) { .vid-clip { grid-template-columns: minmax(0, 1fr); } }
+
+/* ============ Ana sayfa: operasyon merkezi ============ */
+/* Durum renkleri tek yerden: yayınlanan yeşil, planlanan amber, onay/revize ve geciken kırmızı tonları, taslak gri */
+:root { --st-pub: #12a48f; --st-ready: #3b6fd8; --st-plan: #e09612; --st-rev: #e5486b; --st-late: #d63939; --st-draft: #8a8fa8; --muted: #565c78; }
+.status-taslak .st, .status-badge.status-taslak { color: #5c6283; }
+.status-hazirlaniyor .st, .status-badge.status-hazirlaniyor { color: #8a5d00; }
+.status-badge.status-hazirlaniyor { background: #fdf1d8; }
+.status-onay .st, .status-badge.status-onay { color: #b4233f; }
+.status-badge.status-onay { background: #fde8ec; }
+.status-tamamlandi .st, .status-badge.status-tamamlandi { color: #2a56b0; }
+.status-badge.status-tamamlandi { background: #e6eefc; }
+.status-yayinlandi .st, .status-badge.status-yayinlandi { color: #0b6b5d; }
+.status-badge.status-yayinlandi { background: #dff4ef; }
+.ops { gap: 16px; }
+.ops .card { padding: var(--s-4); }
+.ops .card-head { margin-bottom: var(--s-3); }
+.ops .card-head h3 { font-size: var(--t-md); }
+.ops .welcome { overflow: visible; display: flex; align-items: center; gap: var(--s-4); padding: var(--s-4) var(--s-5); }
+.ops .welcome .w-text { max-width: none; flex: 1; min-width: 0; }
+.ops .welcome h1 { font-size: var(--t-xl); }
+.ops .welcome p { color: var(--ink-2); font-size: var(--t-sm); }
+.ops .w-orb, .ops .w-side, .ops .w-slogan { display: none; }
+.create-menu { position: relative; flex: none; }
+.create-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 260px; padding: 6px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); box-shadow: 0 14px 34px rgba(30, 25, 60, .16); display: grid; gap: 2px; }
+.create-pop[hidden] { display: none; }
+.create-pop > * { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 0; border-radius: 8px; background: none; text-align: left; cursor: pointer; text-decoration: none; color: inherit; font: inherit; }
+.create-pop > *:hover, .create-pop > *:focus-visible { background: var(--surface-2); }
+.create-pop svg { width: 18px; height: 18px; color: var(--c-violet); flex: none; }
+.create-pop span { display: grid; }
+.create-pop b { font-size: var(--t-sm); }
+.create-pop em { font-style: normal; font-size: var(--t-xs); color: var(--muted); }
+/* İnce istatistik barı */
+.stat-bar { display: flex; flex-wrap: wrap; gap: 0; padding: 6px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
+.stat-bar > .kpi { flex: 1 1 120px; display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 8px 12px; border: 0; border-radius: 10px; background: none; min-width: 0; }
+.stat-bar > .kpi + .kpi { border-left: 1px solid var(--line); border-radius: 0; }
+.stat-bar .kpi-icon { width: 26px; height: 26px; border-radius: 8px; margin: 0; background: color-mix(in srgb, var(--kpi) 14%, #fff); color: var(--kpi); display: grid; place-items: center; flex: none; grid-row: auto; }
+.stat-bar .kpi-icon svg { width: 15px; height: 15px; }
+.stat-bar .kpi-num { font-size: var(--t-xl); line-height: 1; }
+.stat-bar .kpi-label { font-size: var(--t-xs); font-weight: 700; color: var(--ink-2); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-bar .kpi.st-pub { --kpi: var(--st-pub); } .stat-bar .kpi.st-plan { --kpi: var(--st-plan); } .stat-bar .kpi.st-rev { --kpi: var(--st-rev); } .stat-bar .kpi.st-late { --kpi: var(--st-late); }
+.stat-week { flex: 1.6 1 240px; display: flex; align-items: center; gap: 10px; padding: 4px 12px; border-left: 1px solid var(--line); min-width: 0; }
+.stat-week .ring { width: 42px; height: 42px; flex: none; }
+.stat-week b { display: block; font-size: var(--t-sm); }
+.stat-week span { font-size: var(--t-xs); color: var(--ink-2); }
+/* Izgara: solda işler, sağda özel günler, mini takvim, notlar */
+.home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.home-main, .home-side { display: grid; gap: 16px; min-width: 0; }
+.ops .grid-2 { gap: 16px; }
+@media (max-width: 1200px) { .home-grid { grid-template-columns: minmax(0, 1fr); } .home-side { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); } }
+/* İçine gömülü + düğmeli hızlı ekleme */
+.input-plus { position: relative; margin-bottom: var(--s-3); }
+.input-plus .input { padding-right: 44px; }
+.input-plus button { position: absolute; right: 4px; top: 4px; width: 32px; height: 32px; border: 0; border-radius: 8px; background: var(--c-violet); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.input-plus button svg { width: 16px; height: 16px; }
+.ops .task-mini li { padding: 6px 8px; }
+.ops .task-mini li.is-late { background: #fdecec; box-shadow: inset 3px 0 0 var(--st-late); }
+.ops .task-mini li.is-today { box-shadow: inset 3px 0 0 var(--st-plan); }
+.empty-cta { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-md); background: var(--surface-2); border: 1px dashed var(--line-strong); }
+.empty-cta .ec-icon { width: 36px; height: 36px; border-radius: 10px; background: color-mix(in srgb, var(--c-violet) 14%, #fff); color: var(--c-violet); display: grid; place-items: center; flex: none; }
+.empty-cta .ec-icon svg { width: 18px; height: 18px; }
+.empty-cta div { flex: 1; min-width: 0; }
+.empty-cta b { font-size: var(--t-sm); }
+.empty-cta p { margin: 2px 0 0; font-size: var(--t-xs); color: var(--ink-2); }
+/* Yaklaşan özel günler: kompakt liste + Planla */
+.sd-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sd-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; background: var(--surface-2); }
+.sd-date { width: 40px; flex: none; display: grid; justify-items: center; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; line-height: 1.1; }
+.sd-date b { font-size: var(--t-lg); color: var(--ink); }
+.sd-name { flex: 1; min-width: 0; display: grid; }
+.sd-name b { font-size: var(--t-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-name em { font-style: normal; font-size: var(--t-xs); color: var(--ink-2); }
+/* Not kartları: başlık 14px kalın, gövde 12px */
+.note-mini { display: grid; gap: 8px; }
+.ops .note-chip { padding: 10px 12px; gap: 4px; }
+.ops .note-chip b { font-size: 14px; font-weight: 700; }
+.ops .note-chip span { font-size: 12px; font-weight: 400; color: var(--ink-2); line-height: 1.4; }
+.chart-note, .kpi-sub, .ag-meta, .xsmall.muted, .small.muted { color: var(--muted); }
+@media (max-width: 760px) { .ops .welcome { flex-wrap: wrap; } .stat-bar > .kpi + .kpi { border-left: 0; } .stat-week { border-left: 0; } }
+.stat-bar .kpi-num { order: 1; } .stat-bar .kpi-label { order: 2; }
