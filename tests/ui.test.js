@@ -695,7 +695,7 @@ test('telefon genişliği: yönetim merkezi, takvim ve marka alanında yatay ta�
   const { browser, page, problems } = await open(srv, { width: 390, height: 844 });
   try {
     const id = (await srv.request('GET', '/api/settings')).data.activeBrandId;
-    for (const [hash, sel] of [['#/', '.kpi'], ['#/takvim', '.cal-month'], ['#/gorevler', '.task-row'], ['#/analizler', '.metric'], [`#/m/${id}`, '#chat-input'], [`#/m/${id}/arsiv`, '.table']]) {
+    for (const [hash, sel] of [['#/', '.kpi'], ['#/takvim', '.cal-month'], ['#/gorevler', '.task-row'], ['#/analizler', '.metric'], [`#/m/${id}`, '.bhome .hero'], [`#/m/${id}/arsiv`, '.table']]) {
       await page.goto(srv.base + '/' + hash);
       await page.locator(sel).first().waitFor();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
