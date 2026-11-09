@@ -41,7 +41,7 @@ function draw() {
       <div class="chat-body" id="chat-body"><div class="msg msg-assistant msg-typing">Yükleniyor…</div></div>
       <div class="chat-foot">
         ${aiReady ? `<div class="chips">${CHIPS.map(c => `<button type="button" class="chip" data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
-          : '<div class="notice"><div><strong>AI bağlı değil.</strong> Asistan için bir yapay zekâ sağlayıcısı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">Sağlayıcı bağla</a></div>'}
+          : '<div class="notice"><div><strong>Asistan kapalı:</strong> çalışması için bir yapay zekâ sağlayıcısı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">Sağlayıcı bağla</a></div>'}
         <form class="composer" id="composer">
           <textarea class="textarea" id="chat-input" rows="1" placeholder="${aiReady ? 'Örn: Bu marka için haftaya 5 fikir üret' : 'Önce AI bağlantısını kur'}" ${aiReady ? '' : 'disabled'} maxlength="4000"></textarea>
           <button class="btn btn-primary" type="submit" ${aiReady ? '' : 'disabled'} aria-label="Gönder">${icon('send')}</button>
