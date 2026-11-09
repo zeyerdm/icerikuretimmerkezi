@@ -32,6 +32,7 @@ import { renderCampaigns } from './views/campaigns.js';
 import { renderReport } from './views/report.js';
 import { mountAssistant } from './assistantWidget.js';
 import { initFx } from './fx.js';
+import { initTheme, toggleTheme, applyTheme } from './theme.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -214,6 +215,7 @@ export function renderChrome() {
         ${state.brands.map(b => `<option value="${esc(b.id)}" ${brand && b.id === brand.id ? 'selected' : ''}>${esc(b.name)}${b.isDemo ? ' (örnek)' : ''}</option>`).join('')}
         ${brand ? '<option value="__center">← Yönetim Merkezi</option>' : ''}
       </select>` : ''}
+    <button type="button" class="btn btn-ghost btn-sm icon-btn theme-btn" id="theme-toggle" aria-label="Tema değiştir"></button>
     <button type="button" class="btn btn-ghost btn-sm kbd-btn" id="palette-open" title="Komut paleti (Ctrl+K)">${icon('search')}<span>Ara / komut</span><kbd>Ctrl K</kbd></button>
     <span id="bell-slot"></span>
     ${aiPill}`;
@@ -225,6 +227,8 @@ export function renderChrome() {
     slot.querySelector('#bell').addEventListener('click', () => openSummary(summary));
   });
   document.getElementById('palette-open').addEventListener('click', openPalette);
+  document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+  applyTheme();
   const sw = document.getElementById('brand-switch');
   if (sw) sw.addEventListener('change', () => {
     if (!sw.value) return;
@@ -296,6 +300,7 @@ export async function route() {
 }
 
 async function start() {
+  initTheme();
   const view = document.getElementById('view');
   view.innerHTML = skeletonPage();
   // Bir sayfa yüklenemediyse "Tekrar dene" aynı sayfayı yeniden çizer

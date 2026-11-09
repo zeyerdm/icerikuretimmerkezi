@@ -1539,3 +1539,60 @@ body.ai-full-open { overflow: hidden; }
 .rc-item > div:first-child { min-width: 0; }
 .rc-item p { margin: 2px 0; font-size: var(--t-xs); color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rc-item em { font-style: normal; font-size: 11px; color: var(--muted); }
+
+/* ============ 5.20 Koyu tema ============ */
+html[data-theme="dark"] {
+  --bg: #12131c; --surface: #1b1d2a; --surface-2: #222536; --surface-3: #2a2e42;
+  --ink: #eceef8; --ink-2: #c6c9dc; --muted: #9a9fbb; --line: #2e3247; --line-strong: #3d4260;
+  --brand-soft: color-mix(in srgb, var(--brand) 22%, #1b1d2a);
+  --teal-soft: #173a35; --amber-soft: #3a3014; --rose-soft: #3e1c26;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4); --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .35); --shadow-lg: 0 24px 64px rgba(0, 0, 0, .6);
+}
+html[data-theme="dark"] body { background: var(--bg) !important; color: var(--ink); }
+html[data-theme="dark"] .app { background: var(--bg); }
+html[data-theme="dark"] .card, html[data-theme="dark"] .widget, html[data-theme="dark"] .modal, html[data-theme="dark"] .create-pop, html[data-theme="dark"] .palette, html[data-theme="dark"] .ai-panel { background: var(--surface); border-color: var(--line); color: var(--ink); }
+html[data-theme="dark"] .input, html[data-theme="dark"] .select, html[data-theme="dark"] .textarea { background-color: var(--surface-2); border-color: var(--line-strong); color: var(--ink); }
+html[data-theme="dark"] .btn:not(.btn-primary):not(.btn-danger) { background: var(--surface-2); border-color: var(--line-strong); color: var(--ink); }
+html[data-theme="dark"] .btn-ghost:not(.btn-primary) { background: transparent !important; border-color: transparent !important; }
+html[data-theme="dark"] .topbar .select { background-color: var(--surface); }
+html[data-theme="dark"] .tabs, html[data-theme="dark"] .seg { background: var(--surface-3); }
+html[data-theme="dark"] .tabs button.active, html[data-theme="dark"] .seg button.active, html[data-theme="dark"] .tabs a.active { background: var(--surface); color: var(--ink); }
+html[data-theme="dark"] .modal-foot { background: var(--surface-2); }
+html[data-theme="dark"] .chip { background: var(--surface-2); border-color: var(--line-strong); color: var(--ink-2); }
+html[data-theme="dark"] .tag, html[data-theme="dark"] .status-badge { background: var(--surface-3); }
+html[data-theme="dark"] .notice { background: #3a3014; color: #f3d38a; }
+html[data-theme="dark"] .skeleton { background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)); background-size: 200% 100%; }
+/* Yönetim Merkezi koyu: karşılama ve bölüm tonları koyulaşır, renk kimliği korunur */
+html[data-theme="dark"] .ops .welcome { background: linear-gradient(120deg, #2a2350 0%, #2e2245 45%, #3a2233 100%); border-color: #3a3360; }
+html[data-theme="dark"] .ops .welcome .w-text, html[data-theme="dark"] .ops .w-side { background: rgba(27, 29, 42, .62); border-color: rgba(255, 255, 255, .08); }
+html[data-theme="dark"] .ops .w-actions .btn:not(.btn-primary), html[data-theme="dark"] .bhome .quick-row2 .btn { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .12); }
+html[data-theme="dark"] .ops [class*="tone-"] { background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 22%, var(--surface)) 0, var(--surface) 160px); border-color: color-mix(in srgb, var(--tone) 30%, var(--line)); }
+html[data-theme="dark"] .wc.c1 { background: #2d2860; color: #c4bbff; } html[data-theme="dark"] .wc.c2 { background: #173a35; color: #8fe0cf; } html[data-theme="dark"] .wc.c3 { background: #44261c; color: #ffb79b; }
+html[data-theme="dark"] .ops .tone-violet .task-mini li, html[data-theme="dark"] .ops .tone-peach .sd-item, html[data-theme="dark"] .ops .tone-mint .ag-item { background: var(--surface-2); border-color: var(--line); }
+html[data-theme="dark"] .ops .tone-peach .sd-date { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); }
+html[data-theme="dark"] .home .task-mini li.is-late, html[data-theme="dark"] .ops .task-mini li.is-late, html[data-theme="dark"] .wt-row.late { background: #3e1c26; }
+html[data-theme="dark"] .note-chip, html[data-theme="dark"] .wn-card.pinned, html[data-theme="dark"] .note-card.pinned, html[data-theme="dark"] .cv-note { background: #33301a; border-color: #4a4524; color: var(--ink); }
+html[data-theme="dark"] .ag-item, html[data-theme="dark"] .cal-item, html[data-theme="dark"] .cw-item, html[data-theme="dark"] .ws-item, html[data-theme="dark"] .cv-card, html[data-theme="dark"] .rc-item, html[data-theme="dark"] .wt-row, html[data-theme="dark"] .wn-card { background: var(--surface-2); color: var(--ink); }
+html[data-theme="dark"] .cal-cell:hover, html[data-theme="dark"] .cal-cell.out { background: var(--surface-2); }
+html[data-theme="dark"] .cal-dow { background: var(--surface-2); }
+html[data-theme="dark"] .welcome, html[data-theme="dark"] .hero { background: linear-gradient(120deg, color-mix(in srgb, var(--brand) 26%, var(--surface)), var(--surface) 70%); }
+html[data-theme="dark"] .kpi, html[data-theme="dark"] .stat-bar { background: var(--surface); }
+html[data-theme="dark"] .cv-board { background-color: var(--surface); }
+html[data-theme="dark"] .ed-stage, html[data-theme="dark"] .ed { background: var(--bg); }
+html[data-theme="dark"] .toast { background: rgba(236, 238, 248, .92) !important; color: #12131c; }
+html[data-theme="dark"] .toast-error { background: #e5486b !important; color: #fff; }
+html[data-theme="dark"] .toast-success { background: #12a48f !important; color: #fff; }
+.theme-btn { font-size: 16px; }
+html[data-theme="dark"] .prio-yuksek { background: #4a1f2a; color: #ff9db2; }
+html[data-theme="dark"] .prio-orta { background: #44361a; color: #f5cf7a; }
+html[data-theme="dark"] .prio-dusuk { background: #173a35; color: #8fe0cf; }
+html[data-theme="dark"] .notice strong, html[data-theme="dark"] .notice b { color: #ffe3a3; }
+html[data-theme="dark"] .pill-warn { background: #3a3014; color: #f3d38a; }
+html[data-theme="dark"] .pill-ok { background: #173a35; color: #8fe0cf; }
+html[data-theme="dark"] .ops .w-side-top .kpi { background: rgba(196, 187, 255, .16); color: var(--ink-2); }
+html[data-theme="dark"] .ops .w-side-top .kpi .kpi-num { color: #c4bbff; }
+html[data-theme="dark"] .daily-banner, html[data-theme="dark"] #daily-slot > * { background: var(--surface-2); color: var(--ink); }
+html[data-theme="dark"] .status-badge.status-hazirlaniyor { background: #44361a; color: #f5cf7a; }
+html[data-theme="dark"] .status-badge.status-onay { background: #4a1f2a; color: #ff9db2; }
+html[data-theme="dark"] .status-badge.status-tamamlandi { background: #1d2c4d; color: #9dbbff; }
+html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; color: #8fe0cf; }

@@ -148,6 +148,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.31 Kampanya kanvası:** pano oluşturma/düzenleme/silme, her kart türünün eklenmesi, başka markanın kaydının ve panosunun reddi, konum ve not güncelleme, bağlantıların yalnız panodaki kartlarla ve tekrarsız kaydı, kart silinince bağlantısının da silinmesi, silinmiş kayda bağlı kartın panoyu bozmaması, sürükle-bırak ve bağlama arayüzü.
 - ⬜ **T.32 Aylık rapor:** ay seçimi ve sayıların doğru aya göre hesaplanması (planlanan/yayınlanan/tamamlanan/fikir/ortalama), gelecek aya geçilememesi, boş ay, yazdırma görünümünde menülerin gizlenmesi.
 - ⬜ **T.33 Tarifler:** prompt ve kalıptan tarif kaydı (başka markanın kaydı reddedilir), başka markaya uygulamada yeni kaydın oluşması ve kullanım sayısının artması, tarif silinince kopyaların kalması, arayüzde kaydet/ekle akışları.
+- ⬜ **T.34 Koyu tema:** düğmeyle geçiş ve tercihin hatırlanması, Sistem seçeneğinin işletim sistemi değişimini izlemesi, ana sayfalarda okunabilir kontrast (yazı/zemin), marka renginin korunması.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
@@ -171,7 +172,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ✅ **5.17 Genel arama:** Ctrl+K paletinde 2+ karakterde bütün markalarda fikir, takvim içeriği, tasarım, Reels senaryosu, prompt, not ve görev araması (Türkçe karakterden bağımsız, türe göre en fazla 6, eşleşen kısım alıntısı); sonuca tıklayınca ilgili sayfa açılır. `GET /api/search?q=` yalnız bu kullanıcının markalarını tarar.
 - ✅ **5.18 Aylık rapor:** marka menüsü → Araştırma → Aylık rapor: ay seçici; planlanan, yayınlanan, tamamlanan, yeni içerik kaydı, yeni fikir, ortalama etkileşim; otomatik "Öne çıkanlar"; türe göre tamamlama oranı, en iyi performans (ilk 5), ayın içerik listesi. "PDF olarak kaydet" yazdırma penceresini açar (A4, menüler gizli, marka rengi ve logosu).
 - ✅ **5.19 Ortak şablonlar (tarifler):** Prompt Studio'da prompt'un Dosya menüsünden "Tariflere kaydet", Reels Kalıp arşivinde kalıp başına "📌 Tarif"; başka markada "Tariflerden ekle" ile o markaya kopya (yeni prompt / yeni kalıp; marka kimliği yeni üretimlerde kendiliğinden girer, dosya taşınmaz); kullanım sayısı, tarif silme. Göçüş 21: `recipes` (kullanıcı düzeyinde). Post tasarımları için markalar arası şablonlar P.2'de zaten var.
-- ⬜ **5.20 Koyu tema.**
+- ✅ **5.20 Koyu tema:** üst çubukta 🌙/☀️ hızlı geçiş, Ayarlar → Görünüm: Açık / Koyu / Sistem (işletim sistemini izler); tercih bu tarayıcıda saklanır. Koyu renk değişkenleri ve kartlar, formlar, düğmeler, takvim, Yönetim Merkezi bölüm tonları, notlar, kanvas, bildirimler için koyu karşılıklar; marka renkleri korunur.
 
 ## Aşama 6 — İleride
 

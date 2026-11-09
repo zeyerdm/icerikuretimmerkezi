@@ -1,6 +1,7 @@
 // Ayarlar: AI bağlantısı, güncelleme (ve önceki sürüme dönüş), yedekler.
 // AI anahtarı sunucuya yazılır ve bir daha tarayıcıya gönderilmez.
 import { api } from '../api.js';
+import { THEMES, themePref, setTheme } from '../theme.js';
 import { esc, toast, openModal, pageHead, emptyState, busy } from '../ui.js';
 import { reminderPrefs, setReminderPrefs } from '../reminders.js';
 import { state, renderChrome, refreshBrands } from '../app.js';
@@ -46,6 +47,11 @@ export async function renderSettings(view) {
     ${pageHead({ title: 'Ayarlar', desc: 'Yapay zekâ, Google Drive, güncelleme ve yedekler.' })}
     ${settingsTabs('genel')}
     <div class="settings">
+      <section class="card" id="theme-card">
+        <div class="card-head"><h3>Görünüm</h3></div>
+        <div class="seg" role="radiogroup" aria-label="Tema">${Object.entries(THEMES).map(([k, v]) => `<button type="button" role="radio" data-theme-set="${k}" class="${themePref() === k ? 'active' : ''}" aria-checked="${themePref() === k}">${k === 'acik' ? '☀️ ' : k === 'koyu' ? '🌙 ' : '💻 '}${v}</button>`).join('')}</div>
+        <p class="hint mt-2">"Sistem" seçilirse bilgisayarın açık/koyu ayarı izlenir. Üst çubuktaki 🌙 düğmesiyle de hızlıca geçebilirsin.</p>
+      </section>
       <section class="card" id="reminder-card">
         <div class="card-head"><h3>Hatırlatmalar</h3></div>
         <label class="check"><input type="checkbox" id="rm-summary" ${reminderPrefs().summary ? 'checked' : ''}> Açılışta günün özetini göster (günde bir kez)</label>
@@ -187,6 +193,7 @@ export async function renderSettings(view) {
     }
   });
 
+  view.querySelector('#theme-card').addEventListener('click', e => { const b = e.target.closest('[data-theme-set]'); if (!b) return; setTheme(b.dataset.themeSet); view.querySelectorAll('[data-theme-set]').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
   view.querySelector('#rm-summary').addEventListener('change', e => { setReminderPrefs({ summary: e.target.checked }); toast('Kaydedildi.', 'success'); });
   view.querySelector('#rm-tasks').addEventListener('change', e => { setReminderPrefs({ tasks: e.target.checked }); toast('Kaydedildi.', 'success'); });
   view.querySelector('#rm-sound').addEventListener('change', e => { setReminderPrefs({ sound: e.target.checked }); toast(e.target.checked ? 'Ses efektleri açık.' : 'Ses efektleri kapalı.', 'success'); });
