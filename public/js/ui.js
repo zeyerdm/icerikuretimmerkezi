@@ -1,4 +1,5 @@
 // Arayüz yardımcıları: güvenli HTML, bildirimler, ikonlar, marka teması
+import { sound } from './fx.js';
 export function esc(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -10,6 +11,7 @@ export function toast(message, type = 'info', ms = 3800) {
   el.className = 'toast' + (type === 'error' ? ' toast-error' : type === 'success' ? ' toast-success' : '');
   el.textContent = message;
   host.appendChild(el);
+  if (type === 'error') sound('err'); else if (type === 'success') sound('ok');
   setTimeout(() => el.remove(), ms);
 }
 
@@ -48,6 +50,8 @@ const PATHS = {
   chevronLeft: '<path d="M15 18l-6-6 6-6"/>',
   chevronRight: '<path d="M9 18l6-6-6-6"/>',
   chevronDown: '<path d="M6 9l6 6 6-6"/>',
+  expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+  shrink: '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   chevronUp: '<path d="M6 15l6-6 6 6"/>',
   sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 3v4M17 5h4"/>',
@@ -171,7 +175,18 @@ export async function busy(btn, fn) {
   btn.classList.add('is-loading');
   btn.disabled = true;
   btn.setAttribute('aria-busy', 'true');
+  // Uzun süren işlerde geçen süre düğmenin üstünde küçük bir sayaçla görünür
+  const started = Date.now();
+  let badge = null;
+  const tick = setInterval(() => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    if (s < 2 || !btn.isConnected) return;
+    if (!badge) { badge = document.createElement('span'); badge.className = 'bt-time'; btn.appendChild(badge); }
+    badge.textContent = s + ' sn';
+  }, 500);
   try { return await fn(); } finally {
+    clearInterval(tick);
+    if (badge) badge.remove();
     if (btn.isConnected) { btn.classList.remove('is-loading'); btn.disabled = false; btn.removeAttribute('aria-busy'); }
   }
 }

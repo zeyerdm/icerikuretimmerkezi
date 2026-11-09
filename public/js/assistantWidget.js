@@ -37,6 +37,7 @@ function draw() {
         <div class="ai-badge">✦</div>
         <div class="grow"><h3>AI Asistanı</h3><div class="xsmall muted">${esc(brand.name)} marka hafızasıyla çalışıyor</div></div>
         <button class="btn btn-sm btn-ghost" data-action="new-chat" title="Sohbet geçmişini sil">${icon('refresh')}Yeni sohbet</button>
+        <button class="btn btn-sm btn-ghost icon-btn" data-ai-full aria-label="Tam ekran" title="Tam ekran (Esc ile çık)">${icon('expand')}</button>
         <button class="btn btn-sm btn-ghost icon-btn" data-ai-close aria-label="Asistanı kapat">${icon('x')}</button>
       </div>
       <div class="chat-body" id="chat-body"><div class="msg msg-assistant msg-typing">Yükleniyor…</div></div>
@@ -71,6 +72,20 @@ export async function askAssistant(text) {
   return send(text);
 }
 export function openAssistant() { setOpen(true); }
+
+// Tam ekran: pencere sayfanın üzerinde büyür (gömülüyken de); tekrar basınca, arka plana tıklayınca ya da Esc ile eski yerine döner
+function toggleFull(force) {
+  const on = force == null ? !host.classList.contains('ai-full') : force;
+  host.classList.toggle('ai-full', on);
+  document.body.classList.toggle('ai-full-open', on);
+  const b = host.querySelector('[data-ai-full]');
+  if (b) { b.innerHTML = icon(on ? 'shrink' : 'expand'); b.setAttribute('aria-label', on ? 'Tam ekrandan çık' : 'Tam ekran'); }
+  let bd = host.querySelector('.ai-backdrop');
+  if (on && !bd) { bd = document.createElement('div'); bd.className = 'ai-backdrop'; host.prepend(bd); }
+  if (!on && bd) bd.remove();
+  if (on) setOpen(true, false);
+  const i = host.querySelector('#chat-input'); if (i && !i.disabled) i.focus();
+}
 
 // Marka ana sayfasında pencere sağ kolona gömülür (her zaman açık, düğme gizli); başka sayfada yeniden sağ alta döner
 export function dockAssistant(el) {
@@ -122,6 +137,7 @@ export function mountAssistant(current, { page } = {}) {
     document.body.appendChild(host);
     host.addEventListener('click', async e => {
       if (e.target.closest('.ai-fab')) return setOpen(!isOpen());
+      if (e.target.closest('[data-ai-full]') || e.target.classList.contains('ai-backdrop')) return toggleFull();
       if (e.target.closest('[data-ai-close]')) { if (host.classList.contains('docked')) return; return setOpen(false); }
       const chip = e.target.closest('[data-chip]');
       if (chip) return send(chip.dataset.chip);
@@ -134,11 +150,13 @@ export function mountAssistant(current, { page } = {}) {
     host.addEventListener('submit', e => { if (e.target.id === 'composer') { e.preventDefault(); send(host.querySelector('#chat-input').value); } });
     host.addEventListener('keydown', e => {
       if (e.target.id === 'chat-input' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e.target.value); }
+      if (e.key === 'Escape' && host.classList.contains('ai-full')) return toggleFull(false);
       if (e.key === 'Escape' && isOpen()) setOpen(false);
     });
     host.addEventListener('input', e => { if (e.target.id === 'chat-input') { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
   }
   host.hidden = false;
+  if (host.classList.contains('ai-full')) toggleFull(false);
   // Ana sayfadan ayrılınca (gömülü pencere sayfayla birlikte silinmiş olabilir) sağ alttaki yerine döner
   if (!host.isConnected || host.classList.contains('docked')) { host.classList.remove('docked'); document.body.appendChild(host); if (page !== 'home') setOpen(isOpenPref(), false); }
   const changed = !brand || brand.id !== current.id;

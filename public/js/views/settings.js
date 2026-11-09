@@ -50,6 +50,8 @@ export async function renderSettings(view) {
         <div class="card-head"><h3>Hatırlatmalar</h3></div>
         <label class="check"><input type="checkbox" id="rm-summary" ${reminderPrefs().summary ? 'checked' : ''}> Açılışta günün özetini göster (günde bir kez)</label>
         <label class="check mt-2"><input type="checkbox" id="rm-notify" ${reminderPrefs().notify && typeof Notification !== 'undefined' && Notification.permission === 'granted' ? 'checked' : ''} ${typeof Notification === 'undefined' ? 'disabled' : ''}> Yayın saatinden 30 dakika önce bilgisayar bildirimi</label>
+        <label class="check mt-2"><input type="checkbox" id="rm-tasks" ${reminderPrefs().tasks ? 'checked' : ''}> Görev hatırlatması: son günü gelen ve geciken görevler için günde bir kez bildirim (09:00'dan sonra)</label>
+        <label class="check mt-2"><input type="checkbox" id="rm-sound" ${reminderPrefs().sound ? 'checked' : ''}> Ses efektleri (kaydetme, görev tamamlama, bildirim, hata)</label>
         <p class="hint mt-2">${typeof Notification === 'undefined' ? 'Bu tarayıcı bildirimleri desteklemiyor.' : 'Bildirimler uygulama açıkken (sekme arka planda olsa da) gelir; ilk açışta tarayıcı izin ister.'}</p>
       </section>
       <section class="card" id="ai-card">
@@ -186,6 +188,8 @@ export async function renderSettings(view) {
   });
 
   view.querySelector('#rm-summary').addEventListener('change', e => { setReminderPrefs({ summary: e.target.checked }); toast('Kaydedildi.', 'success'); });
+  view.querySelector('#rm-tasks').addEventListener('change', e => { setReminderPrefs({ tasks: e.target.checked }); toast('Kaydedildi.', 'success'); });
+  view.querySelector('#rm-sound').addEventListener('change', e => { setReminderPrefs({ sound: e.target.checked }); toast(e.target.checked ? 'Ses efektleri açık.' : 'Ses efektleri kapalı.', 'success'); });
   view.querySelector('#rm-notify').addEventListener('change', async e => {
     if (e.target.checked && Notification.permission !== 'granted') {
       const p = await Notification.requestPermission();

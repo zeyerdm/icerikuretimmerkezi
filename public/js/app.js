@@ -29,6 +29,7 @@ import { renderExporter } from './views/exporter.js';
 import { renderDesk } from './views/desk.js';
 import { renderVideo } from './views/video.js';
 import { mountAssistant } from './assistantWidget.js';
+import { initFx } from './fx.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -304,6 +305,7 @@ async function start() {
   initPalette();
   initInspiration();
   initTrashUndo();
+  initFx();
   await route();
   showDailyOnce();
   startNotifier();
