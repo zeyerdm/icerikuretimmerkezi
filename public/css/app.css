@@ -1503,3 +1503,32 @@ body.ai-full-open { overflow: hidden; }
 .cv-pick-item img { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; background: var(--surface-2); }
 .cv-pick-item span { display: grid; }
 .cv-pick-item em { font-style: normal; font-size: var(--t-xs); color: var(--muted); }
+
+/* Aylık rapor */
+.rep-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.rep-month { font-size: var(--t-lg); min-width: 150px; text-align: center; }
+.report { max-width: 900px; margin: 0 auto; padding: 28px 32px; display: grid; gap: 22px; border-top: 6px solid var(--rep); }
+.rep-head { display: flex; gap: 16px; align-items: center; }
+.rep-head img { width: 56px; height: 56px; border-radius: 12px; object-fit: contain; background: #fff; border: 1px solid var(--line); }
+.rep-kicker { font-size: var(--t-xs); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--rep); }
+.rep-head h1 { font-size: var(--t-2xl); }
+.rep-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.rep-kpis div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--rep) 8%, #fff); border: 1px solid color-mix(in srgb, var(--rep) 18%, #fff); }
+.rep-kpis b { font-size: var(--t-2xl); line-height: 1.1; }
+.rep-kpis span { font-size: var(--t-xs); color: var(--ink-2); font-weight: 700; }
+.report h2 { font-size: var(--t-md); margin-bottom: 8px; }
+.rep-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: var(--t-sm); }
+.rep-table td, .rep-table th { font-size: var(--t-sm); }
+.rep-bar { display: inline-block; width: 80px; height: 6px; border-radius: 3px; background: var(--surface-3); vertical-align: middle; overflow: hidden; }
+.rep-bar i { display: block; height: 100%; background: var(--rep); }
+@media (max-width: 760px) { .rep-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .report { padding: 18px; } }
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body { background: #fff !important; }
+  .sidebar, .topbar, #daily-slot, .toasts, .ai-widget, .no-print { display: none !important; }
+  .app { display: block !important; margin: 0 !important; }
+  .view { padding: 0 !important; max-width: none !important; }
+  .report { box-shadow: none !important; border: 0 !important; border-top: 6px solid var(--rep) !important; max-width: none; padding: 0; }
+  .report section { break-inside: avoid; }
+}
+.report { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
