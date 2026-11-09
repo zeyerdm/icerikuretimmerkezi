@@ -1,4 +1,5 @@
 // Arayüz yardımcıları: güvenli HTML, bildirimler, ikonlar, marka teması
+import { sound } from './fx.js';
 export function esc(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -10,6 +11,7 @@ export function toast(message, type = 'info', ms = 3800) {
   el.className = 'toast' + (type === 'error' ? ' toast-error' : type === 'success' ? ' toast-success' : '');
   el.textContent = message;
   host.appendChild(el);
+  if (type === 'error') sound('err'); else if (type === 'success') sound('ok');
   setTimeout(() => el.remove(), ms);
 }
 
@@ -173,7 +175,18 @@ export async function busy(btn, fn) {
   btn.classList.add('is-loading');
   btn.disabled = true;
   btn.setAttribute('aria-busy', 'true');
+  // Uzun süren işlerde geçen süre düğmenin üstünde küçük bir sayaçla görünür
+  const started = Date.now();
+  let badge = null;
+  const tick = setInterval(() => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    if (s < 2 || !btn.isConnected) return;
+    if (!badge) { badge = document.createElement('span'); badge.className = 'bt-time'; btn.appendChild(badge); }
+    badge.textContent = s + ' sn';
+  }, 500);
   try { return await fn(); } finally {
+    clearInterval(tick);
+    if (badge) badge.remove();
     if (btn.isConnected) { btn.classList.remove('is-loading'); btn.disabled = false; btn.removeAttribute('aria-busy'); }
   }
 }

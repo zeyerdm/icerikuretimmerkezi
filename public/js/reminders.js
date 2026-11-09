@@ -1,7 +1,8 @@
 // Hatırlatmalar: günün özeti (günde bir kez açılışta; üst çubuktaki zilden her zaman), geciken iş sayısı rozeti ve
 // isteğe bağlı bilgisayar bildirimi (uygulama açıkken, yayın saatinden 30 dk önce). Tercihler bu tarayıcıda saklanır.
 import { api } from './api.js';
-import { esc, openModal, timeStr, fmtDate, icon } from './ui.js';
+import { esc, openModal, timeStr, fmtDate, icon, toast } from './ui.js';
+import { notify } from './fx.js';
 
 const PREF = 'ium.reminders';
 const SHOWN = 'ium.summary.shown';
@@ -12,7 +13,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* tercih kaydedilemezse sorun değil */ } }
 };
 
-export const reminderPrefs = () => Object.assign({ summary: true, notify: false }, store.get(PREF, {}));
+export const reminderPrefs = () => Object.assign({ summary: true, notify: false, sound: true, tasks: true }, store.get(PREF, {}));
 export function setReminderPrefs(p) { store.set(PREF, Object.assign(reminderPrefs(), p)); startNotifier(); }
 
 export async function todaySummary(now = new Date()) {
@@ -93,18 +94,36 @@ export async function showDailyOnce() {
 let timer = null;
 export function startNotifier() {
   clearInterval(timer);
-  if (!reminderPrefs().notify || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  const p = reminderPrefs();
+  const desktop = p.notify && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  if (!desktop && !p.tasks) return;
   const tick = async () => {
     try {
       const now = new Date();
-      const soon = new Date(now.getTime() + 30 * 60000);
-      const { contents } = await api.contents({ from: now.toISOString(), to: soon.toISOString() });
       const done = store.get(NOTIFIED, []);
-      for (const c of contents.filter(x => !['tamamlandi', 'yayinlandi'].includes(x.status) && !done.includes(x.id))) {
-        new Notification(`${timeStr(c.scheduledAt)} · ${c.title}`, { body: `${c.brandName} · ${c.typeLabel} · ${c.statusLabel}`, tag: c.id, icon: '/img/logo.svg' });
-        done.push(c.id);
+      // Yayın saatinden 30 dk önce (masaüstü bildirimi açıksa)
+      if (desktop) {
+        const soon = new Date(now.getTime() + 30 * 60000);
+        const { contents } = await api.contents({ from: now.toISOString(), to: soon.toISOString() });
+        for (const c of contents.filter(x => !['tamamlandi', 'yayinlandi'].includes(x.status) && !done.includes(x.id))) {
+          notify(`${timeStr(c.scheduledAt)} · ${c.title}`, `${c.brandName} · ${c.typeLabel} · ${c.statusLabel}`, c.id);
+          done.push(c.id);
+        }
       }
-      store.set(NOTIFIED, done.slice(-200));
+      // Görev hatırlatması: son günü bugün olan ya da geciken açık görevler, günde bir kez (09:00'dan sonra)
+      if (p.tasks && now.getHours() >= 9) {
+        const day = iso(now);
+        const { tasks } = await api.tasks({});
+        for (const t of tasks.filter(x => !x.done && x.dueDate && x.dueDate <= day)) {
+          const key = `t:${t.id}:${day}`;
+          if (done.includes(key)) continue;
+          const late = t.dueDate < day;
+          notify(late ? `⏰ Geciken görev: ${t.title}` : `⏰ Bugün son gün: ${t.title}`, t.brandName || 'Görev', key);
+          toast(late ? `⏰ Geciken görev: ${t.title}` : `⏰ Bugün son gün: ${t.title}`, 'info', 7000);
+          done.push(key);
+        }
+      }
+      store.set(NOTIFIED, done.slice(-300));
     } catch { /* bağlantı yoksa bir sonraki denemede */ }
   };
   tick();

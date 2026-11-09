@@ -41,6 +41,7 @@ export async function busyTimer(btn, fn, verb = 'Yazıyor') {
   const html = btn.innerHTML;
   const started = Date.now();
   btn.dataset.busy = '1';
+  btn.classList.add('is-timing');
   btn.disabled = true;
   btn.setAttribute('aria-busy', 'true');
   const tick = () => { btn.textContent = `${verb}… ${Math.floor((Date.now() - started) / 1000)} sn`; };
@@ -48,7 +49,7 @@ export async function busyTimer(btn, fn, verb = 'Yazıyor') {
   const timer = setInterval(tick, 1000);
   try { return await fn(); } finally {
     clearInterval(timer);
-    if (btn.isConnected) { btn.innerHTML = html; btn.disabled = false; delete btn.dataset.busy; btn.removeAttribute('aria-busy'); }
+    if (btn.isConnected) { btn.innerHTML = html; btn.disabled = false; delete btn.dataset.busy; btn.removeAttribute('aria-busy'); btn.classList.remove('is-timing'); }
   }
 }
 
