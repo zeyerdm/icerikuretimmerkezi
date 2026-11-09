@@ -1,7 +1,7 @@
 // Ayarlar: AI bağlantısı, güncelleme (ve önceki sürüme dönüş), yedekler.
 // AI anahtarı sunucuya yazılır ve bir daha tarayıcıya gönderilmez.
 import { api } from '../api.js';
-import { THEMES, themePref, setTheme } from '../theme.js';
+import { THEMES, themePref, setTheme, THEME_ENABLED } from '../theme.js';
 import { esc, toast, openModal, pageHead, emptyState, busy } from '../ui.js';
 import { reminderPrefs, setReminderPrefs } from '../reminders.js';
 import { state, renderChrome, refreshBrands } from '../app.js';
@@ -47,7 +47,7 @@ export async function renderSettings(view) {
     ${pageHead({ title: 'Ayarlar', desc: 'Yapay zekâ, Google Drive, güncelleme ve yedekler.' })}
     ${settingsTabs('genel')}
     <div class="settings">
-      <section class="card" id="theme-card">
+      <section class="card" id="theme-card" ${THEME_ENABLED ? '' : 'hidden'}>
         <div class="card-head"><h3>Görünüm</h3></div>
         <div class="seg" role="radiogroup" aria-label="Tema">${Object.entries(THEMES).map(([k, v]) => `<button type="button" role="radio" data-theme-set="${k}" class="${themePref() === k ? 'active' : ''}" aria-checked="${themePref() === k}">${k === 'acik' ? '☀️ ' : k === 'koyu' ? '🌙 ' : '💻 '}${v}</button>`).join('')}</div>
         <p class="hint mt-2">"Sistem" seçilirse bilgisayarın açık/koyu ayarı izlenir. Üst çubuktaki 🌙 düğmesiyle de hızlıca geçebilirsin.</p>
