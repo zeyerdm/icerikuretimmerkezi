@@ -35,8 +35,8 @@ export async function renderCenter(view) {
         <div class="w-orb"></div><span class="w-deco d1">✦</span><span class="w-deco d2">★</span><span class="w-deco d3">✿</span>
         ${d.brands.length ? `<div class="w-side" aria-label="Bu haftanın özeti">
           <div class="w-side-top"><span class="w-side-title">Bu hafta</span><span class="kpi k1" title="Yönetilen marka"><span class="kpi-num">${k.brands}</span> aktif marka</span></div>
-          <div class="w-side-body">${ring(perf.completionRate, 52)}
-            <div class="w-side-stats"><div><b>${week.created}</b><span>üretim</span></div><div><b>${week.completed}</b><span>tamamlanan</span></div><div><b>${week.scheduledPending}</b><span>yayın bekliyor</span></div></div></div>
+          <div class="w-chips"><span class="wc c1"><b>${week.created}</b>üretim</span><span class="wc c2"><b>${week.completed}</b>tamamlanan</span><span class="wc c3"><b>${week.scheduledPending}</b>yayın bekliyor</span></div>
+          ${(() => { const mx = Math.max(1, ...week.days.map(x => x.created + x.completed)); const today = (new Date().getDay() + 6) % 7; return `<div class="w-bars" aria-label="Günlük üretim">${week.days.map((x, i) => `<div class="wb ${i === today ? 'today' : ''}" title="${esc(x.label)}: ${x.created} üretim, ${x.completed} tamamlanan"><i style="height:${Math.max(8, Math.round((x.created + x.completed) / mx * 100))}%"></i><span>${esc(x.label)}</span></div>`).join('')}</div>`; })()}
           ${d.activity[0] ? `<div class="w-side-last" title="${esc(d.activity[0].summary)}">${icon('refresh')}<span>${esc(d.activity[0].summary)}</span><em>${timeAgo(d.activity[0].createdAt)}</em></div>` : ''}
         </div>` : ''}
         <div class="w-text">
