@@ -72,6 +72,7 @@ Her yeni ekran ya da yeniden tasarımda bu belge okunur; sonunda "Kontrol listes
 - İçerik görsellerinde (post şablonları) iki font karışımı: kalın sans + el yazısı/serif vurgu.
 
 ## 3. Kontrol listesi (her tasarım işinde)
+- [ ] **Hizalama:** yan yana duran kartlar aynı yerde başlayıp aynı yerde bitiyor mu? (Kullanıcının özellikle istediği kural; grid `align-items: stretch`, sabit yükseklik + iç kaydırma.)
 - [ ] Ekranın kahramanı belli mi, ilk bakışta görünüyor mu?
 - [ ] Kart başlık kalıbı (ikon + başlık + sayı + Tümünü gör) tutarlı mı?
 - [ ] Renk: tek aile + tek vurgu; durum renkleri standart mı?

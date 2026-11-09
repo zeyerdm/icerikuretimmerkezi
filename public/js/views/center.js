@@ -32,11 +32,25 @@ export async function renderCenter(view) {
   view.innerHTML = `
     <div class="center ops">
       <section class="card welcome">
+        <div class="w-orb"></div>
+        ${d.brands.length ? `<div class="w-side" aria-label="Bu haftanın özeti">
+          <div class="w-side-top"><span class="w-side-title">Bu hafta</span><span class="kpi k1" title="Yönetilen marka"><span class="kpi-num">${k.brands}</span> aktif marka</span></div>
+          <div class="w-side-body">${ring(perf.completionRate, 52)}
+            <div class="w-side-stats"><div><b>${week.created}</b><span>üretim</span></div><div><b>${week.completed}</b><span>tamamlanan</span></div><div><b>${week.scheduledPending}</b><span>yayın bekliyor</span></div></div></div>
+          ${d.activity[0] ? `<div class="w-side-last" title="${esc(d.activity[0].summary)}">${icon('refresh')}<span>${esc(d.activity[0].summary)}</span><em>${timeAgo(d.activity[0].createdAt)}</em></div>` : ''}
+        </div>` : ''}
         <div class="w-text">
+          <div class="w-slogan"><img src="/img/logo.svg" alt="">KREATİFHANE · Fikirden üretime, her şey tek merkezde</div>
           <div class="w-date">${esc(fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
           ${d.brands.length ? `
             <h1>${hello}! Bugün neler üretiyoruz?</h1>
-            <p>${summary.length ? 'Özet: ' + summary.join(', ') + '.' : 'Her şey yolunda görünüyor. Yeni bir içerik planlayarak başlayabilirsin.'}</p>` : `
+            <p>${summary.length ? 'Özet: ' + summary.join(', ') + '.' : 'Her şey yolunda görünüyor. Yeni bir içerik planlayarak başlayabilirsin.'}</p>
+            <div class="w-actions">
+              <button class="btn btn-primary" data-act="plan">${icon('calendar')}İçerik planla</button>
+              <button class="btn" data-act="task">${icon('tasks')}Görev ekle</button>
+              <button class="btn" data-act="note">${icon('notes')}Not al</button>
+              <a class="btn" href="#/marka/yeni">${icon('plus')}Yeni marka</a>
+            </div>` : `
             <h1>İlk markanı oluştur</h1>
             <p>Burası senin yönetim merkezin: bütün markalarının takvimi, görevleri, notları ve üretim istatistikleri burada toplanır. Başlamak için bir marka oluştur.</p>
             <form id="onboard-form" class="w-onboard">
@@ -46,52 +60,29 @@ export async function renderCenter(view) {
             </form>
             <div class="w-actions"><span class="small muted">Önce nasıl çalıştığını görmek mi istersin?</span><button class="btn btn-ghost" type="button" id="demo-btn">☕ Örnek markayla keşfet</button></div>`}
         </div>
-        ${d.brands.length ? `<div class="create-menu">
-          <button class="btn btn-primary" data-create aria-haspopup="menu" aria-expanded="false">${icon('plus')}Oluştur</button>
-          <div class="create-pop" role="menu" hidden>
-            <button role="menuitem" data-act="plan">${icon('calendar')}<span><b>İçerik planla</b><em>Takvime yeni gönderi</em></span></button>
-            <button role="menuitem" data-act="task">${icon('tasks')}<span><b>Görev ekle</b><em>Son tarih ve öncelikle</em></span></button>
-            <button role="menuitem" data-act="note">${icon('notes')}<span><b>Not al</b><em>Fikir, toplantı notu</em></span></button>
-            <a role="menuitem" href="#/marka/yeni">${icon('brands')}<span><b>Yeni marka</b><em>Kimlik ve kütüphane</em></span></a>
-          </div></div>` : ''}
       </section>
 
-      <div class="kpis stat-bar" aria-label="İçerik durumu">
-        ${kpi('k1', k.brands, 'Aktif marka', 'brands', '')}
-        ${kpi('k2', k.thisMonth, 'Bu ay üretilen', 'archive', '')}
-        ${kpi('k3', k.published, 'Yayınlanan', 'check', 'st-pub')}
-        ${kpi('k5', k.planned, 'Planlanan', 'calendar', 'st-plan')}
-        ${kpi('k4', k.approval, 'Onay bekleyen', 'palette', 'st-rev')}
-        ${kpi('k6', lateContents, 'Geciken', 'clock', 'st-late')}
-        <div class="stat-week" title="Bu hafta (pazartesi–pazar); halka: bütün içeriklerin tamamlanma oranı">${ring(perf.completionRate, 44)}<div><b>Bu hafta</b><span>${week.created} üretim · ${week.completed} tamamlanan · ${week.scheduled} planlı</span></div></div>
+      <div class="ops-three">
+        <section class="card ops-col">
+          <div class="card-head"><h3>Bugünün işleri <span class="count">${openTasks.length}</span></h3><a class="small link" href="#/gorevler">Tüm görevler ›</a></div>
+          <form id="quick-task" class="input-plus"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
+          <div class="ops-scroll">${openTasks.length ? `<ul class="task-mini">${[...lateTasks, ...todayTasks, ...restTasks].map(taskRow).join('')}</ul>`
+            : emptyCta('check', 'Bugün için görev yok', 'Yapılacakları buraya ekle; gecikenler kırmızıyla öne çıkar.', 'İlk görevini ekle', 'focus-task')}</div>
+        </section>
+        <section class="card ops-col">
+          <div class="card-head"><h3>Yaklaşan içerikler <span class="count">${soon.length}</span></h3><a class="small link" href="#/masa">Takvim ›</a></div>
+          <div class="ops-scroll">${soon.length ? agenda(soon) : emptyCta('calendar', 'Önümüzdeki 7 gün boş', 'Yayın akışını doldurmak için bir içerik planla.', 'Hemen planla', 'plan')}</div>
+        </section>
+        <section class="card ops-col" id="upcoming-days"><div class="card-head"><h3>Yaklaşan özel günler</h3><a class="small link" href="#/masa">Takvim ›</a></div><div class="ops-scroll"><div class="skeleton" style="height:120px"></div></div></section>
       </div>
-
-      <div class="home-grid">
-        <div class="home-main">
-          <div class="grid-2">
-            <section class="card">
-              <div class="card-head"><h3>Bugünün işleri</h3><a class="small link" href="#/gorevler">Tüm görevler ›</a></div>
-              <form id="quick-task" class="input-plus"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
-              ${openTasks.length ? `<ul class="task-mini">${[...lateTasks, ...todayTasks, ...restTasks].slice(0, 7).map(taskRow).join('')}</ul>${openTasks.length > 7 ? `<a class="small link mt-2" href="#/gorevler">+${openTasks.length - 7} görev daha</a>` : ''}`
-                : emptyCta('check', 'Bugün için görev yok', 'Yapılacakları buraya ekle; gecikenler kırmızıyla öne çıkar.', 'İlk görevini ekle', 'focus-task')}
-            </section>
-            <section class="card">
-              <div class="card-head"><h3>Yaklaşan içerikler</h3><a class="small link" href="#/masa">Takvim ›</a></div>
-              ${soon.length ? agenda(soon) : emptyCta('calendar', 'Önümüzdeki 7 gün boş', 'Yayın akışını doldurmak için bir içerik planla.', 'Hemen planla', 'plan')}
-            </section>
-          </div>
-          <section class="card">
-            <div class="card-head"><h3>Haftalık performans</h3><a class="small link" href="#/analizler">Tüm analizler ›</a></div>
-            ${week.created || week.completed ? columnChart(week.days.map(x => ({ label: x.label, values: [x.created, x.completed] })),
-              [{ name: 'Üretilen', color: 'var(--c-violet)' }, { name: 'Tamamlanan', color: 'var(--st-pub)' }], { height: 120 })
-              : emptyCta('chart', 'Bu hafta henüz üretim yok', 'Fikir ekledikçe ve içerikleri tamamladıkça grafik dolar.', 'İçerik planla', 'plan')}
-          </section>
-        </div>
-        <aside class="home-side">
-          <section class="card" id="upcoming-days"><div class="card-head"><h3>Yaklaşan özel günler</h3><a class="small link" href="#/masa">Takvim ›</a></div><div class="skeleton" style="height:120px"></div></section>
-          <section class="card mini-cal-card" id="mini-cal"></section>
-          <section class="card" id="recent-notes"><div class="card-head"><h3>Son notlar</h3><a class="small link" href="#/notlar">Tüm notlar ›</a></div><div class="skeleton" style="height:60px"></div></section>
-        </aside>
+      <div class="ops-two">
+        <section class="card">
+          <div class="card-head"><h3>Haftalık performans</h3><a class="small link" href="#/analizler">Tüm analizler ›</a></div>
+          ${week.created || week.completed ? columnChart(week.days.map(x => ({ label: x.label, values: [x.created, x.completed] })),
+            [{ name: 'Üretilen', color: 'var(--c-violet)' }, { name: 'Tamamlanan', color: 'var(--st-pub)' }], { height: 120 })
+            : emptyCta('chart', 'Bu hafta henüz üretim yok', 'Fikir ekledikçe ve içerikleri tamamladıkça grafik dolar.', 'İçerik planla', 'plan')}
+        </section>
+        <section class="card" id="recent-notes"><div class="card-head"><h3>Son notlar</h3><a class="small link" href="#/notlar">Tüm notlar ›</a></div><div class="skeleton" style="height:60px"></div></section>
       </div>
     </div>`;
 
@@ -122,7 +113,6 @@ export async function renderCenter(view) {
     } catch { box.remove(); }
   })();
 
-  miniCalendar(view.querySelector('#mini-cal'), d.contents);
   const refresh = () => renderCenter(view);
   const onboard = view.querySelector('#onboard-form');
   if (onboard) onboard.addEventListener('submit', async e => {

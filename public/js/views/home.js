@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { esc, icon, toast, timeAgo, errorNotice, ring, bucketByDay, emptyState, busy } from '../ui.js';
 import { state } from '../app.js';
-import { askAssistant, openAssistant } from '../assistantWidget.js';
+import { askAssistant, openAssistant, dockAssistant } from '../assistantWidget.js';
 
 // Hızlı işlemler asistana hazır bir istek gönderir (marka hafızasıyla çalışır)
 const QUICK = [
@@ -28,19 +28,20 @@ export async function renderHome(view, brand) {
   const planned = contents.filter(c => !c.done && c.scheduledAt && new Date(c.scheduledAt) >= now).length;
 
   view.innerHTML = `
-    <div class="bhome">
-      <div class="stack">
-        ${brand.isDemo && !guideHidden ? demoGuide(brand, aiReady) : ''}
-        <section class="card hero">
-          <div class="hero-text">
-            <h1>Bugün <b>${esc(brand.name)}</b> için ne üretelim?</h1>
-            <p>${overview.ideaCount ? `Fikir havuzunda ${overview.ideaCount} fikir var${overview.favoriteCount ? `, ${overview.favoriteCount} tanesi favori` : ''}.` : 'Asistana bir istek yaz ya da aşağıdaki hızlı işlemlerden biriyle başla.'}</p>
-            ${aiReady ? `<div class="quick-row2">${QUICK.map((q, i) => `<button type="button" class="btn btn-sm" data-quick="${i}" title="${esc(q.sub)}">${q.icon} ${q.title}</button>`).join('')}<button type="button" class="btn btn-sm btn-primary" data-open-assistant>✦ Asistana yaz</button></div>`
-              : `<div class="notice mt-3"><div><strong>AI bağlı değil.</strong> Asistanın ve hızlı işlemlerin çalışması için bir yapay zekâ sağlayıcısı bağla (Claude, OpenAI, OpenRouter ya da Gemini). Anahtar yalnızca bu bilgisayardaki sunucuda saklanır.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>`}
-          </div>
-          ${overview.mascotUrl ? `<img class="hero-mascot" src="${esc(overview.mascotUrl)}" alt="">` : ''}
-        </section>
+    <div class="bhome bgrid">
+      ${brand.isDemo && !guideHidden ? `<div class="bg-guide">${demoGuide(brand, aiReady)}</div>` : ''}
+      <section class="card hero bg-hero">
+        <div class="hero-text">
+          <h1>Bugün <b>${esc(brand.name)}</b> için ne üretelim?</h1>
+          <p>${overview.ideaCount ? `Fikir havuzunda ${overview.ideaCount} fikir var${overview.favoriteCount ? `, ${overview.favoriteCount} tanesi favori` : ''}.` : 'Asistana bir istek yaz ya da aşağıdaki hızlı işlemlerden biriyle başla.'}</p>
+          ${aiReady ? `<div class="quick-row2">${QUICK.map((q, i) => `<button type="button" class="btn btn-sm" data-quick="${i}" title="${esc(q.sub)}">${q.icon} ${q.title}</button>`).join('')}</div>`
+            : `<div class="notice mt-3"><div><strong>AI bağlı değil.</strong> Asistanın ve hızlı işlemlerin çalışması için bir yapay zekâ sağlayıcısı bağla (Claude, OpenAI, OpenRouter ya da Gemini). Anahtar yalnızca bu bilgisayardaki sunucuda saklanır.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>`}
+        </div>
+        ${overview.mascotUrl ? `<img class="hero-mascot" src="${esc(overview.mascotUrl)}" alt="">` : ''}
+      </section>
+      <div class="bg-id">${identityCard(brand, overview)}</div>
 
+      <div class="bg-main">
         <div class="kpis stat-bar bstats">
           <a class="kpi k1" href="#/m/${id}/fikirler"><span class="kpi-icon">${icon('idea')}</span><span class="kpi-num">${overview.ideaCount}</span><span class="kpi-label">Fikir · ${overview.favoriteCount} favori</span></a>
           <a class="kpi k5 st-plan" href="#/m/${id}/takvim"><span class="kpi-icon">${icon('calendar')}</span><span class="kpi-num">${planned}</span><span class="kpi-label">Planlanan içerik</span></a>
@@ -49,31 +50,33 @@ export async function renderHome(view, brand) {
         </div>
 
         <section class="card">
-          <div class="card-head"><h3>Yaklaşan ve üzerinde çalışılan</h3><a class="small link" href="#/m/${id}/takvim">Tümü ›</a></div>
-          ${upcoming.length || working.length ? `<div class="agenda">${upcoming.map(c => `<a class="ag-item status-${esc(c.status)}" href="#/m/${id}/takvim" style="--item-color:${esc(brand.colors.primary || '#7d6bf0')}">
-              <span class="ag-time">${esc(new Date(c.scheduledAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }))}</span><span class="ag-title">${esc(c.title)}</span>
-              <span class="ag-meta"><span class="tag">${esc(c.typeLabel)}</span><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></span></a>`).join('')}
-            ${working.map(c => `<a class="ag-item status-${esc(c.status)}" href="#/m/${id}/takvim" style="--item-color:var(--line-strong)"><span class="ag-time">Tarihsiz</span><span class="ag-title">${esc(c.title)}</span><span class="ag-meta"><span class="tag">${esc(c.typeLabel)}</span><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></span></a>`).join('')}</div>`
+          <div class="card-head"><h3>Yaklaşan ve üzerinde çalışılan <span class="count">${upcoming.length + working.length}</span></h3><a class="small link" href="#/m/${id}/takvim">Tümü ›</a></div>
+          ${upcoming.length || working.length ? `<div class="agenda">${[...upcoming.map(c => ({ c, when: new Date(c.scheduledAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) })), ...working.map(c => ({ c, when: 'Tarihsiz' }))].slice(0, 1).map(({ c, when }) => `<a class="ag-item status-${esc(c.status)}" href="#/m/${id}/takvim" style="--item-color:${esc(brand.colors.primary || '#7d6bf0')}">
+              <span class="ag-time">${esc(when)}</span><span class="ag-title">${esc(c.title)}</span>
+              <span class="ag-meta"><span class="tag">${esc(c.typeLabel)}</span><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></span></a>`).join('')}</div>`
             : `<div class="empty-cta"><span class="ec-icon">${icon('calendar')}</span><div><b>Planlanan içerik yok</b><p>Bir fikri takvime ekle ya da Reels / post üret.</p></div><a class="btn btn-sm btn-primary" href="#/m/${id}/fikirler">${icon('plus')}Fikirlerden planla</a></div>`}
         </section>
+
+        <div class="bg-trio">
+          ${ideaChart(overview.ideaTimes)}
+          <section class="card">
+            <div class="card-head"><h3>Son fikirler</h3><a class="small link" href="#/m/${id}/fikirler">Tümü ›</a></div>
+            <div id="idea-list" class="bg-list">${ideaList(overview.recentIdeas.slice(0, 3))}</div>
+          </section>
+          <section class="card activity">
+            <div class="card-head"><h3>Son çalışmalar</h3><a class="small link" href="#/m/${id}/arsiv">Tümü ›</a></div>
+            <div class="bg-list">${overview.activity.length
+              ? `<ul>${overview.activity.slice(0, 3).map(a => `<li><span class="a-dot"></span><div>${esc(a.summary)}<div class="muted xsmall">${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>`
+              : emptyState({ icon: 'refresh', title: 'Henüz bir çalışma yok', compact: true })}</div>
+          </section>
+        </div>
       </div>
 
-      <div class="stack">
-        ${identityCard(brand, overview)}
-        ${ideaChart(overview.ideaTimes)}
-        <section class="card">
-          <div class="card-head"><h3>Son fikirler</h3><a class="small link" href="#/m/${id}/fikirler">Tüm fikirleri gör ›</a></div>
-          <div id="idea-list">${ideaList(overview.recentIdeas.slice(0, 3))}</div>
-        </section>
-        <section class="card activity">
-          <div class="card-head"><h3>Son çalışmalar</h3><a class="small link" href="#/m/${id}/arsiv">Tüm çalışmaları gör ›</a></div>
-          ${overview.activity.length
-            ? `<ul>${overview.activity.slice(0, 3).map(a => `<li><span class="a-dot"></span><div>${esc(a.summary)}<div class="muted xsmall">${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>`
-            : emptyState({ icon: 'refresh', title: 'Henüz bir çalışma yok', compact: true })}
-        </section>
-      </div>
+      <div class="bg-ai" id="ai-dock"></div>
     </div>`;
 
+  // AI Asistanı ana sayfada sağ kolona yerleşir (Dijital kimliğin altından ana kolonun bittiği yere kadar)
+  dockAssistant(view.querySelector('#ai-dock'));
   wire(view, brand);
 }
 
