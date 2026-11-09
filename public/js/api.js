@@ -86,6 +86,7 @@ export const api = {
   assetPacks: id => request('GET', b(id) + '/asset-packs'),
   deleteAssetPack: (id, pack) => request('DELETE', `${b(id)}/asset-packs?pack=${encodeURIComponent(pack)}`),
   analyzeAsset: (id, assetId, body = {}) => request('POST', `${b(id)}/assets/${assetId}/analyze`, body),
+  search: q => request('GET', '/api/search?q=' + encodeURIComponent(q)),
   trash: (brandId = '') => request('GET', '/api/trash' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
   restoreTrash: id => request('POST', `/api/trash/${encodeURIComponent(id)}/restore`),
   deleteTrash: id => request('DELETE', `/api/trash/${encodeURIComponent(id)}`),

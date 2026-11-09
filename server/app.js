@@ -24,6 +24,7 @@ import { createImageService } from './services/images.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createTrashService, TRASH_DAYS } from './services/trash.js';
+import { createSearchService } from './services/search.js';
 import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
@@ -100,6 +101,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const ideas = createIdeaService(db);
   const workspace = createWorkspaceService(db, ownerId, brands);
   const trash = createTrashService(db, ownerId);
+  const searcher = createSearchService(db, ownerId);
   // Çöpe atarak sil: kaydın görüntüsü alınır, kimliği X-Trash-Id başlığıyla döner (arayüz "Geri al" gösterir)
   const trashed = (res, kind, id, remove) => { const tid = trash.capture(kind, id, remove); if (tid) res.set('X-Trash-Id', tid); res.status(204).end(); };
   const memory = createMemoryService({ db, brands });
@@ -675,6 +677,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.patch('/brands/:brandId/ideas/:ideaId', (req, res) => res.json({ idea: ideas.update(req.brand.id, req.params.ideaId, req.body || {}) }));
 
   api.delete('/brands/:brandId/ideas/:ideaId', (req, res) => trashed(res, 'idea', req.params.ideaId, () => ideas.remove(req.brand.id, req.params.ideaId)));
+
+  // Genel arama (komut paleti)
+  api.get('/search', (req, res) => res.json({ results: searcher.search(String(req.query.q || '').slice(0, 100)) }));
 
   // Çöp kutusu
   api.get('/trash', (req, res) => res.json({ items: trash.list({ brandId: req.query.brandId ? String(req.query.brandId) : null }), days: TRASH_DAYS }));

@@ -41,7 +41,7 @@ export function openPalette() {
   wrap = document.createElement('div');
   wrap.className = 'modal-backdrop palette-backdrop';
   wrap.innerHTML = `<div class="palette" role="dialog" aria-modal="true" aria-label="Komut paleti">
-      <div class="palette-in">${icon('search')}<input id="palette-q" type="text" placeholder="Ne yapmak istersin? (ör. içerik planla, takvim, marka adı)" autocomplete="off" aria-controls="palette-list"></div>
+      <div class="palette-in">${icon('search')}<input id="palette-q" type="text" placeholder="Komut ya da arama (ör. içerik planla, kampanya, marka adı)" autocomplete="off" aria-controls="palette-list"></div>
       <div class="palette-list" id="palette-list" role="listbox"></div>
       <div class="palette-foot xsmall muted"><span><kbd>↑</kbd><kbd>↓</kbd> seç</span><span><kbd>Enter</kbd> çalıştır</span><span><kbd>Esc</kbd> kapat</span></div>
     </div>`;
@@ -49,17 +49,18 @@ export function openPalette() {
   const input = wrap.querySelector('#palette-q');
   const listEl = wrap.querySelector('#palette-list');
   let shown = all;
+  let found = [];
   let sel = 0;
 
   const close = (restore = true) => { if (!wrap) return; wrap.remove(); wrap = null; document.removeEventListener('keydown', onKey, true); if (restore && prev && prev.focus) prev.focus(); };
   function draw() {
     const words = norm(input.value).split(/\s+/).filter(Boolean);
-    shown = all.filter(c => { const hay = norm(c.label + ' ' + c.group + ' ' + c.keys); return words.every(w => hay.includes(w)); });
+    shown = all.filter(c => { const hay = norm(c.label + ' ' + c.group + ' ' + c.keys); return words.every(w => hay.includes(w)); }).concat(found);
     sel = Math.min(sel, Math.max(0, shown.length - 1));
     let g = null;
     listEl.innerHTML = shown.length ? shown.map((c, i) => {
       const head = c.group !== g ? `<div class="palette-group">${esc(g = c.group)}</div>` : '';
-      return `${head}<div class="palette-item ${i === sel ? 'is-sel' : ''}" role="option" aria-selected="${i === sel}" data-i="${i}">${icon(c.icon)}<span>${esc(c.label)}</span></div>`;
+      return `${head}<div class="palette-item ${i === sel ? 'is-sel' : ''}" role="option" aria-selected="${i === sel}" data-i="${i}">${icon(c.icon)}<span class="pi-text"><span>${esc(c.label)}</span>${c.sub ? `<em>${esc(c.sub)}</em>` : ''}</span></div>`;
     }).join('') : '<div class="palette-empty muted small">Eşleşen komut yok.</div>';
     const cur = listEl.querySelector('.is-sel');
     if (cur) cur.scrollIntoView({ block: 'nearest' });
@@ -76,7 +77,25 @@ export function openPalette() {
     else if (e.key === 'Enter') { e.preventDefault(); run(sel); }
   };
   document.addEventListener('keydown', onKey, true);
-  input.addEventListener('input', () => { sel = 0; draw(); });
+  // Genel arama: 2+ karakterde bütün markaların kayıtları komutların altına eklenir
+  const ICONS = { idea: 'idea', content: 'calendar', post: 'palette', reels: 'film', prompt: 'wand', note: 'notes', task: 'tasks' };
+  let timer;
+  input.addEventListener('input', () => {
+    sel = 0;
+    found = [];
+    draw();
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) return;
+    timer = setTimeout(async () => {
+      try {
+        const { results } = await api.search(q);
+        if (!wrap || input.value.trim() !== q) return;
+        found = results.map(r => ({ group: 'Arama sonuçları', label: r.title + (r.brandName ? ' · ' + r.brandName : ''), sub: r.typeLabel + (r.snippet ? ' — ' + r.snippet : ''), icon: ICONS[r.type] || 'search', run: () => go(r.href), keys: '', always: true }));
+        draw();
+      } catch { /* arama yapılamazsa komutlar yine çalışır */ }
+    }, 200);
+  });
   listEl.addEventListener('mousemove', e => { const it = e.target.closest('[data-i]'); if (it && +it.dataset.i !== sel) { sel = +it.dataset.i; draw(); } });
   listEl.addEventListener('click', e => { const it = e.target.closest('[data-i]'); if (it) run(+it.dataset.i); });
   wrap.addEventListener('mousedown', e => { if (e.target === wrap) close(); });

@@ -1,7 +1,8 @@
 // Ana ekran: AI asistanı merkezde; yanında marka kimliği, son fikirler ve son çalışmalar
 import { api } from '../api.js';
 import { esc, icon, toast, timeAgo, errorNotice, ring, bucketByDay, emptyState, busy } from '../ui.js';
-import { state, refreshBrands } from '../app.js';
+import { state } from '../app.js';
+import { askAssistant, openAssistant } from '../assistantWidget.js';
 
 // Hızlı işlemler asistana hazır bir istek gönderir (marka hafızasıyla çalışır)
 const QUICK = [
@@ -11,60 +12,49 @@ const QUICK = [
   { icon: '🎯', title: 'Marka dili özeti', sub: 'Nasıl konuşmalıyız?', prompt: 'Marka kimliğimize göre içeriklerde nasıl bir dil kullanmalıyım? Yapılacaklar ve kaçınılacaklar listesi ver.' }
 ];
 
-const CHIPS = [
-  'Haftaya 5 Reels fikri üret',
-  'Son fikre göre carousel tasarla',
-  'Satış odaklı 3 fikir üret',
-  'Yaklaşan özel günler için fikir öner',
-  'Son fikirlerden hangisiyle başlamalıyım?'
-];
 
 // Marka çalışma alanının ana sayfası: AI asistanı merkezde; yanında marka kimliği, fikir grafiği, son fikirler
 export async function renderHome(view, brand) {
-  view.innerHTML = '<div class="home" aria-busy="true"><div class="stack"><div class="skeleton" style="height:184px"></div><div class="skeleton" style="height:132px"></div><div class="skeleton" style="height:420px"></div></div><div class="stack"><div class="skeleton" style="height:240px"></div><div class="skeleton" style="height:240px"></div></div></div>';
-  const [overview, chat] = await Promise.all([api.overview(brand.id), api.chat(brand.id)]);
+  view.innerHTML = '<div class="bhome" aria-busy="true"><div class="stack"><div class="skeleton" style="height:120px"></div><div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:300px"></div></div><div class="stack"><div class="skeleton" style="height:200px"></div><div class="skeleton" style="height:200px"></div></div></div>';
+  const [overview, { contents }] = await Promise.all([api.overview(brand.id), api.contents({ brandId: brand.id }).catch(() => ({ contents: [] }))]);
   if (state.workspaceBrandId !== brand.id) return; // yüklenirken başka sayfaya geçildiyse eski çizimi bırak
   const aiReady = state.settings.ai.configured;
-  const firstVisit = chat.messages.length === 0;
+  let guideHidden = false;
+  try { guideHidden = localStorage.getItem('ium.guide.hidden.' + brand.id) === '1'; } catch { /* yok */ }
+  const id = esc(brand.id);
+  const now = new Date();
+  const upcoming = contents.filter(c => !c.done && c.scheduledAt && new Date(c.scheduledAt) >= new Date(now.getTime() - 864e5)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)).slice(0, 5);
+  const working = contents.filter(c => !c.done && !c.scheduledAt).slice(0, 3);
+  const planned = contents.filter(c => !c.done && c.scheduledAt && new Date(c.scheduledAt) >= now).length;
 
   view.innerHTML = `
-    <div class="home">
+    <div class="bhome">
       <div class="stack">
-        ${brand.isDemo ? demoGuide(brand, aiReady) : ''}
+        ${brand.isDemo && !guideHidden ? demoGuide(brand, aiReady) : ''}
         <section class="card hero">
-          <div class="orb"></div><div class="orb small"></div>
           <div class="hero-text">
-            <h1>${firstVisit ? 'Merhaba!' : 'Tekrar hoş geldin!'} Bugün <b>${esc(brand.name)}</b> için ne üretelim?</h1>
+            <h1>Bugün <b>${esc(brand.name)}</b> için ne üretelim?</h1>
             <p>${overview.ideaCount ? `Fikir havuzunda ${overview.ideaCount} fikir var${overview.favoriteCount ? `, ${overview.favoriteCount} tanesi favori` : ''}.` : 'Asistana bir istek yaz ya da aşağıdaki hızlı işlemlerden biriyle başla.'}</p>
+            ${aiReady ? `<div class="quick-row2">${QUICK.map((q, i) => `<button type="button" class="btn btn-sm" data-quick="${i}" title="${esc(q.sub)}">${q.icon} ${q.title}</button>`).join('')}<button type="button" class="btn btn-sm btn-primary" data-open-assistant>✦ Asistana yaz</button></div>`
+              : `<div class="notice mt-3"><div><strong>AI bağlı değil.</strong> Asistanın ve hızlı işlemlerin çalışması için bir yapay zekâ sağlayıcısı bağla (Claude, OpenAI, OpenRouter ya da Gemini). Anahtar yalnızca bu bilgisayardaki sunucuda saklanır.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>`}
           </div>
           ${overview.mascotUrl ? `<img class="hero-mascot" src="${esc(overview.mascotUrl)}" alt="">` : ''}
         </section>
 
-        ${aiReady ? `<div class="quick">
-          ${QUICK.map((q, i) => `<button type="button" data-quick="${i}"><span class="q-icon">${q.icon}</span><span class="q-title">${q.title}</span><span class="q-sub">${q.sub}</span></button>`).join('')}
-        </div>` : ''}
-
-        <div class="kpis three">
-          <a class="kpi k1" href="#/m/${esc(brand.id)}/fikirler"><div class="kpi-icon">${icon('idea')}</div><div class="kpi-num">${overview.ideaCount}</div><div class="kpi-label">İçerik fikri</div><div class="kpi-sub">fikir havuzunda</div></a>
-          <a class="kpi k3" href="#/m/${esc(brand.id)}/fikirler"><div class="kpi-icon">${icon('star')}</div><div class="kpi-num">${overview.favoriteCount}</div><div class="kpi-label">Favori</div><div class="kpi-sub">beğenilen fikir</div></a>
-          <a class="kpi k4" href="#/m/${esc(brand.id)}/kutuphane"><div class="kpi-icon">${icon('image')}</div><div class="kpi-num">${overview.assetTotal}</div><div class="kpi-label">Varlık</div><div class="kpi-sub">logo, maskot, görsel</div></a>
+        <div class="kpis stat-bar bstats">
+          <a class="kpi k1" href="#/m/${id}/fikirler"><span class="kpi-icon">${icon('idea')}</span><span class="kpi-num">${overview.ideaCount}</span><span class="kpi-label">Fikir · ${overview.favoriteCount} favori</span></a>
+          <a class="kpi k5 st-plan" href="#/m/${id}/takvim"><span class="kpi-icon">${icon('calendar')}</span><span class="kpi-num">${planned}</span><span class="kpi-label">Planlanan içerik</span></a>
+          <a class="kpi k4" href="#/m/${id}/kutuphane"><span class="kpi-icon">${icon('image')}</span><span class="kpi-num">${overview.assetTotal}</span><span class="kpi-label">Varlık</span></a>
+          <a class="kpi k3 st-pub" href="#/m/${id}/kimlik"><span class="kpi-icon">${icon('identity')}</span><span class="kpi-num">%${overview.completeness.percent}</span><span class="kpi-label">Kimlik</span></a>
         </div>
 
-        <section class="card chat" aria-label="AI asistanı">
-          <div class="chat-head">
-            <div class="ai-badge">✦</div>
-            <div class="grow"><h3>AI Asistanı</h3><div class="xsmall muted">${esc(brand.name)} marka hafızasıyla çalışıyor</div></div>
-            ${chat.messages.length ? `<button class="btn btn-sm btn-ghost" data-action="new-chat">${icon('refresh')}Yeni sohbet</button>` : ''}
-          </div>
-          <div class="chat-body" id="chat-body"></div>
-          <div class="chat-foot">
-            ${aiReady ? `<div class="chips">${CHIPS.map(c => `<button type="button" class="chip" data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
-              : `<div class="notice"><div><strong>AI bağlı değil.</strong> Asistanın ve hızlı işlemlerin çalışması için bir yapay zekâ sağlayıcısı bağla (Claude, OpenAI, OpenRouter ya da Gemini). Anahtar yalnızca bu bilgisayardaki sunucuda saklanır.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>`}
-            <form class="composer" id="composer">
-              <textarea class="textarea" id="chat-input" rows="1" placeholder="${aiReady ? 'Örn: Bu marka için haftaya 5 fikir üret' : 'Önce AI bağlantısını kur'}" ${aiReady ? '' : 'disabled'} maxlength="4000"></textarea>
-              <button class="btn btn-primary" type="submit" ${aiReady ? '' : 'disabled'} aria-label="Gönder">${icon('send')}</button>
-            </form>
-          </div>
+        <section class="card">
+          <div class="card-head"><h3>Yaklaşan ve üzerinde çalışılan</h3><a class="small link" href="#/m/${id}/takvim">Tümü ›</a></div>
+          ${upcoming.length || working.length ? `<div class="agenda">${upcoming.map(c => `<a class="ag-item status-${esc(c.status)}" href="#/m/${id}/takvim" style="--item-color:${esc(brand.colors.primary || '#7d6bf0')}">
+              <span class="ag-time">${esc(new Date(c.scheduledAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }))}</span><span class="ag-title">${esc(c.title)}</span>
+              <span class="ag-meta"><span class="tag">${esc(c.typeLabel)}</span><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></span></a>`).join('')}
+            ${working.map(c => `<a class="ag-item status-${esc(c.status)}" href="#/m/${id}/takvim" style="--item-color:var(--line-strong)"><span class="ag-time">Tarihsiz</span><span class="ag-title">${esc(c.title)}</span><span class="ag-meta"><span class="tag">${esc(c.typeLabel)}</span><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span></span></a>`).join('')}</div>`
+            : `<div class="empty-cta"><span class="ec-icon">${icon('calendar')}</span><div><b>Planlanan içerik yok</b><p>Bir fikri takvime ekle ya da Reels / post üret.</p></div><a class="btn btn-sm btn-primary" href="#/m/${id}/fikirler">${icon('plus')}Fikirlerden planla</a></div>`}
         </section>
       </div>
 
@@ -72,21 +62,19 @@ export async function renderHome(view, brand) {
         ${identityCard(brand, overview)}
         ${ideaChart(overview.ideaTimes)}
         <section class="card">
-          <div class="card-head"><h3>Son fikirler</h3><span class="small muted">${overview.ideaCount} fikir</span></div>
-          <div id="idea-list">${ideaList(overview.recentIdeas)}</div>
+          <div class="card-head"><h3>Son fikirler</h3><a class="small link" href="#/m/${id}/fikirler">Tüm fikirleri gör ›</a></div>
+          <div id="idea-list">${ideaList(overview.recentIdeas.slice(0, 3))}</div>
         </section>
         <section class="card activity">
-          <div class="card-head"><h3>Son çalışmalar</h3></div>
+          <div class="card-head"><h3>Son çalışmalar</h3><a class="small link" href="#/m/${id}/arsiv">Tüm çalışmaları gör ›</a></div>
           ${overview.activity.length
-            ? `<ul>${overview.activity.slice(0, 6).map(a => `<li><span class="a-dot"></span><div>${esc(a.summary)}<div class="muted xsmall">${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>`
+            ? `<ul>${overview.activity.slice(0, 3).map(a => `<li><span class="a-dot"></span><div>${esc(a.summary)}<div class="muted xsmall">${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>`
             : emptyState({ icon: 'refresh', title: 'Henüz bir çalışma yok', compact: true })}
         </section>
       </div>
     </div>`;
 
-  const body = view.querySelector('#chat-body');
-  renderMessages(body, chat.messages, brand);
-  wire(view, brand, body);
+  wire(view, brand);
 }
 
 // Örnek markada adım adım kullanım rehberi; her adım gerçek bir sayfaya veya işleme götürür
@@ -102,7 +90,7 @@ function demoGuide(brand, aiReady) {
   ];
   return `
     <section class="card demo-guide">
-      <div class="card-head"><h3>Örnek marka: nasıl kullanılır?</h3><span class="pill">Örnek</span></div>
+      <div class="card-head"><h3>Örnek marka: nasıl kullanılır?</h3><div class="row"><span class="pill">Örnek</span><button type="button" class="btn btn-sm btn-ghost icon-btn" data-guide-close aria-label="Rehberi kapat" title="Kapat (Örnek markanın rehberi bir daha gösterilmez)">${icon('x')}</button></div></div>
       <p class="small muted mb-4">${esc(brand.name)} kurgusal bir kafe. Bütün bilgileri hazır doldurulmuş; uygulamanın parçalarının nasıl birlikte çalıştığını görmek için adımları sırayla dene.</p>
       <ol class="steps">${steps.map(([n, t, d, action]) => `<li><span class="step-n">${n}</span><div><div class="step-t">${t}</div><div class="small muted">${d}</div></div>${action}</li>`).join('')}</ol>
     </section>`;
@@ -115,7 +103,7 @@ function identityCard(brand, overview) {
     <section class="card">
       <div class="card-head"><h3>Dijital kimlik</h3>${colors.length ? `<div class="swatches">${colors.slice(0, 5).map(col => `<span class="swatch" style="background:${esc(col)}" title="${esc(col)}"></span>`).join('')}</div>` : ''}</div>
       <div class="identity">
-        ${ring(c.percent)}
+        ${ring(c.percent, 64)}
         <div class="grow">
           <div class="strong truncate">${esc(brand.name)}</div>
           <div class="small muted">${esc(brand.slogan || brand.sector || 'Sektör ve slogan eklenmedi')}</div>
@@ -175,68 +163,25 @@ function actionHtml(a, brand) {
   if (a.type === 'add_task') return box(`✓ Görev eklendi: ${esc(a.task.title)}${a.task.dueDate ? ` <span class="muted small">· son tarih ${esc(a.task.dueDate)}</span>` : ''}`, '<a class="small" href="#/gorevler">Görevleri aç</a>');
   return '';
 }
-function messageHtml(m, brand) {
+export function messageHtml(m, brand) {
   const actions = (m.actions || []).map(a => actionHtml(a, brand)).join('');
   return `<div class="msg msg-${m.role}">${esc(m.content)}${actions}</div>`;
 }
 
-function renderMessages(body, messages, brand) {
+export function renderMessages(body, messages, brand) {
   body.innerHTML = messages.length
     ? messages.map(x => messageHtml(x, brand)).join('')
     : `<div class="msg msg-assistant">Merhaba! Ben ${esc(brand.name)} için çalışan içerik asistanınım. Marka kimliğini bilerek fikir üretip kaydedebilir, Reels fikir havuzunu doldurabilir, senaryo yazabilir, post tasarlayabilir, prompt hazırlayabilir, takvime içerik ve görev ekleyebilirim. Ör. "Haftaya 5 Reels fikri üret", "Bu senaryoya göre post tasarla". Nereden başlayalım?</div>`;
   body.scrollTop = body.scrollHeight;
 }
 
-function wire(view, brand, body) {
-  const input = view.querySelector('#chat-input');
-  const form = view.querySelector('#composer');
-  let busy = false;
-
-  async function send(text) {
-    const message = text.trim();
-    if (!message || busy) return;
-    busy = true;
-    form.querySelector('button').disabled = true;
-    input.value = '';
-    if (body.querySelector('.msg-assistant:only-child')) body.innerHTML = '';
-    body.insertAdjacentHTML('beforeend', messageHtml({ role: 'user', content: message }, brand));
-    body.insertAdjacentHTML('beforeend', '<div class="msg msg-assistant msg-typing" id="typing">Düşünüyorum…</div>');
-    body.scrollTop = body.scrollHeight;
-    try {
-      const res = await api.sendChat(brand.id, message);
-      const savedIdeas = (res.assistantMessage.actions || []).some(a => a.ok !== false && ['save_ideas', 'update_idea'].includes(a.type));
-      if (savedIdeas) {
-        // Fikir kaydedildiyse sağ paneller ve marka özeti de güncellensin
-        await refreshBrands();
-        return renderHome(view, brand);
-      }
-      body.querySelector('#typing').remove();
-      body.insertAdjacentHTML('beforeend', messageHtml(res.assistantMessage, brand));
-      body.scrollTop = body.scrollHeight;
-    } catch (err) {
-      body.querySelector('#typing').remove();
-      body.lastElementChild.remove(); // gönderilemeyen mesaj geri alınır, metin kutuya döner
-      input.value = message;
-      body.insertAdjacentHTML('beforeend', `<div class="msg msg-assistant">${errorNotice(err)}</div>`);
-      if (err.code === 'AI_NOT_CONFIGURED') toast('AI bağlı değil: Yapay zekâ sayfasından bir sağlayıcı bağla.', 'error');
-    } finally {
-      busy = false;
-      form.querySelector('button').disabled = false;
-      input.focus();
-    }
-  }
-
-  form.addEventListener('submit', e => { e.preventDefault(); send(input.value); });
-  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input.value); } });
-  input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; });
-
-  // Tıklamalar tek bir dinleyiciyle yakalanır; atama, önceki çizimin dinleyicisini değiştirir (birikmez)
+function wire(view, brand) {
   view.onclick = async e => {
-    if (e.target.closest('[data-demo-try]')) return send('Sınav haftasında öğrencilere yönelik 3 içerik fikri üret ve kaydet: biri eğlenceli, biri eğitici, biri satış odaklı olsun.');
+    if (e.target.closest('[data-demo-try]')) return askAssistant('Sınav haftasında öğrencilere yönelik 3 içerik fikri üret ve kaydet: biri eğlenceli, biri eğitici, biri satış odaklı olsun.');
     const quick = e.target.closest('[data-quick]');
-    if (quick) return send(QUICK[Number(quick.dataset.quick)].prompt);
-    const chip = e.target.closest('[data-chip]');
-    if (chip) return send(chip.dataset.chip);
+    if (quick) return askAssistant(QUICK[Number(quick.dataset.quick)].prompt);
+    if (e.target.closest('[data-open-assistant]')) return openAssistant();
+    if (e.target.closest('[data-guide-close]')) { try { localStorage.setItem('ium.guide.hidden.' + brand.id, '1'); } catch { /* yok */ } view.querySelector('.demo-guide').remove(); return; }
     const fav = e.target.closest('[data-fav]');
     if (fav) {
       const on = !fav.classList.contains('on');
@@ -245,12 +190,6 @@ function wire(view, brand, body) {
         fav.classList.toggle('on', on);
         fav.setAttribute('aria-pressed', String(on));
       } catch (err) { toast(err.message, 'error'); }
-      return;
-    }
-    const newChat = e.target.closest('[data-action="new-chat"]');
-    if (newChat) {
-      if (!confirm('Bu markanın sohbet geçmişi silinsin mi? Kaydedilen fikirler silinmez.')) return;
-      try { await busy(newChat, () => api.clearChat(brand.id)); renderHome(view, brand); } catch (err) { toast(err.message, 'error'); }
     }
   };
 }
