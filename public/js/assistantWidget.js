@@ -13,6 +13,7 @@ const CHIPS = [
   'Son fikirlerden hangisiyle başlamalıyım?'
 ];
 const OPEN_KEY = 'ium.assistant.open';
+function isOpenPref() { try { return localStorage.getItem(OPEN_KEY) === '1'; } catch { return false; } }
 let host = null;
 let brand = null;
 let loadedFor = null;
@@ -71,6 +72,16 @@ export async function askAssistant(text) {
 }
 export function openAssistant() { setOpen(true); }
 
+// Marka ana sayfasında pencere sağ kolona gömülür (her zaman açık, düğme gizli); başka sayfada yeniden sağ alta döner
+export function dockAssistant(el) {
+  if (!host || !el) return;
+  el.appendChild(host);
+  host.classList.add('docked');
+  host.querySelector('.ai-panel').hidden = false;
+  host.classList.add('is-open');
+  load();
+}
+
 async function send(text) {
   const message = String(text || '').trim();
   if (!message || sending || !brand) return;
@@ -111,7 +122,7 @@ export function mountAssistant(current, { page } = {}) {
     document.body.appendChild(host);
     host.addEventListener('click', async e => {
       if (e.target.closest('.ai-fab')) return setOpen(!isOpen());
-      if (e.target.closest('[data-ai-close]')) return setOpen(false);
+      if (e.target.closest('[data-ai-close]')) { if (host.classList.contains('docked')) return; return setOpen(false); }
       const chip = e.target.closest('[data-chip]');
       if (chip) return send(chip.dataset.chip);
       const nc = e.target.closest('[data-action="new-chat"]');
@@ -128,6 +139,8 @@ export function mountAssistant(current, { page } = {}) {
     host.addEventListener('input', e => { if (e.target.id === 'chat-input') { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
   }
   host.hidden = false;
+  // Ana sayfadan ayrılınca (gömülü pencere sayfayla birlikte silinmiş olabilir) sağ alttaki yerine döner
+  if (!host.isConnected || host.classList.contains('docked')) { host.classList.remove('docked'); document.body.appendChild(host); if (page !== 'home') setOpen(isOpenPref(), false); }
   const changed = !brand || brand.id !== current.id;
   brand = current;
   if (changed) draw();

@@ -1345,3 +1345,26 @@ body.editor-mode .ai-widget { display: none; }
 .ops .w-side { width: 330px; }
 .ops .welcome .w-text { max-width: calc(100% - 360px); }
 .w-side-stats span { white-space: nowrap; }
+
+/* Marka ana sayfası hizalı ızgara: üstte karşılama | Dijital kimlik (aynı yükseklik); altta ana kolon | AI Asistanı (ana kolonla aynı yerde biter) */
+.bgrid { grid-template-columns: minmax(0, 1fr) 360px; grid-template-areas: "guide guide" "hero id" "main ai"; align-items: stretch; }
+.bg-guide { grid-area: guide; } .bg-hero { grid-area: hero; } .bg-id { grid-area: id; display: flex; } .bg-main { grid-area: main; display: grid; gap: 16px; align-content: start; min-width: 0; }
+.bg-id > .card { flex: 1; margin: 0; }
+.bgrid .bg-hero { margin: 0; display: flex; align-items: center; }
+.bg-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.bg-trio > .card { display: flex; flex-direction: column; height: 250px; overflow: hidden; margin: 0; }
+.bg-trio .card-head { flex-shrink: 0; }
+.bg-list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.bg-trio .bars { height: 56px; }
+.bg-trio .chart-legend { display: none; }
+.bg-ai { grid-area: ai; position: relative; min-height: 420px; }
+.bg-ai > .ai-widget.docked { position: absolute; inset: 0; right: auto; bottom: auto; width: 100%; height: 100%; display: block; z-index: auto; }
+.ai-widget.docked .ai-fab, .ai-widget.docked [data-ai-close] { display: none; }
+.ai-widget.docked .ai-panel { width: 100%; height: 100%; box-shadow: var(--shadow-sm); }
+@media (max-width: 1180px) {
+  .bgrid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "guide" "hero" "id" "main" "ai"; }
+  .bg-ai { min-height: 520px; }
+  .bg-trio { grid-template-columns: minmax(0, 1fr); } .bg-trio > .card { height: auto; max-height: 300px; }
+}
+.bhome .ai-widget.docked .ai-panel { padding: 0; }
+.bhome a.ag-item, .bhome a.ag-item * { text-decoration: none; color: inherit; }
