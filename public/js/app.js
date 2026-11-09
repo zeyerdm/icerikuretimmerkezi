@@ -28,6 +28,8 @@ import { renderTrash, initTrashUndo } from './views/trash.js';
 import { renderExporter } from './views/exporter.js';
 import { renderDesk } from './views/desk.js';
 import { renderVideo } from './views/video.js';
+import { renderCampaigns } from './views/campaigns.js';
+import { renderReport } from './views/report.js';
 import { mountAssistant } from './assistantWidget.js';
 import { initFx } from './fx.js';
 
@@ -94,8 +96,10 @@ export const BRAND_NAV = [
   { page: 'prompt', path: '/prompt', label: 'Prompt Studio', icon: 'wand', group: 'uretim' },
   { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar', group: 'uretim' },
   { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive', group: 'uretim' },
+  { page: 'kampanya', path: '/kampanya', label: 'Kampanya kanvası', icon: 'grid', group: 'uretim' },
   { page: 'rakipler', path: '/rakipler', label: 'Rakipler', icon: 'brands', group: 'arastirma' },
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart', group: 'arastirma' },
+  { page: 'rapor', path: '/rapor', label: 'Aylık rapor', icon: 'archive', group: 'arastirma' },
   { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image', group: 'varlik' },
   { page: 'disa', path: '/disa-aktar', label: 'Dışa aktar', icon: 'download', group: 'varlik' },
   { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'varlik' }
@@ -119,6 +123,7 @@ export function parseRoute(hash = location.hash || '#/') {
     let mm;
     if ((mm = rest.match(/^\/reels(?:\/(liste|kaliplar|[A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'reels', brandId: id, sub: mm[1] || null };
     if ((mm = rest.match(/^\/post(?:\/(izgara|[A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'post', brandId: id, sub: mm[1] || null };
+    if ((mm = rest.match(/^\/kampanya(?:\/([A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'kampanya', brandId: id, sub: mm[1] || null };
     if ((mm = rest.match(/^\/prompt(?:\/([A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'prompt', brandId: id, sub: mm[1] || null };
     const sub = BRAND_NAV.find(n => n.path === rest && !n.soon);
     if (sub) return { layer: 'brand', page: sub.page, brandId: id };
@@ -268,6 +273,8 @@ export async function route() {
       else if (r.page === 'rakipler') await renderCompetitors(view, brand);
       else if (r.page === 'disa') await renderExporter(view, brand);
       else if (r.page === 'video') await renderVideo(view, brand);
+      else if (r.page === 'kampanya') await renderCampaigns(view, brand, r.sub);
+      else if (r.page === 'rapor') await renderReport(view, brand);
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;
     }

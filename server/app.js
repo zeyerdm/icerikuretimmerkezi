@@ -25,6 +25,8 @@ import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createTrashService, TRASH_DAYS } from './services/trash.js';
 import { createSearchService } from './services/search.js';
+import { createCampaignService, CAMPAIGN_KINDS } from './services/campaigns.js';
+import { createRecipeService } from './services/recipes.js';
 import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
@@ -102,6 +104,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const workspace = createWorkspaceService(db, ownerId, brands);
   const trash = createTrashService(db, ownerId);
   const searcher = createSearchService(db, ownerId);
+  const campaigns = createCampaignService({ db, brands });
   // Çöpe atarak sil: kaydın görüntüsü alınır, kimliği X-Trash-Id başlığıyla döner (arayüz "Geri al" gösterir)
   const trashed = (res, kind, id, remove) => { const tid = trash.capture(kind, id, remove); if (tid) res.set('X-Trash-Id', tid); res.status(204).end(); };
   const memory = createMemoryService({ db, brands });
@@ -115,6 +118,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const prompts = createPromptService({ db, ai, brands, reels });
+  const recipes = createRecipeService({ db, ownerId, brands, prompts });
   const images = createImageService({ db, ai, brands, assets });
   const designRef = createDesignRefService({ db, ai, brands, assets });
   const assetTags = createAssetTagService({ ai, brands, assets });
@@ -677,6 +681,23 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.patch('/brands/:brandId/ideas/:ideaId', (req, res) => res.json({ idea: ideas.update(req.brand.id, req.params.ideaId, req.body || {}) }));
 
   api.delete('/brands/:brandId/ideas/:ideaId', (req, res) => trashed(res, 'idea', req.params.ideaId, () => ideas.remove(req.brand.id, req.params.ideaId)));
+
+  // Kampanya kanvası
+  api.get('/brands/:brandId/campaigns', (req, res) => res.json({ campaigns: campaigns.list(req.brand.id), kinds: CAMPAIGN_KINDS }));
+  api.post('/brands/:brandId/campaigns', (req, res) => res.status(201).json({ campaign: campaigns.create(req.brand.id, req.body || {}) }));
+  api.get('/brands/:brandId/campaigns/:id', (req, res) => res.json({ campaign: campaigns.get(req.brand.id, req.params.id) }));
+  api.patch('/brands/:brandId/campaigns/:id', (req, res) => res.json({ campaign: campaigns.update(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/campaigns/:id', (req, res) => { campaigns.remove(req.brand.id, req.params.id); res.status(204).end(); });
+  api.post('/brands/:brandId/campaigns/:id/items', (req, res) => res.status(201).json({ item: campaigns.addItem(req.brand.id, req.params.id, req.body || {}) }));
+  api.patch('/brands/:brandId/campaigns/:id/items/:itemId', (req, res) => res.json({ item: campaigns.updateItem(req.brand.id, req.params.id, req.params.itemId, req.body || {}) }));
+  api.delete('/brands/:brandId/campaigns/:id/items/:itemId', (req, res) => { campaigns.removeItem(req.brand.id, req.params.id, req.params.itemId); res.status(204).end(); });
+
+  // Ortak tarifler (prompt ve Reels kalıpları markalar arasında)
+  api.get('/recipes', (req, res) => res.json({ recipes: recipes.list(req.query.kind ? String(req.query.kind) : null) }));
+  api.post('/brands/:brandId/prompts/:id/recipe', (req, res) => res.status(201).json({ recipe: recipes.fromPrompt(req.brand.id, req.params.id) }));
+  api.post('/brands/:brandId/patterns/:id/recipe', (req, res) => res.status(201).json({ recipe: recipes.fromPattern(req.brand.id, req.params.id) }));
+  api.post('/recipes/:id/apply', (req, res) => res.status(201).json(recipes.apply(req.params.id, String((req.body || {}).brandId || ''))));
+  api.delete('/recipes/:id', (req, res) => { recipes.remove(req.params.id); res.status(204).end(); });
 
   // Genel arama (komut paleti)
   api.get('/search', (req, res) => res.json({ results: searcher.search(String(req.query.q || '').slice(0, 100)) }));
