@@ -26,6 +26,7 @@ import { createAssetTagService } from './services/assetTags.js';
 import { createTrashService, TRASH_DAYS } from './services/trash.js';
 import { createSearchService } from './services/search.js';
 import { createCampaignService, CAMPAIGN_KINDS } from './services/campaigns.js';
+import { createRecipeService } from './services/recipes.js';
 import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
@@ -117,6 +118,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const prompts = createPromptService({ db, ai, brands, reels });
+  const recipes = createRecipeService({ db, ownerId, brands, prompts });
   const images = createImageService({ db, ai, brands, assets });
   const designRef = createDesignRefService({ db, ai, brands, assets });
   const assetTags = createAssetTagService({ ai, brands, assets });
@@ -689,6 +691,13 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/campaigns/:id/items', (req, res) => res.status(201).json({ item: campaigns.addItem(req.brand.id, req.params.id, req.body || {}) }));
   api.patch('/brands/:brandId/campaigns/:id/items/:itemId', (req, res) => res.json({ item: campaigns.updateItem(req.brand.id, req.params.id, req.params.itemId, req.body || {}) }));
   api.delete('/brands/:brandId/campaigns/:id/items/:itemId', (req, res) => { campaigns.removeItem(req.brand.id, req.params.id, req.params.itemId); res.status(204).end(); });
+
+  // Ortak tarifler (prompt ve Reels kalıpları markalar arasında)
+  api.get('/recipes', (req, res) => res.json({ recipes: recipes.list(req.query.kind ? String(req.query.kind) : null) }));
+  api.post('/brands/:brandId/prompts/:id/recipe', (req, res) => res.status(201).json({ recipe: recipes.fromPrompt(req.brand.id, req.params.id) }));
+  api.post('/brands/:brandId/patterns/:id/recipe', (req, res) => res.status(201).json({ recipe: recipes.fromPattern(req.brand.id, req.params.id) }));
+  api.post('/recipes/:id/apply', (req, res) => res.status(201).json(recipes.apply(req.params.id, String((req.body || {}).brandId || ''))));
+  api.delete('/recipes/:id', (req, res) => { recipes.remove(req.params.id); res.status(204).end(); });
 
   // Genel arama (komut paleti)
   api.get('/search', (req, res) => res.json({ results: searcher.search(String(req.query.q || '').slice(0, 100)) }));

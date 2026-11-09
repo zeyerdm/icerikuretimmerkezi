@@ -1532,3 +1532,10 @@ body.ai-full-open { overflow: hidden; }
   .report section { break-inside: avoid; }
 }
 .report { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* Ortak tarifler */
+.rc-list { display: grid; gap: 8px; max-height: 55vh; overflow-y: auto; }
+.rc-item { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.rc-item > div:first-child { min-width: 0; }
+.rc-item p { margin: 2px 0; font-size: var(--t-xs); color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rc-item em { font-style: normal; font-size: 11px; color: var(--muted); }

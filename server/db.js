@@ -414,6 +414,20 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_campaign_items ON campaign_items(campaign_id);
+  `,
+  // 21: Ortak tarifler: beğenilen prompt ve Reels kalıpları kullanıcı düzeyinde saklanır, başka markalara kopyalanır
+  `
+  CREATE TABLE recipes (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    data TEXT NOT NULL,
+    source_brand TEXT NOT NULL DEFAULT '',
+    uses INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_recipes ON recipes(owner_id, kind, created_at);
   `
 ];
 

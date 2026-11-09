@@ -1,6 +1,7 @@
 // Reels: marka başına fikir havuzu, senaryolar, senaryo ayrıntısı (sahneler, Flow/Veo prompt'ları, başlık, altyazı,
 // sürümler, dışa aktarma, telepromter). Her üretimde model seçilebilir; seçilmezse işin atanmış modeli çalışır.
 import { api } from '../api.js';
+import { openRecipes } from '../recipes.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
@@ -209,6 +210,7 @@ async function renderPatterns(view, brand, models, header, meta, aiReady) {
           <div class="field"><label for="pt-model">Model</label>${modelSelect(models, 'fikir', { id: 'pt-model' })}</div>
         </div>
         <div class="row mt-3"><button class="btn btn-primary" data-pt-analyze>${icon('sparkle')}Kalıbı çıkar</button></div></section>` : ''}
+      <div class="row mb-3"><span class="spacer"></span><button class="btn btn-sm" data-pt-recipes>${icon('star')}Tariflerden ekle</button></div>
       ${patterns.length ? `<div class="pattern-grid">${patterns.map(p => `
         <section class="card pattern-card">
           <div class="card-head"><h3>${p.favorite ? '★ ' : ''}${esc(p.title)}</h3><span class="tag">${esc(p.sourceLabel)}</span></div>
@@ -219,6 +221,7 @@ async function renderPatterns(view, brand, models, header, meta, aiReady) {
             ${p.reuse ? `<dt>Uyarlama</dt><dd>${esc(p.reuse)}</dd>` : ''}${p.format || p.duration ? `<dt>Format</dt><dd>${esc([p.format, p.duration].filter(Boolean).join(' · '))}</dd>` : ''}</dl>
           <div class="row mt-3">${aiReady ? `<button class="btn btn-sm btn-primary" data-pt-use="${esc(p.id)}">Bu kalıpla senaryo yaz</button>` : ''}
             <button class="btn btn-sm" data-pt-fav="${esc(p.id)}">${p.favorite ? 'Favoriden çıkar' : '☆ Favori'}</button>
+            <button class="btn btn-sm" data-pt-recipe="${esc(p.id)}" title="Başka markalarda kullanmak için kaydet">📌 Tarif</button>
             <button class="btn btn-sm btn-ghost icon-btn" data-pt-del="${esc(p.id)}" aria-label="Sil">${icon('trash')}</button></div>
           <details class="disclosure"><summary>Kaynak metin</summary><div class="cmp-text">${esc(p.rawText)}</div></details>
         </section>`).join('')}</div>`
@@ -245,6 +248,9 @@ async function renderPatterns(view, brand, models, header, meta, aiReady) {
     if (use) return scenarioModal(brand, models, meta, { patternId: use.dataset.ptUse });
     const fav = e.target.closest('[data-pt-fav]');
     if (fav) { const p = patterns.find(x => x.id === fav.dataset.ptFav); try { await api.savePattern(brand.id, p.id, { favorite: !p.favorite }); patterns = (await api.patterns(brand.id)).patterns; draw(); } catch (err) { toast(err.message, 'error'); } return; }
+    if (e.target.closest('[data-pt-recipes]')) return openRecipes('pattern', brand, async () => { patterns = (await api.patterns(brand.id)).patterns; draw(); });
+    const rc = e.target.closest('[data-pt-recipe]');
+    if (rc) { try { await api.patternToRecipe(brand.id, rc.dataset.ptRecipe); toast('Kalıp tariflere kaydedildi; başka markanın Kalıp arşivinde "Tariflerden ekle" ile kullanılır.', 'success', 5000); } catch (err) { toast(err.message, 'error'); } return; }
     const del = e.target.closest('[data-pt-del]');
     if (del) { if (!confirm('Bu kalıp arşivden silinsin mi?')) return; try { await api.deletePattern(brand.id, del.dataset.ptDel); patterns = (await api.patterns(brand.id)).patterns; draw(); } catch (err) { toast(err.message, 'error'); } }
   };

@@ -1,6 +1,7 @@
 // Prompt Studio: marka hafızasıyla prompt üretme, düzenleme, kopyalama, kaydetme; geliştirme işlemleri ve sürüm geçmişi.
 // Her üretim/geliştirme düğmesinin yanında model seçici var; seçilmezse "Çeviri ve prompt" işine atanmış model çalışır.
 import { api } from '../api.js';
+import { openRecipes } from '../recipes.js';
 import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
@@ -29,7 +30,7 @@ export async function renderPrompts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Prompt Studio', desc: `${esc(brand.name)} için görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı prompt'ları. Marka kimliği her prompt'a otomatik eklenir.`,
-      actions: `<button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
+      actions: `<button class="btn" data-recipes>${icon('star')}Tariflerden ekle</button><button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
     })}
     <section class="card mb-4">
       <div class="card-head"><h3>Yeni prompt</h3></div>
@@ -80,6 +81,7 @@ export async function renderPrompts(view, brand, sub) {
     if (e.target.id === 'ps-q') { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value.trim(); loadList(); }, 250); }
   };
   view.onclick = async e => {
+    if (e.target.closest('[data-recipes]')) return openRecipes('prompt', brand, res => go(`#/m/${brand.id}/prompt/${res.prompt.id}`));
     const k = e.target.closest('[data-kind]');
     if (k) {
       kind = k.dataset.kind;
@@ -169,6 +171,7 @@ async function renderDetail(view, brand, id, models) {
             <div class="ed-drop" data-drop="dosya" hidden>
               <div class="ed-drop-head"><b>${esc(p.title)}</b><span class="xsmall">${esc(p.kindLabel)} prompt'u${p.brief ? ` · İstek: ${esc(p.brief.slice(0, 80))}` : ''}</span></div>
               <button type="button" data-fav>${p.favorite ? '★ Favorilerden çıkar' : '☆ Favorilere ekle'}</button>
+              <button type="button" data-recipe-save>📌 Tariflere kaydet (başka markalarda kullan)</button>
               <button type="button" data-rail="surumler">${icon('refresh')}Sürüm geçmişi</button>
               <hr><button type="button" class="danger" data-delete>${icon('trash')}Prompt'u sil</button>
             </div></div>
@@ -273,6 +276,10 @@ async function renderDetail(view, brand, id, models) {
       const brief = val('#pp-brief').trim();
       if (!brief) return toast('Yeni isteği yaz.', 'error');
       return improve(rb, { action: 'girdi', brief });
+    }
+    if (t.closest('[data-recipe-save]')) {
+      try { await api.promptToRecipe(brand.id, p.id); toast('Tariflere kaydedildi. Başka bir markanın Prompt Studio\'sunda "Tariflerden ekle" ile kullanabilirsin.', 'success', 5000); } catch (err) { toast(err.message, 'error'); }
+      return;
     }
     if (t.closest('[data-fav]')) {
       try { p = (await api.savePrompt(brand.id, p.id, { favorite: !p.favorite })).prompt; draw(); } catch (err) { toast(err.message, 'error'); }
