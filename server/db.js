@@ -389,6 +389,31 @@ const MIGRATIONS = [
     deleted_at TEXT NOT NULL
   );
   CREATE INDEX idx_trash ON trash(owner_id, deleted_at);
+  `,
+  // 20: Kampanya kanvası: marka başına panolar; fikir, senaryo, tasarım, prompt, görsel, içerik ve not kartları + bağlantılar
+  `
+  CREATE TABLE campaigns (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    goal TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '#7d6bf0',
+    links TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_campaigns ON campaigns(brand_id, updated_at);
+  CREATE TABLE campaign_items (
+    id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    ref_id TEXT,
+    text TEXT NOT NULL DEFAULT '',
+    x INTEGER NOT NULL DEFAULT 40,
+    y INTEGER NOT NULL DEFAULT 40,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_campaign_items ON campaign_items(campaign_id);
   `
 ];
 
