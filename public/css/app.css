@@ -1244,3 +1244,6 @@ body.editor-mode #daily-slot { display: none; }
 .chart-note, .kpi-sub, .ag-meta, .xsmall.muted, .small.muted { color: var(--muted); }
 @media (max-width: 760px) { .ops .welcome { flex-wrap: wrap; } .stat-bar > .kpi + .kpi { border-left: 0; } .stat-week { border-left: 0; } }
 .stat-bar .kpi-num { order: 1; } .stat-bar .kpi-label { order: 2; }
+.pi-text { display: grid; min-width: 0; }
+.pi-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-text em { font-style: normal; font-size: var(--t-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

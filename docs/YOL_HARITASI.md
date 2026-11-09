@@ -135,6 +135,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.24 Sol menü, Yönetim Merkezi, Çalışma masası:** kaydırınca menünün yerinde kalması ve tam boy olması, kısa ekranda yalnızca menünün kayması, alt kartın en altta kalması, yeni istatistiklerin doğru sayılması, hafta şeridi, masada görev/not ekleme-düzenleme, Ayarlar sekmeleri ve eski adreslerin yönlendirilmesi, 1920×1080 / 1440×900 / tablet / telefon görünümü.
 - ⬜ **T.25 Krem tema, Onay bekliyor, Video:** "onay" durumunun API'de kabulü ve tamamlanmış sayılmaması, Yönetim Merkezi'ndeki Onay bekleyen sayısı; video sayfasında klip ekleme (sonsuz süreli WebM dahil), kesme, sıralama, srt ayrıştırma (`parseSrt`), Reels'ten altyazı, çıktı süresinin klip toplamına eşit olması, durdurma.
 - ⬜ **T.26 QR kod:** `qrMatrix` çıktısının okunması (kısa/uzun/Türkçe, sürüm 7+ bilgisi), 200 bayt sınırı, sunucuda `qr` katmanının doğrulanması (boş metin reddi, h=w), editörde ekleme/düzenleme ve PNG dışa aktarımda görünmesi.
+- ⬜ **T.27 Genel arama:** her türün bulunması, Türkçe karaktersiz eşleşme, çok kelime, 2 karakter altı boş, başka kullanıcının/markanın kaydının gelmemesi, palette sonuçların görünmesi ve doğru sayfaya gitmesi.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
@@ -155,7 +156,7 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ✅ **5.14 Video kesme ve altyazı gömme** *(Nashi)*: marka menüsünde "Video ve altyazı". Klip ekle (birden çok, sıralanabilir), her klipte başlangıç/bitiş (sayıyla ya da önizlemedeki "bu an" düğmeleriyle), oran kırpma (9:16 / 1:1 / 4:5 / 16:9 / orijinal), genişlik; altyazı .srt metni, dosyası ya da markanın Reels senaryosundan; yazı boyu, dikey konum, koyu kutu; canlı önizleme. Çıktı tarayıcıda tuval + ses kaydıyla (MediaRecorder) üretilir: Chrome/Edge'de MP4, diğerlerinde WebM; ilerleme ve durdurma, indirme. ffmpeg kurulumu gerekmez; sunucuya yükleme yok (CSP'ye `media-src blob:`).
 - ✅ **5.15 QR kod** *(Nashi)*: Post stüdyosu → Öğeler → QR kod: link ya da metin (en fazla 200 bayt) yazıp ekle; yeni `qr` katmanı (boyut, koyu renk, metni sonradan değiştirme; beyaz sessiz bölge her zaman). Üretici `public/js/qr.js` (bayt kipi, M düzeyi, sürüm 1–10, maske cezası) dış kütüphanesiz; çıktısı QR okuyucuyla doğrulandı.
 - ⬜ **5.16 Kampanya kanvası** *(Nailing AI)*: fikir, senaryo, görsel ve notların bağlı durduğu pano.
-- ⬜ **5.17 Genel arama:** bütün markalarda fikir, not, görev ve içerik arama (komut paletiyle birlikte).
+- ✅ **5.17 Genel arama:** Ctrl+K paletinde 2+ karakterde bütün markalarda fikir, takvim içeriği, tasarım, Reels senaryosu, prompt, not ve görev araması (Türkçe karakterden bağımsız, türe göre en fazla 6, eşleşen kısım alıntısı); sonuca tıklayınca ilgili sayfa açılır. `GET /api/search?q=` yalnız bu kullanıcının markalarını tarar.
 - ⬜ **5.18 Aylık rapor:** marka başına "bu ay ne ürettik, ne tuttu" raporu, PDF olarak.
 - ⬜ **5.19 Ortak şablonlar (tarifler):** beğenilen prompt ve senaryo kalıplarını kaydedip başka markalarda kullanma.
 - ⬜ **5.20 Koyu tema.**
