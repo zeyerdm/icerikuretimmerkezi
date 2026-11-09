@@ -450,7 +450,7 @@ test('tablet genişliği: kenar çubuğu ikonlara iner, menü ögeleri erişileb
   try {
     await srv.request('POST', '/api/brands', { name: 'Tablet Markası' });
     await page.goto(srv.base + '/#/');
-    await page.locator('.kpis').waitFor();
+    await page.locator('.ops .welcome').waitFor();
     const w = await page.locator('.sidebar').evaluate(e => e.getBoundingClientRect().width);
     assert.ok(w < 100, 'kenar çubuğu daralmadı: ' + w);
     assert.ok(await page.getByRole('link', { name: 'Çalışma masası', exact: true }).isVisible());
