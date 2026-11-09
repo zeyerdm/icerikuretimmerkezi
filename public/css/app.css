@@ -1456,3 +1456,13 @@ body.ai-full-open { overflow: hidden; }
 .ops .card, .bhome .card { transition: transform .18s ease, box-shadow .18s ease; }
 .ops .ops-col:hover, .bhome .bg-trio > .card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(30, 25, 60, .10); }
 @media (prefers-reduced-motion: reduce) { .is-timing, .fx-confetti i { animation: none; } .ops .card, .bhome .card { transition: none; } }
+/* Karşılama: cam metin paneli ile "Bu hafta" kutusu aynı yerde başlar ve biter (karşılamanın boyu değişmez, iç panel büyür) */
+@media (min-width: 1281px) {
+  .ops .welcome { display: flex; flex-direction: row; align-items: stretch; gap: 16px; padding: 16px; min-height: 248px; }
+  .ops .welcome .w-text { flex: 1; max-width: none; width: auto; display: flex; flex-direction: column; justify-content: center; padding: 20px 26px; margin: 0; }
+  .ops .w-side { position: static; transform: none; width: 340px; flex: none; align-self: stretch; order: 2; }
+  .ops .welcome .w-text h1 { font-size: var(--t-2xl); margin-top: 4px; }
+  .ops .w-slogan { font-size: var(--t-sm); }
+  .ops .w-date { font-size: var(--t-sm); }
+  .ops .w-actions { margin-top: var(--s-4); gap: 10px; }
+}
