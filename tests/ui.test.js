@@ -256,8 +256,8 @@ test('fikirden takvime ve arşive; analizler gerçek veriyle', { skip }, async (
     // Yönetim merkezi sayaçları
     await page.goto(srv.base + '/');
     await page.locator('.kpi').first().waitFor();
-    assert.equal((await page.locator('.kpi.k2 .kpi-num').textContent()).trim(), '1');
-    assert.equal((await page.locator('.kpi.k5 .kpi-num').textContent()).trim(), '1');
+    // Ana sayfada istatistik barı kalktı; karşılamadaki "Bu hafta" kutusunda aktif marka sayısı görünür
+    assert.equal((await page.locator('.kpi.k1 .kpi-num').textContent()).trim(), '1');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
@@ -281,10 +281,7 @@ test('örnek markayla keşfet: rehber, takvim içerikleri, görevler, asistan', 
     await page.getByRole('link', { name: 'Yönetim Merkezine dön' }).click();
     await page.locator('.ag-item').first().waitFor();
     assert.ok(await page.locator('.ag-item').count() >= 2, 'yaklaşan içerikler boş');
-    // "Bu ay üretilen": örnek içeriklerin oluşturulma tarihi ayın başına denk gelebilir; beklenen sayı kayıtlardan hesaplanır
-    const now = new Date();
-    const thisMonth = (await srv.request('GET', '/api/contents')).data.contents.filter(c => { const t = new Date(c.createdAt); return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth(); }).length;
-    assert.equal((await page.locator('.kpi.k2 .kpi-num').textContent()).trim(), String(thisMonth));
+    assert.equal((await page.locator('.kpi.k1 .kpi-num').textContent()).trim(), '1');
     // Markalar ana sayfadan kalktı; Markalar sayfasında görünür
     await page.goto(srv.base + '/#/markalar');
     await page.locator('.brand-card').first().waitFor();
