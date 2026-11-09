@@ -270,7 +270,7 @@ test('örnek markayla keşfet: rehber, takvim içerikleri, görevler, asistan', 
     await page.goto(srv.base + '/');
     await page.getByRole('button', { name: '☕ Örnek markayla keşfet' }).click();
     await page.getByRole('heading', { name: 'Örnek marka: nasıl kullanılır?' }).waitFor();
-    assert.ok((await page.locator('.side-brand').textContent()).includes('%100'));
+    assert.ok((await page.locator('.identity').textContent()).includes('100'), 'kimlik oranı ana sayfada yok');
     await page.getByRole('link', { name: 'Kütüphane', exact: true }).first().click();
     await page.getByRole('button', { name: 'Maskot pozu' }).click();
     await page.locator('.asset').nth(2).waitFor();

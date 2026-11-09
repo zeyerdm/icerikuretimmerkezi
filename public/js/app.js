@@ -28,6 +28,7 @@ import { renderTrash, initTrashUndo } from './views/trash.js';
 import { renderExporter } from './views/exporter.js';
 import { renderDesk } from './views/desk.js';
 import { renderVideo } from './views/video.js';
+import { mountAssistant } from './assistantWidget.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
 // workspaceBrandId: şu an içinde bulunulan marka çalışma alanı (yoksa yönetim merkezindeyiz)
@@ -83,21 +84,25 @@ export const CENTER_NAV = [
 
 // Marka çalışma alanı alt menüsü. "Yakında" olanlar tıklanamaz; bitmiş gibi gösterilmez.
 export const BRAND_NAV = [
-  { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home' },
-  { page: 'kimlik', path: '/kimlik', label: 'Dijital kimlik', icon: 'identity' },
-  { page: 'hafiza', path: '/hafiza', label: 'Hafıza', icon: 'notes' },
-  { page: 'rakipler', path: '/rakipler', label: 'Rakipler', icon: 'brands' },
-  { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea' },
-  { page: 'reels', path: '/reels', label: 'Reels', icon: 'film' },
-  { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette' },
-  { page: 'prompt', path: '/prompt', label: 'Prompt Studio', icon: 'wand' },
-  { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image' },
-  { page: 'disa', path: '/disa-aktar', label: 'Dışa aktar', icon: 'download' },
-  { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film' },
-  { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar' },
-  { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive' },
-  { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart' }
+  { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home', group: 'yonetim' },
+  { page: 'kimlik', path: '/kimlik', label: 'Dijital kimlik', icon: 'identity', group: 'yonetim' },
+  { page: 'hafiza', path: '/hafiza', label: 'Hafıza', icon: 'notes', group: 'yonetim' },
+  { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea', group: 'uretim' },
+  { page: 'reels', path: '/reels', label: 'Reels', icon: 'film', group: 'uretim' },
+  { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette', group: 'uretim' },
+  { page: 'prompt', path: '/prompt', label: 'Prompt Studio', icon: 'wand', group: 'uretim' },
+  { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar', group: 'uretim' },
+  { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive', group: 'uretim' },
+  { page: 'rakipler', path: '/rakipler', label: 'Rakipler', icon: 'brands', group: 'arastirma' },
+  { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart', group: 'arastirma' },
+  { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image', group: 'varlik' },
+  { page: 'disa', path: '/disa-aktar', label: 'Dışa aktar', icon: 'download', group: 'varlik' },
+  { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'varlik' }
 ];
+// U.6: marka menüsü grupları (açılıp kapanır; tercih hatırlanır, açık sayfanın grubu her zaman açık)
+const BRAND_GROUPS = [['yonetim', 'Marka yönetimi'], ['uretim', 'İçerik üretimi'], ['arastirma', 'Araştırma'], ['varlik', 'Varlıklar']];
+const GROUP_KEY = 'ium.nav.closed';
+function closedGroups() { try { return JSON.parse(localStorage.getItem(GROUP_KEY) || '[]'); } catch { return []; } }
 
 const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', desk: 'Çalışma masası', trash: 'Çöp kutusu', newBrand: 'Yeni marka', ai: 'Yapay zekâ' };
 
@@ -151,18 +156,28 @@ export function renderChrome() {
       <a class="back-link" href="#/" aria-label="Yönetim Merkezine dön">${icon('back')}<span>Yönetim Merkezi</span></a>
       <div class="ws-brand">${brandAvatar(brand, brand.logoUrl)}<div style="min-width:0"><div class="ws-name">${esc(brand.name)}</div><div class="ws-sub">Marka çalışma alanı</div></div></div>`;
     // Hazır modüller üstte; sıradaki aşamalarda gelecekler altta "Yakında" başlığıyla, tıklanamaz
-    const soon = BRAND_NAV.filter(n => n.soon);
-    nav.innerHTML = BRAND_NAV.filter(n => !n.soon).map(n => navLink(base + n.path, n.label, n.icon, r.page === n.page)).join('') +
-      (soon.length ? '<div class="nav-group" aria-hidden="true">Yakında</div>' : '') +
-      soon.map(n => `<span class="nav-soon" aria-disabled="true" title="${esc(n.label)}: sıradaki aşamada geliyor">${icon(n.icon)}<span>${esc(n.label)}</span></span>`).join('');
-    const initial = esc(brand.name.trim().charAt(0).toLocaleUpperCase('tr-TR'));
-    foot.innerHTML = `<div class="side-brand">
-        ${brand.mascotUrl ? `<img class="mascot" src="${esc(brand.mascotUrl)}" alt="">` : `<div class="mascot-fallback">${initial}</div>`}
-        <div class="name">${esc(brand.name)}</div>
-        <div class="sub">Kimlik %${brand.completeness.percent}</div>
-        <a class="btn-side" href="${base}/kimlik">${brand.completeness.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
-      </div>`;
+    const closed = closedGroups();
+    const activeGroup = (BRAND_NAV.find(n => n.page === r.page) || {}).group;
+    nav.innerHTML = BRAND_GROUPS.map(([g, label]) => {
+      const open = g === activeGroup || !closed.includes(g);
+      return `<div class="nav-sec ${open ? 'open' : ''}"><button type="button" class="nav-sec-head" data-nav-group="${g}" aria-expanded="${open}">${esc(label)}${icon('chevronDown')}</button>
+        <div class="nav-sec-body">${BRAND_NAV.filter(n => n.group === g).map(n => navLink(base + n.path, n.label, n.icon, r.page === n.page)).join('')}</div></div>`;
+    }).join('');
+    nav.onclick = e => {
+      const h = e.target.closest('[data-nav-group]');
+      if (!h) return;
+      const sec = h.parentElement;
+      const open = !sec.classList.contains('open');
+      sec.classList.toggle('open', open);
+      h.setAttribute('aria-expanded', String(open));
+      const list = closedGroups().filter(x => x !== h.dataset.navGroup);
+      if (!open) list.push(h.dataset.navGroup);
+      try { localStorage.setItem(GROUP_KEY, JSON.stringify(list)); } catch { /* tercih kaydedilemezse sorun değil */ }
+    };
+    // Kimlik tamamlanma oranı marka ana sayfasındaki Dijital kimlik kartında; menünün altı sade kalır
+    foot.innerHTML = '';
   } else {
+    nav.onclick = null;
     head.innerHTML = '<div class="logo"><img class="logo-mark" src="/img/logo.svg" alt=""><div>KREATİFHANE<small>Kreatif Yönetim Platformu</small></div></div>';
     // Görev/not tam sayfaları Çalışma masası, Yapay zekâ sayfaları Ayarlar altında sayılır
     const owner = { newBrand: 'brands', tasks: 'desk', notes: 'desk', ai: 'settings' }[r.page] || r.page;
@@ -232,6 +247,7 @@ export async function route() {
   state.workspaceBrandId = brand ? brand.id : null;
   applyBrandTheme(brand); // marka yoksa yönetim merkezinin sabit renkleri
   renderChrome();
+  mountAssistant(brand, { page: r.page });
 
   try {
     if (r.layer === 'brand') {
