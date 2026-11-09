@@ -15,7 +15,8 @@ export async function renderDesk(view) {
       <aside class="widget desk-notes" id="desk-notes" aria-label="Notlar"></aside>
     </div>`;
   await Promise.all([
-    renderCalendar(view.querySelector('#desk-cal'), { embedded: true }),
+    // Eski "takvim" bağlantısıyla gelindiyse aylık görünümle açılır; menüden gelince haftalık
+    renderCalendar(view.querySelector('#desk-cal'), { embedded: true, initialMode: location.hash === '#/takvim' ? 'ay' : null }),
     taskWidget(view.querySelector('#desk-tasks')),
     noteWidget(view.querySelector('#desk-notes'))
   ]);

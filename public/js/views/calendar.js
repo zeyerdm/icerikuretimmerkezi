@@ -9,9 +9,12 @@ const PREF = 'ium.calendar.mode';
 const SPECIAL_PREF = 'ium.calendar.special';
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-export async function renderCalendar(view, { brand, embedded = false } = {}) {
-  let mode = 'ay';
-  try { mode = localStorage.getItem(PREF) === 'hafta' ? 'hafta' : 'ay'; } catch { /* tercih okunamazsa aylık */ }
+export async function renderCalendar(view, { brand, embedded = false, initialMode = null } = {}) {
+  // Çalışma masasında varsayılan haftalık (ayrı tercih); tam sayfada aylık
+  const prefKey = embedded ? 'ium.desk.calendar.mode' : PREF;
+  let mode = embedded ? 'hafta' : 'ay';
+  try { const v = localStorage.getItem(prefKey); if (v === 'hafta' || v === 'ay') mode = v; } catch { /* tercih okunamazsa varsayılan */ }
+  if (initialMode) mode = initialMode;
   let cursor = startOfDay(new Date());
   let brandFilter = brand ? brand.id : '';
   let items = [];
@@ -91,6 +94,9 @@ export async function renderCalendar(view, { brand, embedded = false } = {}) {
     }).join('')}</div>`;
   }
 
+  const unschedHtml = () => (unscheduled.length ? `<section class="cal-unsched mt-3"><div class="card-head"><h3>Tarihsiz içerikler</h3><span class="small muted">${unscheduled.length}</span></div>
+        <div class="unsched">${unscheduled.map(c => `<button class="ag-item status-${esc(c.status)}" data-item="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}"><span class="ag-title">${esc(c.title)}</span><span class="ag-meta">${esc(c.brandName)} · ${esc(c.typeLabel)} · <span class="st">${esc(c.statusLabel)}</span></span></button>`).join('')}</div></section>` : '');
+
   async function draw() {
     await load();
     const statuses = state.meta.contentStatuses;
@@ -100,7 +106,7 @@ export async function renderCalendar(view, { brand, embedded = false } = {}) {
         desc: brand ? esc(brand.name) + ' markasının planlanan ve yayınlanan içerikleri. Bir güne tıklayarak içerik planla.' : 'Bütün markaların planlanan gönderileri. Boş bir güne tıklayarak içerik planla.',
         actions: `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
       })}
-      <div class="card cal-card">
+      <div class="card cal-card${embedded ? ' desk-cal-card' : ''}">
         <div class="cal-toolbar">
           <div class="row">
             <button class="btn icon-btn" data-nav="-1" aria-label="Önceki">${icon('chevronLeft')}</button>
@@ -118,11 +124,11 @@ export async function renderCalendar(view, { brand, embedded = false } = {}) {
             </div>
           </div>
         </div>
-        ${mode === 'ay' ? monthGrid() : weekGrid()}
+        ${embedded ? '<div class="cal-scroll">' : ''}${mode === 'ay' ? monthGrid() : weekGrid()}
         <div class="cal-legend">${Object.entries(statuses).map(([k, v]) => `<span class="lg status-${k}"><i></i>${esc(v)}</span>`).join('')}
           ${brand ? '' : '<span class="small muted">Renkli çizgi: içeriğin markası</span>'}</div>
-      </div>
-      ${unscheduled.length ? `<section class="card mt-5"><div class="card-head"><h3>Tarihsiz içerikler</h3><span class="small muted">${unscheduled.length}</span></div>
+      ${embedded ? unschedHtml() + '</div>' : ''}</div>
+      ${!embedded && unscheduled.length ? `<section class="card mt-5"><div class="card-head"><h3>Tarihsiz içerikler</h3><span class="small muted">${unscheduled.length}</span></div>
         <div class="unsched">${unscheduled.map(c => `<button class="ag-item status-${esc(c.status)}" data-item="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}"><span class="ag-title">${esc(c.title)}</span><span class="ag-meta">${esc(c.brandName)} · ${esc(c.typeLabel)} · <span class="st">${esc(c.statusLabel)}</span></span></button>`).join('')}</div></section>` : ''}`;
 
     view.querySelector('#cal-special').addEventListener('change', e => {
@@ -190,7 +196,7 @@ export async function renderCalendar(view, { brand, embedded = false } = {}) {
     const m = t.closest('[data-mode]');
     if (m) {
       mode = m.dataset.mode;
-      try { localStorage.setItem(PREF, mode); } catch { /* tercih kaydedilemezse sorun değil */ }
+      try { localStorage.setItem(prefKey, mode); } catch { /* tercih kaydedilemezse sorun değil */ }
       return draw();
     }
     const more = t.closest('[data-more]');
