@@ -289,3 +289,27 @@ test('7.3 karakter kitabı kartı: poz seç, alanları doldur, kaydet, yeniden a
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('7.8 sahneli prompt ekranı: sahne kartları, bir sahne daha, elle düzenleyip kaydet', { skip }, async () => {
+  const { fakeProvider } = await import('./helpers.js');
+  const long = n => `8 saniye; sahne ${n}; 0-4 saniye süt dökülür, 4-8 saniye desen tamamlanır; yakın plan; kamera yavaşça yaklaşır; altın saat ışığı; kafe sesi; gerçekçi; ekranda yazı yok`;
+  const provider = fakeProvider([p => (p.startsWith('PROMPT STUDIO · SAHNELİ') ? { title: 'Latte', scenes: [1, 2, 3].map(n => ({ title: `S${n}`, prompt: long(n) })) } : { title: 'S4', prompt: long(4) })]);
+  const srv = await startServer({ aiProvider: provider });
+  const brand = (await srv.request('POST', '/api/brands', { name: 'Sahne' })).data.brand;
+  const p = (await srv.request('POST', `/api/brands/${brand.id}/prompts`, { kind: 'video', brief: 'Latte art', scenes: 3 })).data.prompt;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(srv.base + `/#/m/${brand.id}/prompt/${p.id}`);
+    await page.locator('.scene-card').nth(2).waitFor();
+    assert.equal(await page.locator('.scene-card').count(), 3);
+    await page.getByRole('button', { name: /Bir sahne daha üret/ }).click();
+    await page.locator('.scene-card').nth(3).waitFor();
+    await page.getByLabel('Sahne 2 metni').fill('Elle düzeltilmiş ikinci sahne');
+    await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click();
+    await page.locator('.toast', { hasText: 'Kaydedildi' }).waitFor();
+    const saved = (await srv.request('GET', `/api/brands/${brand.id}/prompts/${p.id}`)).data.prompt;
+    assert.equal(saved.scenes.length, 4);
+    assert.equal(saved.scenes[1].text, 'Elle düzeltilmiş ikinci sahne');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

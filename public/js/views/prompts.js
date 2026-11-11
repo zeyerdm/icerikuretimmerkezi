@@ -40,6 +40,7 @@ export async function renderPrompts(view, brand, sub) {
         <label class="sr-only" for="ps-brief">İstek</label>
         <textarea class="textarea" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
         <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'yazim', { id: 'ps-model' })}
+          <select class="select w-auto" id="ps-scenes" aria-label="Sahne sayısı" title="Birbirinin devamı olan sahneler (7.8)"><option value="0">Tek prompt</option>${[2, 3, 4, 5].map(n => `<option value="${n}">${n} sahne</option>`).join('')}</select>
           <span class="spacer"></span><span class="small muted">Beyin fırtınası:</span>
           <select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
           <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
@@ -129,7 +130,7 @@ export async function renderPrompts(view, brand, sub) {
       const brief = view.querySelector('#ps-brief').value.trim();
       if (!brief) return toast('Önce ne istediğini kısaca yaz.', 'error');
       try {
-        const { prompt } = await busyTimer(create, () => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null }));
+        const { prompt } = await busyTimer(create, () => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0) }));
         toast(aiNote(prompt.ai), 'success', 5000);
         go(base(brand) + '/' + prompt.id);
       } catch (err) { toast(err.message, 'error'); }
@@ -207,7 +208,13 @@ async function renderDetail(view, brand, id, models) {
                 <div class="field"><label for="pp-title">Başlık</label><input class="input" id="pp-title" maxlength="80" value="${esc(p.title)}"></div>
                 ${p.english && p.lang === 'tr' ? `<div class="notice mt-3"><div><strong>Prompt Türkçe.</strong> Oku, gerekirse düzelt; hazır olunca üretim aracı için İngilizceye çevir (Türkçesi aşağıda saklanır).</div><button class="btn btn-sm btn-primary" type="button" data-translate>İngilizceye çevir</button></div>` : ''}
                 <div class="field mt-3"><label for="pp-text">${p.english ? (p.lang === 'tr' ? 'Prompt (Türkçe)' : 'Prompt (İngilizce, üretim aracına bu verilir)') : 'Prompt'}</label>
-                  <textarea class="textarea prompt-text" id="pp-text" rows="12" maxlength="8000">${esc(p.text)}</textarea></div>
+                  ${p.scenes && p.scenes.length ? `<div class="scene-list" id="pp-scenes">${p.scenes.map((s, i) => `<article class="scene-card" data-scene="${i}">
+                      <div class="row"><b>Sahne ${i + 1}</b><input class="input input-sm" data-scene-title="${i}" maxlength="80" value="${esc(s.title)}" aria-label="Sahne ${i + 1} adı">${p.quality && p.quality.scenes && p.quality.scenes[i] ? `<span class="q-badge ${p.quality.scenes[i].ok ? 'ok' : 'bad'}" title="${esc(p.quality.scenes[i].missing.join(', '))}">%${p.quality.scenes[i].score}</span>` : ''}</div>
+                      <textarea class="textarea" data-scene-text="${i}" rows="5" maxlength="3000" aria-label="Sahne ${i + 1} metni">${esc(s.text)}</textarea>
+                      <div class="row"><button type="button" class="btn btn-sm" data-scene-act="extend" data-i="${i}">Uzat</button><input class="input input-sm" data-scene-how="${i}" maxlength="500" placeholder="Beğenmediğin kısmı nasıl değiştireyim?" aria-label="Sahne ${i + 1} için talimat"><button type="button" class="btn btn-sm" data-scene-act="rewrite" data-i="${i}">Değiştir</button></div>
+                    </article>`).join('')}
+                    <div class="row"><button type="button" class="btn btn-sm btn-primary" data-scene-act="add">${icon('plus')}Bir sahne daha üret (devamı)</button><span class="xsmall muted">Sahneleri elle de düzenleyebilirsin; Kaydet'e bas.</span></div></div>
+                  <textarea class="textarea prompt-text" id="pp-text" rows="6" maxlength="8000" readonly hidden>${esc(p.text)}</textarea>` : `<textarea class="textarea prompt-text" id="pp-text" rows="12" maxlength="8000">${esc(p.text)}</textarea>`}</div>
                 ${p.english && p.lang !== 'tr' ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="7" maxlength="8000">${esc(p.textTr)}</textarea></div>` : ''}
                 ${p.quality && p.quality.checks.length ? `<div class="q-badges mt-2" aria-label="Kalite kontrolü"><span class="xsmall muted">Kalite kontrolü %${p.quality.score}${p.ai && p.ai.qualityRetried ? ' · eksikler için bir kez daha yazıldı' : ''}:</span>${p.quality.checks.map(c => `<span class="q-badge ${c.ok ? 'ok' : 'bad'}" title="${esc(c.msg || '')}">${c.ok ? '✓' : '✗'} ${esc(c.label)}</span>`).join('')}</div>` : ''}
                 <div class="row mt-3">
@@ -227,9 +234,11 @@ async function renderDetail(view, brand, id, models) {
 
   const val = sel => { const el = view.querySelector(sel); return el ? el.value : null; };
   const hasTr = () => p.english && p.lang !== 'tr';
-  const dirty = () => val('#pp-text').trim() !== p.text || (hasTr() && val('#pp-tr').trim() !== p.textTr) || val('#pp-title').trim() !== p.title;
+  const readScenes = () => (p.scenes || []).map((s, i) => ({ title: val(`[data-scene-title="${i}"]`) || '', text: val(`[data-scene-text="${i}"]`) || '' }));
+  const scenesDirty = () => p.scenes && p.scenes.length && JSON.stringify(readScenes()) !== JSON.stringify(p.scenes);
+  const dirty = () => (p.scenes && p.scenes.length ? scenesDirty() : val('#pp-text').trim() !== p.text) || (hasTr() && val('#pp-tr').trim() !== p.textTr) || val('#pp-title').trim() !== p.title;
   async function save() {
-    const body = { title: val('#pp-title'), text: val('#pp-text') };
+    const body = p.scenes && p.scenes.length ? { title: val('#pp-title'), scenes: readScenes() } : { title: val('#pp-title'), text: val('#pp-text') };
     if (hasTr()) body.textTr = val('#pp-tr');
     p = (await api.savePrompt(brand.id, p.id, body)).prompt;
   }
@@ -267,6 +276,19 @@ async function renderDetail(view, brand, id, models) {
     if (c) return copy(c.dataset.copy === 'tr' ? val('#pp-tr') : val('#pp-text'), 'Kopyalandı.');
     const imp = t.closest('[data-improve]');
     if (imp) return improve(imp, { action: imp.dataset.improve });
+    const sa = t.closest('[data-scene-act]');
+    if (sa) {
+      const i = sa.dataset.i != null ? Number(sa.dataset.i) : null;
+      const instruction = i != null ? val(`[data-scene-how="${i}"]`) : '';
+      if (sa.dataset.sceneAct === 'rewrite' && !String(instruction || '').trim()) return toast('Önce bu sahnede neyi değiştirmek istediğini yaz.', 'error');
+      try {
+        if (dirty()) await save();
+        const res = await busyTimer(sa, () => api.promptScene(brand.id, p.id, { action: sa.dataset.sceneAct, index: i, instruction, model: val('#pp-model') || null }), 'Yazıyor');
+        p = res.prompt; lastAi = p.ai; draw();
+        toast(aiNote(p.ai), 'success', 4000);
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const trBtn = t.closest('[data-translate]');
     if (trBtn) {
       try {
