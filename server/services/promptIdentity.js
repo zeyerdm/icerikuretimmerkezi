@@ -17,7 +17,12 @@ export const IDENTITY_QUESTIONS = [
   { key: 'mascotLook', group: 'Maskot', label: 'Maskot nasıl görünüyor?', type: 'text', when: 'hasMascot', hint: 'Ör. kahve çekirdeği şeklinde, turuncu, kocaman gözlü, kırmızı atkılı' },
   { key: 'mascotVoice', group: 'Maskot', label: 'Maskot nasıl konuşur?', type: 'text', when: 'hasMascot', hint: 'Ör. kısa cümleler, esprili, "kanka" diye hitap eder' },
   { key: 'mascotMoves', group: 'Maskot', label: 'Maskot nasıl hareket eder?', type: 'text', when: 'hasMascot', hint: 'Ör. zıplayarak yürür, el sallar' },
-  { key: 'mascotNever', group: 'Maskot', label: 'Maskot asla ne yapmaz?', type: 'text', when: 'hasMascot', hint: 'Ör. kötü söz söylemez, üzgün görünmez' }
+  { key: 'mascotNever', group: 'Maskot', label: 'Maskot asla ne yapmaz?', type: 'text', when: 'hasMascot', hint: 'Ör. kötü söz söylemez, üzgün görünmez' },
+  // 7.7 Kullanıcı kontrol ayarları: her üretimde isteme girer ve kalite kontrolünde (7.6) denetlenir
+  { key: 'noBrandName', group: 'Kontrol kuralları', label: 'Marka adı prompt\'ta geçmesin', type: 'bool' },
+  { key: 'forbidNames', group: 'Kontrol kuralları', label: 'Şu isimler geçmesin', type: 'list', hint: 'Virgülle ayır: ör. rakip marka, kişi adları, ürün kod adları' },
+  { key: 'noRealPeople', group: 'Kontrol kuralları', label: 'Gerçek / ünlü kişi olmasın', type: 'bool' },
+  { key: 'allowText', group: 'Kontrol kuralları', label: 'Görselde yazıya izin ver (varsayılan: yazı yok)', type: 'bool' }
 ];
 const Q = Object.fromEntries(IDENTITY_QUESTIONS.map(q => [q.key, q]));
 const clip = (v, n) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -54,7 +59,16 @@ export function identityBlock(idt, kind = 'gorsel') {
     const m = [idt.mascotName && `adı ${idt.mascotName}`, idt.mascotLook && `görünüş: ${idt.mascotLook}`, idt.mascotVoice && `konuşma: ${idt.mascotVoice}`, idt.mascotMoves && `hareket: ${idt.mascotMoves}`, idt.mascotNever && `asla: ${idt.mascotNever}`].filter(Boolean);
     if (m.length) lines.push(`Maskot (yalnız sahnede maskot varsa ya da istekte geçiyorsa kullan; tasarımını değiştirme): ${m.join('; ')}`);
   }
-  return lines.length ? 'MARKA PROMPT KİMLİĞİ (markanın kalıcı tercihleri; istek aksini söylemedikçe uygula):\n- ' + lines.join('\n- ') : '';
+  // 7.7 kontrol kuralları (istek de bunları aşamaz)
+  const rules = [];
+  if (idt.noBrandName) rules.push('Marka adını prompt\'a YAZMA (görsel/video modeli adı yazıya dökebilir).');
+  if (idt.forbidNames && idt.forbidNames.length) rules.push(`Şu isimleri asla yazma: ${idt.forbidNames.join(', ')}.`);
+  if (idt.noRealPeople) rules.push('Gerçek ya da ünlü kişi kullanma; kişiler tanımlanamaz, kurgusal olsun.');
+  if (idt.allowText) rules.push('Görselde kısa yazıya izin var; istekte açıkça geçen yazıyı tırnak içinde yaz.');
+  const out = [];
+  if (lines.length) out.push('MARKA PROMPT KİMLİĞİ (markanın kalıcı tercihleri; istek aksini söylemedikçe uygula):\n- ' + lines.join('\n- '));
+  if (rules.length) out.push('KONTROL KURALLARI (kesin; istek aksini söylese de uygula):\n- ' + rules.join('\n- '));
+  return out.join('\n\n');
 }
 
 // 7.4: görsel üretim isteğine giden İngilizce kısa kimlik satırı (görsel modelleri İngilizceyi daha iyi anlar)
@@ -68,6 +82,8 @@ export function identityImageLine(idt) {
   if (idt.mood && idt.mood.length) l.push(`Mood: ${idt.mood.map(m => en('mood', m)).join(', ')}.`);
   if (idt.colors === 'yok') l.push('Use natural colors, do not force brand colors.');
   if (idt.avoid && idt.avoid.length) l.push(`Avoid: ${idt.avoid.join(', ')}.`);
+  if (idt.noRealPeople) l.push('No real or famous people; all people are fictional and unidentifiable.');
+  if (idt.forbidNames && idt.forbidNames.length) l.push(`Never show these names anywhere: ${idt.forbidNames.join(', ')}.`);
   return l.join(' ');
 }
 

@@ -41,3 +41,27 @@ test('7.2 API ve Prompt Studio: kimlik kaydedilir, başka markaya karışmaz, is
     assert.doesNotMatch(provider.calls.at(-1).prompt, /MARKA PROMPT KİMLİĞİ/);
   } finally { await s.stop(); }
 });
+
+test('7.7 kontrol kuralları: isteme kesin kural olarak girer, kalite kontrolü marka adı ve isimleri yakalar, görsel istemi buna uyar', async () => {
+  const { identityImageLine, identityBlock: block } = await import('../server/services/promptIdentity.js');
+  const idt = cleanIdentity({ noBrandName: true, forbidNames: 'Rakip Kafe, Ahmet', noRealPeople: true });
+  assert.match(block(idt), /KONTROL KURALLARI[\s\S]*Marka adını prompt'a YAZMA[\s\S]*Rakip Kafe, Ahmet[\s\S]*Gerçek ya da ünlü kişi/);
+  assert.match(identityImageLine(idt), /No real or famous people[\s\S]*Rakip Kafe, Ahmet/);
+
+  const provider = fakeProvider([{ title: 'T', prompt: 'Kahve Durağı içinde Ahmet kahve içiyor, orta plan, sabah ışığı, 35mm f/1.8, sıcak tonlar, samimi atmosfer, gerçekçi fotoğraf, temiz kompozisyon, yazı yok, logo yok' }]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const a = (await s.request('POST', '/api/brands', { name: 'Kahve Durağı' })).data.brand;
+    await s.request('PUT', `/api/brands/${a.id}/prompt-identity`, { noBrandName: true, forbidNames: 'Ahmet' });
+    const p = (await s.request('POST', `/api/brands/${a.id}/prompts`, { kind: 'gorsel', brief: 'Kafede sabah' })).data.prompt;
+    assert.match(provider.calls[0].prompt, /KONTROL KURALLARI[\s\S]*Marka adını prompt'a YAZMA[\s\S]*Ahmet/);
+    const names = p.quality.checks.find(c => c.key === 'names');
+    assert.equal(names.ok, false);
+    assert.match(names.msg, /Ahmet[\s\S]*Kahve Durağı|Kahve Durağı[\s\S]*Ahmet/);
+    assert.equal(p.ai.qualityRetried, true, 'isim geçtiği için bir kez daha yazılmalı');
+    // Yazıya izin verilince "yazı yok" kapanışı aranmaz
+    await s.request('PUT', `/api/brands/${a.id}/prompt-identity`, { allowText: true });
+    const p2 = (await s.request('GET', `/api/brands/${a.id}/prompts/${p.id}`)).data.prompt;
+    assert.equal(p2.quality.checks.some(c => c.key === 'negative'), false);
+  } finally { await s.stop(); }
+});
