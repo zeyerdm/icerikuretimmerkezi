@@ -184,11 +184,12 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 
 Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. Marka bu kemiği bir kez, sorular ve işaretlemelerle doldursun. Sonra o markanın bütün prompt, görsel ve senaryo üretimleri hep bu kimlikle yapılsın. Geliştiricinin arka planda elle yaptığı ayarlar her marka için ön planda, arayüzden yapılabilsin.
 
-- ⬜ **7.1 Sabit prompt kemiği:** Her prompt türü için tek, model bağımsız şablon.
+- ✅ **7.1 Sabit prompt kemiği:** Her prompt türü için tek, model bağımsız şablon.
   - Görsel/ürün/reklam/post için bölümler: rol, özne, mekân, çekim türü ve açı, ışık, lens ve alan derinliği, renk, atmosfer, stil, oran, yasaklar.
   - Video (Veo/Flow) için: süre, saniye saniye aksiyon, kamera hareketi, ses.
   - Maskot için: karakter tutarlılığı bölümü.
   - Şablon kodda tek yerde tanımlanır; her model aynı kemikle çağrılır.
+  - *Yapıldı: `server/services/promptSkeleton.js`. Görsel, ürün, reklam, post, video ve maskot için sıralı bölümler; her bölümün bir talimatı ve çıktıda var olup olmadığını yoklayan bir deseni var (7.6'da kullanılacak). Model rol cümlesini, HEX kodunu, bölüm başlıklarını ve `--ar` parametresini yazmıyor. Reels'in karakter stili artık videoya da girmiyor; yalnız maskot ve Reels türlerine giriyor. Gerçek Gemini 3 Flash ile denendi: görsel ve video çıktılarında eksik bölüm yok. Testler: tests/kemik.test.js.*
 - ⬜ **7.2 Marka prompt kişiliği sihirbazı:** Sorular ve işaretlemelerle doldurulur.
   - Görsel stil (gerçekçi / 3D / 2D / illüstrasyon), renk ve ışık tercihi, kamera dili, sık kullanılan mekânlar.
   - Hedef kitle ve his.

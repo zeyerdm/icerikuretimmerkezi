@@ -2,6 +2,7 @@
 // post tasarımı prompt'u üretme; elle düzenleme, geliştirme işlemleri ve sürüm geçmişi.
 // Görsel/video prompt'ları üretim araçları İngilizceyi daha iyi anladığı için İngilizce yazılır, Türkçesi yanında durur.
 // Metin ve Reels prompt'ları Türkçe yazılır (bir sohbet modeline verilecek talimat olarak).
+import { SKELETONS, skeletonInstruction } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf } from '../lib/http.js';
 import { polish } from './reels/rules.js';
 
@@ -64,7 +65,7 @@ export function createPromptService({ db, ai, brands, reels }) {
     const lines = ['MARKA HAFIZASI:', brands.memory(b.id)];
     // Karakter ve Reels görsel stili (3D/2D/gerçekçi) yalnız maskot, video ve Reels prompt'larına girer;
     // görsel/ürün/post/reklam prompt'larına girince istenmediği halde "3D Pixar" görünümü dayatıyordu.
-    if (reels && ['maskot', 'video', 'reels'].includes(kind)) {
+    if (reels && ['maskot', 'reels'].includes(kind)) {
       const s = reels.settings(b.id);
       lines.push(`Karakter / maskot adı: ${s.character}. Görsel stil: ${s.style === '3d' ? '3D animasyon (Pixar benzeri, yumuşak ışık)' : s.style === '2d' ? '2D çizim' : 'gerçekçi'}.`);
     }
@@ -82,17 +83,8 @@ export function createPromptService({ db, ai, brands, reels }) {
       RECIPES[kind] || ''
     ].filter(Boolean).join('\n');
   }
-  // Türe göre üretim tarifi (eski sistemde iyi sonuç veren yapı): rol, zorunlu parçalar, sabit kapanış
-  const STILL = 'one tangible subject and setting; shot type and camera angle (convert camera moves like zoom/pan into a static composition such as close-up or low angle); lighting; lens and depth of field (e.g. 35mm, f/1.8); color palette; atmosphere and mood';
-  const NEG = 'clean composition, no text, no letters, no words, no watermark, no logo, no subtitles, no UI elements';
-  const RECIPES = {
-    gorsel: `TARİF: Bir Hollywood görüntü yönetmeni ve Midjourney/Flux prompt mühendisi gibi yaz. Prompt şu sırayla tek akıcı paragraf olsun: ${STILL}. Kullanıcı stil belirtmediyse fotoğraf gerçekçiliği kullan (photorealistic, cinematic film still). Oran istekte geçiyorsa başa yaz (ör. "Vertical 9:16"). Midjourney parametresi (--ar gibi) ekleme. Prompt'u şu ifadelerle bitir: "${NEG}".`,
-    urun: `TARİF: Bir ürün fotoğrafçısı gibi yaz: ürün tek odak; zemin/yüzey, ışık kurulumu (softbox, rim light vb.), açı, lens (ör. 100mm macro), yansıma ve gölge, renk paleti, katalog ya da yaşam tarzı bağlamı. Midjourney parametresi ekleme. Şununla bitir: "${NEG}".`,
-    reklam: `TARİF: Reklam görseli için tek güçlü sahne: ${STILL}; ürün ya da faydanın görsel karşılığı ön planda, yazı için boş alan (negative space) bırak. Şununla bitir: "${NEG}".`,
-    post: `TARİF: Sosyal medya post görseli: ${STILL}; yazı eklenecek boş alan bırak. Şununla bitir: "${NEG}".`,
-    video: 'TARİF: Veo/Flow için yaz: süre (ör. 8 saniye), sahne ve özne, saniye saniye aksiyon (0-3s, 3-6s…), kamera hareketi (dolly in, pan, tracking), ışık, ortam sesi ve müzik hissi, görsel stil. Ekranda yazı ve altyazı isteme.',
-    maskot: 'TARİF: Maskotun tasarımını, oranlarını, renklerini ve yüzünü değiştirmeden koru (karakter tutarlılığı); saniye saniye aksiyon, kamera hareketi, ifade ve ses; ekranda yazı yok.'
-  };
+  // 7.1: türe göre sabit kemik (server/services/promptSkeleton.js); bütün modellerde aynı
+  const RECIPES = Object.fromEntries(Object.keys(SKELETONS).map(k => [k, skeletonInstruction(k)]));
   const SHAPE = JSON.stringify({ title: 'Kısa Türkçe başlık (en çok 60 karakter)', prompt: 'Prompt metni', promptTr: 'Türkçesi (gerekiyorsa)' });
 
   function clean(o, kind, fallbackTitle) {
