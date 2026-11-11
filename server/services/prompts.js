@@ -2,6 +2,7 @@
 // post tasarımı prompt'u üretme; elle düzenleme, geliştirme işlemleri ve sürüm geçmişi.
 // Görsel/video prompt'ları üretim araçları İngilizceyi daha iyi anladığı için İngilizce yazılır, Türkçesi yanında durur.
 // Metin ve Reels prompt'ları Türkçe yazılır (bir sohbet modeline verilecek talimat olarak).
+import { checkPrompt, retryInstruction } from './promptQuality.js';
 import { bookBlock } from './characterBook.js';
 import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
@@ -54,8 +55,15 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     db.prepare('INSERT INTO prompt_versions (id, prompt_id, note, model, brief, text, text_tr, lang, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(newId(), r.id, note, r.model || '', r.brief || '', r.text, r.text_tr || '', r.lang || 'en', now());
   }
+  // 7.6: denetim seçenekleri (marka hafızasındaki yasaklı kelimeler)
+  const qualityOpts = brandId => {
+    const m = db.prepare('SELECT banned_words FROM brands WHERE id = ?').get(brandId) || {};
+    return { banned: parseJson(m.banned_words, []) || [] };
+  };
+  const quality = r => checkPrompt(r.kind, r.text, PROMPT_KINDS[r.kind] && PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr', qualityOpts(r.brand_id));
   function detail(r) {
     return Object.assign(toPrompt(r), {
+      quality: quality(r),
       modelLabel: r.model ? ai.labelOf(r.model) : '',
       versions: db.prepare('SELECT id, note, model, created_at FROM prompt_versions WHERE prompt_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 40').all(r.id)
         .map(v => ({ id: v.id, note: v.note, model: v.model, modelLabel: v.model ? ai.labelOf(v.model) : '', createdAt: v.created_at }))
@@ -131,15 +139,27 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const lg = PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
       const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
-      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
-      const c = clean(r.output, k, want.slice(0, 60), lg);
+      let r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
+      let c = clean(r.output, k, want.slice(0, 60), lg);
+      // 7.6: zorunlu eksik varsa eksikler söylenerek bir kez daha denenir; daha iyi olan tutulur
+      let q = checkPrompt(k, c.text, lg, qualityOpts(b.id));
+      let retried = false;
+      if (!q.ok) {
+        try {
+          const r2 = await ai.run({ task: 'yazim', brandId: b.id, prompt: prompt + '\n\n' + retryInstruction(q), json: true, modelRef, temperature: 0.7 });
+          const c2 = clean(r2.output, k, want.slice(0, 60), lg);
+          const q2 = checkPrompt(k, c2.text, lg, qualityOpts(b.id));
+          retried = true;
+          if (q2.score >= q.score) { r = Object.assign(r2, { cost: (r.cost || 0) + (r2.cost || 0) }); c = c2; q = q2; }
+        } catch { /* ikinci deneme başarısızsa ilk sonuç kalır */ }
+      }
       const id = newId();
       const t = now();
       db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(id, b.id, k, c.title, want, c.text, c.textTr, r.servedRef || r.ref, lg, t, t);
       const created = row(b.id, id);
       saveVersion(created, 'İlk üretim');
-      return Object.assign(detail(created), { ai: meta(r) });
+      return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: retried }) });
     },
 
     // Beyin fırtınası: tek istekten birkaç konsept × varyasyon (kaydedilmez; beğenilen elle kaydedilir)

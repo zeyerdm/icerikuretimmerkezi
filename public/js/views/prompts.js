@@ -209,6 +209,7 @@ async function renderDetail(view, brand, id, models) {
                 <div class="field mt-3"><label for="pp-text">${p.english ? (p.lang === 'tr' ? 'Prompt (Türkçe)' : 'Prompt (İngilizce, üretim aracına bu verilir)') : 'Prompt'}</label>
                   <textarea class="textarea prompt-text" id="pp-text" rows="12" maxlength="8000">${esc(p.text)}</textarea></div>
                 ${p.english && p.lang !== 'tr' ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="7" maxlength="8000">${esc(p.textTr)}</textarea></div>` : ''}
+                ${p.quality && p.quality.checks.length ? `<div class="q-badges mt-2" aria-label="Kalite kontrolü"><span class="xsmall muted">Kalite kontrolü %${p.quality.score}${p.ai && p.ai.qualityRetried ? ' · eksikler için bir kez daha yazıldı' : ''}:</span>${p.quality.checks.map(c => `<span class="q-badge ${c.ok ? 'ok' : 'bad'}" title="${esc(c.msg || '')}">${c.ok ? '✓' : '✗'} ${esc(c.label)}</span>`).join('')}</div>` : ''}
                 <div class="row mt-3">
                   ${p.english && p.lang !== 'tr' ? '<button class="btn btn-sm btn-ghost" data-copy="tr">Türkçesini kopyala</button>' : ''}
                   <span class="xsmall muted" id="pp-note">${lastAi ? esc(aiNote(lastAi)) : p.modelLabel ? `Son yazan model: ${esc(p.modelLabel)}` : ''}</span>
