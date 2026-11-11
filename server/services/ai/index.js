@@ -10,6 +10,7 @@ const TASKS_SETTING = 'ai.tasks';
 const BUDGET_SETTING = 'ai.budget';
 const PRICES_SETTING = 'ai.prices';
 const IMAGE_SETTING = 'ai.imageModel';
+const UNAVAILABLE = 'ai.unavailable'; // erişilemeyen model ref'leri (JSON dizi)
 const keySetting = id => `ai.${id}.apiKey`;
 export const GEMINI_TEXT_MODELS = MODELS.filter(m => m.provider === 'gemini').map(m => m.id);
 // İşe göre düşünme derinliği (Claude): yazım özen ister, çeviri hızlı olmalı
@@ -19,9 +20,14 @@ function monthStart(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
 }
 
-export function createAiService(settings, { db, provider: legacyProvider, fetchImpl, providers: overrides = {} } = {}) {
+// 8.1: geçici hatada (503 yoğunluk, 429, bağlantı) aynı modelle yeniden deneme bekleme süreleri (ms)
+const RETRY_DELAYS = [1500, 4000];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+export function createAiService(settings, { db, provider: legacyProvider, fetchImpl, providers: overrides = {}, retryDelays = RETRY_DELAYS } = {}) {
   const getKey = id => process.env[PROVIDERS[id].env] || settings.get(keySetting(id)) || '';
   const keySource = id => (process.env[PROVIDERS[id].env] ? 'env' : (settings.get(keySetting(id)) ? 'settings' : null));
+  const unavailable = () => { try { const v = JSON.parse(settings.get(UNAVAILABLE) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
 
   const providers = {
     anthropic: overrides.anthropic || createAnthropicProvider({ getApiKey: () => getKey('anthropic'), fetchImpl }),
@@ -142,14 +148,30 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       primary = modelRef;
     }
     if (!primary) throw new HttpError(409, 'AI_NOT_CONFIGURED', 'AI bağlı değil. Yapay zekâ → Sağlayıcılar bölümünden bir anahtar ekle.');
-    const fb = a.fallback && a.fallback !== primary ? a.fallback : null;
+    // Yedek: işe atanmış yedek model; yoksa aynı sağlayıcının hafif modeli (ör. Gemini Flash → Flash Lite)
+    let fb = a.fallback && a.fallback !== primary ? a.fallback : null;
+    if (!fb) {
+      const p = parseRef(primary);
+      const light = p && RECOMMENDED[p.provider] && RECOMMENDED[p.provider].ceviri;
+      if (light && light !== p.id && isConfigured(p.provider)) fb = `${p.provider}:${light}`; // (run'ın modelRef parametresi catalog.modelRef'i gölgeler)
+    }
     // Video girdisinde yedek model de Gemini olmalı; değilse yedeğe geçilmez
     const fallback = fb && (!videoUrl || (parseRef(fb) || {}).provider === 'gemini') ? fb : null;
+    const args = { task, brandId, prompt, json, temperature, images, videoUrl };
+    // Geçici hatada aynı modelle kısa bekleyip en çok iki kez daha dener
+    const attempt = async ref => {
+      for (let i = 0; ; i++) {
+        try { return await runOne(ref, args); } catch (err) {
+          if (!err.transient || i >= retryDelays.length) throw err;
+          await sleep(retryDelays[i]);
+        }
+      }
+    };
     try {
-      return Object.assign(await runOne(primary, { task, brandId, prompt, json, temperature, images, videoUrl }), { fallbackUsed: false });
+      return Object.assign(await attempt(primary), { fallbackUsed: false });
     } catch (err) {
       if (!fallback || !err.retryable) throw err;
-      const r = await runOne(fallback, { task, brandId, prompt, json, temperature, images, videoUrl });
+      const r = await attempt(fallback);
       return Object.assign(r, { fallbackUsed: true, primaryError: err.message });
     }
   }
@@ -169,7 +191,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       configured: imageProviders.some(isConfigured),
       default: imageDefault(),
       aspects: IMAGE_ASPECTS,
-      models: IMAGE_MODELS.map(m => Object.assign({}, m, { ref: modelRef(m.provider, m.id), available: isConfigured(m.provider), providerLabel: PROVIDERS[m.provider].label }))
+      models: IMAGE_MODELS.map(m => { const ref = modelRef(m.provider, m.id); return Object.assign({}, m, { ref, available: isConfigured(m.provider) && !unavailable().includes(ref), unavailable: unavailable().includes(ref), providerLabel: PROVIDERS[m.provider].label }); })
     };
   }
   async function image({ brandId = null, prompt, modelRef: ref = null, aspect = '1:1', refs = [], keepAspect = false }) {
@@ -222,6 +244,43 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       };
     },
 
+    // 8.2 / 8.3: erişilemeyen modeller (canlı model listesinde yok ya da denemede "bulunamadı / kapatıldı" yanıtı verdi)
+    unavailable,
+    async checkModels() {
+      const out = { at: now(), providers: {}, missing: [] };
+      for (const id of ['anthropic', 'openai', 'gemini']) {
+        if (!isConfigured(id) || !providers[id] || !providers[id].listModels) continue;
+        try {
+          const live = new Set((await providers[id].listModels()).map(m => m.id));
+          out.providers[id] = { ok: true, count: live.size };
+          // Metin modelleri + generateContent ile çalışan Gemini görsel modelleri (Imagen ve OpenAI görsel modelleri bu listede çıkmaz)
+          const check = [...MODELS.filter(m => m.provider === id), ...IMAGE_MODELS.filter(m => m.provider === id && id === 'gemini' && m.refs)];
+          check.filter(m => !live.has(m.id)).forEach(m => out.missing.push(modelRef(id, m.id)));
+        } catch (err) { out.providers[id] = { ok: false, error: err.message }; }
+      }
+      const keep = unavailable().filter(r => !Object.keys(out.providers).includes((parseRef(r) || {}).provider));
+      settings.set(UNAVAILABLE, JSON.stringify([...new Set([...keep, ...out.missing])]));
+      return Object.assign(out, { unavailable: unavailable() });
+    },
+    async smokeTest() {
+      const rows = [];
+      const bad = new Set(unavailable());
+      for (const [task, t] of Object.entries(TASKS)) {
+        const a = assignment(task);
+        if (!a.primary) { rows.push({ task, taskLabel: t.label, ok: false, error: 'Model atanmamış.' }); continue; }
+        try {
+          const r = await runOne(a.primary, { task, brandId: null, prompt: 'Bağlantı denemesi. Yalnızca "tamam" yaz.', json: false, temperature: 0 });
+          bad.delete(a.primary);
+          rows.push({ task, taskLabel: t.label, ref: a.primary, label: labelOf(a.primary), ok: true, ms: r.ms, cost: r.cost });
+        } catch (err) {
+          if (/bulunamadı|no longer available|not found/i.test(err.message)) bad.add(a.primary);
+          rows.push({ task, taskLabel: t.label, ref: a.primary, label: labelOf(a.primary), ok: false, error: err.message });
+        }
+      }
+      settings.set(UNAVAILABLE, JSON.stringify([...bad]));
+      return { at: now(), rows, unavailable: [...bad] };
+    },
+
     overview() {
       const list = Object.entries(PROVIDERS).map(([id, p]) => {
         const key = getKey(id);
@@ -233,9 +292,9 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
         providers: list,
         models: MODELS.map(m => {
           const ref = modelRef(m.provider, m.id);
-          return Object.assign({}, m, { ref, price: priceFor(ref) || m.price, available: isConfigured(m.provider) });
+          return Object.assign({}, m, { ref, price: priceFor(ref) || m.price, available: isConfigured(m.provider), unavailable: unavailable().includes(ref) });
         }),
-        tasks: Object.entries(TASKS).map(([id, t]) => Object.assign({ id }, t, assignment(id), { primaryLabel: assignment(id).primary ? labelOf(assignment(id).primary) : null })),
+        tasks: Object.entries(TASKS).map(([id, t]) => Object.assign({ id }, t, assignment(id), { primaryLabel: assignment(id).primary ? labelOf(assignment(id).primary) : null, primaryUnavailable: unavailable().includes(assignment(id).primary) })),
         budget: budgetStatus(),
         priceOverrides: priceOverrides()
       };

@@ -14,12 +14,12 @@ export function createOpenAiCompatibleProvider({ id, label, shortLabel, baseURL,
         signal: AbortSignal.timeout(TIMEOUT_MS)
       });
     } catch (err) {
-      throw aiError('AI_UNAVAILABLE', err.name === 'TimeoutError' ? `${shortLabel} 3 dakika içinde yanıt vermedi.` : `${shortLabel} sunucusuna bağlanılamadı.`, { retryable: true });
+      throw aiError('AI_UNAVAILABLE', err.name === 'TimeoutError' ? `${shortLabel} 3 dakika içinde yanıt vermedi.` : `${shortLabel} sunucusuna bağlanılamadı.`, { retryable: true, transient: err.name !== 'TimeoutError' });
     }
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       const d = describeStatus(shortLabel, res.status, data && data.error && (data.error.message || data.error));
-      throw aiError('AI_ERROR', d.msg, { retryable: d.retryable });
+      throw aiError('AI_ERROR', d.msg, { retryable: d.retryable, transient: Boolean(d.transient) });
     }
     return data;
   }

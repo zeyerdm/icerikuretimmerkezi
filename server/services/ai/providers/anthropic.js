@@ -23,11 +23,11 @@ export function createAnthropicProvider({ getApiKey, fetchImpl, baseURL = 'https
 
   function mapError(err) {
     if (err instanceof Anthropic.APIConnectionError) {
-      return aiError('AI_UNAVAILABLE', /timeout/i.test(err.message) ? 'Claude 3 dakika içinde yanıt vermedi.' : 'Claude sunucusuna bağlanılamadı.', { retryable: true });
+      return aiError('AI_UNAVAILABLE', /timeout/i.test(err.message) ? 'Claude 3 dakika içinde yanıt vermedi.' : 'Claude sunucusuna bağlanılamadı.', { retryable: true, transient: !/timeout/i.test(err.message) });
     }
     if (err instanceof Anthropic.APIError) {
       const d = describeStatus(LABEL, err.status, err.message);
-      return aiError('AI_ERROR', d.msg, { retryable: d.retryable });
+      return aiError('AI_ERROR', d.msg, { retryable: d.retryable, transient: Boolean(d.transient) });
     }
     return err;
   }

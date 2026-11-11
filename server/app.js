@@ -1,5 +1,6 @@
 // Uygulama kurulumu: veritabanı, servisler, güvenlik katmanı ve API rotaları.
 // createApp testlerde geçici veritabanı ve sahte AI sağlayıcısıyla da kurulabilir.
+import { createCipher, isSecretKey } from './lib/secrets.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,10 +43,16 @@ import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NO
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-function createSettingsStore(db) {
+function createSettingsStore(db, cipher) {
+  const raw = key => (db.prepare('SELECT value FROM settings WHERE key = ?').get(key) || {}).value;
+  const put = (key, value) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+  // 8.6: gizli ayarlar şifreli yazılır, okunurken çözülür; eski düz metinler açılışta şifrelenir
+  for (const r of db.prepare('SELECT key, value FROM settings').all()) {
+    if (isSecretKey(r.key) && r.value && !cipher.isEncrypted(r.value)) put(r.key, cipher.encrypt(r.value));
+  }
   return {
-    get: key => (db.prepare('SELECT value FROM settings WHERE key = ?').get(key) || {}).value,
-    set: (key, value) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value),
+    get: key => (isSecretKey(key) ? cipher.decrypt(raw(key)) : raw(key)),
+    set: (key, value) => put(key, isSecretKey(key) ? cipher.encrypt(value) : value),
     remove: key => db.prepare('DELETE FROM settings WHERE key = ?').run(key)
   };
 }
@@ -93,12 +100,12 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
-  const settings = createSettingsStore(db);
-  const ai = createAiService(settings, { db, provider: aiProvider, fetchImpl, providers: aiProviders });
+  const settings = createSettingsStore(db, createCipher(dataDir));
+  const ai = createAiService(settings, { db, provider: aiProvider, fetchImpl, providers: aiProviders, retryDelays: aiRetryDelays });
   const brands = createBrandService(db, ownerId);
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
   const ideas = createIdeaService(db);
@@ -197,6 +204,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     try {
       const models = await ai.listModels(id);
       brands.logActivity(null, 'ai.connected', `${ai.overview().providers.find(p => p.id === id).label} bağlandı`);
+      ai.checkModels().catch(() => {}); // 8.2: kapatılmış önerilen modelleri işaretle (arka planda)
       res.json(Object.assign(aiOverview(), { modelCount: models.length }));
     } catch (err) {
       ai.clearApiKey(id);
@@ -213,6 +221,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     res.json(aiOverview());
   });
   api.get('/ai/usage', (req, res) => res.json(ai.usage(req.query.month ? String(req.query.month) : null)));
+  // 8.2 model listesi sağlığı, 8.3 bağlantı denemesi (her atanmış işe çok kısa gerçek istek)
+  api.post('/ai/check-models', route(async (req, res) => res.json(await ai.checkModels())));
+  api.post('/ai/smoke', route(async (req, res) => res.json(await ai.smokeTest())));
   api.post('/ai/compare', route(async (req, res) => {
     const body = req.body || {};
     res.status(201).json({ comparison: await compare.run({ brief: body.brief, kind: body.kind || 'serbest', brandId: body.brandId || null, models: body.models }) });
