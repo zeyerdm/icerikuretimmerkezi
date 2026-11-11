@@ -481,10 +481,15 @@ test('T.23 dışa aktarma: kırpma ve boyut, JPEG\'de saydam zemin beyaz, ayar d
     await page.locator('#ex-type').selectOption('image/png');
     await page.waitForFunction(() => /600×338/.test(document.querySelectorAll('.exp-row')[1].innerText) && document.querySelectorAll('.exp-row [data-dl]').length === 2);
     assert.ok(await page.locator('#ex-q').isDisabled(), 'PNG kayıpsız: kalite kapalı');
-    // ZIP: geçerli arşiv, aynı adlar numaralanır
-    const dl = page.waitForEvent('download');
-    await page.locator('[data-zip]').click();
-    const file = await (await dl).path();
+    // ZIP: çıktılar güncel ayarla hazır değilse indirme başlamaz ("hâlâ hazırlanıyor"); hazır olana kadar yeniden dene
+    let download = null;
+    for (let k = 0; k < 20 && !download; k++) {
+      const wait = page.waitForEvent('download', { timeout: 1000 }).catch(() => null);
+      await page.locator('[data-zip]').click();
+      download = await wait;
+    }
+    assert.ok(download, 'ZIP indirilemedi');
+    const file = await download.path();
     const entries = readZip(fs.readFileSync(file));
     assert.deepEqual(entries.map(e => e.name).sort(), ['kapak_16x9.png', 'kapak_16x9_2.png']);
     assert.ok(entries.every(e => Buffer.from(e.data).subarray(1, 4).toString() === 'PNG'), 'arşivdeki dosyalar PNG');
