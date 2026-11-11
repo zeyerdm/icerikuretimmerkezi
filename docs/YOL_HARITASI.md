@@ -190,11 +190,12 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
   - Maskot için: karakter tutarlılığı bölümü.
   - Şablon kodda tek yerde tanımlanır; her model aynı kemikle çağrılır.
   - *Yapıldı: `server/services/promptSkeleton.js`. Görsel, ürün, reklam, post, video ve maskot için sıralı bölümler; her bölümün bir talimatı ve çıktıda var olup olmadığını yoklayan bir deseni var (7.6'da kullanılacak). Model rol cümlesini, HEX kodunu, bölüm başlıklarını ve `--ar` parametresini yazmıyor. Reels'in karakter stili artık videoya da girmiyor; yalnız maskot ve Reels türlerine giriyor. Gerçek Gemini 3 Flash ile denendi: görsel ve video çıktılarında eksik bölüm yok. Testler: tests/kemik.test.js.*
-- ⬜ **7.2 Marka prompt kişiliği sihirbazı:** Sorular ve işaretlemelerle doldurulur.
+- ✅ **7.2 Marka prompt kişiliği sihirbazı:** Sorular ve işaretlemelerle doldurulur.
   - Görsel stil (gerçekçi / 3D / 2D / illüstrasyon), renk ve ışık tercihi, kamera dili, sık kullanılan mekânlar.
   - Hedef kitle ve his.
   - Maskot var mı; varsa nasıl konuşur, ses tonu, hitap, hareket biçimi, asla yapmadıkları.
   - Cevaplar markada "Prompt kimliği" kartı olarak saklanır ve her üretime kendiliğinden girer; istenince düzenlenir.
+  - *Yapıldı: marka menüsü → Marka yönetimi → "Prompt kimliği". Sorular üç grupta: görsel dil (stil, ışık, kamera, renk kullanımı), his (duygu, mekânlar, insanlar, asla olmasınlar) ve maskot (ad, görünüş, konuşma, hareket, asla yapmadıkları; yalnız maskot varsa açılır). Cevaplar Prompt Studio isteğine "MARKA PROMPT KİMLİĞİ" olarak giriyor, başka markaya karışmıyor. Göçüş 23: `brands.prompt_identity`. Testler: tests/prompt-kimlik.test.js, tests/ui-son.test.js. Görsel üretiminde ve senaryolarda kullanımı 7.4'te.*
 - ⬜ **7.3 Maskot karakter kitabı:** Maskot görselleri (pozlar, ifadeler) bir kez yüklenir.
   - Kitap içeriği: sabit İngilizce görünüş tarifi, renk kodları, oranlar, kıyafet, kişilik, konuşma örnekleri, yapmaz listesi.
   - Kitap AI ile görselden taslak olarak çıkarılabilir, sonra elle düzeltilir.

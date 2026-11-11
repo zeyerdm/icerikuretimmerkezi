@@ -31,6 +31,7 @@ import { renderVideo } from './views/video.js';
 import { renderCampaigns } from './views/campaigns.js';
 import { renderReport } from './views/report.js';
 import { renderYoutube } from './views/youtube.js';
+import { renderPromptIdentity } from './views/promptIdentity.js';
 import { mountAssistant } from './assistantWidget.js';
 import { initFx } from './fx.js';
 import { initI18n } from './i18n.js';
@@ -95,6 +96,7 @@ export const BRAND_NAV = [
   { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home', group: 'yonetim' },
   { page: 'kimlik', path: '/kimlik', label: 'Dijital kimlik', icon: 'identity', group: 'yonetim' },
   { page: 'hafiza', path: '/hafiza', label: 'Hafıza', icon: 'notes', group: 'yonetim' },
+  { page: 'promptkimlik', path: '/prompt-kimligi', label: 'Prompt kimliği', icon: 'wand', group: 'yonetim' },
   { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea', group: 'uretim' },
   { page: 'reels', path: '/reels', label: 'Reels', icon: 'film', group: 'uretim' },
   { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette', group: 'uretim' },
@@ -288,6 +290,7 @@ export async function route() {
       else if (r.page === 'video') await renderVideo(view, brand);
       else if (r.page === 'kampanya') await renderCampaigns(view, brand, r.sub);
       else if (r.page === 'youtube') await renderYoutube(view, brand);
+      else if (r.page === 'promptkimlik') await renderPromptIdentity(view, brand);
       else if (r.page === 'rapor') await renderReport(view, brand);
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;

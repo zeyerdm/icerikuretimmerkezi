@@ -432,6 +432,10 @@ const MIGRATIONS = [
   // 22: Aylık içerik hedefi (marka başına; 0 = hedef yok)
   `
   ALTER TABLE brands ADD COLUMN monthly_goal INTEGER NOT NULL DEFAULT 0;
+  `,
+  // 23: 7.2 Marka prompt kimliği (sihirbaz cevapları, JSON)
+  `
+  ALTER TABLE brands ADD COLUMN prompt_identity TEXT NOT NULL DEFAULT '{}';
   `
 ];
 

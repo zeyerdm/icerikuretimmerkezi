@@ -40,7 +40,7 @@ function toPrompt(row) {
   };
 }
 
-export function createPromptService({ db, ai, brands, reels }) {
+export function createPromptService({ db, ai, brands, reels, identity = null }) {
   const meta = r => ({ model: r.servedRef || r.ref, modelLabel: ai.labelOf(r.servedRef || r.ref), cost: r.cost, ms: r.ms, fallbackUsed: Boolean(r.fallbackUsed) });
 
   function row(brandId, id) {
@@ -69,6 +69,9 @@ export function createPromptService({ db, ai, brands, reels }) {
       const s = reels.settings(b.id);
       lines.push(`Karakter / maskot adı: ${s.character}. Görsel stil: ${s.style === '3d' ? '3D animasyon (Pixar benzeri, yumuşak ışık)' : s.style === '2d' ? '2D çizim' : 'gerçekçi'}.`);
     }
+    // 7.2: markanın kalıcı prompt kimliği (sihirbaz cevapları)
+    const idt = identity ? identity.block(b.id, kind) : '';
+    if (idt) lines.push('', idt);
     return lines.join('\n');
   }
   function rules(kind) {

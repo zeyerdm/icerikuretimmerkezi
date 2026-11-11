@@ -238,3 +238,28 @@ test('5.21 YouTube kapak stüdyosu: fikir al, tarifi kutuya al, tasarım aç, Yo
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('7.2 Prompt kimliği sayfası: seçim, maskot soruları açılır, kaydedilir ve yeniden açılınca gelir', { skip }, async () => {
+  const srv = await startServer();
+  const brand = (await srv.request('POST', '/api/brands', { name: 'Kimlik' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(srv.base + `/#/m/${brand.id}/prompt-kimligi`);
+    await page.getByRole('heading', { name: 'Prompt kimliği', level: 1 }).waitFor();
+    await page.locator('.chip-check', { hasText: 'Gerçekçi fotoğraf' }).click();
+    await page.locator('.chip-check', { hasText: 'Samimi' }).click();
+    await page.locator('.chip-check', { hasText: 'Enerjik' }).click();
+    assert.equal(await page.locator('[data-q="mascotName"]').isVisible(), false);
+    await page.getByLabel('Markanın bir maskotu var mı?').check();
+    await page.getByLabel('Maskotun adı').fill('Kahveci');
+    await page.getByRole('button', { name: 'Kaydet' }).click();
+    await page.locator('.toast', { hasText: 'Prompt kimliği kaydedildi' }).waitFor();
+    const idt = (await srv.request('GET', `/api/brands/${brand.id}/prompt-identity`)).data.identity;
+    assert.deepEqual([idt.visualStyle, idt.mood, idt.hasMascot, idt.mascotName], ['gercekci', ['samimi', 'enerjik'], true, 'Kahveci']);
+    await page.reload();
+    await page.getByLabel('Maskotun adı').waitFor();
+    assert.equal(await page.getByLabel('Maskotun adı').inputValue(), 'Kahveci');
+    assert.ok(await page.locator('.sidebar a[href$="/prompt-kimligi"]').count());
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

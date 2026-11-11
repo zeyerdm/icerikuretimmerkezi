@@ -25,6 +25,7 @@ import { createImageService } from './services/images.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
+import { createPromptIdentityService } from './services/promptIdentity.js';
 import { createTrashService, TRASH_DAYS } from './services/trash.js';
 import { createSearchService } from './services/search.js';
 import { createCampaignService, CAMPAIGN_KINDS } from './services/campaigns.js';
@@ -125,7 +126,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
-  const prompts = createPromptService({ db, ai, brands, reels });
+  const promptIdentity = createPromptIdentityService({ db, brands });
+  const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
   const recipes = createRecipeService({ db, ownerId, brands, prompts });
   const images = createImageService({ db, ai, brands, assets });
   const designRef = createDesignRefService({ db, ai, brands, assets });
@@ -618,6 +620,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/images', route(async (req, res) => res.status(201).json(await images.generate(req.brand.id, req.body || {}))));
   // Alan düzenleme: gövde işaretli görselin kendisi (PNG/JPEG), diğerleri adres parametresi
   api.post('/brands/:brandId/images/edit', express.raw({ type: () => true, limit: MAX_ASSET_BYTES }), route(async (req, res) => res.status(201).json(await images.editRegion(req.brand.id, { assetId: String(req.query.assetId || ''), marked: req.body, instruction: String(req.query.instruction || ''), modelRef: req.query.model ? String(req.query.model) : null }))));
+
+  // --- 7.2 Marka prompt kimliği ---
+  api.get('/brands/:brandId/prompt-identity', (req, res) => res.json({ identity: promptIdentity.get(req.brand.id), questions: promptIdentity.questions }));
+  api.put('/brands/:brandId/prompt-identity', (req, res) => res.json({ identity: promptIdentity.set(req.brand.id, req.body || {}) }));
 
   // --- YouTube kapak stüdyosu: kapak fikirleri (kaydedilmez) ---
   api.post('/brands/:brandId/youtube/ideas', route(async (req, res) => {
