@@ -5,6 +5,7 @@ import { api } from '../api.js';
 import { esc, toast, openModal, busy } from '../ui.js';
 import { busyTimer } from '../aiPicker.js';
 import { downloadBlob, safeName } from '../titlePng.js';
+import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 
 const money = c => (c ? (c < 0.01 ? '< 0,01 $' : c.toFixed(3).replace('.', ',') + ' $') : '');
 
@@ -70,6 +71,7 @@ export async function imageBox(box, brand, opts = {}) {
       ${g.aspect !== 'kaynak' ? `<button type="button" class="btn btn-sm btn-ghost" data-example="${esc(g.id)}" aria-pressed="${g.example}" title="Tarifi sonraki prompt üretimlerine örnek olarak girer (en çok 3)">${g.example ? '✓ Marka örneği' : '👍 Örnek yap'}</button>` : ''}
       <button type="button" class="btn btn-sm btn-ghost" data-region="${esc(g.id)}">Alanı düzenle</button>
       <button type="button" class="btn btn-sm btn-ghost" data-dl="${esc(g.asset.url)}">İndir</button>
+      ${feedbackButtons(g.feedback, 'image', g.id)}
       <label class="check xsmall"><input type="checkbox" data-cmp="${esc(g.id)}" ${compare.has(g.id) ? 'checked' : ''}> Karşılaştır</label></div></figure>`;
   function drawCompareBar() {
     let bar = box.querySelector('.cmp-bar');
@@ -170,6 +172,8 @@ export async function imageBox(box, brand, opts = {}) {
     const findGen = el => gens.find(x => x.id === el.dataset.detail || x.id === el.dataset.variant || x.id === el.dataset.region);
     const det = e.target.closest('[data-detail]');
     if (det) return detailModal(findGen(det));
+    const fbRow = e.target.closest('[data-fb-id]');
+    if (fbRow) { const g = gens.find(x => x.id === fbRow.dataset.fbId); if (g && await handleFeedbackClick(e, brand.id, g.feedback, fb => { g.feedback = fb; })) return; }
     const exb = e.target.closest('[data-example]');
     if (exb) {
       const g = gens.find(x => x.id === exb.dataset.example);

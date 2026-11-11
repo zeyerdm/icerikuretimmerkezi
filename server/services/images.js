@@ -117,7 +117,9 @@ export function createImageService({ db, ai, brands, assets }) {
         ? db.prepare('SELECT * FROM image_generations WHERE brand_id = ? AND prompt_id = ? ORDER BY created_at DESC LIMIT 60').all(b.id, String(promptId))
         : db.prepare('SELECT * FROM image_generations WHERE brand_id = ? ORDER BY created_at DESC LIMIT 60').all(b.id);
       const byId = new Map(assets.list(b.id).map(a => [a.id, a]));
-      return rows.filter(r => byId.has(r.asset_id)).map(r => ({ id: r.id, asset: byId.get(r.asset_id), prompt: r.prompt, model: r.model, modelLabel: ai.labelOf(r.model), aspect: r.aspect, usedRefs: Boolean(r.used_refs), example: Boolean(r.is_example), cost: r.cost_usd, createdAt: r.created_at }));
+      // 7.11: oylar
+      const fb = new Map(db.prepare("SELECT target_id, vote, reasons, note FROM feedback WHERE brand_id = ? AND target_type = 'image'").all(b.id).map(f => [f.target_id, { vote: f.vote, reasons: parseJson(f.reasons, []) || [], note: f.note }]));
+      return rows.filter(r => byId.has(r.asset_id)).map(r => ({ id: r.id, asset: byId.get(r.asset_id), prompt: r.prompt, model: r.model, modelLabel: ai.labelOf(r.model), aspect: r.aspect, usedRefs: Boolean(r.used_refs), example: Boolean(r.is_example), feedback: fb.get(r.id) || null, cost: r.cost_usd, createdAt: r.created_at }));
     }
   };
 }

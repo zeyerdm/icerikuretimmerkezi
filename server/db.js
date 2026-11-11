@@ -460,6 +460,22 @@ const MIGRATIONS = [
   `
   ALTER TABLE prompts ADD COLUMN tool TEXT NOT NULL DEFAULT '';
   ALTER TABLE prompts ADD COLUMN aspect TEXT NOT NULL DEFAULT '';
+  `,
+  // 29: 7.11 Beğen/beğenme: hedef başına tek oy ve nedenler; geçilen öneriler marka üzerinde
+  `
+  CREATE TABLE feedback (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    vote INTEGER NOT NULL,
+    reasons TEXT NOT NULL DEFAULT '[]',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (brand_id, target_type, target_id)
+  );
+  ALTER TABLE brands ADD COLUMN feedback_dismissed TEXT NOT NULL DEFAULT '{}';
   `
 ];
 
