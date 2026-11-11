@@ -62,7 +62,9 @@ export function createPromptService({ db, ai, brands, reels }) {
   // Marka bağlamı: kimlik hafızası + (maskot/Reels için) karakter adı ve görsel stil
   function context(b, kind) {
     const lines = ['MARKA HAFIZASI:', brands.memory(b.id)];
-    if (reels && ['maskot', 'video', 'reels', 'gorsel', 'post', 'reklam'].includes(kind)) {
+    // Karakter ve Reels görsel stili (3D/2D/gerçekçi) yalnız maskot, video ve Reels prompt'larına girer;
+    // görsel/ürün/post/reklam prompt'larına girince istenmediği halde "3D Pixar" görünümü dayatıyordu.
+    if (reels && ['maskot', 'video', 'reels'].includes(kind)) {
       const s = reels.settings(b.id);
       lines.push(`Karakter / maskot adı: ${s.character}. Görsel stil: ${s.style === '3d' ? '3D animasyon (Pixar benzeri, yumuşak ışık)' : s.style === '2d' ? '2D çizim' : 'gerçekçi'}.`);
     }
@@ -76,9 +78,21 @@ export function createPromptService({ db, ai, brands, reels }) {
         ? 'Prompt İngilizce yazılır (üretim araçları İngilizceyi daha iyi anlar); "promptTr" alanına aynı prompt\'un anlamca birebir Türkçesini yaz.'
         : 'Prompt Türkçe yazılır ve bir sohbet modeline verilecek açık bir talimattır; "promptTr" boş kalır.',
       'Gerçek kişi, ünlü ya da başka marka adı kullanma. Görsel/video prompt\'larında ekranda yazı, logo metni, altyazı isteme (yazı sonradan eklenir).',
-      'Markanın renklerini, tonunu ve hedef kitlesini yansıt. Tek paragraf ya da kısa bölümler; açıklama, giriş cümlesi veya madde dışı yorum ekleme.'
-    ].join('\n');
+      'Markanın renklerini, tonunu ve hedef kitlesini yansıt. Tek paragraf ya da kısa bölümler; açıklama, giriş cümlesi veya madde dışı yorum ekleme.',
+      RECIPES[kind] || ''
+    ].filter(Boolean).join('\n');
   }
+  // Türe göre üretim tarifi (eski sistemde iyi sonuç veren yapı): rol, zorunlu parçalar, sabit kapanış
+  const STILL = 'one tangible subject and setting; shot type and camera angle (convert camera moves like zoom/pan into a static composition such as close-up or low angle); lighting; lens and depth of field (e.g. 35mm, f/1.8); color palette; atmosphere and mood';
+  const NEG = 'clean composition, no text, no letters, no words, no watermark, no logo, no subtitles, no UI elements';
+  const RECIPES = {
+    gorsel: `TARİF: Bir Hollywood görüntü yönetmeni ve Midjourney/Flux prompt mühendisi gibi yaz. Prompt şu sırayla tek akıcı paragraf olsun: ${STILL}. Kullanıcı stil belirtmediyse fotoğraf gerçekçiliği kullan (photorealistic, cinematic film still). Oran istekte geçiyorsa başa yaz (ör. "Vertical 9:16"). Midjourney parametresi (--ar gibi) ekleme. Prompt'u şu ifadelerle bitir: "${NEG}".`,
+    urun: `TARİF: Bir ürün fotoğrafçısı gibi yaz: ürün tek odak; zemin/yüzey, ışık kurulumu (softbox, rim light vb.), açı, lens (ör. 100mm macro), yansıma ve gölge, renk paleti, katalog ya da yaşam tarzı bağlamı. Midjourney parametresi ekleme. Şununla bitir: "${NEG}".`,
+    reklam: `TARİF: Reklam görseli için tek güçlü sahne: ${STILL}; ürün ya da faydanın görsel karşılığı ön planda, yazı için boş alan (negative space) bırak. Şununla bitir: "${NEG}".`,
+    post: `TARİF: Sosyal medya post görseli: ${STILL}; yazı eklenecek boş alan bırak. Şununla bitir: "${NEG}".`,
+    video: 'TARİF: Veo/Flow için yaz: süre (ör. 8 saniye), sahne ve özne, saniye saniye aksiyon (0-3s, 3-6s…), kamera hareketi (dolly in, pan, tracking), ışık, ortam sesi ve müzik hissi, görsel stil. Ekranda yazı ve altyazı isteme.',
+    maskot: 'TARİF: Maskotun tasarımını, oranlarını, renklerini ve yüzünü değiştirmeden koru (karakter tutarlılığı); saniye saniye aksiyon, kamera hareketi, ifade ve ses; ekranda yazı yok.'
+  };
   const SHAPE = JSON.stringify({ title: 'Kısa Türkçe başlık (en çok 60 karakter)', prompt: 'Prompt metni', promptTr: 'Türkçesi (gerekiyorsa)' });
 
   function clean(o, kind, fallbackTitle) {
@@ -113,7 +127,7 @@ export function createPromptService({ db, ai, brands, reels }) {
       const want = text(brief, { field: 'İstek', max: 2000, required: true });
       const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
-      const r = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
+      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
       const c = clean(r.output, k, want.slice(0, 60));
       const id = newId();
       const t = now();
@@ -134,7 +148,7 @@ export function createPromptService({ db, ai, brands, reels }) {
       const prompt = ['PROMPT BEYİN FIRTINASI', `Sen '${b.name}' markası için yaratıcı yönetmensin.`, '', context(b, k), '', rules(k), '',
         `İSTEK: ${want}`, '', `GÖREV: Bu istek için birbirinden belirgin biçimde farklı ${nc} konsept öner (farklı fikir, kurgu ya da görsel dil). Her konsept için ${nv} varyasyon prompt yaz (aynı konseptin farklı kompozisyon/ışık/an/ton denemeleri).`,
         '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ concepts: [{ name: 'Konsept adı', idea: 'Tek cümle fikir', variations: [{ prompt: 'Prompt', promptTr: 'Türkçesi (gerekiyorsa)' }] }] })].join('\n');
-      const r = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 1 });
+      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 1 });
       const english = PROMPT_KINDS[k].english;
       // Boş varyasyon/konsept önce atılır, sonra sayı sınırı uygulanır (boş gelen biri istenen sayıyı düşürmesin)
       const list = (Array.isArray(r.output && r.output.concepts) ? r.output.concepts : []).map(c => ({
@@ -153,7 +167,7 @@ export function createPromptService({ db, ai, brands, reels }) {
       const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k), '',
         `KISA TASLAK:\n${t}`, '', "GÖREV: Taslağın amacını koruyarak onu ayrıntılı, üretime hazır bir prompt'a çevir (özne, ortam, kompozisyon, ışık, renk, kamera/lens, atmosfer).",
         '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
-      const r = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 0.7 });
+      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.7 });
       const c = clean(r.output, k, t.slice(0, 60));
       return { prompt: c.text, promptTr: c.textTr, ai: meta(r) };
     },
@@ -219,7 +233,7 @@ export function createPromptService({ db, ai, brands, reels }) {
       const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k), '',
         `İLK İSTEK: ${r.brief || '(elle yazılmış prompt)'}`, '', `MEVCUT PROMPT:\n${r.text}`, '', `YAPILACAK DEĞİŞİKLİK:\n${ask}`, '',
         'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
-      const out = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: action === 'kisalt' ? 0.4 : 0.8 });
+      const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: action === 'kisalt' ? 0.4 : 0.8 });
       const c = clean(out.output, k, r.title);
       db.prepare('UPDATE prompts SET brief = ?, text = ?, text_tr = ?, model = ?, updated_at = ? WHERE id = ?')
         .run(newBrief, c.text, english ? c.textTr : '', out.servedRef || out.ref, now(), r.id);

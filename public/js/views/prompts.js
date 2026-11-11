@@ -1,5 +1,5 @@
 // Prompt Studio: marka hafızasıyla prompt üretme, düzenleme, kopyalama, kaydetme; geliştirme işlemleri ve sürüm geçmişi.
-// Her üretim/geliştirme düğmesinin yanında model seçici var; seçilmezse "Çeviri ve prompt" işine atanmış model çalışır.
+// Her üretim/geliştirme düğmesinin yanında model seçici var; seçilmezse "Metin yazımı" işine atanmış model çalışır.
 import { api } from '../api.js';
 import { openRecipes } from '../recipes.js';
 import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo } from '../ui.js';
@@ -39,7 +39,7 @@ export async function renderPrompts(view, brand, sub) {
       ${aiReady ? `
         <label class="sr-only" for="ps-brief">İstek</label>
         <textarea class="textarea" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
-        <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'ceviri', { id: 'ps-model' })}
+        <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'yazim', { id: 'ps-model' })}
           <span class="spacer"></span><span class="small muted">Beyin fırtınası:</span>
           <select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
           <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
@@ -183,7 +183,7 @@ async function renderDetail(view, brand, id, models) {
         <div class="ed-body ${panel ? 'has-panel' : ''}">
           <nav class="ed-rail" aria-label="Araçlar">${rails.map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
           <aside class="ed-panel" ${panel ? '' : 'hidden'}>
-            ${panelBox('gelistir', 'Geliştir', aiReady ? `<div class="field">${modelSelect(models, 'ceviri', { id: 'pp-model' })}</div>
+            ${panelBox('gelistir', 'Geliştir', aiReady ? `<div class="field">${modelSelect(models, 'yazim', { id: 'pp-model' })}</div>
               <p class="small muted mt-2 mb-2">Her işlem yeni bir sürüm oluşturur; beğenmezsen Sürümler'den önceki sürüme dönebilirsin.</p>
               <div class="chips">${Object.entries(meta.actions).map(([k, v]) => `<button type="button" class="chip" data-improve="${k}">${esc(v)}</button>`).join('')}</div>
               <hr class="sep">

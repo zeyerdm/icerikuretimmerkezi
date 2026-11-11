@@ -180,6 +180,43 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ✅ **5.21 YouTube kapak stüdyosu** *(Banana Studio; kullanıcının isteğiyle)*: marka menüsü → İçerik üretimi → "YouTube kapağı". Videonun başlığı/konusundan (Gemini bağlıysa herkese açık YouTube bağlantısından; video doğrudan Gemini'ye girdi olarak gider) 3–6 kapak fikri: en çok 4 kelimelik kapak yazısı, vaat, yüz ifadesi, yerleşim, İngilizce yazısız görsel tarifi, renkler (kaydedilmez). "Tarifi kutuya al" → 16:9 görsel üretimi (@etiketle kimlik/stil referansları); "Tasarım olarak aç" → Post stüdyosunda yeni **YouTube kapağı** türü (1280×720; iri kalın yazı solda, yüz/maskot ya da işaretli görsel alanı sağda; oturumda üretilen son görsel zemin olur). Editörde Paylaş → **YouTube önizlemesi**: ana sayfa, arama sonucu ve telefon görünümü (başlık, süre rozeti, kanal adı). İçerik türü "YouTube videosu" (kendi yapılacaklar listesiyle); YouTube kapakları Instagram ızgarasına girmez. Testler: tests/youtube.test.js, tests/ui-son.test.js.
 - ⏸️ **5.20 Koyu tema (kullanıcının isteğiyle şimdilik kapalı):** yapıldı ama beğenilmedi; düğme ve Ayarlar'daki seçim gizlendi, uygulama her zaman açık temada. Kod duruyor; istenirse `public/js/theme.js` içinde `THEME_ENABLED = true` ile geri açılır ve yeniden tasarlanır.
 
+## Aşama 7 — Marka prompt kimliği: sabit kemik, marka başına doldurulan yapı (kullanıcının isteğiyle, sırayla)
+
+Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. Marka bu kemiği bir kez, sorular ve işaretlemelerle doldursun. Sonra o markanın bütün prompt, görsel ve senaryo üretimleri hep bu kimlikle yapılsın. Geliştiricinin arka planda elle yaptığı ayarlar her marka için ön planda, arayüzden yapılabilsin.
+
+- ⬜ **7.1 Sabit prompt kemiği:** Her prompt türü için tek, model bağımsız şablon.
+  - Görsel/ürün/reklam/post için bölümler: rol, özne, mekân, çekim türü ve açı, ışık, lens ve alan derinliği, renk, atmosfer, stil, oran, yasaklar.
+  - Video (Veo/Flow) için: süre, saniye saniye aksiyon, kamera hareketi, ses.
+  - Maskot için: karakter tutarlılığı bölümü.
+  - Şablon kodda tek yerde tanımlanır; her model aynı kemikle çağrılır.
+- ⬜ **7.2 Marka prompt kişiliği sihirbazı:** Sorular ve işaretlemelerle doldurulur.
+  - Görsel stil (gerçekçi / 3D / 2D / illüstrasyon), renk ve ışık tercihi, kamera dili, sık kullanılan mekânlar.
+  - Hedef kitle ve his.
+  - Maskot var mı; varsa nasıl konuşur, ses tonu, hitap, hareket biçimi, asla yapmadıkları.
+  - Cevaplar markada "Prompt kimliği" kartı olarak saklanır ve her üretime kendiliğinden girer; istenince düzenlenir.
+- ⬜ **7.3 Maskot karakter kitabı:** Maskot görselleri (pozlar, ifadeler) bir kez yüklenir.
+  - Kitap içeriği: sabit İngilizce görünüş tarifi, renk kodları, oranlar, kıyafet, kişilik, konuşma örnekleri, yapmaz listesi.
+  - Kitap AI ile görselden taslak olarak çıkarılabilir, sonra elle düzeltilir.
+  - Görsel üretimde maskot pozları referans olarak (Nano Banana) ve kitaptaki sabit tarifle otomatik gider.
+- ⬜ **7.4 Görsel üretimde aynı kemik:** Hazır görsel şablonları (maskotlu sahne, ürün çekimi, kampanya görseli, YouTube kapağı) markanın prompt kimliğiyle doldurulur; tek tıkla "maskotlu görsel üret".
+- ⬜ **7.5 Önce Türkçe, isteğe bağlı İngilizce:** Prompt önce Türkçe üretilir. "İngilizceye çevir" ayrı bir adımdır. Model JSON biçimiyle uğraşmaz, yalnız prompt metnini yazar.
+- ⬜ **7.6 Kalite kontrolü:**
+  - Üretilen prompt kodla denetlenir: kemiğin zorunlu bölümleri var mı, yasak kelimeler ve isimler geçiyor mu, uzunluk yeterli mi, oran doğru mu, marka adı istenmeden geçmiş mi.
+  - Eksik varsa model eksikleri söylenerek bir kez daha denenir.
+  - Sonuçta denetim rozetleri gösterilir (✓ ışık, ✓ lens, ✗ yasak kelime…).
+- ⬜ **7.7 Kullanıcı kontrol ayarları:** Marka başına kalıcı kurallar: "marka adını geçirme", "şu isimleri geçirme" (liste), "görselde yazı olmasın", "gerçek kişi yok", özel yasak kelimeler. Her üretimde isteme girer ve 7.6'da denetlenir.
+- ⬜ **7.8 Senaryolu (çok sahneli) prompt:** Eski sistemdeki gibi, ör. 3 sahnelik prompt.
+  - "Bir sahne daha üret", "devamını üret", "uzat".
+  - Beğenilmeyen kısmı seçip "bunu şöyle değiştir" talimatı.
+  - Metni elle düzenleme.
+  - Sahne kartları ve sürüm geçmişi.
+- ⬜ **7.9 Beğenilen örneği sabitleme:** Beğenilen prompt ya da görsel "marka örneği" olarak işaretlenir. Sonraki üretimlere örnek olarak girer (en çok 3), böylece model markanın sevdiği çıktıyı öğrenir.
+- ⬜ **7.10 Üretim aracına göre çıktı biçimi:** Hedef araç seçilir (Midjourney, Imagen, Nano Banana, GPT Image, Veo/Flow, Kling). Oran yazımı, negatif prompt alanı ve uzunluk araca göre ayarlanır; aynı kemik araca uygun biçimde yazılır.
+- ⬜ **7.11 Beğen/beğenme ile öğrenme:** Her üretime 👍/👎 ve kısa neden ("çok karanlık", "maskot farklı"). Tekrar eden nedenler prompt kimliğine öneri olarak düşer ("Işık tercihini 'aydınlık' yapalım mı?").
+- ⬜ **7.12 Prompt kimliğini taşıma:** Bir markanın prompt kimliği tarif olarak kaydedilip başka markaya başlangıç olarak kopyalanabilir. Dosya ve maskot görselleri taşınmaz, yalnız yapı ve cevaplar.
+- ⬜ **7.13 Model karşılaştırma:** Aynı kemik ve aynı marka kimliğiyle iki modelin prompt ya da görselini yan yana karşılaştırma. Mevcut "Model karşılaştır" ekranı genişletilir; kalite kontrolü puanı da gösterilir.
+- ⬜ **7.14 Toplu testler (T.40+):** Kemik ve sihirbaz kaydı, karakter kitabı, kalite kontrolü ve yeniden deneme, kontrol ayarlarının denetlenmesi, senaryolu prompt işlemleri, araç biçimleri.
+
 ## Aşama 6 — İleride
 
 - ❌ 6.1 Telefondan erişim (sunucuya taşıma + giriş şifresi) ve 6.2 Instagram'a doğrudan yayınlama: kullanıcının isteğiyle listeden çıkarıldı.
