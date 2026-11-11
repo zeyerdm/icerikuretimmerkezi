@@ -64,23 +64,24 @@ export async function renderExporter(view, brand) {
   }
 
   // Tek görseli ayarlara göre işler: ortadan kırp → küçült → kodla (meta veri taşınmaz)
-  async function render(it) {
+  // o: işin başladığı andaki ayarların kopyası (işlem sürerken ayar değişirse çıktı eski ayarla damgalanmasın)
+  async function render(it, o) {
     const src = await it.load();
     if (!src) throw new Error(it.name + ': görsel açılamadı.');
     const sw = src.naturalWidth || src.width; const sh = src.naturalHeight || src.height;
     let cw = sw; let ch = sh;
-    if (opts.ratio !== 'orijinal') {
-      const [a, b] = opts.ratio.split(':').map(Number);
+    if (o.ratio !== 'orijinal') {
+      const [a, b] = o.ratio.split(':').map(Number);
       if (sw / sh > a / b) cw = Math.round(sh * a / b); else ch = Math.round(sw * b / a);
     }
-    const k = +opts.width && cw > +opts.width ? +opts.width / cw : 1;
+    const k = +o.width && cw > +o.width ? +o.width / cw : 1;
     const c = document.createElement('canvas');
     c.width = Math.round(cw * k); c.height = Math.round(ch * k);
     const ctx = c.getContext('2d');
-    if (opts.type === 'image/jpeg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height); } // JPEG saydamlık taşımaz
+    if (o.type === 'image/jpeg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height); } // JPEG saydamlık taşımaz
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, c.width, c.height);
-    const blob = await new Promise(r => c.toBlob(r, opts.type, opts.quality / 100));
+    const blob = await new Promise(r => c.toBlob(r, o.type, o.quality / 100));
     if (it.out) URL.revokeObjectURL(it.out.url);
     it.out = { blob, w: c.width, h: c.height, url: URL.createObjectURL(blob) };
   }
@@ -91,7 +92,8 @@ export async function renderExporter(view, brand) {
     for (const it of items) {
       if (my !== run) return;
       if (it.out && it.outKey === JSON.stringify(opts)) continue;
-      try { await render(it); it.outKey = JSON.stringify(opts); } catch (err) { toast(err.message, 'error'); continue; }
+      const o = Object.assign({}, opts);
+      try { await render(it, o); it.outKey = JSON.stringify(o); } catch (err) { toast(err.message, 'error'); continue; }
       const row = view.querySelector(`[data-key="${CSS.escape(it.key)}"]`);
       if (row && my === run) row.outerHTML = outRow(it);
     }
