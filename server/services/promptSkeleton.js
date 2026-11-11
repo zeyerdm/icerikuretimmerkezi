@@ -2,6 +2,7 @@
 // Her bölümün adı, modele talimatı ve çıktıda var olup olmadığını anlamak için kaba bir deseni vardır
 // (desenler 7.6 kalite kontrolünde kullanılır). Marka kimliği (7.2) bu kemiğin içini doldurur; kemik değişmez.
 export const NEGATIVE_TAIL = 'clean composition, no text, no letters, no words, no watermark, no logo, no subtitles, no UI elements';
+export const NEGATIVE_TAIL_TR = 'temiz kompozisyon, yazı yok, harf yok, kelime yok, filigran yok, logo yok, altyazı yok, arayüz öğesi yok';
 
 // test: İngilizce prompt'ta bölümün varlığını yoklayan desen (yoksa bölüm yalnız talimattır, denetlenmez)
 const S = {
@@ -35,10 +36,10 @@ export const SKELETONS = {
 export const sectionsOf = kind => (SKELETONS[kind] ? SKELETONS[kind].sections.map(k => Object.assign({ key: k }, S[k])) : []);
 
 // Modele giden tarif: rol + bölümlerin sırası; kemik bütün modellerde aynıdır
-export function skeletonInstruction(kind) {
+export function skeletonInstruction(kind, lang = 'en') {
   const sk = SKELETONS[kind];
   if (!sk) return '';
-  const list = sectionsOf(kind).map((s, i) => `${i + 1}) ${s.ask}`).join('; ');
+  const list = sectionsOf(kind).map((s, i) => `${i + 1}) ${s.key === 'negative' && lang === 'tr' ? `şu kapanışla bitir: "${NEGATIVE_TAIL_TR}"` : s.ask}`).join('; ');
   return [
     `KEMİK (her zaman aynı yapı): ${sk.role} gibi yaz (rol cümlesini prompt'a yazma). Prompt şu bölümleri bu sırayla, tek akıcı metin hâlinde içersin: ${list}.`,
     'Renkleri HEX kodu olarak değil adıyla tarif et (ör. burnt orange, deep navy). Bölüm başlığı (Lighting:, Sound: gibi) yazma.',

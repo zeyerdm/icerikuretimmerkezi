@@ -27,7 +27,7 @@ test('Prompt Studio: üret, düzenle, geliştir, seçili bölüm, girişi deği�
     assert.ok(meta.actions.kamera && meta.actions.alternatif);
 
     assert.equal((await s.request('POST', `/api/brands/${brand.id}/prompts`, { kind: 'yok', brief: 'x' })).status, 400);
-    const c = await s.request('POST', `/api/brands/${brand.id}/prompts`, { kind: 'maskot', brief: 'Maskot sabah kampüste koşuyor' });
+    const c = await s.request('POST', `/api/brands/${brand.id}/prompts`, { kind: 'maskot', brief: 'Maskot sabah kampüste koşuyor', lang: 'en' });
     assert.equal(c.status, 201, JSON.stringify(c.data));
     const p = c.data.prompt;
     assert.equal(p.english, true);
@@ -90,5 +90,41 @@ test('Prompt Studio: üret, düzenle, geliştir, seçili bölüm, girişi deği�
 
     assert.equal((await s.request('DELETE', `/api/brands/${brand.id}/prompts/${p.id}`)).status, 204);
     assert.equal((await s.request('GET', `/api/brands/${brand.id}/prompts/${p.id}`)).status, 404);
+  } finally { await s.stop(); }
+});
+
+test('7.5 önce Türkçe: İngilizce türler Türkçe yazılır, tek tıkla çevrilir; Türkçesi saklanır; sürüme dönünce dil de döner', async () => {
+  const provider = fakeProvider([p => {
+    if (p.startsWith('PROMPT ÇEVİRİSİ')) return { prompt: 'Two students in a campus garden, medium shot, golden light, 35mm f/1.8, clean composition, no text, no logo' };
+    return { title: 'Kampüs sabahı', prompt: 'Kampüs bahçesinde iki öğrenci, orta plan, altın saat ışığı, 35mm f/1.8, temiz kompozisyon, yazı yok, logo yok', promptTr: 'yok sayılmalı' };
+  }]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const brand = (await s.request('POST', '/api/brands', { name: 'Dil' })).data.brand;
+    const c = (await s.request('POST', `/api/brands/${brand.id}/prompts`, { kind: 'gorsel', brief: 'Kampüste sabah' })).data.prompt;
+    assert.equal(c.lang, 'tr');
+    assert.match(c.text, /Kampüs bahçesinde/);
+    assert.equal(c.textTr, '', 'Türkçe yazımda Türkçesi alanı boş');
+    assert.match(provider.calls.at(-1).prompt, /Prompt TÜRKÇE yazılır[\s\S]*şu kapanışla bitir: "temiz kompozisyon, yazı yok/);
+
+    const t = (await s.request('POST', `/api/brands/${brand.id}/prompts/${c.id}/translate`, {})).data.prompt;
+    assert.equal(t.lang, 'en');
+    assert.match(t.text, /^Two students/);
+    assert.match(t.textTr, /^Kampüs bahçesinde/, 'Türkçesi saklanır');
+    assert.match(provider.calls.at(-1).prompt, /PROMPT ÇEVİRİSİ[\s\S]*no text, no letters[\s\S]*TÜRKÇE PROMPT:\nKampüs bahçesinde/);
+    assert.equal(t.versions[0].note, 'İngilizceye çevrildi');
+    assert.equal((await s.request('POST', `/api/brands/${brand.id}/prompts/${c.id}/translate`, {})).status, 400, 'zaten İngilizce');
+
+    // İlk (Türkçe) sürüme dönünce dil de Türkçeye döner
+    const first = t.versions.find(v => v.note === 'İlk üretim');
+    const back = (await s.request('POST', `/api/brands/${brand.id}/prompts/${c.id}/restore`, { versionId: first.id })).data.prompt;
+    assert.equal(back.lang, 'tr');
+    assert.match(back.text, /Kampüs bahçesinde/);
+
+    // İstenirse doğrudan İngilizce; Türkçe türlerde çeviri yok
+    const en = (await s.request('POST', `/api/brands/${brand.id}/prompts`, { kind: 'gorsel', brief: 'x', lang: 'en' })).data.prompt;
+    assert.equal(en.lang, 'en');
+    const metin = (await s.request('POST', `/api/brands/${brand.id}/prompts`, { kind: 'metin', brief: 'Açıklama yaz' })).data.prompt;
+    assert.equal((await s.request('POST', `/api/brands/${brand.id}/prompts/${metin.id}/translate`, {})).status, 400);
   } finally { await s.stop(); }
 });

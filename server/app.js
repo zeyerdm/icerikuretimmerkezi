@@ -652,7 +652,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/prompts', (req, res) => res.json({ prompts: prompts.list(req.brand.id, { kind: req.query.kind || null, q: req.query.q || '' }) }));
   api.post('/brands/:brandId/prompts', route(async (req, res) => {
     const b = req.body || {};
-    const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b) });
+    const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b), lang: b.lang === 'en' ? 'en' : 'tr' });
     res.status(201).json({ prompt });
   }));
   api.post('/brands/:brandId/prompts/brainstorm', route(async (req, res) => { const b = req.body || {}; res.json(await prompts.brainstorm(req.brand.id, { kind: b.kind, brief: b.brief, concepts: b.concepts, variations: b.variations, modelRef: mr(b) })); }));
@@ -660,6 +660,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.get(req.brand.id, req.params.id) }));
   api.put('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.update(req.brand.id, req.params.id, req.body || {}) }));
   api.delete('/brands/:brandId/prompts/:id', (req, res) => trashed(res, 'prompt', req.params.id, () => prompts.remove(req.brand.id, req.params.id)));
+  api.post('/brands/:brandId/prompts/:id/translate', route(async (req, res) => res.json({ prompt: await prompts.translate(req.brand.id, req.params.id, { modelRef: mr(req.body || {}) }) })));
   api.post('/brands/:brandId/prompts/:id/improve', route(async (req, res) => {
     const b = req.body || {};
     res.json({ prompt: await prompts.improve(req.brand.id, req.params.id, { action: b.action, brief: b.brief, selection: b.selection, instruction: b.instruction, modelRef: mr(b) }) });

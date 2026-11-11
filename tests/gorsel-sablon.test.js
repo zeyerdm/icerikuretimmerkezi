@@ -50,7 +50,7 @@ test('7.4 görsel üretimi: prompt kimliği isteğe girer, istenirse kapatılır
     await s.request('PUT', `/api/brands/${a.id}/character-book`, { name: 'Kahveci', lookEn: 'A round coffee bean', poseAssetIds: [pose.id] });
     const r = await s.request('POST', `/api/brands/${a.id}/images/template`, { template: 'maskot', answers: ['el sallıyor', 'kampüs bahçesi'], model: imgModel });
     assert.equal(r.status, 201, JSON.stringify(r.data));
-    const textCall = g.calls.filter(c => !c.model.includes('image')).at(-1);
+    const textCall = g.calls.filter(c => !c.model.includes('image') && /PROMPT STUDIO/.test(c.body.contents[0].parts.at(-1).text)).at(-1);
     assert.match(textCall.body.contents[0].parts.at(-1).text, /MARKA PROMPT KİMLİĞİ[\s\S]*KEMİK[\s\S]*Markanın maskotu el sallıyor\. Mekân: kampüs bahçesi/);
     const imgCall = g.calls.at(-1);
     assert.equal(imgCall.body.generationConfig.imageConfig.aspectRatio, '4:5');

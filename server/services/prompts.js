@@ -3,7 +3,7 @@
 // Görsel/video prompt'ları üretim araçları İngilizceyi daha iyi anladığı için İngilizce yazılır, Türkçesi yanında durur.
 // Metin ve Reels prompt'ları Türkçe yazılır (bir sohbet modeline verilecek talimat olarak).
 import { bookBlock } from './characterBook.js';
-import { SKELETONS, skeletonInstruction } from './promptSkeleton.js';
+import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { polish } from './reels/rules.js';
 
@@ -37,6 +37,7 @@ function toPrompt(row) {
     id: row.id, brandId: row.brand_id, kind: row.kind, kindLabel: (PROMPT_KINDS[row.kind] || {}).label || row.kind,
     english: Boolean((PROMPT_KINDS[row.kind] || {}).english),
     title: row.title, brief: row.brief, text: row.text, textTr: row.text_tr, favorite: Boolean(row.favorite), model: row.model,
+    lang: (PROMPT_KINDS[row.kind] || {}).english ? (row.lang || 'en') : 'tr',
     createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
@@ -50,8 +51,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     return r;
   }
   function saveVersion(r, note) {
-    db.prepare('INSERT INTO prompt_versions (id, prompt_id, note, model, brief, text, text_tr, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(newId(), r.id, note, r.model || '', r.brief || '', r.text, r.text_tr || '', now());
+    db.prepare('INSERT INTO prompt_versions (id, prompt_id, note, model, brief, text, text_tr, lang, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(newId(), r.id, note, r.model || '', r.brief || '', r.text, r.text_tr || '', r.lang || 'en', now());
   }
   function detail(r) {
     return Object.assign(toPrompt(r), {
@@ -80,24 +81,25 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     }
     return lines.join('\n');
   }
-  function rules(kind) {
+  // lang: 'tr' → İngilizce türler de önce Türkçe yazılır (7.5); 'en' → İngilizce + Türkçesi
+  function rules(kind, lang = 'en') {
     const k = PROMPT_KINDS[kind];
     return [
       `PROMPT TÜRÜ: ${k.label} (${k.hint}).`,
-      k.english
+      k.english && lang === 'en'
         ? 'Prompt İngilizce yazılır (üretim araçları İngilizceyi daha iyi anlar); "promptTr" alanına aynı prompt\'un anlamca birebir Türkçesini yaz.'
-        : 'Prompt Türkçe yazılır ve bir sohbet modeline verilecek açık bir talimattır; "promptTr" boş kalır.',
+        : k.english
+          ? 'Prompt TÜRKÇE yazılır (kullanıcı önce Türkçesini okuyup düzenler, sonra tek tıkla İngilizceye çevrilir); kemikteki bölüm sırasına uy, görsel terimleri (çekim türü, lens, ışık) Türkçe yaz; "promptTr" boş kalır.'
+          : 'Prompt Türkçe yazılır ve bir sohbet modeline verilecek açık bir talimattır; "promptTr" boş kalır.',
       'Gerçek kişi, ünlü ya da başka marka adı kullanma. Görsel/video prompt\'larında ekranda yazı, logo metni, altyazı isteme (yazı sonradan eklenir).',
       'Markanın renklerini, tonunu ve hedef kitlesini yansıt. Tek paragraf ya da kısa bölümler; açıklama, giriş cümlesi veya madde dışı yorum ekleme.',
-      RECIPES[kind] || ''
+      SKELETONS[kind] ? skeletonInstruction(kind, k.english ? lang : 'en') : ''
     ].filter(Boolean).join('\n');
   }
-  // 7.1: türe göre sabit kemik (server/services/promptSkeleton.js); bütün modellerde aynı
-  const RECIPES = Object.fromEntries(Object.keys(SKELETONS).map(k => [k, skeletonInstruction(k)]));
   const SHAPE = JSON.stringify({ title: 'Kısa Türkçe başlık (en çok 60 karakter)', prompt: 'Prompt metni', promptTr: 'Türkçesi (gerekiyorsa)' });
 
-  function clean(o, kind, fallbackTitle) {
-    const english = PROMPT_KINDS[kind].english;
+  function clean(o, kind, fallbackTitle, lang = 'en') {
+    const english = PROMPT_KINDS[kind].english && lang === 'en';
     const textOut = String((o && o.prompt) || '').trim().slice(0, MAX_TEXT);
     if (!textOut) throw badRequest('Model boş prompt döndürdü; tekrar dene ya da başka model seç.');
     return {
@@ -122,18 +124,19 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     get(brandId, id) { return detail(row(brands.get(brandId).id, id)); },
 
     // AI ile yeni prompt: kısa tarif (brief) → tam prompt
-    async create(brandId, { kind, brief, modelRef = null } = {}) {
+    async create(brandId, { kind, brief, modelRef = null, lang = 'tr' } = {}) {
       const b = brands.get(brandId);
       const k = oneOf(kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
       const want = text(brief, { field: 'İstek', max: 2000, required: true });
-      const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k), '',
+      const lg = PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
+      const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
       const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
-      const c = clean(r.output, k, want.slice(0, 60));
+      const c = clean(r.output, k, want.slice(0, 60), lg);
       const id = newId();
       const t = now();
-      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, b.id, k, c.title, want, c.text, c.textTr, r.servedRef || r.ref, t, t);
+      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, b.id, k, c.title, want, c.text, c.textTr, r.servedRef || r.ref, lg, t, t);
       const created = row(b.id, id);
       saveVersion(created, 'İlk üretim');
       return Object.assign(detail(created), { ai: meta(r) });
@@ -205,12 +208,31 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       return detail(u);
     },
 
+    // 7.5: Türkçe yazılmış prompt'u İngilizceye çevirir; Türkçesi "Türkçesi" alanına geçer, İngilizce üretim aracına verilir
+    async translate(brandId, id, { modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const r = row(b.id, id);
+      if (!PROMPT_KINDS[r.kind].english) throw badRequest('Bu tür Türkçe kullanılır; çeviri gerekmez.');
+      if ((r.lang || 'en') === 'en') throw badRequest('Prompt zaten İngilizce.');
+      const prompt = ['PROMPT ÇEVİRİSİ', 'Aşağıdaki Türkçe üretim prompt\'unu İngilizceye çevir. Anlamı, bölüm sırasını ve ayrıntıları koru; görsel/video üretim araçlarının kullandığı İngilizce terimleri kullan (shot types, lens, lighting). Yeni bilgi ekleme, açıklama yazma.',
+        SKELETONS[r.kind] && SKELETONS[r.kind].sections.includes('negative') ? `Türkçe kapanışı tam olarak şu İngilizce ifadeyle değiştir: "${NEGATIVE_TAIL}"` : '',
+        '', `TÜRKÇE PROMPT:\n${r.text}`, '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ prompt: 'English prompt' })].filter(Boolean).join('\n');
+      const out = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 0.2 });
+      const en = String((out.output && out.output.prompt) || '').trim().slice(0, MAX_TEXT);
+      if (!en) throw badRequest('Model çeviri döndürmedi; tekrar dene.');
+      db.prepare("UPDATE prompts SET text = ?, text_tr = ?, lang = 'en', updated_at = ? WHERE id = ?").run(en, r.text, now(), r.id);
+      const u = row(b.id, r.id);
+      saveVersion(u, 'İngilizceye çevrildi');
+      return Object.assign(detail(u), { ai: meta(out) });
+    },
+
     // Geliştirme: hazır işlem, girişi değiştirip yeniden yazma ya da seçili bölümü yeniden yazma
     async improve(brandId, id, { action, brief = null, selection = '', instruction = '', modelRef = null } = {}) {
       const b = brands.get(brandId);
       const r = row(b.id, id);
       const k = r.kind;
-      const english = PROMPT_KINDS[k].english;
+      const lg = PROMPT_KINDS[k].english ? (r.lang || 'en') : 'tr';
+      const english = PROMPT_KINDS[k].english && lg === 'en';
       let ask;
       let note;
       let newBrief = r.brief;
@@ -231,11 +253,11 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         ask = a.ask;
         note = a.label;
       }
-      const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k), '',
+      const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg), '',
         `İLK İSTEK: ${r.brief || '(elle yazılmış prompt)'}`, '', `MEVCUT PROMPT:\n${r.text}`, '', `YAPILACAK DEĞİŞİKLİK:\n${ask}`, '',
         'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
       const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: action === 'kisalt' ? 0.4 : 0.8 });
-      const c = clean(out.output, k, r.title);
+      const c = clean(out.output, k, r.title, lg);
       db.prepare('UPDATE prompts SET brief = ?, text = ?, text_tr = ?, model = ?, updated_at = ? WHERE id = ?')
         .run(newBrief, c.text, english ? c.textTr : '', out.servedRef || out.ref, now(), r.id);
       const u = row(b.id, r.id);
@@ -248,7 +270,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const r = row(b.id, id);
       const v = db.prepare('SELECT * FROM prompt_versions WHERE id = ? AND prompt_id = ?').get(String(versionId), r.id);
       if (!v) throw notFound('Sürüm bulunamadı.');
-      db.prepare('UPDATE prompts SET brief = ?, text = ?, text_tr = ?, model = ?, updated_at = ? WHERE id = ?').run(v.brief, v.text, v.text_tr, v.model, now(), r.id);
+      db.prepare('UPDATE prompts SET brief = ?, text = ?, text_tr = ?, model = ?, lang = ?, updated_at = ? WHERE id = ?').run(v.brief, v.text, v.text_tr, v.model, v.lang || 'en', now(), r.id);
       const u = row(b.id, r.id);
       saveVersion(u, 'Önceki sürüme dönüldü');
       return detail(u);
