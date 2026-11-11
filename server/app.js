@@ -22,6 +22,7 @@ import { createReelsService } from './services/reels/index.js';
 import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
+import { createFeedbackService } from './services/feedback.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
@@ -130,6 +131,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
+  const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
   const recipes = createRecipeService({ db, ownerId, brands, prompts });
   const images = createImageService({ db, ai, brands, assets });
@@ -166,7 +168,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     reels: reels.meta,
     posts: { kinds: posts.kinds, formats: posts.formats, kindDefaults: posts.kindDefaults },
     reviewKinds: review.kinds,
-    prompts: { kinds: prompts.kinds, actions: prompts.actions, aspects: prompts.aspects }
+    prompts: { kinds: prompts.kinds, actions: prompts.actions, aspects: prompts.aspects },
+    feedbackReasons: feedback.reasons
   }));
 
   // --- Ayarlar (AI anahtarı yalnızca yazılır, hiçbir zaman geri okunmaz) ---
@@ -633,6 +636,11 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/prompt-identity', (req, res) => res.json({ identity: promptIdentity.get(req.brand.id), questions: promptIdentity.questions }));
   api.put('/brands/:brandId/prompt-identity', (req, res) => res.json({ identity: promptIdentity.set(req.brand.id, req.body || {}) }));
   // 7.3 Maskot karakter kitabı
+  // 7.11 Beğen/beğenme ve kimlik önerileri
+  api.put('/brands/:brandId/feedback', (req, res) => res.json(feedback.set(req.brand.id, req.body || {})));
+  api.get('/brands/:brandId/feedback/suggestions', (req, res) => res.json({ suggestions: feedback.suggestions(req.brand.id) }));
+  api.post('/brands/:brandId/feedback/suggestions/:reason/apply', (req, res) => res.json(feedback.apply(req.brand.id, req.params.reason)));
+  api.post('/brands/:brandId/feedback/suggestions/:reason/dismiss', (req, res) => res.json(feedback.dismiss(req.brand.id, req.params.reason)));
   api.get('/brands/:brandId/character-book', (req, res) => res.json({ book: characterBook.get(req.brand.id) }));
   api.put('/brands/:brandId/character-book', (req, res) => res.json({ book: characterBook.set(req.brand.id, req.body || {}) }));
   api.post('/brands/:brandId/character-book/draft', route(async (req, res) => res.json(await characterBook.draft(req.brand.id, { modelRef: mr(req.body || {}) }))));

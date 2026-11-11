@@ -6,6 +6,7 @@ import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo } from '../u
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 import { imageBox } from './imageGen.js';
+import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 
 // Görsel üretilebilen prompt türleri (video ve metin türleri için görsel üretilmez)
 const IMAGE_KINDS = { gorsel: '1:1', urun: '1:1', reklam: '4:5', post: '4:5' };
@@ -244,7 +245,7 @@ async function renderDetail(view, brand, id, models) {
             </div>
           </main>
         </div>
-        <footer class="ed-bottom"><span class="small muted">${esc(p.kindLabel)} · ${p.text.length} karakter · ${p.versions.length} sürüm</span><span class="spacer"></span>${p.example ? '<span class="small">👍 Marka örneği</span> ' : ''}${p.favorite ? '<span class="small">★ Favori</span>' : ''}</footer>
+        <footer class="ed-bottom"><span class="small muted">${esc(p.kindLabel)} · ${p.text.length} karakter · ${p.versions.length} sürüm</span><span class="spacer"></span>${feedbackButtons(p.feedback, 'prompt', p.id)}${p.example ? '<span class="small">👍 Marka örneği</span> ' : ''}${p.favorite ? '<span class="small">★ Favori</span>' : ''}</footer>
       </div>`;
     document.body.classList.add('editor-mode');
     if (IMAGE_KINDS[p.kind]) imageBox(view.querySelector('#pp-image'), brand, { getPrompt: () => val('#pp-text'), promptId: p.id, aspect: IMAGE_KINDS[p.kind], mentionTarget: () => view.querySelector('#pp-text') });
@@ -301,6 +302,7 @@ async function renderDetail(view, brand, id, models) {
       try { await save(); lastAi = null; draw(); toast('Kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
       return;
     }
+    if (await handleFeedbackClick(e, brand.id, p.feedback, fb => { p.feedback = fb; })) return;
     const ct = t.closest('[data-copy-tool]');
     if (ct) return copy(val(`[data-tool-out="${ct.dataset.copyTool}"]`), 'Kopyalandı.');
     const c = t.closest('[data-copy]');

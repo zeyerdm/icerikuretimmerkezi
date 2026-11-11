@@ -82,9 +82,15 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     const scenes = toPrompt(r).scenes;
     return scenes.length ? sceneQuality(r.kind, scenes, qLang(r), qualityOpts(r.brand_id)) : checkPrompt(r.kind, r.text, qLang(r), qualityOpts(r.brand_id));
   };
+  // 7.11: bu prompt'a verilen oy (yoksa null)
+  const fbOf = (brandId, type, id) => {
+    const f = db.prepare('SELECT vote, reasons, note FROM feedback WHERE brand_id = ? AND target_type = ? AND target_id = ?').get(brandId, type, id);
+    return f ? { vote: f.vote, reasons: parseJson(f.reasons, []) || [], note: f.note } : null;
+  };
   function detail(r) {
     return Object.assign(toPrompt(r), {
       quality: quality(r),
+      feedback: fbOf(r.brand_id, 'prompt', r.id),
       // 7.10: hedef araca göre kopyalanacak çıktı (yalnız İngilizce hâlde)
       toolOutput: PROMPT_KINDS[r.kind].english && (r.lang || 'en') === 'en' ? toolOutput(r.kind, r.tool, r.text, r.aspect) : null,
       modelLabel: r.model ? ai.labelOf(r.model) : '',

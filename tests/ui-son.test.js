@@ -339,3 +339,37 @@ test('7.9/7.10 arayüz: marka örneği yap, hedef araç seç ve araç çıktıs�
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('7.11 arayüz: 👍/👎 ve neden; tekrar eden neden Prompt kimliğinde öneri olur ve uygulanır', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Oy UI' })).data.brand;
+  const mk = async n => (await srv.request('POST', `/api/brands/${b.id}/prompts`, { manual: true, kind: 'gorsel', title: `P${n}`, text: `Prompt ${n}` })).data.prompt;
+  const ps = [await mk(1), await mk(2), await mk(3)];
+  for (const p of ps.slice(0, 2)) await srv.request('PUT', `/api/brands/${b.id}/feedback`, { targetType: 'prompt', targetId: p.id, vote: -1, reasons: ['karanlik'] });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/prompt/${ps[2].id}`);
+    await page.locator('#pp-text').fill('Prompt 3 elle değişti');
+    await page.locator('.ed-bottom [data-fb="1"]').click();
+    await page.locator('.ed-bottom [data-fb="1"][aria-pressed="true"]').waitFor();
+    assert.equal(await page.locator('#pp-text').inputValue(), 'Prompt 3 elle değişti', 'oy kaydedilmemiş düzenlemeyi silmez');
+    await page.locator('.ed-bottom [data-fb="-1"]').click();
+    await page.locator('.modal label', { hasText: 'Çok karanlık' }).click();
+    await page.locator('#fb-note').fill('gece gibi');
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.ed-bottom [data-fb="-1"][aria-pressed="true"]').waitFor();
+    await page.locator('.toast', { hasText: 'öneri çıktı' }).waitFor();
+    const fb = (await srv.request('GET', `/api/brands/${b.id}/prompts/${ps[2].id}`)).data.prompt.feedback;
+    assert.deepEqual(fb, { vote: -1, reasons: ['karanlik'], note: 'gece gibi' });
+
+    await page.goto(`${srv.base}/#/m/${b.id}/prompt-kimligi`);
+    const card = page.locator('#fb-suggest');
+    await card.waitFor();
+    assert.match(await card.innerText(), /Çok karanlık[\s\S]*3 kez/);
+    await card.getByRole('button', { name: 'Uygula' }).click();
+    await page.locator('#pi-form input[name="lighting"][value="dogal"]:checked').waitFor();
+    assert.equal(await page.locator('#fb-suggest').isHidden(), true);
+    assert.equal((await srv.request('GET', `/api/brands/${b.id}/prompt-identity`)).data.identity.lighting, 'dogal');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

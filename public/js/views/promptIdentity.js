@@ -2,6 +2,7 @@
 // prompt üretimlerine kendiliğinden girer (Prompt Studio). Sorular sabit, cevaplar markaya özel.
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, busy } from '../ui.js';
+import { suggestionsCard } from '../feedback.js';
 
 export async function renderPromptIdentity(view, brand) {
   const { identity, questions } = await api.promptIdentity(brand.id);
@@ -53,6 +54,8 @@ export async function renderPromptIdentity(view, brand) {
     } catch (err) { toast(err.message, 'error'); }
   });
   await characterBookCard(view, brand);
+  // 7.11: tekrar eden 👎 nedenlerinden öneriler (uygulanınca sayfa yeni kimlikle yeniden çizilir)
+  await suggestionsCard(form, brand, () => renderPromptIdentity(view, brand));
 }
 
 // 7.3 Maskot karakter kitabı

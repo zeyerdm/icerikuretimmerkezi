@@ -1695,3 +1695,11 @@ html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; c
 .scene-list { display: grid; gap: 12px; }
 .scene-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; background: var(--surface); }
 .scene-card .row .input { flex: 1; min-width: 0; }
+
+/* 7.11 Beğen/beğenme */
+.fb-row { display: inline-flex; gap: 2px; align-items: center; }
+.fb-btn { opacity: .55; filter: grayscale(.6); }
+.fb-btn.on, .fb-btn:hover { opacity: 1; filter: none; }
+.fb-btn.on { background: var(--brand-soft); }
+.fb-sug { align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.fb-sug:first-child { border-top: 0; }
