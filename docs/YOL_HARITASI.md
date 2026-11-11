@@ -217,6 +217,46 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ⬜ **7.13 Model karşılaştırma:** Aynı kemik ve aynı marka kimliğiyle iki modelin prompt ya da görselini yan yana karşılaştırma. Mevcut "Model karşılaştır" ekranı genişletilir; kalite kontrolü puanı da gösterilir.
 - ⬜ **7.14 Toplu testler (T.40+):** Kemik ve sihirbaz kaydı, karakter kitabı, kalite kontrolü ve yeniden deneme, kontrol ayarlarının denetlenmesi, senaryolu prompt işlemleri, araç biçimleri.
 
+## Aşama 8 — Sistem geneli eksikler (Claude'un önerisi, öncelik sırasıyla)
+
+**A. Yapay zekâ güvenilirliği**
+- ⬜ **8.1 Otomatik yeniden deneme ve yedek model:**
+  - "Yoğunluk var" (503) ve 429 hatalarında kısa beklemeyle 2 deneme.
+  - Sonra aynı sağlayıcının bir alt modeline geçiş, ör. Flash → Flash Lite.
+  - Kullanıcı hatayı yalnız hepsi başarısız olursa görür.
+- ⬜ **8.2 Model listesi sağlığı:**
+  - Katalogdaki modeller (metin ve görsel) bağlı hesabın canlı model listesiyle açılışta karşılaştırılır.
+  - Kaldırılmış ya da erişilemeyen model (ör. `gemini-2.5-flash` yeni kullanıcılara kapalı) seçilemez; atamalar uyarı verir ve yerine öneri sunulur.
+- ⬜ **8.3 Gerçek AI duman testi:** Ayarlar'da "Bağlantıları dene" düğmesi her atanmış işe çok kısa bir istek gönderir; çalışan/çalışmayan, süre ve tutar tablosu çıkar. Geliştirici için aynı kontrol bir betik olarak da olur.
+- ⬜ **8.4 Uzun üretimde akış (streaming):** Senaryo ve post metni yazılırken metin parça parça görünür; uzun beklemede iptal düğmesi.
+- ⬜ **8.5 Üretim öncesi tahmini tutar:** Ağır işlerde (senaryo, görsel, karşılaştırma) düğmenin yanında yaklaşık maliyet; aylık bütçeye yaklaşınca uyarı.
+
+**B. Güvenlik ve veri**
+- ⬜ **8.6 API anahtarlarını şifreli saklama:** Anahtarlar veritabanında açık metin. İşletim sisteminin anahtar zinciri (Windows Credential Manager / macOS Keychain) ya da makineye bağlı şifreleme kullanılmalı. Yedek dosyasına anahtar girmemesi sürüyor.
+- ⬜ **8.7 Kütüphane dosyaları için çöp kutusu:** Silinen görseller şu an geri alınamıyor; 30 günlük geri alma görseller için de olmalı.
+- ⬜ **8.8 Veri dışa aktarma:** Marka başına bütün kayıtlar (fikir, senaryo, takvim, notlar) JSON/CSV olarak indirilir; takvim .ics olarak Google/Outlook takvimine aktarılır.
+
+**C. Performans**
+- ⬜ **8.9 Büyük veride hız:** Yönetim Merkezi ve takvim bütün içerikleri tek seferde yüklüyor; sayfalama, tarih aralığıyla yükleme ve sık sorgular için veritabanı indeksleri gerekiyor. 5.000 içerikle ölçüm yapılmalı.
+- ⬜ **8.10 Görsel küçük resimleri:** Kütüphane ve ızgara tam boy dosyaları yüklüyor; sunucuda küçük resim (ör. 400 px) üretilip önbelleğe alınmalı.
+
+**D. Ürün eksikleri ve yeni özellik önerileri**
+- ⬜ **8.11 Onay akışı:** "Onay bekliyor" durumu var ama onaylayan yok. Onaya gönder → yorum → onayla/düzelt; içerik kartında onay geçmişi. Ekipte tek kullanıcı varsa kendi kontrol listesi olarak çalışır.
+- ⬜ **8.12 Instagram sonuçlarını içe aktarma:** Paylaşım sonuçları elle giriliyor. Instagram/Meta "İstatistikler" CSV dışa aktarımı yüklenince içeriklerle eşleştirilip metrikler doldurulur (API bağlantısı istemez).
+- ⬜ **8.13 Seslendirme (TTS):** Reels senaryosundaki repliklerin markanın sesiyle seslendirilmesi. Gemini TTS modelleri bağlı hesapta görünüyor. Ses video sayfasındaki klip ve altyazıyla birleştirilir.
+- ⬜ **8.14 Metinden video (Banana Studio'nun alınmayan özelliği):** Veo / Seedance gibi video sağlayıcısı anahtarı bağlanınca sahne prompt'larından kısa video üretimi. Bağlı değilse düğme gösterilmez (sahte üretim yok).
+- ⬜ **8.15 Hashtag ve açıklama setleri:** Markaya kayıtlı, tek tıkla eklenen hashtag grupları ve imza açıklama kapanışları; yasaklı kelime denetimiyle.
+- ⬜ **8.16 Haftalık plan sihirbazı:** "Bu hafta 5 içerik" deyince fikir havuzu, özel günler ve aylık hedefe göre takvim taslağı. Kullanıcı onaylayınca takvime yazılır.
+
+**E. Kalite**
+- ⬜ **8.17 Erişilebilirlik denetimi:** Bütün sayfalarda otomatik erişilebilirlik taraması (kontrast, etiket, klavye sırası) ve bulguların düzeltilmesi.
+- ⬜ **8.18 Kısmi toplu testlerin tamamlanması:** 🟡 işaretli T. maddelerinde kalan kısımlar (çoğu arayüz ayrıntısı).
+- ⬜ **8.19 Hata günlüğü ekranı:** Ayarlar'da son sunucu ve AI hataları (zaman, iş, model, mesaj); "destek için kopyala" düğmesi.
+
+**F. Bekleyenler**
+- ⏸️ 6.3 Arayüz dili (TR/EN): altyapı hazır, çeviri bekliyor (~2.050 metin).
+- ⏸️ 5.20 Koyu tema: kullanıcının isteğiyle kapalı.
+
 ## Aşama 6 — İleride
 
 - ❌ 6.1 Telefondan erişim (sunucuya taşıma + giriş şifresi) ve 6.2 Instagram'a doğrudan yayınlama: kullanıcının isteğiyle listeden çıkarıldı.
