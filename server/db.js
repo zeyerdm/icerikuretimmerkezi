@@ -440,6 +440,11 @@ const MIGRATIONS = [
   // 24: 7.3 Maskot karakter kitabı (JSON)
   `
   ALTER TABLE brands ADD COLUMN character_book TEXT NOT NULL DEFAULT '{}';
+  `,
+  // 25: 7.5 Prompt dili: İngilizce türler önce Türkçe yazılır ('tr'), istenince İngilizceye çevrilir ('en')
+  `
+  ALTER TABLE prompts ADD COLUMN lang TEXT NOT NULL DEFAULT 'en';
+  ALTER TABLE prompt_versions ADD COLUMN lang TEXT NOT NULL DEFAULT 'en';
   `
 ];
 

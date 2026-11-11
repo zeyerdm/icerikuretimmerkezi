@@ -56,7 +56,7 @@ export async function renderPrompts(view, brand, sub) {
 
   const hint = () => {
     const k = meta.kinds[kind];
-    view.querySelector('#ps-hint').textContent = `${k.hint}.${k.english ? ' Prompt İngilizce yazılır, Türkçesi yanında durur.' : ' Prompt Türkçe yazılır.'}`;
+    view.querySelector('#ps-hint').textContent = `${k.hint}.${k.english ? ' Prompt önce Türkçe yazılır; hazır olunca tek tıkla İngilizceye çevrilir.' : ' Prompt Türkçe yazılır.'}`;
   };
   hint();
 
@@ -205,11 +205,12 @@ async function renderDetail(view, brand, id, models) {
             <div class="ed-doc-inner">
               <section class="card">
                 <div class="field"><label for="pp-title">Başlık</label><input class="input" id="pp-title" maxlength="80" value="${esc(p.title)}"></div>
-                <div class="field mt-3"><label for="pp-text">${p.english ? 'Prompt (İngilizce, üretim aracına bu verilir)' : 'Prompt'}</label>
+                ${p.english && p.lang === 'tr' ? `<div class="notice mt-3"><div><strong>Prompt Türkçe.</strong> Oku, gerekirse düzelt; hazır olunca üretim aracı için İngilizceye çevir (Türkçesi aşağıda saklanır).</div><button class="btn btn-sm btn-primary" type="button" data-translate>İngilizceye çevir</button></div>` : ''}
+                <div class="field mt-3"><label for="pp-text">${p.english ? (p.lang === 'tr' ? 'Prompt (Türkçe)' : 'Prompt (İngilizce, üretim aracına bu verilir)') : 'Prompt'}</label>
                   <textarea class="textarea prompt-text" id="pp-text" rows="12" maxlength="8000">${esc(p.text)}</textarea></div>
-                ${p.english ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="7" maxlength="8000">${esc(p.textTr)}</textarea></div>` : ''}
+                ${p.english && p.lang !== 'tr' ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="7" maxlength="8000">${esc(p.textTr)}</textarea></div>` : ''}
                 <div class="row mt-3">
-                  ${p.english ? '<button class="btn btn-sm btn-ghost" data-copy="tr">Türkçesini kopyala</button>' : ''}
+                  ${p.english && p.lang !== 'tr' ? '<button class="btn btn-sm btn-ghost" data-copy="tr">Türkçesini kopyala</button>' : ''}
                   <span class="xsmall muted" id="pp-note">${lastAi ? esc(aiNote(lastAi)) : p.modelLabel ? `Son yazan model: ${esc(p.modelLabel)}` : ''}</span>
                 </div>
               </section>
@@ -224,10 +225,11 @@ async function renderDetail(view, brand, id, models) {
   draw();
 
   const val = sel => { const el = view.querySelector(sel); return el ? el.value : null; };
-  const dirty = () => val('#pp-text').trim() !== p.text || (p.english && val('#pp-tr').trim() !== p.textTr) || val('#pp-title').trim() !== p.title;
+  const hasTr = () => p.english && p.lang !== 'tr';
+  const dirty = () => val('#pp-text').trim() !== p.text || (hasTr() && val('#pp-tr').trim() !== p.textTr) || val('#pp-title').trim() !== p.title;
   async function save() {
     const body = { title: val('#pp-title'), text: val('#pp-text') };
-    if (p.english) body.textTr = val('#pp-tr');
+    if (hasTr()) body.textTr = val('#pp-tr');
     p = (await api.savePrompt(brand.id, p.id, body)).prompt;
   }
   async function improve(btn, body) {
@@ -264,6 +266,16 @@ async function renderDetail(view, brand, id, models) {
     if (c) return copy(c.dataset.copy === 'tr' ? val('#pp-tr') : val('#pp-text'), 'Kopyalandı.');
     const imp = t.closest('[data-improve]');
     if (imp) return improve(imp, { action: imp.dataset.improve });
+    const trBtn = t.closest('[data-translate]');
+    if (trBtn) {
+      try {
+        if (dirty()) await save();
+        const res = await busyTimer(trBtn, () => api.translatePrompt(brand.id, p.id, {}), 'Çeviriyor');
+        p = res.prompt; lastAi = p.ai; draw();
+        toast('İngilizceye çevrildi; Türkçesi aşağıda.', 'success');
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const selBtn = t.closest('[data-selected]');
     if (selBtn) {
       const ta = view.querySelector('#pp-text');

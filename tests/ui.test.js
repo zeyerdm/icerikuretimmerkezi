@@ -547,7 +547,10 @@ function stage3Provider() {
   return fakeProvider([prompt => {
     if (prompt.startsWith('REELS FİKİR HAVUZU')) return { ideas: [{ text: 'AI fikri: kütüphane kahvesi', category: 'eglenceli' }] };
     if (prompt.startsWith('ÇEVİRİ GÖREVİ')) return '0-3s: Kahveci grabs the cup fast. 3-6s: Kahveci laughs.';
-    if (prompt.startsWith('PROMPT STUDIO')) return { title: 'Kampüs koşusu', prompt: 'A cheerful coffee bean mascot runs across campus at sunrise', promptTr: 'Neşeli kahve çekirdeği maskot gün doğumunda kampüste koşuyor' };
+    if (prompt.startsWith('PROMPT STUDIO')) return prompt.includes('Prompt TÜRKÇE yazılır')
+      ? { title: 'Kampüs koşusu', prompt: 'Neşeli kahve çekirdeği maskot gün doğumunda kampüste koşuyor' }
+      : { title: 'Kampüs koşusu', prompt: 'A cheerful coffee bean mascot runs across campus at sunrise', promptTr: 'Neşeli kahve çekirdeği maskot gün doğumunda kampüste koşuyor' };
+    if (prompt.startsWith('PROMPT ÇEVİRİSİ')) return { prompt: 'A cheerful coffee bean mascot runs across campus at sunrise' };
     if (prompt.startsWith('PROMPT GELİŞTİRME')) return prompt.includes('YALNIZCA şu bölümünü')
       ? { title: 'Kampüs koşusu', prompt: 'A cheerful coffee bean mascot runs across campus under neon lights at night', promptTr: 'Gece neon ışıklar altında' }
       : { title: 'Kampüs koşusu', prompt: 'Low angle drone shot: a cheerful coffee bean mascot runs across campus at sunrise', promptTr: 'Alt açıdan drone çekimi' };
@@ -711,36 +714,43 @@ test('Prompt Studio: tür seç, üret, kopyala, geliştir, seçili bölümü yen
     await page.getByRole('link', { name: 'Prompt Studio' }).click();
     await page.getByRole('heading', { name: 'Prompt Studio' }).waitFor();
     await page.getByRole('radio', { name: 'Maskot animasyonu' }).click();
-    assert.match(await page.locator('#ps-hint').textContent(), /İngilizce/);
+    assert.match(await page.locator('#ps-hint').textContent(), /önce Türkçe[\s\S]*İngilizceye/);
     await page.locator('#ps-brief').fill('Maskot sabah kampüste koşuyor');
     await page.getByRole('button', { name: 'Prompt üret' }).click();
     await page.getByRole('heading', { name: 'Kampüs koşusu' }).waitFor();
+    // 7.5: önce Türkçe; tek tıkla İngilizceye çevrilir, Türkçesi saklanır
+    assert.match(await page.locator('#pp-text').inputValue(), /kampüste koşuyor/);
+    assert.equal(await page.locator('#pp-tr').count(), 0);
+    await page.getByRole('button', { name: 'İngilizceye çevir' }).click();
+    await page.locator('#pp-tr').waitFor();
     assert.match(await page.locator('#pp-text').inputValue(), /runs across campus at sunrise/);
     assert.match(await page.locator('#pp-tr').inputValue(), /kampüste koşuyor/);
 
     // Hazır geliştirme işlemi yeni sürüm oluşturur
     await page.getByRole('button', { name: 'Kamera açısını değiştir' }).click();
     await page.waitForFunction(() => document.querySelector('#pp-text') && document.querySelector('#pp-text').value.startsWith('Low angle'));
-    assert.equal(await page.locator('.version-list li').count(), 2);
+    assert.equal(await page.locator('.version-list li').count(), 3);
 
     // Seçili bölümü yeniden yaz
     await page.locator('#pp-text').evaluate(ta => { const i = ta.value.indexOf('at sunrise'); ta.focus(); ta.setSelectionRange(i, i + 'at sunrise'.length); });
     await page.locator('#pp-instr').fill('gece olsun');
     await page.getByRole('button', { name: 'Seçili bölümü yaz' }).click();
     await page.waitForFunction(() => document.querySelector('#pp-text') && document.querySelector('#pp-text').value.includes('neon'));
-    assert.equal(await page.locator('.version-list li').count(), 3);
+    assert.equal(await page.locator('.version-list li').count(), 4);
 
     // İlk sürüme dön (Sürümler panelinden)
     await page.locator('.ed-rail').getByRole('button', { name: 'Sürümler' }).click();
     await page.locator('.version-list li').last().getByRole('button', { name: 'Geri dön' }).click();
     // Seçili bölüm sonrası metin de "A cheerful" ile başlıyor: geri dönüşü sürüm sayısıyla ve "neon"un gitmesiyle bekle
-    await page.waitForFunction(() => document.querySelectorAll('.version-list li').length === 4);
-    assert.equal(await page.locator('#pp-text').inputValue(), 'A cheerful coffee bean mascot runs across campus at sunrise');
+    await page.waitForFunction(() => document.querySelectorAll('.version-list li').length === 5);
+    // İlk sürüm Türkçeydi: metin ve dil birlikte döner
+    assert.equal(await page.locator('#pp-text').inputValue(), 'Neşeli kahve çekirdeği maskot gün doğumunda kampüste koşuyor');
+    assert.equal(await page.locator('#pp-tr').count(), 0);
 
     // Elle düzenleyip kaydet, listede görün, sil
     await page.locator('#pp-text').fill('Elle düzeltilmiş prompt');
     await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
-    await page.waitForFunction(() => document.querySelectorAll('.version-list li').length === 5);
+    await page.waitForFunction(() => document.querySelectorAll('.version-list li').length === 6);
     await page.getByRole('link', { name: "Prompt'lar" }).click();
     await page.locator('#ps-list .pool-item').first().waitFor();
     assert.match(await page.locator('#ps-list').textContent(), /Elle düzeltilmiş prompt/);

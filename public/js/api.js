@@ -199,6 +199,7 @@ export const api = {
   savePrompt: (id, pid, body) => request('PUT', `${b(id)}/prompts/${pid}`, body),
   deletePrompt: (id, pid) => request('DELETE', `${b(id)}/prompts/${pid}`),
   improvePrompt: (id, pid, body) => request('POST', `${b(id)}/prompts/${pid}/improve`, body),
+  translatePrompt: (id, pid, body) => request('POST', `${b(id)}/prompts/${pid}/translate`, body || {}),
   promptVersion: (id, pid, vid) => request('GET', `${b(id)}/prompts/${pid}/versions/${vid}`),
   restorePrompt: (id, pid, versionId) => request('POST', `${b(id)}/prompts/${pid}/restore`, { versionId }),
   driveUpload: (id, blob, name, mime) => request('POST', `${b(id)}/drive/upload?name=${encodeURIComponent(name)}&mime=${encodeURIComponent(mime)}`, blob, { 'Content-Type': 'application/octet-stream' }),

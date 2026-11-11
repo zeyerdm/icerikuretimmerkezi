@@ -17,7 +17,9 @@ export function createImageTemplateService({ prompts, images }) {
       if (!t) throw badRequest('Geçersiz şablon.');
       const a = text(answers[0], { field: t.questions[0], max: 300, required: true });
       const b = text(answers[1], { field: t.questions[1], max: 300 });
-      const p = await prompts.create(brandId, { kind: t.kind, brief: t.brief(a, b), modelRef: textModel });
+      // Türkçe yazılır (7.5), görsel modeline İngilizcesi gider
+      const tr = await prompts.create(brandId, { kind: t.kind, brief: t.brief(a, b), modelRef: textModel, lang: 'tr' });
+      const p = await prompts.translate(brandId, tr.id, {});
       const img = await images.generate(brandId, { prompt: p.text, aspect: t.aspect, useMascot: t.useMascot, promptId: p.id, model });
       return { prompt: { id: p.id, title: p.title, text: p.text }, asset: img.asset, ai: img.ai };
     }
