@@ -4,11 +4,12 @@
 import { newId, now, text, badRequest, notFound, oneOf, parseJson, HttpError, HEX } from '../lib/http.js';
 import { polish } from './reels/rules.js';
 
-export const POST_KINDS = { carousel: 'Carousel', post: 'Tek görsel post', story: 'Story', kapak: 'Reels kapağı', reklam: 'Reklam', grafik: 'Bilgi grafiği' };
+export const POST_KINDS = { carousel: 'Carousel', post: 'Tek görsel post', story: 'Story', kapak: 'Reels kapağı', reklam: 'Reklam', grafik: 'Bilgi grafiği', youtube: 'YouTube kapağı' };
 // Türün varsayılan boyutu ve takvimdeki içerik türü
 export const KIND_DEFAULTS = { carousel: { format: '4:5', content: 'carousel' }, post: { format: '4:5', content: 'post' }, story: { format: '9:16', content: 'story' },
-  kapak: { format: '9:16', content: 'reels' }, reklam: { format: '4:5', content: 'reklam' }, grafik: { format: '4:5', content: 'grafik' } };
-export const POST_FORMATS = { '4:5': { w: 1080, h: 1350, label: 'Dikey 4:5' }, '1:1': { w: 1080, h: 1080, label: 'Kare 1:1' }, '9:16': { w: 1080, h: 1920, label: 'Story 9:16' } };
+  kapak: { format: '9:16', content: 'reels' }, reklam: { format: '4:5', content: 'reklam' }, grafik: { format: '4:5', content: 'grafik' },
+  youtube: { format: '16:9', content: 'youtube' } };
+export const POST_FORMATS = { '4:5': { w: 1080, h: 1350, label: 'Dikey 4:5' }, '1:1': { w: 1080, h: 1080, label: 'Kare 1:1' }, '9:16': { w: 1080, h: 1920, label: 'Story 9:16' }, '16:9': { w: 1280, h: 720, label: 'YouTube 16:9' } };
 const MAX_SLIDES = 10;
 const MAX_LAYERS = 30;
 const LAYER_TYPES = ['text', 'image', 'shape', 'qr'];
@@ -45,6 +46,30 @@ export function layoutSlides({ texts, brand, format = '4:5', kind = 'carousel', 
     return n;
   };
   // Tek slaytlık özel türler: Reels kapağı, reklam, bilgi grafiği, story
+  // YouTube kapağı (16:9): sol yarıda çok büyük, en çok 4 kelimelik kapak yazısı; sağda yüz/maskot ya da açıkça işaretli görsel alanı.
+  // Küçük önizlemede (≈ 168×94 px) okunabilsin diye yazı iri ve kalın, zemin tek renk; logo küçük köşede.
+  if (kind === 'youtube') {
+    const t = texts[0] || { title: '' };
+    const onP = readableOn(primary);
+    const layers = [];
+    const wordList = String(t.title || '').split(/\s+/).filter(Boolean);
+    const ix = Math.round(F.w * 0.6);
+    const tw = ix - 60 - 36; // görsel alanına taşmasın
+    // Kelime sayısına göre iri yazı; en uzun kelime tek satıra sığacak kadar küçültülür (kalın harf ≈ 0,7 × boy)
+    const longest = Math.max(1, ...wordList.map(w => w.length));
+    const size = Math.max(24, Math.min(wordList.length <= 2 ? 150 : wordList.length <= 4 ? 118 : 92, Math.floor(tw / (longest * 0.7))));
+    const ty = Math.max(40, Math.round(F.h / 2 - (lines(t.title, size, tw) * size * 1.1) / 2) - (t.body ? 40 : 0));
+    layers.push({ id: id(), type: 'text', role: 'title', text: t.title, x: 60, y: ty, w: tw, size, color: onP, font: fonts.heading, weight: 900, align: 'left' });
+    if (t.body) layers.push({ id: id(), type: 'text', role: 'body', text: t.body, x: 64, y: ty + Math.round(lines(t.title, size, tw) * size * 1.15) + 18, w: tw, size: 44, color: onP, font: fonts.body, weight: 700, align: 'left' });
+    const iw = F.w - ix - 30; const ih = F.h - 60;
+    if (mascotUrl) layers.push({ id: id(), type: 'image', assetId: mascotId, src: mascotUrl, x: ix, y: 30, w: iw, h: ih });
+    else {
+      layers.push({ id: id(), type: 'shape', shape: 'rect', x: ix, y: 30, w: iw, h: ih, color: '#e5e7eb', radius: 24 });
+      layers.push({ id: id(), type: 'text', role: 'label', text: 'Yüz / görsel alanı', x: ix, y: 30 + Math.round(ih / 2) - 20, w: iw, size: 34, color: '#6b7280', font: fonts.body, weight: 600, align: 'center' });
+    }
+    if (logoUrl) layers.push({ id: id(), type: 'image', assetId: logoId, src: logoUrl, x: 40, y: F.h - 130, w: 90, h: 90 });
+    return [{ bg: primary, layers }];
+  }
   if (['kapak', 'reklam', 'grafik', 'story'].includes(kind)) {
     const t = texts[0] || { title: '' };
     const layers = [];
@@ -174,18 +199,21 @@ const KIND_TASK = {
   story: 'GÖREV: Tek ekranlık bir Instagram story metni yaz: kısa başlık (en fazla 6 kelime) ve 1-2 kısa cümle (en fazla 140 karakter). Samimi, anlık bir dil.',
   kapak: 'GÖREV: Bir Reels videosunun kapak görseli için metin yaz: profil ızgarasında okunacak çok kısa ve merak uyandıran başlık (en fazla 5 kelime); body isteğe bağlı en fazla 6 kelimelik alt başlık.',
   reklam: 'GÖREV: Tek görsellik bir Instagram reklamı metni yaz: güçlü başlık (en fazla 7 kelime), faydayı anlatan tek cümle (en fazla 120 karakter) ve "cta" alanına 2-3 kelimelik eylem çağrısı (ör. Hemen dene). Abartılı ya da yanıltıcı iddia kullanma.',
+  youtube: 'GÖREV: Bir YouTube videosunun kapak (thumbnail) metnini yaz: videonun ana vaadini anlatan, küçük önizlemede okunacak çok kısa kapak yazısı (en fazla 4 kelime, başlığı tekrar etmesin, merak uyandırsın); body isteğe bağlı en fazla 3 kelime. caption alanına YouTube video açıklaması yaz.',
   grafik: 'GÖREV: Tek görsellik bir bilgi grafiği metni yaz: başlık (en fazla 6 kelime) ve "items" alanında 4-6 kısa madde (her biri en fazla 70 karakter, somut bilgi).'
 };
 
 function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf }) {
   return [
-    `Sen '${brandName}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI (dil ve kitle buna uysun):', memory, '',
+    kind === 'youtube' ? `Sen '${brandName}' markasının YouTube kapak ve içerik yazarısın.` : `Sen '${brandName}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI (dil ve kitle buna uysun):', memory, '',
     `KONU: ${topic}`, '',
     KIND_TASK[kind] ? KIND_TASK[kind] : kind === 'carousel'
       ? `GÖREV: ${slideCount} slaytlık bir Instagram carousel metni yaz. 1. slayt kapak: merak uyandıran kısa başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt başlık. Diğer slaytlar: her birinde kısa başlık (en fazla 6 kelime) ve 1-3 kısa cümlelik açıklama (en fazla 220 karakter). Son slayt akılda kalan bir özet ya da sonuç olsun. Slaytlar birbirini tekrar etmesin.`
       : 'GÖREV: Tek görsellik bir Instagram postu metni yaz: kısa, vurucu başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt metin.',
     rewriteOf ? `\nÖNCEKİ METİN (farklı ve daha iyi yaz, kopyalama):\n${rewriteOf}` : '',
-    "Görsel üzerindeki metinler kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına Instagram açıklaması (400-1000 karakter, merak uyandıran ilk satır, yorum sorusu), 'hashtags' alanına en fazla 5 hashtag yaz.",
+    kind === 'youtube'
+      ? "Kapak yazısı kalın ve iri basılacak; kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına YouTube video açıklaması (ilk iki satır videonun vaadini anlatsın, 400-1500 karakter), 'hashtags' alanına en fazla 3 hashtag yaz."
+      : "Görsel üzerindeki metinler kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına Instagram açıklaması (400-1000 karakter, merak uyandıran ilk satır, yorum sorusu), 'hashtags' alanına en fazla 5 hashtag yaz.",
     '', 'Sadece şu JSON biçiminde yanıt ver:',
     JSON.stringify({ title: 'İçeriğin kısa adı', slides: [Object.assign({ title: 'Slayt başlığı', body: 'Kısa açıklama' }, kind === 'grafik' ? { items: ['Madde 1', 'Madde 2'] } : {}, kind === 'reklam' ? { cta: 'Hemen dene' } : {})], caption: 'Açıklama', hashtags: ['#ornek'] })
   ].filter(Boolean).join('\n');

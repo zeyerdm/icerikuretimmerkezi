@@ -7,6 +7,7 @@ import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 import { drawSlide, resolveImages, slideBlob, hitTest } from '../postCanvas.js';
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
+import { youtubePreview } from './youtube.js';
 
 const base = brand => `#/m/${encodeURIComponent(brand.id)}/post`;
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -144,7 +145,9 @@ async function renderGrid(view, brand) {
   try { withDrafts = localStorage.getItem('ium.grid.drafts') === '1'; } catch { /* varsayılan */ }
   const [{ posts }, { reels }, { contents }, logos] = await Promise.all([api.posts(brand.id), api.reelsList(brand.id), api.contents({ brandId: brand.id }), api.assets(brand.id, 'logo')]);
   const logo = logos.assets[0];
-  const postById = new Map(posts.map(p => [p.id, p]));
+  // YouTube kapakları Instagram ızgarasına girmez
+  const igPosts = posts.filter(p => p.kind !== 'youtube');
+  const postById = new Map(igPosts.map(p => [p.id, p]));
   const reelsById = new Map(reels.map(r => [r.id, r]));
 
   function items() {
@@ -153,7 +156,7 @@ async function renderGrid(view, brand) {
       .map(c => ({ key: c.id, when: c.scheduledAt, status: c.statusLabel, post: c.postId ? postById.get(c.postId) : null, reels: c.reelsId ? reelsById.get(c.reelsId) : null, title: c.title }));
     if (!withDrafts) return sched;
     const used = new Set(sched.filter(x => x.post).map(x => x.post.id));
-    const drafts = posts.filter(p => !used.has(p.id)).map(p => ({ key: 'd' + p.id, when: null, status: 'Taslak', post: p, title: p.title, draft: true }));
+    const drafts = igPosts.filter(p => !used.has(p.id)).map(p => ({ key: 'd' + p.id, when: null, status: 'Taslak', post: p, title: p.title, draft: true }));
     return drafts.concat(sched);
   }
 
@@ -319,6 +322,7 @@ async function renderEditor(view, brand, id, models) {
             <div class="ed-drop right" data-drop="paylas" hidden>
               <div class="ed-drop-head"><b>Tasarımı paylaş</b></div>
               <div class="ed-share-grid">
+                ${post.kind === 'youtube' ? `<button type="button" data-act="yt-preview">${icon('eye')}<span>YouTube önizlemesi</span></button>` : ''}
                 <button type="button" data-png="one">${icon('download')}<span>Bu slaytı PNG indir</span></button>
                 ${data.slides.length > 1 ? `<button type="button" data-png="all">${icon('download')}<span>Bütün slaytları indir</span></button>` : ''}
                 ${driveReady ? `<button type="button" data-drive="one">${icon('upload')}<span>Bu slaytı Drive'a gönder</span></button>${data.slides.length > 1 ? `<button type="button" data-drive="all">${icon('upload')}<span>Bütün slaytları Drive'a gönder</span></button>` : ''}` : ''}
@@ -696,6 +700,11 @@ async function renderEditor(view, brand, id, models) {
           const name = prompt('Tasarımın adı', post.title);
           if (!name || !name.trim()) return;
           post = (await api.savePost(brand.id, post.id, { title: name.trim() })).post; return shell();
+        }
+        if (a === 'yt-preview') {
+          const blob = await slideBlob(slide(), format());
+          const logo = (await api.assets(brand.id, 'logo')).assets[0];
+          return youtubePreview(brand, URL.createObjectURL(blob), { title: post.title, logoUrl: logo ? logo.url : null });
         }
         if (a === 'template') {
           const name = prompt('Şablon adı', post.title);
