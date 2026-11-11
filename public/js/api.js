@@ -53,6 +53,8 @@ export const api = {
   aiRemoveKey: provider => request('DELETE', '/api/ai/keys/' + encodeURIComponent(provider)),
   aiModels: provider => request('GET', '/api/ai/models/' + encodeURIComponent(provider)),
   aiSaveTasks: tasks => request('PUT', '/api/ai/tasks', { tasks }),
+  aiSmoke: () => request('POST', '/api/ai/smoke'),
+  aiCheckModels: () => request('POST', '/api/ai/check-models'),
   aiSaveBudget: body => request('PUT', '/api/ai/budget', body),
   aiSavePrice: (ref, price) => request('PUT', '/api/ai/prices', { ref, price }),
   aiUsage: month => request('GET', '/api/ai/usage' + (month ? '?month=' + encodeURIComponent(month) : '')),

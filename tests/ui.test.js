@@ -470,7 +470,7 @@ test('yapay zekâ: sağlayıcı bağla, işe model ata, iki modeli karşılaşt�
     const body = init.body ? JSON.parse(init.body) : null;
     if (u.host === 'api.anthropic.com') {
       if (h.get('authorization') !== `Bearer ${KEY_A}` && h.get('x-api-key') !== KEY_A) return js({ type: 'error', error: { type: 'authentication_error', message: 'x' } }, 401);
-      if (u.pathname === '/v1/models') return js({ data: [{ id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' }], has_more: false });
+      if (u.pathname === '/v1/models') return js({ data: [{ id: 'claude-opus-5-5', display_name: 'Claude Opus 5.5' }, { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' }, { id: 'claude-haiku-5-5', display_name: 'Claude Haiku 5.5' }], has_more: false });
       return js({ id: 'm', type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: 'Sahne 1 (0-3 sn): Kahve fincanı yakın plan.' }], stop_reason: 'end_turn', usage: { input_tokens: 2000, output_tokens: 1500 } });
     }
     if (u.host === 'openrouter.ai') {

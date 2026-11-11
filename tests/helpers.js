@@ -23,7 +23,7 @@ export function fakeProvider(responses = []) {
 
 export async function startServer(options = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ium-test-'));
-  const { app, close } = createApp(Object.assign({ dataDir }, options));
+  const { app, close } = createApp(Object.assign({ dataDir, aiRetryDelays: [0, 0] }, options)); // testlerde yeniden deneme beklemesiz
   const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const base = `http://localhost:${server.address().port}`;
 

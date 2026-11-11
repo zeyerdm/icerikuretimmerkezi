@@ -220,19 +220,23 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 ## Aşama 8 — Sistem geneli eksikler (Claude'un önerisi, öncelik sırasıyla)
 
 **A. Yapay zekâ güvenilirliği**
-- ⬜ **8.1 Otomatik yeniden deneme ve yedek model:**
+- ✅ **8.1 Otomatik yeniden deneme ve yedek model:**
   - "Yoğunluk var" (503) ve 429 hatalarında kısa beklemeyle 2 deneme.
   - Sonra aynı sağlayıcının bir alt modeline geçiş, ör. Flash → Flash Lite.
   - Kullanıcı hatayı yalnız hepsi başarısız olursa görür.
-- ⬜ **8.2 Model listesi sağlığı:**
+  - *yapıldı: 503/429/bağlantı hatasında 1,5 ve 4 sn beklemeyle 2 yeniden deneme; sonra işin yedek modeli, yoksa aynı sağlayıcının hafif modeli; anahtar hatası gibi kalıcı hatalar denenmez (tests/ai.test.js).*
+- ✅ **8.2 Model listesi sağlığı:**
   - Katalogdaki modeller (metin ve görsel) bağlı hesabın canlı model listesiyle açılışta karşılaştırılır.
   - Kaldırılmış ya da erişilemeyen model (ör. `gemini-2.5-flash` yeni kullanıcılara kapalı) seçilemez; atamalar uyarı verir ve yerine öneri sunulur.
-- ⬜ **8.3 Gerçek AI duman testi:** Ayarlar'da "Bağlantıları dene" düğmesi her atanmış işe çok kısa bir istek gönderir; çalışan/çalışmayan, süre ve tutar tablosu çıkar. Geliştirici için aynı kontrol bir betik olarak da olur.
+  - *yapıldı: "Model listesini kontrol et" ve anahtar kaydında otomatik kontrol; erişilemeyen önerilen modeller seçilemez, atamada "Model erişilemiyor" uyarısı; görsel listesinde gizlenir (tests/ai.test.js).*
+- ✅ **8.3 Gerçek AI duman testi:** Ayarlar'da "Bağlantıları dene" düğmesi her atanmış işe çok kısa bir istek gönderir; çalışan/çalışmayan, süre ve tutar tablosu çıkar. Geliştirici için aynı kontrol bir betik olarak da olur.
+  - *yapıldı: Yapay zekâ → Sağlayıcılar ve modeller → "Bağlantıları dene": her işe çok kısa gerçek istek; sonuç/süre/tutar tablosu; "bulunamadı/kapatıldı" yanıtı veren model erişilemez işaretlenir (tests/ai.test.js).*
 - ⬜ **8.4 Uzun üretimde akış (streaming):** Senaryo ve post metni yazılırken metin parça parça görünür; uzun beklemede iptal düğmesi.
 - ⬜ **8.5 Üretim öncesi tahmini tutar:** Ağır işlerde (senaryo, görsel, karşılaştırma) düğmenin yanında yaklaşık maliyet; aylık bütçeye yaklaşınca uyarı.
 
 **B. Güvenlik ve veri**
-- ⬜ **8.6 API anahtarlarını şifreli saklama:** Anahtarlar veritabanında açık metin. İşletim sisteminin anahtar zinciri (Windows Credential Manager / macOS Keychain) ya da makineye bağlı şifreleme kullanılmalı. Yedek dosyasına anahtar girmemesi sürüyor.
+- ✅ **8.6 API anahtarlarını şifreli saklama:** Anahtarlar veritabanında açık metin. İşletim sisteminin anahtar zinciri (Windows Credential Manager / macOS Keychain) ya da makineye bağlı şifreleme kullanılmalı. Yedek dosyasına anahtar girmemesi sürüyor.
+  - *yapıldı: gizli ayarlar (apikey/token/secret/password) AES-256-GCM ile şifreli; anahtar veri klasöründeki .secret.key (0600); eski düz metinler açılışta şifrelenir; yedeklere gizli ayar zaten girmiyor (tests/guvenlik.test.js). İşletim sistemi anahtar zinciri ileride eklenebilir.*
 - ⬜ **8.7 Kütüphane dosyaları için çöp kutusu:** Silinen görseller şu an geri alınamıyor; 30 günlük geri alma görseller için de olmalı.
 - ⬜ **8.8 Veri dışa aktarma:** Marka başına bütün kayıtlar (fikir, senaryo, takvim, notlar) JSON/CSV olarak indirilir; takvim .ics olarak Google/Outlook takvimine aktarılır.
 

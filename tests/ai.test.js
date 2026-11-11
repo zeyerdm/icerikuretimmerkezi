@@ -130,7 +130,7 @@ test('işe göre model ataması ve yedek modele geçiş', async () => {
     assert.equal(r.status, 200, JSON.stringify(r.data));
     assert.equal(r.data.assistantMessage.content, 'Gemini yanıtı');
     const usage = (await s.request('GET', '/api/ai/usage')).data;
-    assert.ok(usage.byModel.some(m => m.k === 'openai:gpt-5' && m.failed === 1), 'birincil modelin hatası kaydedilmedi');
+    assert.ok(usage.byModel.some(m => m.k === 'openai:gpt-5' && m.failed === 3), 'birincil model 1 + 2 yeniden denemeyle 3 kez denenip hatası kaydedilmeli');
     assert.ok(usage.byModel.some(m => m.k.startsWith('gemini:')), 'yedek model denenmedi');
 
     // Yedek yoksa: anlaşılır hata
@@ -201,5 +201,73 @@ test('model karşılaştırma: aynı brief iki modele gider, sonuçlar yan yana 
     assert.equal(list.comparisons[0].winner, 'anthropic:claude-opus-5-5');
     assert.deepEqual(list.scoreboard, [{ ref: 'anthropic:claude-opus-5-5', label: 'Claude Opus 5.5', wins: 1 }]);
     assert.ok((await s.request('GET', '/api/ai/usage')).data.byTask.some(t => t.k === 'karsilastirma'));
+  } finally { await s.stop(); }
+});
+
+test('8.1 geçici hata: aynı modelle yeniden denenir; hep başarısızsa aynı sağlayıcının hafif modeline geçilir; anahtar hatası denenmez', async () => {
+  let mode = 'twice'; let busy = 2;
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    const u = new URL(String(url));
+    if (u.pathname.replace(/\/$/, '').endsWith('/models')) return json({ models: [{ name: 'models/gemini-flash-latest', supportedGenerationMethods: ['generateContent'] }] });
+    const model = decodeURIComponent(u.pathname.split('/').pop().split(':')[0]);
+    calls.push(model);
+    if (model === 'gemini-flash-latest') {
+      if (mode === 'twice' && busy-- > 0) return json({ error: { message: 'This model is currently experiencing high demand.' } }, 503);
+      if (mode === 'always') return json({ error: { message: 'high demand' } }, 503);
+      if (mode === 'badkey') return json({ error: { message: 'API key not valid' } }, 400);
+    }
+    return json({ candidates: [{ content: { parts: [{ text: '{"reply":"Tamam","actions":[]}' }] } }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } });
+  };
+  const s = await startServer({ fetchImpl });
+  try {
+    await connect(s, 'gemini');
+    const b = (await s.request('POST', '/api/brands', { name: 'Yeniden' })).data.brand;
+    // İki kez 503, üçüncüde başarılı: aynı modelle, yedeğe geçmeden
+    const r1 = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
+    assert.equal(r1.status, 200, JSON.stringify(r1.data));
+    assert.deepEqual(calls, ['gemini-flash-latest', 'gemini-flash-latest', 'gemini-flash-latest']);
+    // Hep 503: 3 deneme sonra hafif modele (Flash Lite) geçer
+    calls.length = 0; mode = 'always';
+    const r2 = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
+    assert.equal(r2.status, 200, JSON.stringify(r2.data));
+    assert.deepEqual(calls, ['gemini-flash-latest', 'gemini-flash-latest', 'gemini-flash-latest', 'gemini-flash-lite-latest']);
+    // Kalıcı hata (anahtar geçersiz): yeniden denenmez, yedeğe geçilmez
+    calls.length = 0; mode = 'badkey';
+    const r3 = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
+    assert.notEqual(r3.status, 200);
+    assert.deepEqual(calls, ['gemini-flash-latest']);
+  } finally { await s.stop(); }
+});
+
+test('8.2 / 8.3 model listesi sağlığı ve bağlantı denemesi: erişilemeyen model işaretlenir, seçilemez, deneme tablosu', async () => {
+  const fetchImpl = async (url, init = {}) => {
+    const u = new URL(String(url));
+    if (u.pathname.replace(/\/$/, '').endsWith('/models')) return json({ models: ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash-image'].map(n => ({ name: 'models/' + n, supportedGenerationMethods: ['generateContent'] })) });
+    const model = decodeURIComponent(u.pathname.split('/').pop().split(':')[0]);
+    if (model === 'gemini-flash-lite-latest') return json({ error: { message: 'This model is no longer available to new users.' } }, 404);
+    return json({ candidates: [{ content: { parts: [{ text: 'tamam' }] } }], usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 1 } });
+  };
+  const s = await startServer({ fetchImpl });
+  try {
+    await connect(s, 'gemini'); // anahtar kaydında model kontrolü arka planda çalışır
+    const check = (await s.request('POST', '/api/ai/check-models')).data;
+    assert.deepEqual(check.missing, ['gemini:gemini-pro-latest'], 'canlı listede olmayan önerilen model');
+    const ov = (await s.request('GET', '/api/ai')).data;
+    assert.equal(ov.models.find(m => m.ref === 'gemini:gemini-pro-latest').unavailable, true);
+    assert.equal(ov.models.find(m => m.ref === 'gemini:gemini-flash-latest').unavailable, false);
+
+    const smoke = (await s.request('POST', '/api/ai/smoke')).data;
+    const byTask = Object.fromEntries(smoke.rows.map(r => [r.task, r]));
+    assert.equal(byTask.fikir.ok, true);
+    assert.ok(byTask.fikir.ms >= 0);
+    assert.equal(byTask.ceviri.ok, false, 'çeviri işi Flash Lite: listede var ama kapatılmış');
+    assert.match(byTask.ceviri.error, /bulunamadı/);
+    assert.ok(smoke.unavailable.includes('gemini:gemini-flash-lite-latest'), 'denemede kapatıldığı anlaşılan model işaretlenir');
+    const ov2 = (await s.request('GET', '/api/ai')).data;
+    assert.equal(ov2.tasks.find(t => t.id === 'ceviri').primaryUnavailable, true);
+    assert.equal(ov2.tasks.find(t => t.id === 'fikir').primaryUnavailable, false);
+    // Deneme harcaması kaydedilir
+    assert.ok((await s.request('GET', '/api/ai/usage')).data.total.calls >= 4);
   } finally { await s.stop(); }
 });

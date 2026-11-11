@@ -53,9 +53,10 @@ function modelOptions(ov, lists, selected, { allowNone = false, noneLabel = 'Yed
   const groups = ov.providers.filter(p => p.configured).map(p => {
     const catalog = ov.models.filter(m => m.provider === p.id);
     const extra = (lists[p.id] || []).filter(m => !catalog.some(c => c.id === m.id));
-    const opts = [...catalog.map(m => ({ ref: m.ref, label: `${m.label} — önerilen` })), ...extra.map(m => ({ ref: m.ref, label: m.label && m.label !== m.id ? `${m.label} (${m.id})` : m.id }))];
+    const opts = [...catalog.map(m => ({ ref: m.ref, label: `${m.label} — ${m.unavailable ? 'erişilemiyor' : 'önerilen'}`, off: m.unavailable })), ...extra.map(m => ({ ref: m.ref, label: m.label && m.label !== m.id ? `${m.label} (${m.id})` : m.id }))];
     if (selected && selected.startsWith(p.id + ':') && !opts.some(o => o.ref === selected)) opts.unshift({ ref: selected, label: selected.slice(p.id.length + 1) });
-    return opts.length ? `<optgroup label="${esc(p.label)}">${opts.map(o => `<option value="${esc(o.ref)}" ${o.ref === selected ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</optgroup>` : '';
+    // 8.2: erişilemeyen model seçilemez (şu an seçiliyse görünür kalır ki uyarı anlaşılsın)
+    return opts.length ? `<optgroup label="${esc(p.label)}">${opts.map(o => `<option value="${esc(o.ref)}" ${o.ref === selected ? 'selected' : ''} ${o.off && o.ref !== selected ? 'disabled' : ''}>${esc(o.label)}</option>`).join('')}</optgroup>` : '';
   }).join('');
   return (allowNone ? `<option value="">${esc(noneLabel)}</option>` : '') + groups;
 }
@@ -259,7 +260,10 @@ async function renderProviders(body, ov, view) {
       <div class="card-head"><h3>İşe göre model</h3></div>
       ${connected.length ? `<p class="card-text mb-4">Her iş için bir model ve isteğe bağlı bir yedek seç. Seçili model geçici bir hata verirse (bağlantı, kota, sunucu) istek kendiliğinden yedek modelle tekrarlanır.</p>
         <div class="stack-sm" id="task-rows"><div class="skeleton" style="height:120px"></div></div>
-        <div class="card-actions"><button class="btn btn-primary" id="save-tasks">Atamaları kaydet</button></div>`
+        <div class="card-actions"><button class="btn btn-primary" id="save-tasks">Atamaları kaydet</button>
+          <button class="btn" type="button" id="smoke-btn" title="Her işe atanmış modele çok kısa bir gerçek istek gönderir (birkaç kuruş)">Bağlantıları dene</button>
+          <button class="btn btn-ghost" type="button" id="check-models-btn" title="Önerilen modeller sağlayıcı hesabında hâlâ var mı">Model listesini kontrol et</button></div>
+        <div id="smoke-out" class="mt-3"></div>`
         : emptyState({ icon: 'sparkle', title: 'Önce bir sağlayıcı bağla', text: 'Yukarıdan en az bir anahtar ekleyince işlere model atayabilirsin.', compact: true })}
     </section>
     <section class="card mt-5" id="image-card"><div class="card-head"><h3>Görsel üretimi</h3></div><div id="image-default"><div class="skeleton" style="height:60px"></div></div></section>`;
@@ -304,13 +308,32 @@ async function renderProviders(body, ov, view) {
     }
   };
 
+  // 8.2 / 8.3
+  const smokeBtn = body.querySelector('#smoke-btn');
+  if (smokeBtn) smokeBtn.addEventListener('click', async () => {
+    try {
+      const r = await busy(smokeBtn, () => api.aiSmoke());
+      const usd = c => (c ? (c < 0.001 ? '< 0,001 $' : c.toFixed(4).replace('.', ',') + ' $') : '—');
+      body.querySelector('#smoke-out').innerHTML = `<table class="table"><thead><tr><th>İş</th><th>Model</th><th>Sonuç</th><th>Süre</th><th>Tutar</th></tr></thead><tbody>${r.rows.map(x => `<tr><td>${esc(x.taskLabel)}</td><td>${esc(x.label || '—')}</td><td>${x.ok ? '<span class="pill pill-ok"><span class="dot"></span>Çalışıyor</span>' : `<span class="pill pill-warn"><span class="dot"></span>Hata</span> <span class="xsmall">${esc(x.error || '')}</span>`}</td><td>${x.ms != null ? (x.ms / 1000).toFixed(1).replace('.', ',') + ' sn' : '—'}</td><td>${usd(x.cost)}</td></tr>`).join('')}</tbody></table>`;
+      toast(r.rows.every(x => x.ok) ? 'Bütün işler çalışıyor.' : 'Bazı işler çalışmıyor; tabloya bak.', r.rows.every(x => x.ok) ? 'success' : 'error');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+  const checkBtn = body.querySelector('#check-models-btn');
+  if (checkBtn) checkBtn.addEventListener('click', async () => {
+    try {
+      const r = await busy(checkBtn, () => api.aiCheckModels());
+      toast(r.unavailable.length ? `Erişilemeyen model: ${r.unavailable.length}. Listede işaretlendi.` : 'Önerilen modellerin hepsi erişilebilir.', r.unavailable.length ? 'error' : 'success');
+      renderAi(view, 'modeller');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
   if (!connected.length) return;
   const lists = await liveLists(connected);
   const rows = body.querySelector('#task-rows');
   if (!rows) return;
   rows.innerHTML = ov.tasks.map(t => `
     <div class="task-assign" data-task="${t.id}">
-      <div><div class="strong">${esc(t.label)}</div><div class="xsmall muted">${esc(t.hint)}${t.auto && t.primary ? ' Şu an otomatik seçildi.' : ''}</div></div>
+      <div><div class="strong">${esc(t.label)}${t.primaryUnavailable ? ' <span class="pill pill-warn"><span class="dot"></span>Model erişilemiyor</span>' : ''}</div><div class="xsmall muted">${esc(t.hint)}${t.auto && t.primary ? ' Şu an otomatik seçildi.' : ''}${t.primaryUnavailable ? ' Seçili model hesabında yok ya da kapatılmış; başka bir model seç.' : ''}</div></div>
       <div class="field"><label for="tp-${t.id}">Model</label><select class="select" id="tp-${t.id}" data-role="primary">${modelOptions(ov, lists, t.primary)}</select></div>
       <div class="field"><label for="tf-${t.id}">Yedek model</label><select class="select" id="tf-${t.id}" data-role="fallback">${modelOptions(ov, lists, t.fallback, { allowNone: true })}</select></div>
     </div>`).join('');

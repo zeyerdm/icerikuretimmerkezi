@@ -16,12 +16,12 @@ export function createGeminiProvider({ getApiKey, fetchImpl = fetch }) {
         signal: AbortSignal.timeout(TIMEOUT_MS)
       });
     } catch (err) {
-      throw aiError('AI_UNAVAILABLE', err.name === 'TimeoutError' ? 'Gemini 3 dakika içinde yanıt vermedi.' : 'Gemini sunucusuna bağlanılamadı.', { retryable: true });
+      throw aiError('AI_UNAVAILABLE', err.name === 'TimeoutError' ? 'Gemini 3 dakika içinde yanıt vermedi.' : 'Gemini sunucusuna bağlanılamadı.', { retryable: true, transient: err.name !== 'TimeoutError' });
     }
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       const d = describeStatus(LABEL, res.status, data && data.error && data.error.message);
-      throw aiError('AI_ERROR', d.msg, { retryable: d.retryable });
+      throw aiError('AI_ERROR', d.msg, { retryable: d.retryable, transient: Boolean(d.transient) });
     }
     return data;
   }
