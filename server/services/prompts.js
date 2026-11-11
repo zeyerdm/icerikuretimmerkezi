@@ -136,10 +136,11 @@ export function createPromptService({ db, ai, brands, reels }) {
         '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ concepts: [{ name: 'Konsept adı', idea: 'Tek cümle fikir', variations: [{ prompt: 'Prompt', promptTr: 'Türkçesi (gerekiyorsa)' }] }] })].join('\n');
       const r = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 1 });
       const english = PROMPT_KINDS[k].english;
-      const list = (Array.isArray(r.output && r.output.concepts) ? r.output.concepts : []).slice(0, nc).map(c => ({
+      // Boş varyasyon/konsept önce atılır, sonra sayı sınırı uygulanır (boş gelen biri istenen sayıyı düşürmesin)
+      const list = (Array.isArray(r.output && r.output.concepts) ? r.output.concepts : []).map(c => ({
         name: polish(c && c.name).slice(0, 80) || 'Konsept', idea: polish(c && c.idea).slice(0, 300),
-        variations: (Array.isArray(c && c.variations) ? c.variations : []).slice(0, nv).map(v => ({ prompt: String((v && v.prompt) || '').trim().slice(0, MAX_TEXT), promptTr: english ? String((v && v.promptTr) || '').trim().slice(0, MAX_TEXT) : '' })).filter(v => v.prompt)
-      })).filter(c => c.variations.length);
+        variations: (Array.isArray(c && c.variations) ? c.variations : []).map(v => ({ prompt: String((v && v.prompt) || '').trim().slice(0, MAX_TEXT), promptTr: english ? String((v && v.promptTr) || '').trim().slice(0, MAX_TEXT) : '' })).filter(v => v.prompt).slice(0, nv)
+      })).filter(c => c.variations.length).slice(0, nc);
       if (!list.length) throw badRequest('Model kullanılabilir konsept döndürmedi; tekrar dene ya da başka model seç.');
       return { kind: k, brief: want, concepts: list, ai: meta(r) };
     },
