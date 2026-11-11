@@ -166,7 +166,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     reels: reels.meta,
     posts: { kinds: posts.kinds, formats: posts.formats, kindDefaults: posts.kindDefaults },
     reviewKinds: review.kinds,
-    prompts: { kinds: prompts.kinds, actions: prompts.actions }
+    prompts: { kinds: prompts.kinds, actions: prompts.actions, aspects: prompts.aspects }
   }));
 
   // --- Ayarlar (AI anahtarı yalnızca yazılır, hiçbir zaman geri okunmaz) ---
@@ -653,7 +653,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/prompts', (req, res) => res.json({ prompts: prompts.list(req.brand.id, { kind: req.query.kind || null, q: req.query.q || '' }) }));
   api.post('/brands/:brandId/prompts', route(async (req, res) => {
     const b = req.body || {};
-    const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b), lang: b.lang === 'en' ? 'en' : 'tr', scenes: b.scenes });
+    const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b), lang: b.lang === 'en' ? 'en' : 'tr', scenes: b.scenes, tool: b.tool });
     res.status(201).json({ prompt });
   }));
   api.post('/brands/:brandId/prompts/brainstorm', route(async (req, res) => { const b = req.body || {}; res.json(await prompts.brainstorm(req.brand.id, { kind: b.kind, brief: b.brief, concepts: b.concepts, variations: b.variations, modelRef: mr(b) })); }));

@@ -41,6 +41,7 @@ export async function renderPrompts(view, brand, sub) {
         <textarea class="textarea" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
         <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'yazim', { id: 'ps-model' })}
           <select class="select w-auto" id="ps-scenes" aria-label="Sahne sayısı" title="Birbirinin devamı olan sahneler (7.8)"><option value="0">Tek prompt</option>${[2, 3, 4, 5].map(n => `<option value="${n}">${n} sahne</option>`).join('')}</select>
+          <select class="select w-auto" id="ps-tool" aria-label="Hedef araç" title="Prompt bu araca uygun biçimde yazılır (7.10)"></select>
           <span class="spacer"></span><span class="small muted">Beyin fırtınası:</span>
           <select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
           <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
@@ -58,6 +59,12 @@ export async function renderPrompts(view, brand, sub) {
   const hint = () => {
     const k = meta.kinds[kind];
     view.querySelector('#ps-hint').textContent = `${k.hint}.${k.english ? ' Prompt önce Türkçe yazılır; hazır olunca tek tıkla İngilizceye çevrilir.' : ' Prompt Türkçe yazılır.'}`;
+    const ts = view.querySelector('#ps-tool');
+    if (ts) {
+      const tools = Object.entries(k.tools || {});
+      ts.hidden = !tools.length;
+      ts.innerHTML = `<option value="">Araç: genel</option>${tools.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}`;
+    }
   };
   hint();
 
@@ -130,7 +137,7 @@ export async function renderPrompts(view, brand, sub) {
       const brief = view.querySelector('#ps-brief').value.trim();
       if (!brief) return toast('Önce ne istediğini kısaca yaz.', 'error');
       try {
-        const { prompt } = await busyTimer(create, () => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0) }));
+        const { prompt } = await busyTimer(create, () => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0), tool: (view.querySelector('#ps-tool') || {}).value || '' }));
         toast(aiNote(prompt.ai), 'success', 5000);
         go(base(brand) + '/' + prompt.id);
       } catch (err) { toast(err.message, 'error'); }
@@ -163,7 +170,17 @@ async function renderDetail(view, brand, id, models) {
 
   function draw() {
     const panelBox = (k, title, inner) => `<div class="ed-pane" data-pane="${k}" ${panel === k ? '' : 'hidden'}><h3 class="ed-panel-title">${title}</h3>${inner}</div>`;
-    const rails = [['gelistir', 'Geliştir', 'sparkle'], ...(IMAGE_KINDS[p.kind] ? [['gorsel', 'Görsel üret', 'image']] : []), ['surumler', 'Sürümler', 'refresh']];
+    const toolMap = (meta.kinds[p.kind] || {}).tools || {};
+    const hasTools = Object.keys(toolMap).length > 0;
+    const rails = [['gelistir', 'Geliştir', 'sparkle'], ...(hasTools ? [['arac', 'Hedef araç', 'wand']] : []), ...(IMAGE_KINDS[p.kind] ? [['gorsel', 'Görsel üret', 'image']] : []), ['surumler', 'Sürümler', 'refresh']];
+    const to = p.toolOutput;
+    const outBox = (label, key, value, rows) => `<div class="field mt-2"><div class="row"><span class="field-label grow">${label}</span><button type="button" class="btn btn-sm btn-ghost" data-copy-tool="${key}">Kopyala</button></div><textarea class="textarea" rows="${rows}" readonly data-tool-out="${key}">${esc(value)}</textarea></div>`;
+    const toolPane = hasTools ? panelBox('arac', 'Hedef araç', `<p class="small muted mb-3">Aynı prompt seçtiğin araca göre biçimlenir: oran yazımı, negatif prompt alanı ve uzunluk. Araç seçiliyken yapılan geliştirmeler de bu araca göre yazılır.</p>
+      <div class="form-grid"><div class="field"><label for="pp-tool">Araç</label><select class="select" id="pp-tool"><option value="">Seçilmedi</option>${Object.entries(toolMap).map(([v, l]) => `<option value="${esc(v)}" ${p.tool === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+      <div class="field"><label for="pp-aspect">Oran</label><select class="select" id="pp-aspect"><option value="">Türün varsayılanı</option>${(meta.aspects || []).map(a => `<option value="${a}" ${p.aspect === a ? 'selected' : ''}>${a}</option>`).join('')}</select></div></div>
+      ${!p.tool ? '<p class="small muted mt-3">Bir araç seç; kopyalamaya hazır çıktı burada görünür.</p>'
+        : p.lang === 'tr' ? '<div class="notice mt-3"><div>Araç çıktısı İngilizce prompt\'tan hazırlanır. Önce prompt\'u İngilizceye çevir.</div></div>'
+          : to ? `${outBox(to.params ? 'Prompt (parametrelerle)' : 'Prompt', 'full', to.full, 6)}${to.negative ? outBox('Negatif prompt', 'negative', to.negative, 2) : ''}${to.notes.length ? `<ul class="small muted mt-2 tool-notes">${to.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}` : ''}`) : '';
     view.innerHTML = `
       <div class="ed ed-doc-mode">
         <header class="ed-top">
@@ -197,6 +214,7 @@ async function renderDetail(view, brand, id, models) {
                 <textarea class="textarea" id="pp-brief" rows="3" maxlength="2000" placeholder="Yeni isteği yaz; prompt baştan yazılır">${esc(p.brief)}</textarea>
                 <button class="btn btn-sm mt-2" data-rebrief>Yeni girişe göre yeniden yaz</button></div>`
               : '<div class="notice"><div><strong>AI bağlı değil.</strong> Geliştirme işlemleri için bir sağlayıcı bağla. Elle düzenleyip kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>')}
+            ${toolPane}
             ${IMAGE_KINDS[p.kind] ? panelBox('gorsel', "Bu prompt'la görsel üret", '<p class="small muted mb-3">Prompt kutusundaki metin seçtiğin görsel modeline gönderilir; sonuç kütüphaneye kaydedilir.</p><div id="pp-image"></div>') : ''}
             ${panelBox('surumler', `Sürümler <span class="small muted">${p.versions.length}</span>`, `<ul class="version-list">${p.versions.map((v, i) => `<li><div class="grow"><div class="small strong">${esc(v.note)}</div><div class="xsmall muted">${esc(when(v.createdAt))}${v.modelLabel ? ` · ${esc(v.modelLabel)}` : ''}</div></div>
               <button class="btn btn-sm btn-ghost" data-show="${esc(v.id)}">Göster</button>
@@ -254,6 +272,16 @@ async function renderDetail(view, brand, id, models) {
     } catch (err) { toast(err.message, 'error'); }
   }
 
+  // 7.10: araç ya da oran değişince kaydedilir, çıktı yeniden hazırlanır
+  view.onchange = async e => {
+    if (!e.target.matches('#pp-tool, #pp-aspect')) return;
+    try {
+      if (dirty()) await save();
+      p = (await api.savePrompt(brand.id, p.id, { tool: val('#pp-tool'), aspect: val('#pp-aspect') })).prompt;
+      draw();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
   view.onclick = async e => {
     const t = e.target;
     const menu = t.closest('[data-menu]');
@@ -273,6 +301,8 @@ async function renderDetail(view, brand, id, models) {
       try { await save(); lastAi = null; draw(); toast('Kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
       return;
     }
+    const ct = t.closest('[data-copy-tool]');
+    if (ct) return copy(val(`[data-tool-out="${ct.dataset.copyTool}"]`), 'Kopyalandı.');
     const c = t.closest('[data-copy]');
     if (c) return copy(c.dataset.copy === 'tr' ? val('#pp-tr') : val('#pp-text'), 'Kopyalandı.');
     const imp = t.closest('[data-improve]');
