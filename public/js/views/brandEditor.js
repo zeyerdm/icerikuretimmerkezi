@@ -318,7 +318,7 @@ async function renderAssets(body, brand, driveOk) {
     body.innerHTML = `
       <div class="card">
         <div class="asset-cats">${Object.entries(cats).map(([id, label]) => `<button type="button" class="chip ${id === current ? 'active' : ''}" data-cat="${id}">${esc(label)}</button>`).join('')}</div>
-        ${current === 'ai_image' ? '<div class="card-section mb-4"><h3 class="mb-2">AI ile görsel üret</h3><div id="lib-image"></div></div>' : ''}
+        ${current === 'ai_image' ? '<div class="card-section mb-4"><h3 class="mb-2">Hazır şablonlar</h3><div id="lib-tpl"></div></div><div class="card-section mb-4"><h3 class="mb-2">AI ile görsel üret</h3><div id="lib-image"></div></div>' : ''}
         ${current === 'inspiration' ? '<div class="notice mb-4"><span>Bu markanın çalışma alanında herhangi bir yerde (yazı alanı dışında) <b>Ctrl+V</b> ile yapıştırdığın ekran görüntüleri buraya, link ve metinler aşağıdaki listeye düşer.</span></div><div id="insp-notes" class="mb-4"></div>' : ''}
         <label class="dropzone" id="dropzone">
           <input type="file" id="asset-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple class="sr-only">
@@ -334,7 +334,7 @@ async function renderAssets(body, brand, driveOk) {
     // Yükleme alanı liste beklenmeden hemen bağlanır; seçilen dosya kaybolmaz
     wireUpload();
     if (current === 'inspiration') drawInspirationNotes(body.querySelector('#insp-notes'), brand);
-    if (current === 'ai_image') imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, historyAll: true });
+    if (current === 'ai_image') { imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, historyAll: true }); templateBox(body.querySelector('#lib-tpl'), brand, () => imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, historyAll: true })); }
     const grid = body.querySelector('#asset-grid');
     try {
       const [{ assets: all }, { packs: allPacks }] = await Promise.all([api.assets(brand.id, current), api.assetPacks(brand.id)]);
@@ -469,4 +469,30 @@ async function renderAssets(body, brand, driveOk) {
   }
 
   draw();
+}
+
+// 7.4 Hazır görsel şablonları: iki soru → markanın kemiği, prompt kimliği ve karakter kitabıyla prompt + görsel
+async function templateBox(box, brand, refresh) {
+  if (!box) return;
+  let ov;
+  try { ov = await api.imageOverview(); } catch { return; }
+  if (!ov.configured) { box.innerHTML = '<p class="small muted">Görsel üretimi bağlı değil; şablonlar görsel anahtarı eklenince çalışır.</p>'; return; }
+  const { templates } = await api.imageTemplates();
+  box.innerHTML = `<p class="small muted mb-2">İki soruya cevap ver: prompt markanın prompt kimliğine ve maskot kitabına göre yazılır, Prompt Studio'ya kaydedilir ve görsel üretilir.</p>
+    <div class="row">${Object.entries(templates).map(([k, t]) => `<button type="button" class="btn btn-sm" data-tpl="${k}">${esc(t.label)} <span class="xsmall muted">${esc(t.aspect)}</span></button>`).join('')}</div>`;
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-tpl]');
+    if (!b) return;
+    const t = templates[b.dataset.tpl];
+    openModal({
+      title: t.label, submitLabel: 'Prompt yaz ve görsel üret',
+      body: `<div class="stack-sm">${t.questions.map((q, i) => `<div class="field"><label for="tq-${i}">${esc(q)}${i === 0 ? ' *' : ''}</label><input class="input" id="tq-${i}" name="a${i}" maxlength="300" ${i === 0 ? 'required' : ''} data-mic></div>`).join('')}
+        ${t.useMascot ? '<p class="xsmall muted">Maskot karakter kitabındaki pozlar referans olarak gider (Nano Banana gibi referans alan model gerekir).</p>' : ''}</div>`,
+      onSubmit: async (fd, form) => {
+        const r = await busyTimer(form.querySelector('[type=submit]'), () => api.imageFromTemplate(brand.id, { template: b.dataset.tpl, answers: [fd.get('a0'), fd.get('a1')] }), 'Üretiyor');
+        toast(`Görsel üretildi ve kütüphaneye kaydedildi (${r.ai.modelLabel}).`, 'success');
+        refresh();
+      }
+    });
+  });
 }

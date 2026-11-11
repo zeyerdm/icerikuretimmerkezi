@@ -57,6 +57,20 @@ export function identityBlock(idt, kind = 'gorsel') {
   return lines.length ? 'MARKA PROMPT KİMLİĞİ (markanın kalıcı tercihleri; istek aksini söylemedikçe uygula):\n- ' + lines.join('\n- ') : '';
 }
 
+// 7.4: görsel üretim isteğine giden İngilizce kısa kimlik satırı (görsel modelleri İngilizceyi daha iyi anlar)
+export function identityImageLine(idt) {
+  if (!idt || !Object.keys(idt).length) return '';
+  const en = (k, v) => (Q[k].en && Q[k].en[v]) || '';
+  const l = [];
+  if (idt.visualStyle) l.push(`Style: ${en('visualStyle', idt.visualStyle)}.`);
+  if (idt.lighting) l.push(`Lighting: ${en('lighting', idt.lighting)}.`);
+  if (idt.camera) l.push(`Framing: ${en('camera', idt.camera)}.`);
+  if (idt.mood && idt.mood.length) l.push(`Mood: ${idt.mood.map(m => en('mood', m)).join(', ')}.`);
+  if (idt.colors === 'yok') l.push('Use natural colors, do not force brand colors.');
+  if (idt.avoid && idt.avoid.length) l.push(`Avoid: ${idt.avoid.join(', ')}.`);
+  return l.join(' ');
+}
+
 export function createPromptIdentityService({ db, brands }) {
   return {
     questions: IDENTITY_QUESTIONS,

@@ -27,6 +27,7 @@ import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
 import { createPromptIdentityService } from './services/promptIdentity.js';
 import { createCharacterBookService } from './services/characterBook.js';
+import { createImageTemplateService } from './services/imageTemplates.js';
 import { createTrashService, TRASH_DAYS } from './services/trash.js';
 import { createSearchService } from './services/search.js';
 import { createCampaignService, CAMPAIGN_KINDS } from './services/campaigns.js';
@@ -132,6 +133,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
   const recipes = createRecipeService({ db, ownerId, brands, prompts });
   const images = createImageService({ db, ai, brands, assets });
+  const imageTemplates = createImageTemplateService({ prompts, images });
   const designRef = createDesignRefService({ db, ai, brands, assets });
   const assetTags = createAssetTagService({ ai, brands, assets });
   const thumbnails = createThumbnailService({ ai, brands });
@@ -620,6 +622,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/ai/images', (req, res) => res.json(ai.setImageDefault((req.body || {}).model || '')));
   api.get('/brands/:brandId/images', (req, res) => res.json({ images: images.history(req.brand.id, { promptId: req.query.promptId || null }) }));
   api.post('/brands/:brandId/images', route(async (req, res) => res.status(201).json(await images.generate(req.brand.id, req.body || {}))));
+  // 7.4 hazır görsel şablonları
+  api.get('/image-templates', (req, res) => res.json({ templates: imageTemplates.list() }));
+  api.post('/brands/:brandId/images/template', route(async (req, res) => res.status(201).json(await imageTemplates.run(req.brand.id, req.body || {}))));
   // Alan düzenleme: gövde işaretli görselin kendisi (PNG/JPEG), diğerleri adres parametresi
   api.post('/brands/:brandId/images/edit', express.raw({ type: () => true, limit: MAX_ASSET_BYTES }), route(async (req, res) => res.status(201).json(await images.editRegion(req.brand.id, { assetId: String(req.query.assetId || ''), marked: req.body, instruction: String(req.query.instruction || ''), modelRef: req.query.model ? String(req.query.model) : null }))));
 
