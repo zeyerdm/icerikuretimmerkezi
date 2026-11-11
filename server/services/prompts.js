@@ -2,8 +2,9 @@
 // post tasarımı prompt'u üretme; elle düzenleme, geliştirme işlemleri ve sürüm geçmişi.
 // Görsel/video prompt'ları üretim araçları İngilizceyi daha iyi anladığı için İngilizce yazılır, Türkçesi yanında durur.
 // Metin ve Reels prompt'ları Türkçe yazılır (bir sohbet modeline verilecek talimat olarak).
+import { bookBlock } from './characterBook.js';
 import { SKELETONS, skeletonInstruction } from './promptSkeleton.js';
-import { newId, now, text, badRequest, notFound, oneOf } from '../lib/http.js';
+import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { polish } from './reels/rules.js';
 
 export const PROMPT_KINDS = {
@@ -72,6 +73,11 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     // 7.2: markanın kalıcı prompt kimliği (sihirbaz cevapları)
     const idt = identity ? identity.block(b.id, kind) : '';
     if (idt) lines.push('', idt);
+    // 7.3: maskot ve Reels prompt'larında karakter kitabı
+    if (['maskot', 'reels', 'video'].includes(kind)) {
+      const book = bookBlock(parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(b.id) || {}).character_book, {}) || {});
+      if (book) lines.push('', book);
+    }
     return lines.join('\n');
   }
   function rules(kind) {

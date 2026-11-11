@@ -4,22 +4,29 @@
 import fs from 'node:fs';
 import { detectImage } from './assets.js';
 import { newId, now, text, badRequest, oneOf, parseJson } from '../lib/http.js';
+import { bookImageLine } from './characterBook.js';
 
 const MAX_REFS = 3;
 
 export function createImageService({ db, ai, brands, assets }) {
-  function brandHint(b, { useColors, useMascot, character }) {
+  const bookOf = id => parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(id) || {}).character_book, {}) || {};
+  function brandHint(b, { useColors, useMascot, character, book }) {
     const c = b.colors || {};
     const colors = [c.primary, ...(c.secondary || [])].filter(Boolean).slice(0, 4);
     const lines = [];
     if (useColors && colors.length) lines.push(`Brand color palette to feature: ${colors.join(', ')}.`);
     if (useMascot) lines.push(`The attached reference image(s) show the brand mascot${character ? ` "${character}"` : ''}: keep its exact design, proportions, colors and face consistent.`);
+    // 7.3: karakter kitabındaki sabit görünüş tarifi
+    if (useMascot && book && book.lookEn) lines.push(bookImageLine(book));
     lines.push('Do not render any text, letters, logos or watermarks in the image.');
     return lines.join(' ');
   }
 
   function refsFor(brandId, assetIds) {
-    const list = (assetIds && assetIds.length ? assetIds.map(id => assets.list(brandId).find(a => a.id === id)).filter(Boolean) : assets.list(brandId, 'mascot')).slice(0, MAX_REFS);
+    // 7.3: seçim yoksa önce karakter kitabının pozları, o da yoksa kütüphanedeki maskot pozları
+    const bookPoses = bookOf(brandId).poseAssetIds || [];
+    const ids = assetIds && assetIds.length ? assetIds : bookPoses;
+    const list = (ids.length ? ids.map(id => assets.list(brandId).find(a => a.id === id)).filter(Boolean) : assets.list(brandId, 'mascot')).slice(0, MAX_REFS);
     return list.map(a => {
       const f = assets.file(brandId, a.id);
       return { mime: f.mime, data: fs.readFileSync(f.path) };
@@ -56,8 +63,9 @@ export function createImageService({ db, ai, brands, assets }) {
         const roleText = { kimlik: 'an identity reference: keep this exact character (design, proportions, colors, face)', nesne: 'an object reference: include this exact object/product unchanged', stil: 'a style reference: match its visual style, palette, lighting and texture (do not copy its content)' };
         mentionText = mentionRefs.map((a, i) => `Reference image ${i + 1} (@${a.mention}) is ${roleText[a.refRole] || (a.category === 'mascot' ? roleText.kimlik : roleText.nesne)}.`).join(' ');
       }
-      const character = (parseJson((db.prepare('SELECT reels_settings FROM brands WHERE id = ?').get(b.id) || {}).reels_settings, {}) || {}).character || '';
-      const full = `${prompt}${mentionText ? `\n\n${mentionText}` : ''}\n\n${brandHint(b, { useColors, useMascot, character })}`;
+      const book = bookOf(b.id);
+      const character = book.name || (parseJson((db.prepare('SELECT reels_settings FROM brands WHERE id = ?').get(b.id) || {}).reels_settings, {}) || {}).character || '';
+      const full = `${prompt}${mentionText ? `\n\n${mentionText}` : ''}\n\n${brandHint(b, { useColors, useMascot, character, book })}`;
       const r = await ai.image({ brandId: b.id, prompt: full, modelRef: body.model ? String(body.model) : null, aspect, refs });
       const label = `AI: ${prompt.replace(/\s+/g, ' ').slice(0, 70)}`;
       const asset = assets.create(b.id, { buffer: r.buffer, category: 'ai_image', label });
