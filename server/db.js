@@ -445,6 +445,11 @@ const MIGRATIONS = [
   `
   ALTER TABLE prompts ADD COLUMN lang TEXT NOT NULL DEFAULT 'en';
   ALTER TABLE prompt_versions ADD COLUMN lang TEXT NOT NULL DEFAULT 'en';
+  `,
+  // 26: 7.8 Senaryolu (çok sahneli) prompt: sahneler JSON dizi; text sahnelerin birleşimi
+  `
+  ALTER TABLE prompts ADD COLUMN scenes TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE prompt_versions ADD COLUMN scenes TEXT NOT NULL DEFAULT '[]';
   `
 ];
 

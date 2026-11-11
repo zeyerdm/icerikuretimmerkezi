@@ -32,6 +32,10 @@ export const IMPROVE_ACTIONS = {
 };
 
 const MAX_TEXT = 8000;
+const MAX_SCENES = 8;
+// 7.8: sahneler [{ title, text }]; prompt metni sahnelerin birleşimidir (kopyalama ve görsel üretimi için)
+const sceneList = v => (Array.isArray(v) ? v : []).map(s => ({ title: String((s && s.title) || '').trim().slice(0, 80), text: String((s && (s.text || s.prompt)) || '').trim().slice(0, 3000) })).filter(s => s.text).slice(0, MAX_SCENES);
+const joinScenes = (scenes, lang) => scenes.map((s, i) => `${lang === 'en' ? 'SCENE' : 'SAHNE'} ${i + 1}${s.title ? ' — ' + s.title : ''}\n${s.text}`).join('\n\n');
 
 function toPrompt(row) {
   return {
@@ -39,6 +43,7 @@ function toPrompt(row) {
     english: Boolean((PROMPT_KINDS[row.kind] || {}).english),
     title: row.title, brief: row.brief, text: row.text, textTr: row.text_tr, favorite: Boolean(row.favorite), model: row.model,
     lang: (PROMPT_KINDS[row.kind] || {}).english ? (row.lang || 'en') : 'tr',
+    scenes: (() => { try { return sceneList(JSON.parse(row.scenes || '[]')); } catch { return []; } })(),
     createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
@@ -52,8 +57,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     return r;
   }
   function saveVersion(r, note) {
-    db.prepare('INSERT INTO prompt_versions (id, prompt_id, note, model, brief, text, text_tr, lang, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(newId(), r.id, note, r.model || '', r.brief || '', r.text, r.text_tr || '', r.lang || 'en', now());
+    db.prepare('INSERT INTO prompt_versions (id, prompt_id, note, model, brief, text, text_tr, lang, scenes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(newId(), r.id, note, r.model || '', r.brief || '', r.text, r.text_tr || '', r.lang || 'en', r.scenes || '[]', now());
   }
   // 7.6: denetim seçenekleri (marka hafızasındaki yasaklı kelimeler)
   const qualityOpts = brandId => {
@@ -62,7 +67,17 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     // 7.7: marka adı / istenmeyen isimler de denetlenir
     return { banned: parseJson(m.banned_words, []) || [], brandName: m.name, noBrandName: Boolean(idt.noBrandName), forbidNames: idt.forbidNames || [], allowText: Boolean(idt.allowText) };
   };
-  const quality = r => checkPrompt(r.kind, r.text, PROMPT_KINDS[r.kind] && PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr', qualityOpts(r.brand_id));
+  const qLang = r => (PROMPT_KINDS[r.kind] && PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr');
+  // Sahneli prompt'ta her sahne ayrı denetlenir; genel sonuç en zayıf sahnedir
+  const sceneQuality = (kind, scenes, lang, opts) => {
+    const qs = scenes.map(s => checkPrompt(kind, s.text, lang, opts));
+    const worst = qs.reduce((a, q) => (q.score < a.score ? q : a), qs[0]);
+    return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
+  };
+  const quality = r => {
+    const scenes = toPrompt(r).scenes;
+    return scenes.length ? sceneQuality(r.kind, scenes, qLang(r), qualityOpts(r.brand_id)) : checkPrompt(r.kind, r.text, qLang(r), qualityOpts(r.brand_id));
+  };
   function detail(r) {
     return Object.assign(toPrompt(r), {
       quality: quality(r),
@@ -134,11 +149,13 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     get(brandId, id) { return detail(row(brands.get(brandId).id, id)); },
 
     // AI ile yeni prompt: kısa tarif (brief) → tam prompt
-    async create(brandId, { kind, brief, modelRef = null, lang = 'tr' } = {}) {
+    async create(brandId, { kind, brief, modelRef = null, lang = 'tr', scenes: sceneCount = 0 } = {}) {
       const b = brands.get(brandId);
       const k = oneOf(kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
       const want = text(brief, { field: 'İstek', max: 2000, required: true });
       const lg = PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
+      const nScenes = Math.round(Number(sceneCount) || 0);
+      if (nScenes >= 2) return this.createScenes(b, k, want, Math.min(MAX_SCENES, nScenes), lg, modelRef);
       const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
       let r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
@@ -222,12 +239,75 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         textTr: 'textTr' in body ? (text(body.textTr, { field: 'Türkçesi', max: MAX_TEXT }) || '') : r.text_tr,
         favorite: 'favorite' in body ? (body.favorite ? 1 : 0) : r.favorite
       };
+      // 7.8: sahneler elle düzenlenince metin sahnelerden yeniden kurulur
+      let scenesJson = r.scenes || '[]';
+      if ('scenes' in body) {
+        const sc = sceneList(body.scenes);
+        if (!sc.length) throw badRequest('En az bir sahne olmalı.');
+        scenesJson = JSON.stringify(sc);
+        next.text = joinScenes(sc, PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr');
+      }
       const changed = next.text !== r.text || next.textTr !== r.text_tr;
-      db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, model = ?, updated_at = ? WHERE id = ?')
-        .run(next.title, next.text, next.textTr, next.favorite, changed ? '' : r.model, now(), r.id);
+      db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
+        .run(next.title, next.text, next.textTr, next.favorite, changed ? '' : r.model, scenesJson, now(), r.id);
       const u = row(b.id, r.id);
       if (changed) saveVersion(u, 'Elle düzenlendi');
       return detail(u);
+    },
+
+    // 7.8: çok sahneli prompt (eski sistemdeki gibi): sahneler birbirinin devamı, her biri kemiğe uyan tam bir prompt
+    async createScenes(b, k, want, n, lg, modelRef) {
+      const shape = JSON.stringify({ title: 'Kısa Türkçe başlık', scenes: [{ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' }] });
+      const prompt = ['PROMPT STUDIO · SAHNELİ', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg), '',
+        `İSTEK (kullanıcının kısa tarifi):\n${want}`, '',
+        `GÖREV: Bu istek için birbirinin devamı olan ${n} sahne yaz. Her sahne kendi başına kemiğe uyan tam bir prompt olsun; karakter, mekân, ışık ve stil sahneler arasında tutarlı kalsın; her sahne bir öncekinin bittiği yerden başlasın.`,
+        '', 'Sadece şu JSON biçiminde yanıt ver:', shape].join('\n');
+      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
+      const scenes = sceneList(r.output && r.output.scenes);
+      if (!scenes.length) throw badRequest('Model kullanılabilir sahne döndürmedi; tekrar dene.');
+      const title = polish(r.output && r.output.title).slice(0, 80) || want.slice(0, 60);
+      const id = newId(); const t = now();
+      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, scenes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, b.id, k, title, want, joinScenes(scenes, lg), '', r.servedRef || r.ref, lg, JSON.stringify(scenes), t, t);
+      const created = row(b.id, id);
+      saveVersion(created, `İlk üretim (${scenes.length} sahne)`);
+      return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: false }) });
+    },
+
+    // 7.8 sahne işlemleri: add (devamını üret), extend (sahneyi uzat), rewrite (beğenilmeyen sahneyi talimatla değiştir)
+    async sceneAction(brandId, id, { action, index = null, instruction = '', modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const r = row(b.id, id);
+      const p = toPrompt(r);
+      const scenes = p.scenes;
+      if (!scenes.length) throw badRequest('Bu prompt sahneli değil.');
+      const lg = qLang(r);
+      const i = Number(index);
+      let ask; let note;
+      if (action === 'add') {
+        if (scenes.length >= MAX_SCENES) throw badRequest(`En fazla ${MAX_SCENES} sahne olabilir.`);
+        ask = `Son sahnenin bittiği yerden devam eden YENİ bir sahne yaz (sahne ${scenes.length + 1}). Karakter, mekân ve stil aynı kalsın.`; note = 'Bir sahne daha eklendi';
+      } else if (action === 'extend' || action === 'rewrite') {
+        if (!Number.isInteger(i) || !scenes[i]) throw badRequest('Geçersiz sahne.');
+        const how = text(instruction, { field: 'Talimat', max: 500 });
+        if (action === 'rewrite' && !how) throw badRequest('Bu sahnede neyi değiştirmek istediğini yaz.');
+        ask = action === 'extend'
+          ? `YALNIZCA sahne ${i + 1}'i daha uzun ve ayrıntılı yaz: aksiyonu çoğalt, saniye saniye akışı genişlet, ayrıntı ekle. Diğer sahnelerle tutarlı kalsın.`
+          : `YALNIZCA sahne ${i + 1}'i şu talimata göre yeniden yaz: ${how}. Beğenilmeyen kısmı değiştir, geri kalanı ve diğer sahnelerle tutarlılığı koru.`;
+        note = action === 'extend' ? `Sahne ${i + 1} uzatıldı` : `Sahne ${i + 1} değiştirildi`;
+      } else throw badRequest('Geçersiz sahne işlemi.');
+      const prompt = ['PROMPT STUDIO · SAHNE', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, r.kind), '', rules(r.kind, lg), '',
+        `İLK İSTEK: ${r.brief || '-'}`, '', 'MEVCUT SAHNELER:', joinScenes(scenes, lg), '', `YAPILACAK: ${ask}`, '',
+        'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' })].join('\n');
+      const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
+      const sc = sceneList([out.output])[0];
+      if (!sc) throw badRequest('Model sahne döndürmedi; tekrar dene.');
+      const next = scenes.slice();
+      if (action === 'add') next.push(sc); else next[i] = Object.assign({}, sc, { title: sc.title || scenes[i].title });
+      db.prepare('UPDATE prompts SET scenes = ?, text = ?, model = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(next), joinScenes(next, lg), out.servedRef || out.ref, now(), r.id);
+      const u = row(b.id, r.id);
+      saveVersion(u, note);
+      return Object.assign(detail(u), { ai: meta(out) });
     },
 
     // 7.5: Türkçe yazılmış prompt'u İngilizceye çevirir; Türkçesi "Türkçesi" alanına geçer, İngilizce üretim aracına verilir
@@ -236,6 +316,20 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const r = row(b.id, id);
       if (!PROMPT_KINDS[r.kind].english) throw badRequest('Bu tür Türkçe kullanılır; çeviri gerekmez.');
       if ((r.lang || 'en') === 'en') throw badRequest('Prompt zaten İngilizce.');
+      const tail = SKELETONS[r.kind] && SKELETONS[r.kind].sections.includes('negative') ? `Türkçe kapanışı tam olarak şu İngilizce ifadeyle değiştir: "${NEGATIVE_TAIL}"` : '';
+      const trScenes = toPrompt(r).scenes;
+      if (trScenes.length) {
+        // 7.8: sahneler tek istekte, sırası korunarak çevrilir
+        const prompt = ['PROMPT ÇEVİRİSİ · SAHNELİ', 'Aşağıdaki Türkçe sahne prompt\'larını sırasını koruyarak İngilizceye çevir; her sahne için yalnız prompt\'u çevir, başlığı da İngilizceye çevir. Görsel/video terimlerini İngilizce kullan. Yeni bilgi ekleme.', tail, '',
+          `SAHNELER (JSON):\n${JSON.stringify(trScenes.map(s => ({ title: s.title, prompt: s.text })))}`, '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ scenes: [{ title: 'Scene title', prompt: 'English prompt' }] })].filter(Boolean).join('\n');
+        const out = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 0.2 });
+        const en = sceneList(out.output && out.output.scenes);
+        if (en.length !== trScenes.length) throw badRequest('Model sahnelerin hepsini çevirmedi; tekrar dene.');
+        db.prepare("UPDATE prompts SET text = ?, text_tr = ?, scenes = ?, lang = 'en', updated_at = ? WHERE id = ?").run(joinScenes(en, 'en'), r.text, JSON.stringify(en), now(), r.id);
+        const u = row(b.id, r.id);
+        saveVersion(u, 'İngilizceye çevrildi');
+        return Object.assign(detail(u), { ai: meta(out) });
+      }
       const prompt = ['PROMPT ÇEVİRİSİ', 'Aşağıdaki Türkçe üretim prompt\'unu İngilizceye çevir. Anlamı, bölüm sırasını ve ayrıntıları koru; görsel/video üretim araçlarının kullandığı İngilizce terimleri kullan (shot types, lens, lighting). Yeni bilgi ekleme, açıklama yazma.',
         SKELETONS[r.kind] && SKELETONS[r.kind].sections.includes('negative') ? `Türkçe kapanışı tam olarak şu İngilizce ifadeyle değiştir: "${NEGATIVE_TAIL}"` : '',
         '', `TÜRKÇE PROMPT:\n${r.text}`, '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ prompt: 'English prompt' })].filter(Boolean).join('\n');
@@ -253,6 +347,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const b = brands.get(brandId);
       const r = row(b.id, id);
       const k = r.kind;
+      if (toPrompt(r).scenes.length) throw badRequest('Sahneli prompt\'ta sahne kartlarındaki işlemleri kullan (uzat, değiştir, bir sahne daha).');
       const lg = PROMPT_KINDS[k].english ? (r.lang || 'en') : 'tr';
       const english = PROMPT_KINDS[k].english && lg === 'en';
       let ask;
@@ -292,7 +387,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const r = row(b.id, id);
       const v = db.prepare('SELECT * FROM prompt_versions WHERE id = ? AND prompt_id = ?').get(String(versionId), r.id);
       if (!v) throw notFound('Sürüm bulunamadı.');
-      db.prepare('UPDATE prompts SET brief = ?, text = ?, text_tr = ?, model = ?, lang = ?, updated_at = ? WHERE id = ?').run(v.brief, v.text, v.text_tr, v.model, v.lang || 'en', now(), r.id);
+      db.prepare('UPDATE prompts SET brief = ?, text = ?, text_tr = ?, model = ?, lang = ?, scenes = ?, updated_at = ? WHERE id = ?').run(v.brief, v.text, v.text_tr, v.model, v.lang || 'en', v.scenes || '[]', now(), r.id);
       const u = row(b.id, r.id);
       saveVersion(u, 'Önceki sürüme dönüldü');
       return detail(u);

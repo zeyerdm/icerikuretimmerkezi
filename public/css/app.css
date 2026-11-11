@@ -1690,3 +1690,8 @@ html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; c
 .q-badge { font-size: var(--t-xs); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .q-badge.ok { background: #e6f7ee; border-color: #b9e6cc; color: #17663d; }
 .q-badge.bad { background: #fdecec; border-color: #f5c2c2; color: #a11d1d; }
+
+/* ---- 7.8 Sahneli prompt ---- */
+.scene-list { display: grid; gap: 12px; }
+.scene-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; background: var(--surface); }
+.scene-card .row .input { flex: 1; min-width: 0; }
