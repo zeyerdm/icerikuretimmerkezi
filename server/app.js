@@ -742,6 +742,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // Ortak tarifler (prompt ve Reels kalıpları markalar arasında)
   api.get('/recipes', (req, res) => res.json({ recipes: recipes.list(req.query.kind ? String(req.query.kind) : null) }));
   api.post('/brands/:brandId/prompts/:id/recipe', (req, res) => res.status(201).json({ recipe: recipes.fromPrompt(req.brand.id, req.params.id) }));
+  api.post('/brands/:brandId/prompt-identity/recipe', (req, res) => res.status(201).json({ recipe: recipes.fromIdentity(req.brand.id, { withMascot: Boolean((req.body || {}).withMascot) }) }));
   api.post('/brands/:brandId/patterns/:id/recipe', (req, res) => res.status(201).json({ recipe: recipes.fromPattern(req.brand.id, req.params.id) }));
   api.post('/recipes/:id/apply', (req, res) => res.status(201).json(recipes.apply(req.params.id, String((req.body || {}).brandId || ''))));
   api.delete('/recipes/:id', (req, res) => { recipes.remove(req.params.id); res.status(204).end(); });
