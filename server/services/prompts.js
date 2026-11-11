@@ -177,6 +177,19 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     },
     get(brandId, id) { return detail(row(brands.get(brandId).id, id)); },
 
+    // 7.13: model karşılaştırması için aynı kemik + aynı marka kimliğiyle istem (kaydetmeden) ve kalite puanı
+    compose(brandId, { kind, brief, lang = 'tr', tool = '' } = {}) {
+      const b = brands.get(brandId);
+      const k = oneOf(kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
+      const want = text(brief, { field: 'İstek', max: 2000, required: true });
+      const lg = PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
+      const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, validTool(k, tool) ? tool : ''), '',
+        `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
+      return { prompt, kind: k, lang: lg, label: PROMPT_KINDS[k].label };
+    },
+    readOutput(kind, output, lang) { return clean(output, kind, '', lang); },
+    score(brandId, kind, textIn, lang) { return checkPrompt(kind, textIn, lang, qualityOpts(brandId)); },
+
     // AI ile yeni prompt: kısa tarif (brief) → tam prompt
     async create(brandId, { kind, brief, modelRef = null, lang = 'tr', scenes: sceneCount = 0, tool = '' } = {}) {
       const b = brands.get(brandId);
@@ -252,8 +265,10 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const t = text(body.text, { field: 'Prompt', max: MAX_TEXT, required: true });
       const id = newId();
       const ts = now();
-      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, b.id, k, text(body.title, { field: 'Başlık', max: 80 }) || t.slice(0, 50), '', t, text(body.textTr, { field: 'Türkçesi', max: MAX_TEXT }) || '', ts, ts);
+      // 7.13: karşılaştırmadan kaydedilen Türkçe prompt Türkçe olarak işaretlenir (sonra çevrilebilir)
+      const lg = PROMPT_KINDS[k].english && body.lang === 'tr' ? 'tr' : 'en';
+      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, lang, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, b.id, k, text(body.title, { field: 'Başlık', max: 80 }) || t.slice(0, 50), text(body.brief, { field: 'İstek', max: 2000 }) || '', t, text(body.textTr, { field: 'Türkçesi', max: MAX_TEXT }) || '', lg, ts, ts);
       const created = row(b.id, id);
       saveVersion(created, 'Elle kaydedildi');
       return detail(created);

@@ -122,7 +122,6 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const memory = createMemoryService({ db, brands });
   const backups = createBackupService({ db, dataDir, settings });
   const drive = createDriveService(settings, { fetchImpl: driveFetch });
-  const compare = createCompareService({ db, ai, brands });
   const patterns = createPatternService({ db, ai, brands });
   const competitors = createCompetitorService({ db, ai, brands });
   const reels = createReelsService({ db, ai, brands, workspace, patterns });
@@ -133,6 +132,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
   const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
+  const compare = createCompareService({ db, ai, brands, prompts });
   const recipes = createRecipeService({ db, ownerId, brands, prompts });
   const images = createImageService({ db, ai, brands, assets });
   const imageTemplates = createImageTemplateService({ prompts, images });
@@ -235,7 +235,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/ai/smoke', route(async (req, res) => res.json(await ai.smokeTest())));
   api.post('/ai/compare', route(async (req, res) => {
     const body = req.body || {};
-    res.status(201).json({ comparison: await compare.run({ brief: body.brief, kind: body.kind || 'serbest', brandId: body.brandId || null, models: body.models }) });
+    res.status(201).json({ comparison: await compare.run({ brief: body.brief, kind: body.kind || 'serbest', brandId: body.brandId || null, models: body.models, promptKind: body.promptKind }) });
   }));
   api.get('/ai/comparisons', (req, res) => res.json({ comparisons: compare.list(20), scoreboard: compare.scoreboard() }));
   api.put('/ai/comparisons/:id/winner', (req, res) => res.json({ comparison: compare.setWinner(req.params.id, req.body && req.body.ref ? String(req.body.ref) : '') }));

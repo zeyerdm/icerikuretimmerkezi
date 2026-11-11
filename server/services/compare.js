@@ -25,25 +25,41 @@ Konu: ${brief}`
   }
 };
 
-export function createCompareService({ db, ai, brands }) {
-  const toItem = r => ({ id: r.id, createdAt: r.created_at, kind: r.kind, kindLabel: (COMPARE_KINDS[r.kind] || {}).label || r.kind, brandId: r.brand_id, brief: r.brief, results: parseJson(r.results, []), winner: r.winner || null });
+// 7.13: "prompt:<tür>" kaydı Prompt Studio'nun kemiği ve markanın prompt kimliğiyle yazılır; sonuçlara kalite puanı eklenir
+export const PROMPT_COMPARE = 'prompt';
+
+export function createCompareService({ db, ai, brands, prompts = null }) {
+  const kindLabelOf = k => (String(k).startsWith('prompt:') && prompts && prompts.kinds[k.slice(7)] ? `Prompt · ${prompts.kinds[k.slice(7)].label}` : (COMPARE_KINDS[k] || {}).label || k);
+  const toItem = r => ({ id: r.id, createdAt: r.created_at, kind: r.kind, kindLabel: kindLabelOf(r.kind), brandId: r.brand_id, brief: r.brief, results: parseJson(r.results, []), winner: r.winner || null });
 
   return {
-    kinds: Object.fromEntries(Object.entries(COMPARE_KINDS).map(([k, v]) => [k, v.label])),
+    kinds: Object.assign(Object.fromEntries(Object.entries(COMPARE_KINDS).map(([k, v]) => [k, v.label])), prompts ? { [PROMPT_COMPARE]: 'Prompt (kemik + kimlik)' } : {}),
 
-    async run({ brief, kind = 'serbest', brandId = null, models = [] }) {
+    async run({ brief, kind = 'serbest', brandId = null, models = [], promptKind = '' }) {
       const b = text(brief, { field: 'İstek', max: 3000, required: true });
-      if (!COMPARE_KINDS[kind]) throw badRequest('Geçersiz karşılaştırma türü.');
+      const isPrompt = kind === PROMPT_COMPARE && prompts;
+      if (!isPrompt && !COMPARE_KINDS[kind]) throw badRequest('Geçersiz karşılaştırma türü.');
+      if (isPrompt && !brandId) throw badRequest('Prompt karşılaştırması için marka seç (kimlik ve kemik markadan gelir).');
       const refs = [...new Set((Array.isArray(models) ? models : []).map(String))];
       if (refs.length < 2 || refs.length > 3) throw badRequest('Karşılaştırmak için 2 ya da 3 model seç.');
       if (refs.some(r => !parseRef(r))) throw badRequest('Geçersiz model seçimi.');
       const brand = brandId ? brands.get(brandId) : null;
-      const prompt = (brand ? `Bu içerik şu marka için: aşağıdaki marka bilgisine ve iletişim diline uy.\n\nMARKA HAFIZASI:\n${brands.memory(brand.id)}\n\n` : '') + COMPARE_KINDS[kind].build(b);
+      const composed = isPrompt ? prompts.compose(brand.id, { kind: promptKind, brief: b }) : null;
+      const prompt = composed ? composed.prompt
+        : (brand ? `Bu içerik şu marka için: aşağıdaki marka bilgisine ve iletişim diline uy.\n\nMARKA HAFIZASI:\n${brands.memory(brand.id)}\n\n` : '') + COMPARE_KINDS[kind].build(b);
 
-      const settled = await Promise.allSettled(refs.map(ref => ai.runOne(ref, { task: 'karsilastirma', brandId: brand ? brand.id : null, prompt, json: false })));
-      const results = settled.map((s, i) => s.status === 'fulfilled'
-        ? { ref: refs[i], label: ai.labelOf(refs[i]), ok: true, text: String(s.value.output), ms: s.value.ms, usage: s.value.usage, cost: s.value.cost }
-        : { ref: refs[i], label: ai.labelOf(refs[i]), ok: false, error: s.reason && s.reason.message ? s.reason.message : 'Bilinmeyen hata' });
+      const settled = await Promise.allSettled(refs.map(ref => ai.runOne(ref, { task: 'karsilastirma', brandId: brand ? brand.id : null, prompt, json: Boolean(composed) })));
+      const results = settled.map((s, i) => {
+        if (s.status !== 'fulfilled') return { ref: refs[i], label: ai.labelOf(refs[i]), ok: false, error: s.reason && s.reason.message ? s.reason.message : 'Bilinmeyen hata' };
+        const base = { ref: refs[i], label: ai.labelOf(refs[i]), ok: true, ms: s.value.ms, usage: s.value.usage, cost: s.value.cost };
+        if (!composed) return Object.assign(base, { text: String(s.value.output) });
+        try {
+          const c = prompts.readOutput(composed.kind, s.value.output, composed.lang);
+          const q = prompts.score(brand.id, composed.kind, c.text, composed.lang);
+          return Object.assign(base, { text: c.text, title: c.title, quality: { score: q.score, ok: q.ok, missing: q.missing } });
+        } catch (err) { return { ref: refs[i], label: ai.labelOf(refs[i]), ok: false, error: err.message }; }
+      });
+      if (composed) kind = `prompt:${composed.kind}`;
       // Bütçe sınırı gibi bütün modelleri etkileyen hata: kayıt açılmaz, hata olduğu gibi gösterilir
       if (settled.every(s => s.status === 'rejected') && settled[0].reason && settled[0].reason.code === 'AI_BUDGET') throw settled[0].reason;
 
