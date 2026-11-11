@@ -248,6 +248,13 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ⬜ **8.15 Hashtag ve açıklama setleri:** Markaya kayıtlı, tek tıkla eklenen hashtag grupları ve imza açıklama kapanışları; yasaklı kelime denetimiyle.
 - ⬜ **8.16 Haftalık plan sihirbazı:** "Bu hafta 5 içerik" deyince fikir havuzu, özel günler ve aylık hedefe göre takvim taslağı. Kullanıcı onaylayınca takvime yazılır.
 
+- ⬜ **8.20 Dairesel hızlı menü (kullanıcının fikri):**
+  - Ekranın kenarındaki bir düğmeye basılınca ya da kısayolla (ör. orta fare tuşu / Alt+Q) imlecin olduğu yerde dairesel bir menü açılır.
+  - Kişi kendi kısa yollarını kendisi seçer: not al, görev ekle, içerik planla, sık kullandığı marka, Prompt Studio, YouTube kapağı, ilham rafı…
+  - En çok 8 dilim; sürükleyerek sıralanır. Tercih bu bilgisayarda saklanır.
+  - Klavyeyle (ok tuşları + Enter) ve dokunmatik ekranda da çalışır.
+  - Komut paletiyle (Ctrl+K) aynı komut listesini kullanır; palet arama, dairesel menü tek hareketle erişim içindir.
+
 **E. Kalite**
 - ⬜ **8.17 Erişilebilirlik denetimi:** Bütün sayfalarda otomatik erişilebilirlik taraması (kontrast, etiket, klavye sırası) ve bulguların düzeltilmesi.
 - ⬜ **8.18 Kısmi toplu testlerin tamamlanması:** 🟡 işaretli T. maddelerinde kalan kısımlar (çoğu arayüz ayrıntısı).
