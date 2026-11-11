@@ -188,6 +188,7 @@ export const api = {
   setImageDefault: model => request('PUT', '/api/ai/images', { model }),
   images: (id, promptId) => request('GET', b(id) + '/images' + (promptId ? '?promptId=' + encodeURIComponent(promptId) : '')),
   editImageRegion: (id, assetId, blob, instruction, model) => request('POST', `${b(id)}/images/edit?assetId=${encodeURIComponent(assetId)}&instruction=${encodeURIComponent(instruction)}${model ? '&model=' + encodeURIComponent(model) : ''}`, blob, { 'Content-Type': blob.type || 'image/png' }),
+  setImageExample: (id, genId, example) => request('PUT', `${b(id)}/images/${genId}/example`, { example }),
   generateImage: (id, body) => request('POST', b(id) + '/images', body),
   imageTemplates: () => request('GET', '/api/image-templates'),
   imageFromTemplate: (id, body) => request('POST', b(id) + '/images/template', body),

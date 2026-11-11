@@ -450,6 +450,11 @@ const MIGRATIONS = [
   `
   ALTER TABLE prompts ADD COLUMN scenes TEXT NOT NULL DEFAULT '[]';
   ALTER TABLE prompt_versions ADD COLUMN scenes TEXT NOT NULL DEFAULT '[]';
+  `,
+  // 27: 7.9 Marka örneği: beğenilen prompt ya da görsel sonraki üretimlere örnek olarak girer
+  `
+  ALTER TABLE prompts ADD COLUMN is_example INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE image_generations ADD COLUMN is_example INTEGER NOT NULL DEFAULT 0;
   `
 ];
 

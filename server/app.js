@@ -624,6 +624,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/images', route(async (req, res) => res.status(201).json(await images.generate(req.brand.id, req.body || {}))));
   // 7.4 hazır görsel şablonları
   api.get('/image-templates', (req, res) => res.json({ templates: imageTemplates.list() }));
+  api.put('/brands/:brandId/images/:genId/example', (req, res) => res.json(images.setExample(req.brand.id, req.params.genId, Boolean((req.body || {}).example))));
   api.post('/brands/:brandId/images/template', route(async (req, res) => res.status(201).json(await imageTemplates.run(req.brand.id, req.body || {}))));
   // Alan düzenleme: gövde işaretli görselin kendisi (PNG/JPEG), diğerleri adres parametresi
   api.post('/brands/:brandId/images/edit', express.raw({ type: () => true, limit: MAX_ASSET_BYTES }), route(async (req, res) => res.status(201).json(await images.editRegion(req.brand.id, { assetId: String(req.query.assetId || ''), marked: req.body, instruction: String(req.query.instruction || ''), modelRef: req.query.model ? String(req.query.model) : null }))));

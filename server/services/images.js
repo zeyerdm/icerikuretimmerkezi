@@ -3,7 +3,7 @@
 // üretim kaydında tutulur. Görsel servisi bağlı değilse açık hata döner: sahte ya da yer tutucu görsel üretilmez.
 import fs from 'node:fs';
 import { detectImage } from './assets.js';
-import { newId, now, text, badRequest, oneOf, parseJson } from '../lib/http.js';
+import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { bookImageLine } from './characterBook.js';
 import { identityImageLine } from './promptIdentity.js';
 
@@ -100,6 +100,16 @@ export function createImageService({ db, ai, brands, assets }) {
       return { asset, ai: { model: r.ref, modelLabel: r.label, cost: r.cost, ms: r.ms, usedRefs: true } };
     },
 
+    // 7.9: beğenilen görseli marka örneği yap (tarifi sonraki prompt üretimlerine örnek olarak girer; en çok 3)
+    setExample(brandId, genId, on) {
+      const b = brands.get(brandId);
+      const r = db.prepare('SELECT * FROM image_generations WHERE id = ? AND brand_id = ?').get(String(genId), b.id);
+      if (!r) throw notFound('Görsel bulunamadı.');
+      if (on && !r.is_example && db.prepare('SELECT COUNT(*) AS n FROM image_generations WHERE brand_id = ? AND is_example = 1').get(b.id).n >= 3) throw badRequest('En çok 3 görsel marka örneği olabilir; önce birini örneklikten çıkar.');
+      db.prepare('UPDATE image_generations SET is_example = ? WHERE id = ?').run(on ? 1 : 0, r.id);
+      return { id: r.id, example: Boolean(on) };
+    },
+
     // Bir markanın (isteğe bağlı: bir prompt'un) üretim geçmişi; silinmiş görseller listelenmez
     history(brandId, { promptId = null } = {}) {
       const b = brands.get(brandId);
@@ -107,7 +117,7 @@ export function createImageService({ db, ai, brands, assets }) {
         ? db.prepare('SELECT * FROM image_generations WHERE brand_id = ? AND prompt_id = ? ORDER BY created_at DESC LIMIT 60').all(b.id, String(promptId))
         : db.prepare('SELECT * FROM image_generations WHERE brand_id = ? ORDER BY created_at DESC LIMIT 60').all(b.id);
       const byId = new Map(assets.list(b.id).map(a => [a.id, a]));
-      return rows.filter(r => byId.has(r.asset_id)).map(r => ({ id: r.id, asset: byId.get(r.asset_id), prompt: r.prompt, model: r.model, modelLabel: ai.labelOf(r.model), aspect: r.aspect, usedRefs: Boolean(r.used_refs), cost: r.cost_usd, createdAt: r.created_at }));
+      return rows.filter(r => byId.has(r.asset_id)).map(r => ({ id: r.id, asset: byId.get(r.asset_id), prompt: r.prompt, model: r.model, modelLabel: ai.labelOf(r.model), aspect: r.aspect, usedRefs: Boolean(r.used_refs), example: Boolean(r.is_example), cost: r.cost_usd, createdAt: r.created_at }));
     }
   };
 }

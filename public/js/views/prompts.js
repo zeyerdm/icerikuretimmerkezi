@@ -68,7 +68,7 @@ export async function renderPrompts(view, brand, sub) {
     box.innerHTML = prompts.length ? `<ul class="pool-list">${prompts.map(p => `
       <li class="pool-item">
         <span class="status-badge">${esc(p.kindLabel)}</span>
-        <a class="grow prompt-link" href="${base(brand)}/${esc(p.id)}"><div class="strong truncate">${p.favorite ? '★ ' : ''}${esc(p.title)}</div><div class="xsmall muted truncate">${esc(p.text.slice(0, 160))}</div></a>
+        <a class="grow prompt-link" href="${base(brand)}/${esc(p.id)}"><div class="strong truncate">${p.favorite ? '★ ' : ''}${p.example ? '<span class="badge" title="Marka örneği: sonraki üretimlere örnek olarak girer">Örnek</span> ' : ''}${esc(p.title)}</div><div class="xsmall muted truncate">${esc(p.text.slice(0, 160))}</div></a>
         <span class="xsmall muted">${timeAgo(p.updatedAt)}</span>
         <button class="btn btn-sm btn-ghost" data-copy="${esc(p.id)}" title="Kopyala">Kopyala</button>
       </li>`).join('')}</ul>`
@@ -172,6 +172,7 @@ async function renderDetail(view, brand, id, models) {
             <div class="ed-drop" data-drop="dosya" hidden>
               <div class="ed-drop-head"><b>${esc(p.title)}</b><span class="xsmall">${esc(p.kindLabel)} prompt'u${p.brief ? ` · İstek: ${esc(p.brief.slice(0, 80))}` : ''}</span></div>
               <button type="button" data-fav>${p.favorite ? '★ Favorilerden çıkar' : '☆ Favorilere ekle'}</button>
+              <button type="button" data-example>${p.example ? '✓ Marka örneğinden çıkar' : '👍 Marka örneği yap (sonraki üretimlere örnek olur)'}</button>
               <button type="button" data-recipe-save>📌 Tariflere kaydet (başka markalarda kullan)</button>
               <button type="button" data-rail="surumler">${icon('refresh')}Sürüm geçmişi</button>
               <hr><button type="button" class="danger" data-delete>${icon('trash')}Prompt'u sil</button>
@@ -225,7 +226,7 @@ async function renderDetail(view, brand, id, models) {
             </div>
           </main>
         </div>
-        <footer class="ed-bottom"><span class="small muted">${esc(p.kindLabel)} · ${p.text.length} karakter · ${p.versions.length} sürüm</span><span class="spacer"></span>${p.favorite ? '<span class="small">★ Favori</span>' : ''}</footer>
+        <footer class="ed-bottom"><span class="small muted">${esc(p.kindLabel)} · ${p.text.length} karakter · ${p.versions.length} sürüm</span><span class="spacer"></span>${p.example ? '<span class="small">👍 Marka örneği</span> ' : ''}${p.favorite ? '<span class="small">★ Favori</span>' : ''}</footer>
       </div>`;
     document.body.classList.add('editor-mode');
     if (IMAGE_KINDS[p.kind]) imageBox(view.querySelector('#pp-image'), brand, { getPrompt: () => val('#pp-text'), promptId: p.id, aspect: IMAGE_KINDS[p.kind], mentionTarget: () => view.querySelector('#pp-text') });
@@ -314,6 +315,13 @@ async function renderDetail(view, brand, id, models) {
     }
     if (t.closest('[data-recipe-save]')) {
       try { await api.promptToRecipe(brand.id, p.id); toast('Tariflere kaydedildi. Başka bir markanın Prompt Studio\'sunda "Tariflerden ekle" ile kullanabilirsin.', 'success', 5000); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    if (t.closest('[data-example]')) {
+      try {
+        p = (await api.savePrompt(brand.id, p.id, { example: !p.example })).prompt; draw();
+        toast(p.example ? 'Marka örneği yapıldı; bu türdeki sonraki üretimlerde modele örnek olarak gider (en çok 3).' : 'Marka örneğinden çıkarıldı.', 'success');
+      } catch (err) { toast(err.message, 'error'); }
       return;
     }
     if (t.closest('[data-fav]')) {
