@@ -111,13 +111,15 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   // Tek modelle çalıştırır; harcamayı kaydeder
-  async function runOne(ref, { task, brandId, prompt, json, temperature, images = [] }) {
+  async function runOne(ref, { task, brandId, prompt, json, temperature, images = [], videoUrl = null }) {
     const p = parseRef(ref);
     if (!p || !providers[p.provider]) throw badRequest('Geçersiz model seçimi.');
+    // YouTube videosunu okuyabilen tek sağlayıcı Gemini (video bağlantısını doğrudan girdi olarak alır)
+    if (videoUrl && p.provider !== 'gemini') throw badRequest('YouTube videosunu okumak için Gemini modeli gerekli.');
     if (!isConfigured(p.provider)) throw new HttpError(409, 'AI_NOT_CONFIGURED', `${PROVIDERS[p.provider] ? PROVIDERS[p.provider].label : p.provider} bağlı değil.`);
     const started = Date.now();
     try {
-      const r = await providers[p.provider].generate({ model: p.id, prompt, json, temperature, effort: EFFORT[task] || 'medium', images });
+      const r = await providers[p.provider].generate(Object.assign({ model: p.id, prompt, json, temperature, effort: EFFORT[task] || 'medium', images }, videoUrl ? { videoUrl } : {}));
       const servedRef = modelRef(p.provider, r.model || p.id);
       const cost = typeof r.cost === 'number' ? r.cost : costOf(servedRef, r.usage || {}) || costOf(ref, r.usage || {});
       record({ ref: servedRef, task, brandId, usage: r.usage, cost });
@@ -129,7 +131,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   // İş için atanan modelle (ya da o an seçilen modelle) çalıştırır; geçici bir hata olursa işin yedek modeline geçer
-  async function run({ task = 'fikir', brandId = null, prompt, json = false, temperature = 0.8, modelRef = null, images = [] }) {
+  async function run({ task = 'fikir', brandId = null, prompt, json = false, temperature = 0.8, modelRef = null, images = [], videoUrl = null }) {
     checkBudget();
     const a = assignment(task);
     let primary = a.primary;
@@ -140,12 +142,14 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       primary = modelRef;
     }
     if (!primary) throw new HttpError(409, 'AI_NOT_CONFIGURED', 'AI bağlı değil. Yapay zekâ → Sağlayıcılar bölümünden bir anahtar ekle.');
-    const fallback = a.fallback && a.fallback !== primary ? a.fallback : null;
+    const fb = a.fallback && a.fallback !== primary ? a.fallback : null;
+    // Video girdisinde yedek model de Gemini olmalı; değilse yedeğe geçilmez
+    const fallback = fb && (!videoUrl || (parseRef(fb) || {}).provider === 'gemini') ? fb : null;
     try {
-      return Object.assign(await runOne(primary, { task, brandId, prompt, json, temperature, images }), { fallbackUsed: false });
+      return Object.assign(await runOne(primary, { task, brandId, prompt, json, temperature, images, videoUrl }), { fallbackUsed: false });
     } catch (err) {
       if (!fallback || !err.retryable) throw err;
-      const r = await runOne(fallback, { task, brandId, prompt, json, temperature, images });
+      const r = await runOne(fallback, { task, brandId, prompt, json, temperature, images, videoUrl });
       return Object.assign(r, { fallbackUsed: true, primaryError: err.message });
     }
   }

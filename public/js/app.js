@@ -30,6 +30,7 @@ import { renderDesk } from './views/desk.js';
 import { renderVideo } from './views/video.js';
 import { renderCampaigns } from './views/campaigns.js';
 import { renderReport } from './views/report.js';
+import { renderYoutube } from './views/youtube.js';
 import { mountAssistant } from './assistantWidget.js';
 import { initFx } from './fx.js';
 import { enhanceMics, dictationSupported } from './dictation.js';
@@ -100,6 +101,7 @@ export const BRAND_NAV = [
   { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar', group: 'uretim' },
   { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive', group: 'uretim' },
   { page: 'kampanya', path: '/kampanya', label: 'Kampanya kanvası', icon: 'grid', group: 'uretim' },
+  { page: 'youtube', path: '/youtube', label: 'YouTube kapağı', icon: 'image', group: 'uretim' },
   { page: 'rakipler', path: '/rakipler', label: 'Rakipler', icon: 'brands', group: 'arastirma' },
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart', group: 'arastirma' },
   { page: 'rapor', path: '/rapor', label: 'Aylık rapor', icon: 'archive', group: 'arastirma' },
@@ -280,6 +282,7 @@ export async function route() {
       else if (r.page === 'disa') await renderExporter(view, brand);
       else if (r.page === 'video') await renderVideo(view, brand);
       else if (r.page === 'kampanya') await renderCampaigns(view, brand, r.sub);
+      else if (r.page === 'youtube') await renderYoutube(view, brand);
       else if (r.page === 'rapor') await renderReport(view, brand);
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;

@@ -164,6 +164,7 @@ export const api = {
   createPost: (id, body) => request('POST', b(id) + '/posts', body),
   post: (id, pid) => request('GET', `${b(id)}/posts/${pid}`),
   savePost: (id, pid, body) => request('PUT', `${b(id)}/posts/${pid}`, body),
+  youtubeIdeas: (id, body) => request('POST', b(id) + '/youtube/ideas', body),
   deletePost: (id, pid) => request('DELETE', `${b(id)}/posts/${pid}`),
   rewritePost: (id, pid, body) => request('POST', `${b(id)}/posts/${pid}/rewrite`, body),
   schedulePost: (id, pid, scheduledAt) => request('POST', `${b(id)}/posts/${pid}/schedule`, { scheduledAt }),

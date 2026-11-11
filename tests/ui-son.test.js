@@ -200,3 +200,41 @@ test('T.36 aylık hedef: marka ana sayfasında hedef koy, ilerleme ve rozetler',
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('5.21 YouTube kapak stüdyosu: fikir al, tarifi kutuya al, tasarım aç, YouTube önizlemesi; ızgarada görünmez', { skip }, async () => {
+  const { fakeProvider } = await import('./helpers.js');
+  const provider = fakeProvider([p => (p.startsWith('YOUTUBE KAPAK') ? { summary: '', ideas: [
+    { name: 'Şaşkın yüz', text: '3 MALZEME YETER Mİ?', promise: 'Evde kafe latte', emotion: 'şaşkın', composition: 'Yazı solda', imagePrompt: 'Surprised barista, 16:9', colors: ['#e11d48'] },
+    { name: 'Karşılaştırma', text: 'KAFE vs EV', promise: 'Fark yok', emotion: '', composition: 'İkiye bölünmüş', imagePrompt: 'Split screen', colors: [] }] } : { reply: 'x' })]);
+  const srv = await startServer({ aiProvider: provider });
+  const brand = (await srv.request('POST', '/api/brands', { name: 'Kahve Kanalı' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(srv.base + `/#/m/${brand.id}/youtube`);
+    await page.getByRole('heading', { name: 'YouTube kapağı', level: 1 }).waitFor();
+    await page.getByLabel('Video başlığı').fill('Evde barista latte');
+    await page.getByRole('button', { name: 'Kapak fikirleri' }).click();
+    await page.locator('.yt-idea').nth(1).waitFor();
+    assert.equal(await page.locator('.yt-idea').count(), 2);
+    assert.match(await page.locator('.yt-idea-text').first().innerText(), /3 MALZEME YETER/i);
+    // Görsel modeli bağlı değil: üretim kutusu açık uyarı verir (sahte görsel yok)
+    assert.match(await page.locator('#yt-gen').innerText(), /Görsel üretimi bağlı değil/);
+    await page.locator('[data-yt-design="0"]').click();
+    await page.waitForURL(/\/post\/[A-Za-z0-9-]{8,}$/);
+    const posts = (await srv.request('GET', `/api/brands/${brand.id}/posts`)).data.posts;
+    assert.equal(posts[0].kind, 'youtube');
+    assert.equal(posts[0].title, '3 MALZEME YETER Mİ?');
+    await page.getByRole('button', { name: 'Paylaş' }).click();
+    await page.getByRole('button', { name: 'YouTube önizlemesi' }).click();
+    await page.locator('.yt-search .yt-thumb img').waitFor();
+    await page.getByLabel('Süre').fill('8:05');
+    assert.equal(await page.locator('.yt-phone .yt-dur').innerText(), '8:05');
+    await page.keyboard.press('Escape');
+    // Instagram ızgarasında YouTube kapağı görünmez (taslaklar açık olsa da)
+    await page.goto(srv.base + `/#/m/${brand.id}/post/izgara`);
+    await page.locator('#gr-drafts').check();
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('.ig-cell').count(), 0);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

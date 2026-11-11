@@ -9,7 +9,8 @@ export const CONTENT_TYPES = {
   story: 'Story',
   reels: 'Reels',
   reklam: 'Reklam',
-  grafik: 'Bilgilendirici grafik'
+  grafik: 'Bilgilendirici grafik',
+  youtube: 'YouTube videosu'
 };
 
 // Paylaşım sonucu alanları. Etkileşim oranı: (beğeni + yorum + 2×kaydetme + 3×paylaşım) / izlenme × 100
@@ -41,7 +42,8 @@ export const CHECKLIST_DEFAULTS = {
   carousel: ['Metin', 'Slayt tasarımı', 'Açıklama', 'Son kontrol'],
   story: ['Metin', 'Tasarım', 'Etkileşim (anket/soru)', 'Son kontrol'],
   reklam: ['Metin', 'Tasarım', 'Hedef kitle ve bütçe', 'Onay'],
-  grafik: ['Bilgi ve kaynak', 'Tasarım', 'Açıklama', 'Son kontrol']
+  grafik: ['Bilgi ve kaynak', 'Tasarım', 'Açıklama', 'Son kontrol'],
+  youtube: ['Senaryo', 'Çekim', 'Kurgu', 'Kapak', 'Başlık ve açıklama']
 };
 const defaultChecklist = type => (CHECKLIST_DEFAULTS[type] || CHECKLIST_DEFAULTS.post).map(label => ({ label, done: false }));
 function cleanChecklist(v) {

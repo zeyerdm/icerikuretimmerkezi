@@ -23,6 +23,7 @@ import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
+import { createThumbnailService } from './services/thumbnails.js';
 import { createTrashService, TRASH_DAYS } from './services/trash.js';
 import { createSearchService } from './services/search.js';
 import { createCampaignService, CAMPAIGN_KINDS } from './services/campaigns.js';
@@ -122,6 +123,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const images = createImageService({ db, ai, brands, assets });
   const designRef = createDesignRefService({ db, ai, brands, assets });
   const assetTags = createAssetTagService({ ai, brands, assets });
+  const thumbnails = createThumbnailService({ ai, brands });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
@@ -605,6 +607,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/images', route(async (req, res) => res.status(201).json(await images.generate(req.brand.id, req.body || {}))));
   // Alan düzenleme: gövde işaretli görselin kendisi (PNG/JPEG), diğerleri adres parametresi
   api.post('/brands/:brandId/images/edit', express.raw({ type: () => true, limit: MAX_ASSET_BYTES }), route(async (req, res) => res.status(201).json(await images.editRegion(req.brand.id, { assetId: String(req.query.assetId || ''), marked: req.body, instruction: String(req.query.instruction || ''), modelRef: req.query.model ? String(req.query.model) : null }))));
+
+  // --- YouTube kapak stüdyosu: kapak fikirleri (kaydedilmez) ---
+  api.post('/brands/:brandId/youtube/ideas', route(async (req, res) => {
+    const b = req.body || {};
+    res.json(await thumbnails.ideas(req.brand.id, { topic: b.topic, title: b.title, url: b.url, count: b.count, modelRef: mr(b) }));
+  }));
 
   // --- Tasarım referansı analizi ---
   api.post('/brands/:brandId/design-ref', route(async (req, res) => {
