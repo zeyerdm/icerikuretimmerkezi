@@ -2,7 +2,7 @@
 // Üretilen görsel markanın kütüphanesine "AI görseli" olarak kaydedilir. Görsel servisi bağlı değilse üretim düğmesi
 // gösterilmez, nasıl bağlanacağı yazılır (sahte görsel üretilmez).
 import { api } from '../api.js';
-import { esc, toast, openModal } from '../ui.js';
+import { esc, toast, openModal, busy } from '../ui.js';
 import { busyTimer } from '../aiPicker.js';
 import { downloadBlob, safeName } from '../titlePng.js';
 
@@ -67,6 +67,7 @@ export async function imageBox(box, brand, opts = {}) {
     <div class="gen-actions">
       <button type="button" class="btn btn-sm btn-ghost" data-detail="${esc(g.id)}">Ayrıntı</button>
       ${g.aspect !== 'kaynak' ? `<button type="button" class="btn btn-sm btn-ghost" data-variant="${esc(g.id)}">Varyasyon</button>` : ''}
+      ${g.aspect !== 'kaynak' ? `<button type="button" class="btn btn-sm btn-ghost" data-example="${esc(g.id)}" aria-pressed="${g.example}" title="Tarifi sonraki prompt üretimlerine örnek olarak girer (en çok 3)">${g.example ? '✓ Marka örneği' : '👍 Örnek yap'}</button>` : ''}
       <button type="button" class="btn btn-sm btn-ghost" data-region="${esc(g.id)}">Alanı düzenle</button>
       <button type="button" class="btn btn-sm btn-ghost" data-dl="${esc(g.asset.url)}">İndir</button>
       <label class="check xsmall"><input type="checkbox" data-cmp="${esc(g.id)}" ${compare.has(g.id) ? 'checked' : ''}> Karşılaştır</label></div></figure>`;
@@ -169,6 +170,17 @@ export async function imageBox(box, brand, opts = {}) {
     const findGen = el => gens.find(x => x.id === el.dataset.detail || x.id === el.dataset.variant || x.id === el.dataset.region);
     const det = e.target.closest('[data-detail]');
     if (det) return detailModal(findGen(det));
+    const exb = e.target.closest('[data-example]');
+    if (exb) {
+      const g = gens.find(x => x.id === exb.dataset.example);
+      try {
+        await busy(exb, () => api.setImageExample(brand.id, g.id, !g.example));
+        g.example = !g.example;
+        exb.outerHTML = card(g).match(/<button[^>]*data-example[\s\S]*?<\/button>/)[0];
+        toast(g.example ? 'Marka örneği yapıldı; tarifi sonraki görsel prompt\'larına örnek olarak girer.' : 'Marka örneğinden çıkarıldı.', 'success');
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const reg = e.target.closest('[data-region]');
     if (reg) return regionModal(findGen(reg));
     const vr = e.target.closest('[data-variant]');

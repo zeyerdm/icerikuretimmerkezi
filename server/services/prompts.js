@@ -33,6 +33,8 @@ export const IMPROVE_ACTIONS = {
 
 const MAX_TEXT = 8000;
 const MAX_SCENES = 8;
+export const MAX_EXAMPLES = 3; // 7.9: türe göre en çok 3 marka örneği
+const IMAGE_KINDS = ['gorsel', 'urun', 'reklam', 'post', 'maskot'];
 // 7.8: sahneler [{ title, text }]; prompt metni sahnelerin birleşimidir (kopyalama ve görsel üretimi için)
 const sceneList = v => (Array.isArray(v) ? v : []).map(s => ({ title: String((s && s.title) || '').trim().slice(0, 80), text: String((s && (s.text || s.prompt)) || '').trim().slice(0, 3000) })).filter(s => s.text).slice(0, MAX_SCENES);
 const joinScenes = (scenes, lang) => scenes.map((s, i) => `${lang === 'en' ? 'SCENE' : 'SAHNE'} ${i + 1}${s.title ? ' — ' + s.title : ''}\n${s.text}`).join('\n\n');
@@ -41,7 +43,7 @@ function toPrompt(row) {
   return {
     id: row.id, brandId: row.brand_id, kind: row.kind, kindLabel: (PROMPT_KINDS[row.kind] || {}).label || row.kind,
     english: Boolean((PROMPT_KINDS[row.kind] || {}).english),
-    title: row.title, brief: row.brief, text: row.text, textTr: row.text_tr, favorite: Boolean(row.favorite), model: row.model,
+    title: row.title, brief: row.brief, text: row.text, textTr: row.text_tr, favorite: Boolean(row.favorite), example: Boolean(row.is_example), model: row.model,
     lang: (PROMPT_KINDS[row.kind] || {}).english ? (row.lang || 'en') : 'tr',
     scenes: (() => { try { return sceneList(JSON.parse(row.scenes || '[]')); } catch { return []; } })(),
     createdAt: row.created_at, updatedAt: row.updated_at
@@ -87,6 +89,18 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     });
   }
 
+  function examples(brandId, kind) {
+    const list = db.prepare('SELECT title, text FROM prompts WHERE brand_id = ? AND kind = ? AND is_example = 1 ORDER BY updated_at DESC LIMIT ?').all(brandId, kind, MAX_EXAMPLES)
+      .map(r => ({ title: r.title, text: r.text }));
+    if (IMAGE_KINDS.includes(kind) && list.length < MAX_EXAMPLES) {
+      db.prepare('SELECT prompt FROM image_generations WHERE brand_id = ? AND is_example = 1 ORDER BY created_at DESC LIMIT ?').all(brandId, MAX_EXAMPLES - list.length)
+        .forEach(r => list.push({ title: 'Beğenilen görselin tarifi', text: r.prompt }));
+    }
+    if (!list.length) return '';
+    return 'MARKANIN BEĞENDİĞİ ÖRNEKLER (kalite, ayrıntı düzeyi ve üslup için ölçü al; içeriğini kopyalama, isteğe göre yeni yaz):\n'
+      + list.map((e, i) => `ÖRNEK ${i + 1}${e.title ? ' — ' + e.title : ''}:\n${String(e.text).slice(0, 1500)}`).join('\n\n');
+  }
+
   // Marka bağlamı: kimlik hafızası + (maskot/Reels için) karakter adı ve görsel stil
   function context(b, kind) {
     const lines = ['MARKA HAFIZASI:', brands.memory(b.id)];
@@ -104,6 +118,9 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const book = bookBlock(parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(b.id) || {}).character_book, {}) || {});
       if (book) lines.push('', book);
     }
+    // 7.9: beğenilen örnekler (aynı türden prompt'lar; görsel türlerinde beğenilen görsellerin tarifleri), en çok 3
+    const ex = examples(b.id, kind);
+    if (ex) lines.push('', ex);
     return lines.join('\n');
   }
   // lang: 'tr' → İngilizce türler de önce Türkçe yazılır (7.5); 'en' → İngilizce + Türkçesi
@@ -237,8 +254,13 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         title: 'title' in body ? text(body.title, { field: 'Başlık', max: 80, required: true }) : r.title,
         text: 'text' in body ? text(body.text, { field: 'Prompt', max: MAX_TEXT, required: true }) : r.text,
         textTr: 'textTr' in body ? (text(body.textTr, { field: 'Türkçesi', max: MAX_TEXT }) || '') : r.text_tr,
-        favorite: 'favorite' in body ? (body.favorite ? 1 : 0) : r.favorite
+        favorite: 'favorite' in body ? (body.favorite ? 1 : 0) : r.favorite,
+        example: 'example' in body ? (body.example ? 1 : 0) : r.is_example
       };
+      if (next.example && !r.is_example) {
+        const n = db.prepare('SELECT COUNT(*) AS n FROM prompts WHERE brand_id = ? AND kind = ? AND is_example = 1').get(b.id, r.kind).n;
+        if (n >= MAX_EXAMPLES) throw badRequest(`Bu türde en çok ${MAX_EXAMPLES} marka örneği olabilir; önce birini örneklikten çıkar.`);
+      }
       // 7.8: sahneler elle düzenlenince metin sahnelerden yeniden kurulur
       let scenesJson = r.scenes || '[]';
       if ('scenes' in body) {
@@ -248,8 +270,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         next.text = joinScenes(sc, PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr');
       }
       const changed = next.text !== r.text || next.textTr !== r.text_tr;
-      db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
-        .run(next.title, next.text, next.textTr, next.favorite, changed ? '' : r.model, scenesJson, now(), r.id);
+      db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, is_example = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
+        .run(next.title, next.text, next.textTr, next.favorite, next.example, changed ? '' : r.model, scenesJson, now(), r.id);
       const u = row(b.id, r.id);
       if (changed) saveVersion(u, 'Elle düzenlendi');
       return detail(u);
