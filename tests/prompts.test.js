@@ -32,7 +32,10 @@ test('Prompt Studio: üret, düzenle, geliştir, seçili bölüm, girişi deği�
     const p = c.data.prompt;
     assert.equal(p.english, true);
     assert.match(p.text, /mascot/);
-    assert.equal(p.textTr, 'Türkçe v1');
+    // 7.6: sahte modelin kısa prompt'u kalite kontrolünden geçmez, eksikler söylenerek bir kez daha yazılır
+    assert.equal(p.textTr, 'Türkçe v2');
+    assert.equal(p.ai.qualityRetried, true);
+    assert.match(provider.calls.at(-1).prompt, /KALİTE KONTROLÜ: Önceki yazımda şunlar eksik/);
     assert.equal(p.versions.length, 1);
     assert.ok(p.ai && p.ai.modelLabel);
     const first = provider.calls.at(-1);

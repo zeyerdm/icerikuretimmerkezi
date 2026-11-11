@@ -1684,3 +1684,9 @@ html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; c
 .cb-pose img { width: 100%; height: 100%; object-fit: cover; }
 .cb-pose input { position: absolute; top: 6px; left: 6px; }
 .cb-pose:has(input:checked) { border-color: var(--brand, #7d6bf0); }
+
+/* ---- 7.6 Kalite kontrolü rozetleri ---- */
+.q-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.q-badge { font-size: var(--t-xs); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.q-badge.ok { background: #e6f7ee; border-color: #b9e6cc; color: #17663d; }
+.q-badge.bad { background: #fdecec; border-color: #f5c2c2; color: #a11d1d; }
