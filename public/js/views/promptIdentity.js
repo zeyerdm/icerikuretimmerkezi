@@ -1,8 +1,9 @@
 // 7.2 Marka prompt kişiliği sihirbazı: sorular ve işaretlemelerle bir kez doldurulur; cevaplar markanın bütün
 // prompt üretimlerine kendiliğinden girer (Prompt Studio). Sorular sabit, cevaplar markaya özel.
 import { api } from '../api.js';
-import { esc, icon, toast, pageHead, busy } from '../ui.js';
+import { esc, icon, toast, pageHead, busy, openModal } from '../ui.js';
 import { suggestionsCard } from '../feedback.js';
+import { openRecipes } from '../recipes.js';
 
 export async function renderPromptIdentity(view, brand) {
   const { identity, questions } = await api.promptIdentity(brand.id);
@@ -25,7 +26,8 @@ export async function renderPromptIdentity(view, brand) {
   };
 
   view.innerHTML = `
-    ${pageHead({ title: 'Prompt kimliği', desc: `${esc(brand.name)} için bir kez doldur: görsel dil, his ve (varsa) maskot. Prompt Studio'daki her üretim bu tercihlere göre yazılır; model değişse de yapı aynı kalır.` })}
+    ${pageHead({ title: 'Prompt kimliği', desc: `${esc(brand.name)} için bir kez doldur: görsel dil, his ve (varsa) maskot. Prompt Studio'daki her üretim bu tercihlere göre yazılır; model değişse de yapı aynı kalır.`,
+      actions: `<button type="button" class="btn" data-pi-recipes>${icon('star')}Tariflerden başlat</button><button type="button" class="btn" data-pi-save-recipe>${icon('pin')}Tarif olarak kaydet</button>` })}
     <form id="pi-form" class="stack">
       ${groups.map(g => `<section class="card"><div class="card-head"><h3>${esc(g)}</h3></div><div class="stack-sm">${questions.filter(q => q.group === g).map(field).join('')}</div></section>`).join('')}
       <div class="save-bar card"><span class="small muted">Boş bıraktığın sorular üretimi etkilemez.</span><button class="btn btn-primary" type="submit">${icon('check')}Kaydet</button></div>
@@ -42,6 +44,21 @@ export async function renderPromptIdentity(view, brand) {
     }
     return out;
   };
+  // 7.12: kimliği tarif olarak kaydet / başka markanın tarifinden başlat
+  view.querySelector('[data-pi-recipes]').addEventListener('click', () => openRecipes('identity', brand, res => {
+    toast(res.filled && res.filled.length ? `${res.filled.length} boş cevap tariften dolduruldu.` : 'Tarifteki bütün sorular zaten cevaplı; değişiklik olmadı.', 'success', 5000);
+    document.querySelector('.modal-backdrop [data-close]')?.click();
+    renderPromptIdentity(view, brand);
+  }));
+  view.querySelector('[data-pi-save-recipe]').addEventListener('click', () => {
+    const hasMascot = Boolean(idt.hasMascot);
+    openModal({
+      title: 'Tarif olarak kaydet', submitLabel: 'Kaydet',
+      body: `<p class="small muted mb-3">Kaydedilmiş cevaplar tarif olur; başka bir markanın Prompt kimliği sayfasında "Tariflerden başlat" ile kullanabilirsin. Dosya ve görseller taşınmaz.</p>
+        ${hasMascot ? '<label class="check"><input type="checkbox" name="withMascot"> Maskot cevaplarını da al (maskot genelde markaya özeldir)</label>' : ''}`,
+      onSubmit: async fd => { await api.identityToRecipe(brand.id, Boolean(fd.get('withMascot'))); toast('Prompt kimliği tariflere kaydedildi.', 'success'); }
+    });
+  });
   form.addEventListener('change', e => {
     if (e.target.name === 'hasMascot') questions.filter(q => q.when === 'hasMascot').forEach(q => { form.querySelector(`[data-q="${q.key}"]`).hidden = !e.target.checked; });
   });

@@ -373,3 +373,25 @@ test('7.11 arayüz: 👍/👎 ve neden; tekrar eden neden Prompt kimliğinde ön
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('7.12 arayüz: prompt kimliğini tarif olarak kaydet, başka markada tariften başlat', { skip }, async () => {
+  const srv = await startServer();
+  const a = (await srv.request('POST', '/api/brands', { name: 'Kaynak UI' })).data.brand;
+  const b = (await srv.request('POST', '/api/brands', { name: 'Hedef UI' })).data.brand;
+  await srv.request('PUT', `/api/brands/${a.id}/prompt-identity`, { visualStyle: '3d', hasMascot: true, mascotName: 'Fıstık' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${a.id}/prompt-kimligi`);
+    await page.locator('[data-pi-save-recipe]').click();
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.toast', { hasText: 'tariflere kaydedildi' }).waitFor();
+    await page.goto(`${srv.base}/#/m/${b.id}/prompt-kimligi`);
+    await page.locator('[data-pi-recipes]').click();
+    await page.locator('.rc-item', { hasText: 'Kaynak UI prompt kimliği' }).getByRole('button', { name: 'Ekle' }).click();
+    await page.locator('.toast', { hasText: '1 boş cevap tariften dolduruldu' }).waitFor();
+    await page.locator('#pi-form input[name="visualStyle"][value="3d"]:checked').waitFor();
+    assert.equal(await page.locator('.modal-backdrop').count(), 0);
+    assert.equal(await page.locator('#pi-form input[name="hasMascot"]').isChecked(), false, 'maskot taşınmadı');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

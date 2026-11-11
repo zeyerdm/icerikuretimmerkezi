@@ -152,6 +152,7 @@ export const api = {
   posts: id => request('GET', b(id) + '/posts'),
   recipes: kind => request('GET', '/api/recipes' + (kind ? '?kind=' + kind : '')),
   promptToRecipe: (id, pid) => request('POST', `${b(id)}/prompts/${pid}/recipe`),
+  identityToRecipe: (id, withMascot) => request('POST', `${b(id)}/prompt-identity/recipe`, { withMascot }),
   patternToRecipe: (id, pid) => request('POST', `${b(id)}/patterns/${pid}/recipe`),
   applyRecipe: (rid, brandId) => request('POST', `/api/recipes/${rid}/apply`, { brandId }),
   deleteRecipe: rid => request('DELETE', `/api/recipes/${rid}`),
