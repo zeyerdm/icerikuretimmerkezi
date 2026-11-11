@@ -189,6 +189,8 @@ export const api = {
   images: (id, promptId) => request('GET', b(id) + '/images' + (promptId ? '?promptId=' + encodeURIComponent(promptId) : '')),
   editImageRegion: (id, assetId, blob, instruction, model) => request('POST', `${b(id)}/images/edit?assetId=${encodeURIComponent(assetId)}&instruction=${encodeURIComponent(instruction)}${model ? '&model=' + encodeURIComponent(model) : ''}`, blob, { 'Content-Type': blob.type || 'image/png' }),
   generateImage: (id, body) => request('POST', b(id) + '/images', body),
+  imageTemplates: () => request('GET', '/api/image-templates'),
+  imageFromTemplate: (id, body) => request('POST', b(id) + '/images/template', body),
   prompts: (id, params = {}) => request('GET', b(id) + '/prompts?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v))),
   brainstormPrompts: (id, body) => request('POST', b(id) + '/prompts/brainstorm', body),
   enhancePrompt: (id, body) => request('POST', b(id) + '/prompts/enhance', body),

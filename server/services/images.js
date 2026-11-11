@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { detectImage } from './assets.js';
 import { newId, now, text, badRequest, oneOf, parseJson } from '../lib/http.js';
 import { bookImageLine } from './characterBook.js';
+import { identityImageLine } from './promptIdentity.js';
 
 const MAX_REFS = 3;
 
@@ -64,8 +65,10 @@ export function createImageService({ db, ai, brands, assets }) {
         mentionText = mentionRefs.map((a, i) => `Reference image ${i + 1} (@${a.mention}) is ${roleText[a.refRole] || (a.category === 'mascot' ? roleText.kimlik : roleText.nesne)}.`).join(' ');
       }
       const book = bookOf(b.id);
+      // 7.4: markanın prompt kimliği (stil, ışık, his, kaçınılacaklar) görsel istemine de girer
+      const idLine = body.useIdentity === false ? '' : identityImageLine(parseJson((db.prepare('SELECT prompt_identity FROM brands WHERE id = ?').get(b.id) || {}).prompt_identity, {}) || {});
       const character = book.name || (parseJson((db.prepare('SELECT reels_settings FROM brands WHERE id = ?').get(b.id) || {}).reels_settings, {}) || {}).character || '';
-      const full = `${prompt}${mentionText ? `\n\n${mentionText}` : ''}\n\n${brandHint(b, { useColors, useMascot, character, book })}`;
+      const full = `${prompt}${mentionText ? `\n\n${mentionText}` : ''}${idLine ? `\n\nBrand visual identity: ${idLine}` : ''}\n\n${brandHint(b, { useColors, useMascot, character, book })}`;
       const r = await ai.image({ brandId: b.id, prompt: full, modelRef: body.model ? String(body.model) : null, aspect, refs });
       const label = `AI: ${prompt.replace(/\s+/g, ' ').slice(0, 70)}`;
       const asset = assets.create(b.id, { buffer: r.buffer, category: 'ai_image', label });
