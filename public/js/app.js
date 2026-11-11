@@ -33,6 +33,7 @@ import { renderReport } from './views/report.js';
 import { renderYoutube } from './views/youtube.js';
 import { mountAssistant } from './assistantWidget.js';
 import { initFx } from './fx.js';
+import { initI18n } from './i18n.js';
 import { enhanceMics, dictationSupported } from './dictation.js';
 import { maybeStartTour } from './tour.js';
 import { initTheme, toggleTheme, applyTheme } from './theme.js';
@@ -244,7 +245,11 @@ export function renderChrome() {
 }
 
 export async function route() {
-  const view = document.getElementById('view');
+  // Her sayfa yeni bir #view öğesine çizilir: hızlı geçişte önceki sayfanın geç biten çizimi (await sonrası)
+  // DOM'dan ayrılmış eski öğeye yazar, yeni sayfanın üstüne yazamaz. Eski öğedeki olay işleyicileri de onunla gider.
+  const old = document.getElementById('view');
+  const view = old.cloneNode(false);
+  old.replaceWith(view);
   let r = parseRoute();
   if (r.redirect) { location.replace(r.redirect); return; }
   // Tam ekran düzenleyiciden çıkınca normal yerleşime dönülür
@@ -306,10 +311,11 @@ export async function route() {
 
 async function start() {
   initTheme();
+  await initI18n().catch(() => {}); // 6.3: İngilizce seçiliyse sözlük yüklenir; hata olursa Türkçe devam
   const view = document.getElementById('view');
   view.innerHTML = skeletonPage();
   // Bir sayfa yüklenemediyse "Tekrar dene" aynı sayfayı yeniden çizer
-  view.addEventListener('click', e => { if (e.target.closest('[data-retry]')) route(); }, true);
+  document.addEventListener('click', e => { if (e.target.closest('#view [data-retry]')) route(); }, true);
   try {
     state.meta = await api.meta();
     await refreshBrands();
@@ -325,7 +331,7 @@ async function start() {
   initFx();
   // S.5: [data-mic] alanlarına mikrofon düğmesi (sayfa her çizildiğinde)
   // Gözlemci geri çağrısı mikro görevdir: alan, kullanıcı (ya da test) ona yazmadan önce sarılır; yazarken taşınıp odak kaybolmaz.
-  if (dictationSupported) { new MutationObserver(() => enhanceMics(document)).observe(document.getElementById('view') || document.body, { childList: true, subtree: true }); }
+  if (dictationSupported) { new MutationObserver(() => enhanceMics(document)).observe(document.body, { childList: true, subtree: true }); }
   await route();
   showDailyOnce();
   startNotifier();

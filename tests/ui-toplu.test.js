@@ -414,9 +414,11 @@ test('T.28 Çalışma masası düzeni: 30 görev/not ile sayfa uzamaz, üç kart
   const { browser, page, problems } = await open(srv, { width: 1440, height: 900 });
   try {
     const edges = () => page.evaluate(() => ['#desk-tasks', '.desk-cal-card', '#desk-notes'].map(s => { const b = document.querySelector(s).getBoundingClientRect(); return [Math.round(b.top), Math.round(b.bottom)]; }));
+    // Günün özeti şeridi geç gelebilir ve sayfayı uzatır; bu testte kapalı (şerit T.11'de test ediliyor)
     await page.goto(srv.base + '/#/masa');
+    await page.evaluate(() => localStorage.setItem('ium.reminders', JSON.stringify({ summary: false })));
+    await page.reload();
     await page.locator('#desk-notes .w-scroll').waitFor();
-    const d = page.locator('[data-daily-close]'); if (await d.count()) await d.click();
     await page.locator('[data-mode="hafta"]').click();
     await page.waitForTimeout(400);
     for (const mode of ['hafta', 'ay']) {
@@ -442,6 +444,108 @@ test('T.28 Çalışma masası düzeni: 30 görev/not ile sayfa uzamaz, üç kart
     await page.waitForTimeout(400);
     const e = await edges();
     assert.ok(e[1][0] >= e[0][1] - 1 || e[0][0] >= e[1][1] - 1, `tablette alt alta ${JSON.stringify(e)}`);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('T.23 dışa aktarma: kırpma ve boyut, JPEG\'de saydam zemin beyaz, ayar değişince yeniden işleme, PNG\'de kalite kapalı, ZIP geçerli ve aynı adlar numaralı', { skip }, async () => {
+  const fs = await import('node:fs');
+  const { readZip } = await import('../server/lib/zip.js');
+  const srv = await startServer();
+  const a = (await srv.request('POST', '/api/brands', { name: 'Dışa' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(srv.base + `/#/m/${a.id}/disa-aktar`);
+    await page.getByRole('button', { name: 'Bilgisayardan' }).click();
+    // Tarayıcıda iki saydam PNG üret (300×200 ve 600×400, aynı ad)
+    const pngs = await page.evaluate(() => [[300, 200], [600, 400]].map(([w, h]) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = 'rgba(255,0,0,1)'; x.fillRect(0, 0, 10, 10); return c.toDataURL('image/png').split(',')[1]; }));
+    await page.locator('#exp-file').setInputFiles(pngs.map(b => ({ name: 'kapak.png', mimeType: 'image/png', buffer: Buffer.from(b, 'base64') })));
+    const rows = page.locator('.exp-row');
+    await page.waitForFunction(() => document.querySelectorAll('.exp-row [data-dl]').length === 2);
+    // Varsayılan: 4:5, en fazla 1080, JPEG
+    assert.match(await rows.nth(0).innerText(), /160×200/);
+    assert.match(await rows.nth(1).innerText(), /320×400/);
+    // JPEG'de saydam alan beyaz olur (sol üst kırmızı kare kırpılan bölgede değil; orta piksel)
+    const px = await page.evaluate(async () => {
+      const img = document.querySelector('.exp-row .exp-prev img');
+      await img.decode();
+      const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      return [...x.getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data];
+    });
+    assert.ok(px[0] > 245 && px[1] > 245 && px[2] > 245 && px[3] === 255, `saydam zemin beyaz olmalı: ${px}`);
+    // Ayar değişince yeniden işlenir: 16:9 ve en fazla 720
+    await page.locator('#ex-ratio').selectOption('16:9');
+    await page.waitForFunction(() => /300×169/.test(document.querySelector('.exp-row').innerText));
+    await page.locator('#ex-width').selectOption('720');
+    await page.locator('#ex-type').selectOption('image/png');
+    await page.waitForFunction(() => /600×338/.test(document.querySelectorAll('.exp-row')[1].innerText) && document.querySelectorAll('.exp-row [data-dl]').length === 2);
+    assert.ok(await page.locator('#ex-q').isDisabled(), 'PNG kayıpsız: kalite kapalı');
+    // ZIP: geçerli arşiv, aynı adlar numaralanır
+    const dl = page.waitForEvent('download');
+    await page.locator('[data-zip]').click();
+    const file = await (await dl).path();
+    const entries = readZip(fs.readFileSync(file));
+    assert.deepEqual(entries.map(e => e.name).sort(), ['kapak_16x9.png', 'kapak_16x9_2.png']);
+    assert.ok(entries.every(e => Buffer.from(e.data).subarray(1, 4).toString() === 'PNG'), 'arşivdeki dosyalar PNG');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('T.24 sol menü ve Yönetim Merkezi: kaydırınca menü yerinde ve tam boy, alt kart en altta, haftalık sayılar, eski adresler yönlenir', { skip }, async () => {
+  const srv = await startServer();
+  const a = (await srv.request('POST', '/api/brands', { name: 'Menü' })).data.brand;
+  for (let i = 0; i < 12; i++) await srv.request('POST', '/api/contents', { brandId: a.id, title: 'İçerik ' + i, type: 'post', scheduledAt: new Date(Date.now() + i * 3600e3).toISOString() });
+  for (let i = 0; i < 25; i++) await srv.request('POST', '/api/notes', { title: 'Uzun not ' + i, body: 'x '.repeat(200) });
+  const { browser, page, problems } = await open(srv, { width: 1440, height: 700 });
+  try {
+    // Uzun bir sayfa (Notlar) kaydırılınca menü yerinde kalır ve ekran boyundadır
+    await page.goto(srv.base + '/#/notlar');
+    await page.locator('.note-card').nth(20).waitFor();
+    const box = () => page.locator('.sidebar').boundingBox();
+    const before = await box();
+    await page.mouse.wheel(0, 3000);
+    await page.waitForTimeout(300);
+    assert.ok(await page.evaluate(() => scrollY > 500), 'sayfa kaydı');
+    const after = await box();
+    assert.ok(Math.abs(after.y - before.y) <= 1, `menü yerinde kalmalı (${before.y} → ${after.y})`);
+    assert.ok(after.y + after.height <= 700 + 1 && after.height >= 700 - 2 * 40, 'menü ekran boyunda');
+    const foot = await page.locator('.sidebar-foot').boundingBox();
+    assert.ok(foot.y + foot.height <= after.y + after.height + 1 && foot.y + foot.height >= after.y + after.height - 60, 'alt kart menünün en altında');
+
+    // Yönetim Merkezi: Bu hafta çipleri gerçek sayılarla
+    await page.goto(srv.base + '/#/');
+    await page.locator('.w-side .wc.c1').waitFor();
+    assert.equal(await page.locator('.w-side .wc.c1 b').innerText(), '12', 'bu hafta 12 içerik üretildi');
+    assert.equal(await page.locator('.w-bars .wb').count(), 7, 'haftalık şeritte 7 gün');
+
+    // Eski adresler yeni çalışma alanına yönlenir
+    await page.goto(srv.base + `/#/marka/${a.id}`);
+    await page.waitForURL(new RegExp(`#/m/${a.id}/kimlik$`));
+    await page.goto(srv.base + `/#/marka/${a.id}/varliklar`);
+    await page.waitForURL(new RegExp(`#/m/${a.id}/kutuphane$`));
+    await page.goto(srv.base + `/#/marka/${a.id}/gorsel`);
+    await page.waitForURL(new RegExp(`#/m/${a.id}/kimlik/gorsel$`));
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('hızlı sayfa geçişi: önceki sayfanın geç biten çizimi yeni sayfanın üstüne yazmaz', { skip }, async () => {
+  const srv = await startServer();
+  const a = (await srv.request('POST', '/api/brands', { name: 'Yavaş' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(srv.base + '/#/');
+    await page.locator('.ops .welcome').waitFor();
+    // Fikirler sayfasının verisi 1,5 sn gecikir; bu sırada Notlar'a geçilir
+    await page.route(`**/api/brands/${a.id}/ideas*`, async r => { await new Promise(x => setTimeout(x, 1500)); await r.continue(); });
+    await page.evaluate(id => { location.hash = `#/m/${id}/fikirler`; }, a.id);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => { location.hash = '#/notlar'; });
+    await page.locator('#quick-note').waitFor();
+    await page.waitForTimeout(2000);
+    assert.ok(await page.locator('#quick-note').isVisible(), 'Notlar sayfası yerinde kalmalı');
+    assert.equal(await page.getByRole('heading', { name: 'İçerik fikirleri', level: 1 }).count(), 0);
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
