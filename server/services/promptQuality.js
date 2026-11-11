@@ -14,6 +14,7 @@ export function checkPrompt(kind, text, lang = 'en', opts = {}) {
     for (const s of sectionsOf(kind)) {
       const re = lang === 'tr' ? s.tr : s.test;
       if (!re) continue;
+      if (opts.allowText && (s.key === 'negative' || s.key === 'nosubs')) continue; // 7.7: yazıya izin verildiyse bu bölüm aranmaz
       checks.push({ key: s.key, label: s.label, ok: re.test(t), kind: 'section' });
     }
     const words = t.split(/\s+/).filter(Boolean).length;

@@ -11,7 +11,7 @@ const MAX_REFS = 3;
 
 export function createImageService({ db, ai, brands, assets }) {
   const bookOf = id => parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(id) || {}).character_book, {}) || {};
-  function brandHint(b, { useColors, useMascot, character, book }) {
+  function brandHint(b, { useColors, useMascot, character, book, allowText = false }) {
     const c = b.colors || {};
     const colors = [c.primary, ...(c.secondary || [])].filter(Boolean).slice(0, 4);
     const lines = [];
@@ -19,7 +19,8 @@ export function createImageService({ db, ai, brands, assets }) {
     if (useMascot) lines.push(`The attached reference image(s) show the brand mascot${character ? ` "${character}"` : ''}: keep its exact design, proportions, colors and face consistent.`);
     // 7.3: karakter kitabındaki sabit görünüş tarifi
     if (useMascot && book && book.lookEn) lines.push(bookImageLine(book));
-    lines.push('Do not render any text, letters, logos or watermarks in the image.');
+    // 7.7: marka görselde yazıya izin verdiyse yalnız logo/filigran yasağı kalır
+    lines.push(allowText ? 'Do not render logos or watermarks; only render text that the prompt explicitly quotes.' : 'Do not render any text, letters, logos or watermarks in the image.');
     return lines.join(' ');
   }
 
@@ -66,9 +67,10 @@ export function createImageService({ db, ai, brands, assets }) {
       }
       const book = bookOf(b.id);
       // 7.4: markanın prompt kimliği (stil, ışık, his, kaçınılacaklar) görsel istemine de girer
-      const idLine = body.useIdentity === false ? '' : identityImageLine(parseJson((db.prepare('SELECT prompt_identity FROM brands WHERE id = ?').get(b.id) || {}).prompt_identity, {}) || {});
+      const idt = parseJson((db.prepare('SELECT prompt_identity FROM brands WHERE id = ?').get(b.id) || {}).prompt_identity, {}) || {};
+      const idLine = body.useIdentity === false ? '' : identityImageLine(idt);
       const character = book.name || (parseJson((db.prepare('SELECT reels_settings FROM brands WHERE id = ?').get(b.id) || {}).reels_settings, {}) || {}).character || '';
-      const full = `${prompt}${mentionText ? `\n\n${mentionText}` : ''}${idLine ? `\n\nBrand visual identity: ${idLine}` : ''}\n\n${brandHint(b, { useColors, useMascot, character, book })}`;
+      const full = `${prompt}${mentionText ? `\n\n${mentionText}` : ''}${idLine ? `\n\nBrand visual identity: ${idLine}` : ''}\n\n${brandHint(b, { useColors, useMascot, character, book, allowText: Boolean(idt.allowText) })}`;
       const r = await ai.image({ brandId: b.id, prompt: full, modelRef: body.model ? String(body.model) : null, aspect, refs });
       const label = `AI: ${prompt.replace(/\s+/g, ' ').slice(0, 70)}`;
       const asset = assets.create(b.id, { buffer: r.buffer, category: 'ai_image', label });

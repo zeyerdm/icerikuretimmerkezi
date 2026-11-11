@@ -57,8 +57,10 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
   }
   // 7.6: denetim seçenekleri (marka hafızasındaki yasaklı kelimeler)
   const qualityOpts = brandId => {
-    const m = db.prepare('SELECT banned_words FROM brands WHERE id = ?').get(brandId) || {};
-    return { banned: parseJson(m.banned_words, []) || [] };
+    const m = db.prepare('SELECT name, banned_words, prompt_identity FROM brands WHERE id = ?').get(brandId) || {};
+    const idt = parseJson(m.prompt_identity, {}) || {};
+    // 7.7: marka adı / istenmeyen isimler de denetlenir
+    return { banned: parseJson(m.banned_words, []) || [], brandName: m.name, noBrandName: Boolean(idt.noBrandName), forbidNames: idt.forbidNames || [], allowText: Boolean(idt.allowText) };
   };
   const quality = r => checkPrompt(r.kind, r.text, PROMPT_KINDS[r.kind] && PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr', qualityOpts(r.brand_id));
   function detail(r) {
