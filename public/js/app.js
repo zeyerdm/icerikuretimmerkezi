@@ -321,7 +321,8 @@ async function start() {
   initTrashUndo();
   initFx();
   // S.5: [data-mic] alanlarına mikrofon düğmesi (sayfa her çizildiğinde)
-  if (dictationSupported) { let q = 0; new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; enhanceMics(document); }); }).observe(document.getElementById('view') || document.body, { childList: true, subtree: true }); }
+  // Gözlemci geri çağrısı mikro görevdir: alan, kullanıcı (ya da test) ona yazmadan önce sarılır; yazarken taşınıp odak kaybolmaz.
+  if (dictationSupported) { new MutationObserver(() => enhanceMics(document)).observe(document.getElementById('view') || document.body, { childList: true, subtree: true }); }
   await route();
   showDailyOnce();
   startNotifier();
