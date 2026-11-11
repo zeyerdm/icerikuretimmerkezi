@@ -455,6 +455,11 @@ const MIGRATIONS = [
   `
   ALTER TABLE prompts ADD COLUMN is_example INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE image_generations ADD COLUMN is_example INTEGER NOT NULL DEFAULT 0;
+  `,
+  // 28: 7.10 Hedef üretim aracı ve oran (çıktı biçimi araca göre ayarlanır)
+  `
+  ALTER TABLE prompts ADD COLUMN tool TEXT NOT NULL DEFAULT '';
+  ALTER TABLE prompts ADD COLUMN aspect TEXT NOT NULL DEFAULT '';
   `
 ];
 

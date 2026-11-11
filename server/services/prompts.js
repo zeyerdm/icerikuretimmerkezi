@@ -7,6 +7,7 @@ import { bookBlock } from './characterBook.js';
 import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { polish } from './reels/rules.js';
+import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
 
 export const PROMPT_KINDS = {
   gorsel: { label: 'Görsel', english: true, hint: 'Midjourney, Imagen, DALL·E, Flux gibi görsel üreticiler için' },
@@ -45,6 +46,7 @@ function toPrompt(row) {
     english: Boolean((PROMPT_KINDS[row.kind] || {}).english),
     title: row.title, brief: row.brief, text: row.text, textTr: row.text_tr, favorite: Boolean(row.favorite), example: Boolean(row.is_example), model: row.model,
     lang: (PROMPT_KINDS[row.kind] || {}).english ? (row.lang || 'en') : 'tr',
+    tool: row.tool || '', aspect: row.aspect || '',
     scenes: (() => { try { return sceneList(JSON.parse(row.scenes || '[]')); } catch { return []; } })(),
     createdAt: row.created_at, updatedAt: row.updated_at
   };
@@ -83,6 +85,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
   function detail(r) {
     return Object.assign(toPrompt(r), {
       quality: quality(r),
+      // 7.10: hedef araca göre kopyalanacak çıktı (yalnız İngilizce hâlde)
+      toolOutput: PROMPT_KINDS[r.kind].english && (r.lang || 'en') === 'en' ? toolOutput(r.kind, r.tool, r.text, r.aspect) : null,
       modelLabel: r.model ? ai.labelOf(r.model) : '',
       versions: db.prepare('SELECT id, note, model, created_at FROM prompt_versions WHERE prompt_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 40').all(r.id)
         .map(v => ({ id: v.id, note: v.note, model: v.model, modelLabel: v.model ? ai.labelOf(v.model) : '', createdAt: v.created_at }))
@@ -124,7 +128,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     return lines.join('\n');
   }
   // lang: 'tr' → İngilizce türler de önce Türkçe yazılır (7.5); 'en' → İngilizce + Türkçesi
-  function rules(kind, lang = 'en') {
+  function rules(kind, lang = 'en', tool = '') {
     const k = PROMPT_KINDS[kind];
     return [
       `PROMPT TÜRÜ: ${k.label} (${k.hint}).`,
@@ -135,7 +139,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
           : 'Prompt Türkçe yazılır ve bir sohbet modeline verilecek açık bir talimattır; "promptTr" boş kalır.',
       'Gerçek kişi, ünlü ya da başka marka adı kullanma. Görsel/video prompt\'larında ekranda yazı, logo metni, altyazı isteme (yazı sonradan eklenir).',
       'Markanın renklerini, tonunu ve hedef kitlesini yansıt. Tek paragraf ya da kısa bölümler; açıklama, giriş cümlesi veya madde dışı yorum ekleme.',
-      SKELETONS[kind] ? skeletonInstruction(kind, k.english ? lang : 'en') : ''
+      SKELETONS[kind] ? skeletonInstruction(kind, k.english ? lang : 'en') : '',
+      toolInstruction(kind, tool)
     ].filter(Boolean).join('\n');
   }
   const SHAPE = JSON.stringify({ title: 'Kısa Türkçe başlık (en çok 60 karakter)', prompt: 'Prompt metni', promptTr: 'Türkçesi (gerekiyorsa)' });
@@ -152,7 +157,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
   }
 
   return {
-    kinds: Object.fromEntries(Object.entries(PROMPT_KINDS).map(([k, v]) => [k, { label: v.label, english: v.english, hint: v.hint }])),
+    kinds: Object.fromEntries(Object.entries(PROMPT_KINDS).map(([k, v]) => [k, { label: v.label, english: v.english, hint: v.hint, tools: Object.fromEntries(Object.entries(toolsFor(k)).map(([t, d]) => [t, d.label])) }])),
+    aspects: ASPECTS,
     actions: Object.fromEntries(Object.entries(IMPROVE_ACTIONS).map(([k, v]) => [k, v.label])),
 
     list(brandId, { kind = null, q = '' } = {}) {
@@ -166,14 +172,15 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     get(brandId, id) { return detail(row(brands.get(brandId).id, id)); },
 
     // AI ile yeni prompt: kısa tarif (brief) → tam prompt
-    async create(brandId, { kind, brief, modelRef = null, lang = 'tr', scenes: sceneCount = 0 } = {}) {
+    async create(brandId, { kind, brief, modelRef = null, lang = 'tr', scenes: sceneCount = 0, tool = '' } = {}) {
       const b = brands.get(brandId);
       const k = oneOf(kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
       const want = text(brief, { field: 'İstek', max: 2000, required: true });
       const lg = PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
+      const tl = validTool(k, tool) ? tool : '';
       const nScenes = Math.round(Number(sceneCount) || 0);
-      if (nScenes >= 2) return this.createScenes(b, k, want, Math.min(MAX_SCENES, nScenes), lg, modelRef);
-      const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg), '',
+      if (nScenes >= 2) return this.createScenes(b, k, want, Math.min(MAX_SCENES, nScenes), lg, modelRef, tl);
+      const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, tl), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
       let r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
       let c = clean(r.output, k, want.slice(0, 60), lg);
@@ -191,8 +198,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       }
       const id = newId();
       const t = now();
-      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, b.id, k, c.title, want, c.text, c.textTr, r.servedRef || r.ref, lg, t, t);
+      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, tool, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, b.id, k, c.title, want, c.text, c.textTr, r.servedRef || r.ref, lg, tl, t, t);
       const created = row(b.id, id);
       saveVersion(created, 'İlk üretim');
       return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: retried }) });
@@ -257,6 +264,11 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         favorite: 'favorite' in body ? (body.favorite ? 1 : 0) : r.favorite,
         example: 'example' in body ? (body.example ? 1 : 0) : r.is_example
       };
+      // 7.10: hedef araç ve oran
+      const tool = 'tool' in body ? String(body.tool || '') : (r.tool || '');
+      if (tool && !validTool(r.kind, tool)) throw badRequest('Bu prompt türü için geçersiz araç.');
+      const aspect = 'aspect' in body ? String(body.aspect || '') : (r.aspect || '');
+      if (aspect && !ASPECTS.includes(aspect)) throw badRequest('Geçersiz oran.');
       if (next.example && !r.is_example) {
         const n = db.prepare('SELECT COUNT(*) AS n FROM prompts WHERE brand_id = ? AND kind = ? AND is_example = 1').get(b.id, r.kind).n;
         if (n >= MAX_EXAMPLES) throw badRequest(`Bu türde en çok ${MAX_EXAMPLES} marka örneği olabilir; önce birini örneklikten çıkar.`);
@@ -270,17 +282,17 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         next.text = joinScenes(sc, PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr');
       }
       const changed = next.text !== r.text || next.textTr !== r.text_tr;
-      db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, is_example = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
-        .run(next.title, next.text, next.textTr, next.favorite, next.example, changed ? '' : r.model, scenesJson, now(), r.id);
+      db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, is_example = ?, tool = ?, aspect = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
+        .run(next.title, next.text, next.textTr, next.favorite, next.example, tool, aspect, changed ? '' : r.model, scenesJson, now(), r.id);
       const u = row(b.id, r.id);
       if (changed) saveVersion(u, 'Elle düzenlendi');
       return detail(u);
     },
 
     // 7.8: çok sahneli prompt (eski sistemdeki gibi): sahneler birbirinin devamı, her biri kemiğe uyan tam bir prompt
-    async createScenes(b, k, want, n, lg, modelRef) {
+    async createScenes(b, k, want, n, lg, modelRef, tl = '') {
       const shape = JSON.stringify({ title: 'Kısa Türkçe başlık', scenes: [{ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' }] });
-      const prompt = ['PROMPT STUDIO · SAHNELİ', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg), '',
+      const prompt = ['PROMPT STUDIO · SAHNELİ', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, tl), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '',
         `GÖREV: Bu istek için birbirinin devamı olan ${n} sahne yaz. Her sahne kendi başına kemiğe uyan tam bir prompt olsun; karakter, mekân, ışık ve stil sahneler arasında tutarlı kalsın; her sahne bir öncekinin bittiği yerden başlasın.`,
         '', 'Sadece şu JSON biçiminde yanıt ver:', shape].join('\n');
@@ -289,8 +301,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       if (!scenes.length) throw badRequest('Model kullanılabilir sahne döndürmedi; tekrar dene.');
       const title = polish(r.output && r.output.title).slice(0, 80) || want.slice(0, 60);
       const id = newId(); const t = now();
-      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, scenes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, b.id, k, title, want, joinScenes(scenes, lg), '', r.servedRef || r.ref, lg, JSON.stringify(scenes), t, t);
+      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, scenes, tool, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, b.id, k, title, want, joinScenes(scenes, lg), '', r.servedRef || r.ref, lg, JSON.stringify(scenes), tl, t, t);
       const created = row(b.id, id);
       saveVersion(created, `İlk üretim (${scenes.length} sahne)`);
       return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: false }) });
@@ -318,7 +330,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
           : `YALNIZCA sahne ${i + 1}'i şu talimata göre yeniden yaz: ${how}. Beğenilmeyen kısmı değiştir, geri kalanı ve diğer sahnelerle tutarlılığı koru.`;
         note = action === 'extend' ? `Sahne ${i + 1} uzatıldı` : `Sahne ${i + 1} değiştirildi`;
       } else throw badRequest('Geçersiz sahne işlemi.');
-      const prompt = ['PROMPT STUDIO · SAHNE', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, r.kind), '', rules(r.kind, lg), '',
+      const prompt = ['PROMPT STUDIO · SAHNE', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, r.kind), '', rules(r.kind, lg, r.tool), '',
         `İLK İSTEK: ${r.brief || '-'}`, '', 'MEVCUT SAHNELER:', joinScenes(scenes, lg), '', `YAPILACAK: ${ask}`, '',
         'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' })].join('\n');
       const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
@@ -392,7 +404,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         ask = a.ask;
         note = a.label;
       }
-      const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg), '',
+      const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, r.tool), '',
         `İLK İSTEK: ${r.brief || '(elle yazılmış prompt)'}`, '', `MEVCUT PROMPT:\n${r.text}`, '', `YAPILACAK DEĞİŞİKLİK:\n${ask}`, '',
         'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
       const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: action === 'kisalt' ? 0.4 : 0.8 });

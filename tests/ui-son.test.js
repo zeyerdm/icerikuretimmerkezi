@@ -313,3 +313,29 @@ test('7.8 sahneli prompt ekranı: sahne kartları, bir sahne daha, elle düzenle
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('7.9/7.10 arayüz: marka örneği yap, hedef araç seç ve araç çıktısını gör', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Araç UI' })).data.brand;
+  const text = 'A barista pours latte art in a cozy cafe, close-up shot, warm light, photorealistic, clean composition, no text, no letters, no words, no watermark, no logo, no subtitles, no UI elements';
+  const p = (await srv.request('POST', `/api/brands/${b.id}/prompts`, { manual: true, kind: 'gorsel', title: 'Latte', text })).data.prompt;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/prompt/${p.id}`);
+    await page.getByRole('button', { name: 'Dosya' }).click();
+    await page.getByRole('button', { name: /Marka örneği yap/ }).click();
+    await page.locator('.ed-bottom', { hasText: 'Marka örneği' }).waitFor();
+    await page.locator('.ed-rail [data-rail="arac"]').click();
+    await page.selectOption('#pp-tool', 'midjourney');
+    const out = page.locator('[data-tool-out="full"]');
+    await out.waitFor();
+    assert.match(await out.inputValue(), /photorealistic --ar 1:1 --no text/);
+    await page.selectOption('#pp-aspect', '9:16');
+    await page.waitForFunction(() => /--ar 9:16/.test((document.querySelector('[data-tool-out="full"]') || {}).value || ''));
+    const saved = (await srv.request('GET', `/api/brands/${b.id}/prompts/${p.id}`)).data.prompt;
+    assert.equal(saved.example, true);
+    assert.equal(saved.tool, 'midjourney');
+    assert.equal(saved.aspect, '9:16');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
