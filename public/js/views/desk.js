@@ -43,7 +43,7 @@ async function taskWidget(el) {
     const pct = tasks.length ? Math.round(done / tasks.length * 100) : 0;
     el.innerHTML = `${head('tasks', 'Görevler', open.length, '#/gorevler', `<button class="btn btn-sm btn-ghost icon-btn" data-new aria-label="Ayrıntılı görev ekle" title="Ayrıntılı görev ekle">${icon('plus')}</button>`)}
       <div class="w-progress" title="${done} / ${tasks.length} tamamlandı"><span style="width:${pct}%"></span></div><div class="xsmall muted mb-2">${done} / ${tasks.length} tamamlandı</div>
-      <form class="w-quick" id="wt-quick"><input class="input" name="title" placeholder="Görev ekle… (Enter)" maxlength="200" aria-label="Hızlı görev"><button class="btn icon-btn" type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
+      <form class="w-quick" id="wt-quick"><input class="input" name="title" placeholder="Görev ekle… (Enter)" maxlength="200" aria-label="Hızlı görev" data-mic><button class="btn icon-btn" type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
       <div class="w-scroll">${open.length ? GROUPS.map(([k, label]) => { const list = open.filter(t => groupOf(t) === k); return list.length ? `<div class="w-group ${k}">${label} <span>${list.length}</span></div><ul class="wt-list">${list.map(row).join('')}</ul>` : ''; }).join('')
         : '<div class="w-empty">' + icon('check') + '<span>Açık görev yok. Yukarıdan hızlıca ekleyebilirsin.</span></div>'}</div>`;
     el.querySelector('#wt-quick').addEventListener('submit', async e => {
@@ -81,7 +81,7 @@ async function noteWidget(el) {
   async function draw() {
     await load();
     el.innerHTML = `${head('notes', 'Notlar', notes.length, '#/notlar')}
-      <form class="w-note" id="wn-quick"><textarea class="textarea" name="body" rows="2" placeholder="Hızlı not al…" maxlength="5000" aria-label="Hızlı not"></textarea>
+      <form class="w-note" id="wn-quick"><textarea class="textarea" name="body" rows="2" placeholder="Hızlı not al…" maxlength="5000" aria-label="Hızlı not" data-mic></textarea>
         <div class="row"><label class="check small"><input type="checkbox" name="pinned"> Sabitle</label><span class="spacer"></span><button class="btn btn-sm btn-primary" type="submit">Not ekle</button></div></form>
       <input class="input w-search" id="wn-q" type="search" placeholder="Notlarda ara" aria-label="Notlarda ara" value="${esc(q)}">
       <div class="w-scroll" id="wn-list"></div>`;

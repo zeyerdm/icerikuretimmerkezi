@@ -1,6 +1,9 @@
 // Yönetim Merkezi: uygulama açılınca ilk görülen, markalardan bağımsız genel çalışma alanı.
 // Sabit uygulama renkleriyle çizilir; bütün sayılar ve grafikler gerçek kayıtlardan hesaplanır.
 import { api } from '../api.js';
+import { badges } from '../badges.js';
+import { maybeStartTour } from '../tour.js';
+import { enhanceMics } from '../dictation.js';
 import { esc, icon, toast, timeAgo, fmtDate, timeStr, columnChart, ring, sameDay, addDays, startOfDay, emptyState, busy } from '../ui.js';
 import { state, refreshBrands, go, openDemoBrand } from '../app.js';
 import * as S from '../stats.js';
@@ -37,6 +40,7 @@ export async function renderCenter(view) {
           <div class="w-side-top"><span class="w-side-title">Bu hafta</span><span class="kpi k1" title="Yönetilen marka"><span class="kpi-num">${k.brands}</span> aktif marka</span></div>
           <div class="w-chips"><span class="wc c1"><b>${week.created}</b>üretim</span><span class="wc c2"><b>${week.completed}</b>tamamlanan</span><span class="wc c3"><b>${week.scheduledPending}</b>yayın bekliyor</span></div>
           ${(() => { const mx = Math.max(1, ...week.days.map(x => x.created + x.completed)); const today = (new Date().getDay() + 6) % 7; return `<div class="w-bars" aria-label="Günlük üretim">${week.days.map((x, i) => `<div class="wb ${i === today ? 'today' : ''}" title="${esc(x.label)}: ${x.created} üretim, ${x.completed} tamamlanan"><i style="height:${Math.max(8, Math.round((x.created + x.completed) / mx * 100))}%"></i><span>${esc(x.label)}</span></div>`).join('')}</div>`; })()}
+          ${(() => { const b = badges({ contents: d.contents, ideas: d.ideas || [], weekCreated: week.created }); return b.list.length ? `<div class="badge-row" aria-label="Rozetler">${b.list.slice(0, 3).map(x => `<span class="bdg bdg-${x.tone}">${x.icon} ${esc(x.text)}</span>`).join('')}</div>` : ''; })()}
           ${d.activity[0] ? `<div class="w-side-last" title="${esc(d.activity[0].summary)}">${icon('refresh')}<span>${esc(d.activity[0].summary)}</span><em>${timeAgo(d.activity[0].createdAt)}</em></div>` : ''}
         </div>` : ''}
         <div class="w-text">
@@ -64,7 +68,7 @@ export async function renderCenter(view) {
       <div class="ops-three">
         <section class="card ops-col tone-violet">
           <div class="card-head"><h3><span class="h-ic">${icon('tasks')}</span>Bugünün işleri <span class="count">${openTasks.length}</span></h3><a class="small link" href="#/gorevler">Tüm görevler ›</a></div>
-          <form id="quick-task" class="input-plus"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev"><button type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
+          <form id="quick-task" class="input-plus"><input class="input" name="title" placeholder="Hızlı görev ekle…" maxlength="200" aria-label="Hızlı görev" data-mic><button type="submit" aria-label="Görev ekle">${icon('plus')}</button></form>
           <div class="ops-scroll">${openTasks.length ? `<ul class="task-mini">${[...lateTasks, ...todayTasks, ...restTasks].map(taskRow).join('')}</ul>`
             : emptyCta('check', 'Bugün için görev yok', 'Yapılacakları buraya ekle; gecikenler kırmızıyla öne çıkar.', 'İlk görevini ekle', 'focus-task')}</div>
         </section>

@@ -149,6 +149,11 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 - ⬜ **T.32 Aylık rapor:** ay seçimi ve sayıların doğru aya göre hesaplanması (planlanan/yayınlanan/tamamlanan/fikir/ortalama), gelecek aya geçilememesi, boş ay, yazdırma görünümünde menülerin gizlenmesi.
 - ⬜ **T.33 Tarifler:** prompt ve kalıptan tarif kaydı (başka markanın kaydı reddedilir), başka markaya uygulamada yeni kaydın oluşması ve kullanım sayısının artması, tarif silinince kopyaların kalması, arayüzde kaydet/ekle akışları.
 - ⬜ **T.34 Koyu tema:** düğmeyle geçiş ve tercihin hatırlanması, Sistem seçeneğinin işletim sistemi değişimini izlemesi, ana sayfalarda okunabilir kontrast (yazı/zemin), marka renginin korunması. *(tema kapalıyken ertelendi)*
+- ⬜ **T.35 Seri ve rozetler (S.1):** üretim günlerinden seri hesabı (bugün üretim yoksa dünden sayma, boşlukta kesilme), rozet eşikleri (2+ gün seri, haftada 5+ üretim, yayın ve tamamlanan sayıları, 25+ fikir), Yönetim Merkezi ve marka ana sayfasında gösterim.
+- ⬜ **T.36 Aylık hedef (S.2):** migration 22, hedefin 0–200 aralığına sıkıştırılması, başka sahibin markasına yazılamaması, ilerleme çubuğunun bu ay tarihlenen içeriklerle hesaplanması, hedef dolunca tamam görünümü, hedef 0 iken açıklama metni.
+- ⬜ **T.37 Takvimde sürükle-bırak (S.3):** aylık ve haftalık görünümde (Çalışma masası dahil) taşıma, saatin korunması, aynı güne bırakmada istek atılmaması, hata halinde uyarı.
+- ⬜ **T.38 Tanıtım turu (S.4):** ilk açılışta bir kez başlaması, açık pencere varken beklemesi, Geri/İleri/Geç/Esc, bulunmayan adımların atlanması, Ayarlar ve Ctrl+K'den yeniden başlatma, otomatik testlerde kendiliğinden açılmaması.
+- ⬜ **T.39 Sesli not (S.5):** konuşma tanıma desteklenmezse mikrofon düğmesinin hiç çıkmaması, destekleniyorsa [data-mic] alanlarına tek düğme eklenmesi (yeniden çizimde çoğalmaması), izin reddinde uyarı.
 - ⬜ (Sonraki maddeler geldikçe buraya eklenir.)
 
 ## Aşama 5 — Genişleme: gönderilen projelerden ilhamlar (sırayla)
@@ -184,11 +189,11 @@ Geliştirme hızlansın diye Aşama 4.3'ten itibaren yeni özelliklere ayrı tes
 
 ## Son aşama — Seçilen ek fikirler (kullanıcının isteğiyle, en son yapılacak)
 
-- ⬜ **S.1 Seri ve rozetler:** "5 gün üst üste içerik ürettin 🔥" gibi küçük motivasyon rozetleri (üretim günlerinden hesaplanır; Yönetim Merkezi ve marka ana sayfasında).
-- ⬜ **S.2 Aylık içerik hedefi:** her marka için hedef ("ayda 12 gönderi") ve ilerleme çubuğu.
-- ⬜ **S.3 Takvimde sürükle-bırak:** içeriği başka güne sürükleyerek tarihini değiştirme (aylık ve haftalık görünüm, Çalışma masası dahil).
-- ⬜ **S.4 İlk açılışta tanıtım turu:** yeni kullanıcıya ekranları adım adım gösteren, atlanabilen tur.
-- ⬜ **S.5 Sesli not / dikte:** konuşarak not ve görev ekleme (tarayıcının konuşma tanıma özelliğiyle; desteklenmeyen tarayıcıda düğme gizlenir).
+- ✅ **S.1 Seri ve rozetler:** "5 gün üst üste içerik ürettin 🔥" gibi küçük motivasyon rozetleri (üretim günlerinden hesaplanır; Yönetim Merkezi ve marka ana sayfasında).
+- ✅ **S.2 Aylık içerik hedefi:** her marka için hedef ("ayda 12 gönderi") ve ilerleme çubuğu.
+- ✅ **S.3 Takvimde sürükle-bırak:** içeriği başka güne sürükleyerek tarihini değiştirme (aylık ve haftalık görünüm, Çalışma masası dahil).
+- ✅ **S.4 İlk açılışta tanıtım turu:** yeni kullanıcıya ekranları adım adım gösteren, atlanabilen tur.
+- ✅ **S.5 Sesli not / dikte:** konuşarak not ve görev ekleme (tarayıcının konuşma tanıma özelliğiyle; desteklenmeyen tarayıcıda düğme gizlenir).
 
 ## Tamamlananlar (önceki çalışmalar)
 

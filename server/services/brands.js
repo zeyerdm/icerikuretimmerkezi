@@ -70,6 +70,7 @@ export function toBrand(row) {
     character: row.character,
     tone: row.tone,
     goals: row.goals,
+    monthlyGoal: row.monthly_goal || 0,
     competitors: row.competitors,
     slogan: row.slogan,
     isDemo: Boolean(row.is_demo),
@@ -149,6 +150,11 @@ export function createBrandService(db, ownerId) {
         .run(next.name, next.sector, next.description, next.audience, next.character, next.tone, next.goals,
           next.competitors, next.slogan, JSON.stringify(colors || current.colors), JSON.stringify(fonts || current.fonts),
           drive, now(), current.id, ownerId);
+      // Aylık içerik hedefi (0–200; 0 = hedef yok)
+      if ('monthlyGoal' in (body || {})) {
+        const g = Math.round(Number(body.monthlyGoal));
+        db.prepare('UPDATE brands SET monthly_goal = ? WHERE id = ? AND owner_id = ?').run(Number.isFinite(g) ? Math.max(0, Math.min(200, g)) : 0, current.id, ownerId);
+      }
       logActivity(current.id, 'brand.updated', 'Marka kimliği güncellendi');
       return service.get(current.id);
     },
