@@ -196,10 +196,11 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
   - Maskot var mı; varsa nasıl konuşur, ses tonu, hitap, hareket biçimi, asla yapmadıkları.
   - Cevaplar markada "Prompt kimliği" kartı olarak saklanır ve her üretime kendiliğinden girer; istenince düzenlenir.
   - *Yapıldı: marka menüsü → Marka yönetimi → "Prompt kimliği". Sorular üç grupta: görsel dil (stil, ışık, kamera, renk kullanımı), his (duygu, mekânlar, insanlar, asla olmasınlar) ve maskot (ad, görünüş, konuşma, hareket, asla yapmadıkları; yalnız maskot varsa açılır). Cevaplar Prompt Studio isteğine "MARKA PROMPT KİMLİĞİ" olarak giriyor, başka markaya karışmıyor. Göçüş 23: `brands.prompt_identity`. Testler: tests/prompt-kimlik.test.js, tests/ui-son.test.js. Görsel üretiminde ve senaryolarda kullanımı 7.4'te.*
-- ⬜ **7.3 Maskot karakter kitabı:** Maskot görselleri (pozlar, ifadeler) bir kez yüklenir.
+- ✅ **7.3 Maskot karakter kitabı:** Maskot görselleri (pozlar, ifadeler) bir kez yüklenir.
   - Kitap içeriği: sabit İngilizce görünüş tarifi, renk kodları, oranlar, kıyafet, kişilik, konuşma örnekleri, yapmaz listesi.
   - Kitap AI ile görselden taslak olarak çıkarılabilir, sonra elle düzeltilir.
   - Görsel üretimde maskot pozları referans olarak (Nano Banana) ve kitaptaki sabit tarifle otomatik gider.
+  - *Yapıldı: Prompt kimliği sayfasında "Maskot karakter kitabı" kartı. Kitapta referans pozlar (kütüphaneden, en çok 6), ad, renkler, sabit İngilizce görünüş tarifi, oranlar, kıyafet, kişilik, konuşma örnekleri ve "asla" listesi var. "Görsellerden taslak çıkar" düğmesi pozları görsel okuyabilen modele gönderip bir taslak getiriyor; taslak kaydedilmiyor, kullanıcı düzeltip kaydediyor. Maskotlu görsel üretiminde kitabın pozları referans oluyor ve görünüş tarifi isteğe aynen ekleniyor. Maskot, video ve Reels prompt'larına da kitap giriyor. Göçüş 24: `brands.character_book`. Testler: tests/karakter-kitabi.test.js, tests/ui-son.test.js.*
 - ⬜ **7.4 Görsel üretimde aynı kemik:** Hazır görsel şablonları (maskotlu sahne, ürün çekimi, kampanya görseli, YouTube kapağı) markanın prompt kimliğiyle doldurulur; tek tıkla "maskotlu görsel üret".
 - ⬜ **7.5 Önce Türkçe, isteğe bağlı İngilizce:** Prompt önce Türkçe üretilir. "İngilizceye çevir" ayrı bir adımdır. Model JSON biçimiyle uğraşmaz, yalnız prompt metnini yazar.
 - ⬜ **7.6 Kalite kontrolü:**

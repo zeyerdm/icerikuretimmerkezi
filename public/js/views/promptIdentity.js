@@ -52,4 +52,57 @@ export async function renderPromptIdentity(view, brand) {
       toast('Prompt kimliği kaydedildi; bundan sonraki prompt\'lar bu tercihlerle yazılır.', 'success');
     } catch (err) { toast(err.message, 'error'); }
   });
+  await characterBookCard(view, brand);
+}
+
+// 7.3 Maskot karakter kitabı
+async function characterBookCard(view, brand) {
+  const [{ book }, { assets }] = await Promise.all([api.characterBook(brand.id), api.assets(brand.id)]);
+  const poses = assets.filter(a => a.category === 'mascot' || (book.poseAssetIds || []).includes(a.id));
+  const box = document.createElement('section');
+  box.className = 'card mt-5';
+  box.id = 'cb-card';
+  view.appendChild(box);
+  const lines = v => (Array.isArray(v) ? v.join('\n') : (v || ''));
+  const draw = bk => {
+    box.innerHTML = `<div class="card-head"><h3>Maskot karakter kitabı</h3><button type="button" class="btn btn-sm" id="cb-draft">${icon('sparkle')}Görsellerden taslak çıkar</button></div>
+      <p class="card-text mb-3">Maskotun sabit tanımı. Maskotlu görsel üretiminde seçili pozlar referans olur ve İngilizce görünüş tarifi her isteğe aynen eklenir; maskot ve Reels prompt'larında da kullanılır.</p>
+      <form id="cb-form" class="stack-sm">
+        <div class="field"><span class="field-label">Referans pozlar (en çok 6)</span>${poses.length ? `<div class="cb-poses">${poses.map(a => `<label class="cb-pose"><input type="checkbox" name="pose" value="${esc(a.id)}" ${(bk.poseAssetIds || []).includes(a.id) ? 'checked' : ''}><img src="${esc(a.url)}" alt="${esc(a.label || 'Maskot pozu')}"></label>`).join('')}</div>` : `<p class="small muted">Kütüphanede maskot pozu yok. <a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphane'ye yükle</a> (kategori: Maskot pozu).</p>`}</div>
+        <div class="form-grid">
+          <div class="field"><label for="cb-name">Adı</label><input class="input" id="cb-name" name="name" maxlength="60" value="${esc(bk.name || '')}"></div>
+          <div class="field"><label for="cb-colors">Renkler (HEX)</label><input class="input" id="cb-colors" name="colors" maxlength="100" value="${esc((bk.colors || []).join(', '))}" placeholder="#c2410c, #ffffff"></div>
+        </div>
+        <div class="field"><label for="cb-look">Görünüş tarifi (İngilizce, sabit)</label><textarea class="textarea" id="cb-look" name="lookEn" rows="3" maxlength="700" placeholder="A round coffee-bean mascot with big glossy eyes, warm brown body, red knitted scarf…">${esc(bk.lookEn || '')}</textarea></div>
+        <div class="form-grid">
+          <div class="field"><label for="cb-prop">Oranlar</label><input class="input" id="cb-prop" name="proportions" maxlength="200" value="${esc(bk.proportions || '')}"></div>
+          <div class="field"><label for="cb-outfit">Kıyafet</label><input class="input" id="cb-outfit" name="outfit" maxlength="200" value="${esc(bk.outfit || '')}"></div>
+        </div>
+        <div class="field"><label for="cb-pers">Kişilik</label><input class="input" id="cb-pers" name="personality" maxlength="300" value="${esc(bk.personality || '')}"></div>
+        <div class="form-grid">
+          <div class="field"><label for="cb-speech">Konuşma örnekleri (her satıra bir)</label><textarea class="textarea" id="cb-speech" name="speech" rows="3">${esc(lines(bk.speech))}</textarea></div>
+          <div class="field"><label for="cb-never">Asla (her satıra bir)</label><textarea class="textarea" id="cb-never" name="never" rows="3">${esc(lines(bk.never))}</textarea></div>
+        </div>
+        <div class="row"><span class="xsmall muted" id="cb-note"></span><span class="spacer"></span><button class="btn btn-primary" type="submit">${icon('check')}Kitabı kaydet</button></div>
+      </form>`;
+  };
+  draw(book);
+  const read = () => {
+    const f = box.querySelector('#cb-form');
+    const v = n => f.querySelector(`[name="${n}"]`).value;
+    return { name: v('name'), colors: v('colors'), lookEn: v('lookEn'), proportions: v('proportions'), outfit: v('outfit'), personality: v('personality'), speech: v('speech').split('\n'), never: v('never').split('\n'), poseAssetIds: [...f.querySelectorAll('[name="pose"]:checked')].map(i => i.value) };
+  };
+  box.addEventListener('submit', async e => {
+    e.preventDefault();
+    try { const r = await busy(e.submitter, () => api.saveCharacterBook(brand.id, read())); draw(r.book); toast('Karakter kitabı kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
+  });
+  box.addEventListener('click', async e => {
+    const d = e.target.closest('#cb-draft');
+    if (!d) return;
+    try {
+      const r = await busy(d, () => api.draftCharacterBook(brand.id));
+      draw(Object.assign(read(), r.draft));
+      box.querySelector('#cb-note').textContent = `${r.ai.modelLabel} ile taslak çıkarıldı; kontrol edip kaydet.`;
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }

@@ -252,7 +252,7 @@ test('7.2 Prompt kimliği sayfası: seçim, maskot soruları açılır, kaydedil
     assert.equal(await page.locator('[data-q="mascotName"]').isVisible(), false);
     await page.getByLabel('Markanın bir maskotu var mı?').check();
     await page.getByLabel('Maskotun adı').fill('Kahveci');
-    await page.getByRole('button', { name: 'Kaydet' }).click();
+    await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
     await page.locator('.toast', { hasText: 'Prompt kimliği kaydedildi' }).waitFor();
     const idt = (await srv.request('GET', `/api/brands/${brand.id}/prompt-identity`)).data.identity;
     assert.deepEqual([idt.visualStyle, idt.mood, idt.hasMascot, idt.mascotName], ['gercekci', ['samimi', 'enerjik'], true, 'Kahveci']);
@@ -260,6 +260,32 @@ test('7.2 Prompt kimliği sayfası: seçim, maskot soruları açılır, kaydedil
     await page.getByLabel('Maskotun adı').waitFor();
     assert.equal(await page.getByLabel('Maskotun adı').inputValue(), 'Kahveci');
     assert.ok(await page.locator('.sidebar a[href$="/prompt-kimligi"]').count());
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('7.3 karakter kitabı kartı: poz seç, alanları doldur, kaydet, yeniden açılınca gelir', { skip }, async () => {
+  const { PNG_1PX } = await import('./helpers.js');
+  const srv = await startServer();
+  const brand = (await srv.request('POST', '/api/brands', { name: 'Kitap' })).data.brand;
+  const pose = (await srv.request('POST', `/api/brands/${brand.id}/assets?category=mascot&label=Poz`, PNG_1PX, { 'Content-Type': 'image/png' })).data.asset;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(srv.base + `/#/m/${brand.id}/prompt-kimligi`);
+    const card = page.locator('#cb-card');
+    await card.getByRole('heading', { name: 'Maskot karakter kitabı' }).waitFor();
+    await card.locator(`[name="pose"][value="${pose.id}"]`).check();
+    await card.getByLabel('Adı').fill('Kahveci');
+    await card.getByLabel('Görünüş tarifi (İngilizce, sabit)').fill('A round coffee bean with big eyes');
+    await card.getByLabel('Asla (her satıra bir)').fill('Siyah çizilmez\nÜzgün olmaz');
+    await card.getByRole('button', { name: 'Kitabı kaydet' }).click();
+    await page.locator('.toast', { hasText: 'Karakter kitabı kaydedildi' }).waitFor();
+    const book = (await srv.request('GET', `/api/brands/${brand.id}/character-book`)).data.book;
+    assert.deepEqual([book.name, book.poseAssetIds, book.never], ['Kahveci', [pose.id], ['Siyah çizilmez', 'Üzgün olmaz']]);
+    await page.reload();
+    await card.getByLabel('Adı').waitFor();
+    assert.equal(await card.getByLabel('Adı').inputValue(), 'Kahveci');
+    assert.ok(await card.locator(`[name="pose"][value="${pose.id}"]`).isChecked());
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

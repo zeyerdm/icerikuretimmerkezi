@@ -436,6 +436,10 @@ const MIGRATIONS = [
   // 23: 7.2 Marka prompt kimliği (sihirbaz cevapları, JSON)
   `
   ALTER TABLE brands ADD COLUMN prompt_identity TEXT NOT NULL DEFAULT '{}';
+  `,
+  // 24: 7.3 Maskot karakter kitabı (JSON)
+  `
+  ALTER TABLE brands ADD COLUMN character_book TEXT NOT NULL DEFAULT '{}';
   `
 ];
 

@@ -26,6 +26,7 @@ import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
 import { createPromptIdentityService } from './services/promptIdentity.js';
+import { createCharacterBookService } from './services/characterBook.js';
 import { createTrashService, TRASH_DAYS } from './services/trash.js';
 import { createSearchService } from './services/search.js';
 import { createCampaignService, CAMPAIGN_KINDS } from './services/campaigns.js';
@@ -127,6 +128,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
+  const characterBook = createCharacterBookService({ db, ai, brands, assets });
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
   const recipes = createRecipeService({ db, ownerId, brands, prompts });
   const images = createImageService({ db, ai, brands, assets });
@@ -624,6 +626,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // --- 7.2 Marka prompt kimliği ---
   api.get('/brands/:brandId/prompt-identity', (req, res) => res.json({ identity: promptIdentity.get(req.brand.id), questions: promptIdentity.questions }));
   api.put('/brands/:brandId/prompt-identity', (req, res) => res.json({ identity: promptIdentity.set(req.brand.id, req.body || {}) }));
+  // 7.3 Maskot karakter kitabı
+  api.get('/brands/:brandId/character-book', (req, res) => res.json({ book: characterBook.get(req.brand.id) }));
+  api.put('/brands/:brandId/character-book', (req, res) => res.json({ book: characterBook.set(req.brand.id, req.body || {}) }));
+  api.post('/brands/:brandId/character-book/draft', route(async (req, res) => res.json(await characterBook.draft(req.brand.id, { modelRef: mr(req.body || {}) }))));
 
   // --- YouTube kapak stüdyosu: kapak fikirleri (kaydedilmez) ---
   api.post('/brands/:brandId/youtube/ideas', route(async (req, res) => {
