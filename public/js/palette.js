@@ -22,6 +22,7 @@ function commands() {
     noteModal({ brandId: brand && brand.id, categories, onSaved: saved });
   }, 'yeni not yaz');
   act('Yeni marka oluştur', 'plus', () => go('#/marka/yeni'), 'marka ekle');
+  act('Tanıtım turunu başlat', 'sparkle', async () => { const { startTour } = await import('./tour.js'); if (location.hash !== '#/' && location.hash !== '') { location.hash = '#/'; setTimeout(startTour, 700); } else startTour(); }, 'tur yardim rehber nasil kullanilir');
   if (brand) BRAND_NAV.filter(n => !n.soon).forEach(n => out.push({ group: brand.name, label: n.label, icon: n.icon, run: () => go(`#/m/${brand.id}${n.path}`), keys: 'git ac sayfa' }));
   [['Görevler', 'tasks', '#/gorevler'], ['Notlar', 'notes', '#/notlar'], ['Yapay zekâ ayarları', 'sparkle', '#/ai/modeller'], ['Model karşılaştır', 'sparkle', '#/ai'], ['AI harcaması', 'chart', '#/ai/harcama']]
     .forEach(([label, ic, hash]) => out.push({ group: 'Yönetim Merkezi', label, icon: ic, run: () => go(hash), keys: 'git ac sayfa' }));

@@ -53,7 +53,7 @@ export async function renderTasks(view, { embedded = false } = {}) {
           <button class="btn btn-primary" data-new>${icon('plus')}Yeni görev</button>`
       })}
       <form class="card quick-row" id="quick-task">
-        <input class="input" name="title" placeholder="Görev ekle… (Enter)" maxlength="200" aria-label="Görev">
+        <input class="input" name="title" placeholder="Görev ekle… (Enter)" maxlength="200" aria-label="Görev" data-mic>
         <input class="input" type="date" name="dueDate" aria-label="Son tarih">
         <select class="select" name="priority" aria-label="Öncelik">${Object.entries(state.meta.taskPriorities).map(([k, v]) => `<option value="${k}" ${k === 'orta' ? 'selected' : ''}>${esc(v)} öncelik</option>`).join('')}</select>
         <select class="select" name="brandId" aria-label="İlgili marka"><option value="">Markasız</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>

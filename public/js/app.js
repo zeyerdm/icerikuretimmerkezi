@@ -32,6 +32,8 @@ import { renderCampaigns } from './views/campaigns.js';
 import { renderReport } from './views/report.js';
 import { mountAssistant } from './assistantWidget.js';
 import { initFx } from './fx.js';
+import { enhanceMics, dictationSupported } from './dictation.js';
+import { maybeStartTour } from './tour.js';
 import { initTheme, toggleTheme, applyTheme } from './theme.js';
 
 // activeBrandId: en son çalışılan marka (yönetim merkezinde "kaldığın yerden devam")
@@ -282,7 +284,7 @@ export async function route() {
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;
     }
-    if (r.page === 'center') await renderCenter(view);
+    if (r.page === 'center') { await renderCenter(view); maybeStartTour(); }
     else if (r.page === 'brands') await renderBrands(view);
     else if (r.page === 'newBrand') await renderBrandEditor(view, 'yeni', 'profil');
     else if (r.page === 'calendar') await renderCalendar(view, {});
@@ -318,6 +320,9 @@ async function start() {
   initInspiration();
   initTrashUndo();
   initFx();
+  // S.5: [data-mic] alanlarına mikrofon düğmesi (sayfa her çizildiğinde)
+  // Gözlemci geri çağrısı mikro görevdir: alan, kullanıcı (ya da test) ona yazmadan önce sarılır; yazarken taşınıp odak kaybolmaz.
+  if (dictationSupported) { new MutationObserver(() => enhanceMics(document)).observe(document.getElementById('view') || document.body, { childList: true, subtree: true }); }
   await route();
   showDailyOnce();
   startNotifier();

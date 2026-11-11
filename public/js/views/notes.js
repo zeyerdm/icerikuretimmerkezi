@@ -45,7 +45,7 @@ export async function renderNotes(view, { embedded = false } = {}) {
     ${(embedded ? panelHead : pageHead)({ title: 'Notlar', desc: 'Fikirlerin, toplantı notların, hatırlatmaların. Markaya bağlayabilir, sabitleyebilirsin.' })}
     <form class="card quick-note" id="quick-note">
       <input class="input" name="title" placeholder="Başlık (isteğe bağlı)" maxlength="120" aria-label="Not başlığı">
-      <textarea class="textarea" name="body" placeholder="Hızlı not al…" maxlength="5000" required aria-label="Not"></textarea>
+      <textarea class="textarea" name="body" placeholder="Hızlı not al…" maxlength="5000" required aria-label="Not" data-mic></textarea>
       <div class="row">
         <input class="input w-sm" name="category" placeholder="Kategori" maxlength="40" list="quick-cats" aria-label="Kategori"><datalist id="quick-cats"></datalist>
         <select class="select w-auto" name="brandId" aria-label="İlgili marka"><option value="">Markasız</option>${state.brands.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select>

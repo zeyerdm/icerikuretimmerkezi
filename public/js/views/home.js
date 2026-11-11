@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { esc, icon, toast, timeAgo, errorNotice, ring, bucketByDay, emptyState, busy } from '../ui.js';
 import { state } from '../app.js';
+import { badges } from '../badges.js';
 import { askAssistant, openAssistant, dockAssistant } from '../assistantWidget.js';
 
 // Hızlı işlemler asistana hazır bir istek gönderir (marka hafızasıyla çalışır)
@@ -12,6 +13,21 @@ const QUICK = [
   { icon: '🎯', title: 'Marka dili özeti', sub: 'Nasıl konuşmalıyız?', prompt: 'Marka kimliğimize göre içeriklerde nasıl bir dil kullanmalıyım? Yapılacaklar ve kaçınılacaklar listesi ver.' }
 ];
 
+
+// S.2 + S.1: Aylık içerik hedefi ilerleme çubuğu ve rozetler
+function goalCard(goal, count, done, bdg, now) {
+  const month = now.toLocaleDateString('tr-TR', { month: 'long' });
+  const pct = goal ? Math.min(100, Math.round(count / goal * 100)) : 0;
+  const left = Math.max(0, goal - count);
+  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+  const chips = bdg.list.length ? `<div class="badge-row">${bdg.list.map(b => `<span class="bdg bdg-${b.tone}">${b.icon} ${esc(b.text)}</span>`).join('')}</div>` : '';
+  return `<div class="goal-top"><h3>🎯 ${esc(month)} hedefi</h3>
+      <form class="goal-form" id="goal-form"><input class="input input-sm" type="number" name="goal" min="0" max="200" value="${goal || ''}" placeholder="ör. 12" aria-label="Aylık içerik hedefi"><button class="btn btn-sm" type="submit">${goal ? 'Güncelle' : 'Hedef koy'}</button></form></div>
+    ${goal ? `<div class="goal-bar ${pct >= 100 ? 'full' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${count}"><i style="width:${pct}%"></i></div>
+      <div class="goal-meta small"><b>${count} / ${goal}</b> içerik bu aya planlandı · ${done} tamamlandı · ${pct >= 100 ? '🎉 Hedefe ulaşıldı!' : `${left} içerik daha, ${daysLeft} gün kaldı`}</div>`
+      : '<p class="small muted">Bu ay kaç içerik yayınlamak istiyorsun? Hedef koyarsan takvime planladıkça ilerlemeyi burada görürsün.</p>'}
+    ${chips}`;
+}
 
 // Marka çalışma alanının ana sayfası: AI asistanı merkezde; yanında marka kimliği, fikir grafiği, son fikirler
 export async function renderHome(view, brand) {
@@ -26,6 +42,11 @@ export async function renderHome(view, brand) {
   const upcoming = contents.filter(c => !c.done && c.scheduledAt && new Date(c.scheduledAt) >= new Date(now.getTime() - 864e5)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)).slice(0, 5);
   const working = contents.filter(c => !c.done && !c.scheduledAt).slice(0, 3);
   const planned = contents.filter(c => !c.done && c.scheduledAt && new Date(c.scheduledAt) >= now).length;
+  // S.2 aylık hedef: bu ay tarihlenen içerikler / hedef
+  const monthCount = contents.filter(c => { const d = c.scheduledAt && new Date(c.scheduledAt); return d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).length;
+  const monthDone = contents.filter(c => c.done && c.completedAt && new Date(c.completedAt).getMonth() === now.getMonth() && new Date(c.completedAt).getFullYear() === now.getFullYear()).length;
+  const goal = brand.monthlyGoal || 0;
+  const bdg = badges({ contents, ideas: [] });
 
   view.innerHTML = `
     <div class="bhome bgrid">
@@ -48,6 +69,8 @@ export async function renderHome(view, brand) {
           <a class="kpi k4" href="#/m/${id}/kutuphane"><span class="kpi-icon">${icon('image')}</span><span class="kpi-num">${overview.assetTotal}</span><span class="kpi-label">Varlık</span></a>
           <a class="kpi k3 st-pub" href="#/m/${id}/kimlik"><span class="kpi-icon">${icon('identity')}</span><span class="kpi-num">%${overview.completeness.percent}</span><span class="kpi-label">Kimlik</span></a>
         </div>
+
+        <section class="card goal-card" id="goal-card">${goalCard(goal, monthCount, monthDone, bdg, now)}</section>
 
         <section class="card">
           <div class="card-head"><h3>Yaklaşan ve üzerinde çalışılan <span class="count">${upcoming.length + working.length}</span></h3><a class="small link" href="#/m/${id}/takvim">Tümü ›</a></div>
@@ -179,6 +202,16 @@ export function renderMessages(body, messages, brand) {
 }
 
 function wire(view, brand) {
+  view.querySelector('#goal-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const v = Math.max(0, Math.min(200, Math.round(Number(new FormData(e.target).get('goal')) || 0)));
+    try {
+      const { brand: b } = await busy(e.submitter, () => api.updateBrand(brand.id, { monthlyGoal: v }));
+      brand.monthlyGoal = b ? b.monthlyGoal : v;
+      toast(v ? `Aylık hedef: ${v} içerik.` : 'Aylık hedef kaldırıldı.', 'success');
+      renderHome(view, brand);
+    } catch (err) { toast(err.message, 'error'); }
+  });
   view.onclick = async e => {
     if (e.target.closest('[data-demo-try]')) return askAssistant('Sınav haftasında öğrencilere yönelik 3 içerik fikri üret ve kaydet: biri eğlenceli, biri eğitici, biri satış odaklı olsun.');
     const quick = e.target.closest('[data-quick]');

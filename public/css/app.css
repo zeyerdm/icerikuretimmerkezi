@@ -1596,3 +1596,43 @@ html[data-theme="dark"] .status-badge.status-hazirlaniyor { background: #44361a;
 html[data-theme="dark"] .status-badge.status-onay { background: #4a1f2a; color: #ff9db2; }
 html[data-theme="dark"] .status-badge.status-tamamlandi { background: #1d2c4d; color: #9dbbff; }
 html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; color: #8fe0cf; }
+
+/* ---- Son aşama: S.1 rozetler, S.2 aylık hedef, S.3 sürükle-bırak, S.4 tur, S.5 dikte ---- */
+.badge-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.bdg { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: var(--t-xs); font-weight: 600; background: #fff; border: 1px solid var(--line); color: var(--ink); white-space: nowrap; }
+.bdg-fire { background: #fff1e6; border-color: #ffd2b0; color: #a24a0b; }
+.bdg-bolt { background: #fff8d6; border-color: #f4e08a; color: #7a5d00; }
+.bdg-gold { background: #fdf3c8; border-color: #ecd277; color: #6e5400; }
+.bdg-pub { background: #e9f0ff; border-color: #c8d7ff; color: #2c4aa8; }
+.bdg-done { background: #e6f7ee; border-color: #b9e6cc; color: #17663d; }
+.bdg-idea { background: #f2ecff; border-color: #dacdff; color: #5a3fb0; }
+
+.goal-card { display: grid; gap: 10px; }
+.goal-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); flex-wrap: wrap; }
+.goal-top h3 { margin: 0; text-transform: capitalize; }
+.goal-form { display: flex; gap: 6px; align-items: center; }
+.goal-form .input { width: 84px; height: 32px; padding: 4px 10px; }
+.goal-bar { height: 12px; border-radius: 999px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--line); }
+.goal-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand, #7d6bf0), #b9a8ff); transition: width .6s ease; }
+.goal-bar.full i { background: linear-gradient(90deg, #22a35a, #7bd88f); }
+.goal-meta { color: var(--ink-2); }
+
+[data-item][draggable="true"] { cursor: grab; }
+[data-item].dragging { opacity: .45; }
+.cal-cell.drop-over, .cw-col.drop-over { outline: 2px dashed var(--brand, #7d6bf0); outline-offset: -3px; background: color-mix(in srgb, var(--brand, #7d6bf0) 8%, transparent); }
+
+.tour { position: fixed; inset: 0; z-index: 9000; }
+.tour-spot { position: fixed; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(20, 16, 40, .55); transition: all .25s ease; pointer-events: none; }
+.tour-tip { position: fixed; width: 320px; max-width: calc(100vw - 24px); background: var(--surface, #fff); border-radius: 14px; padding: 14px 16px; box-shadow: 0 18px 40px rgba(0, 0, 0, .25); display: grid; gap: 6px; }
+.tour-tip h3 { margin: 0; }
+.tour-tip p { margin: 0; color: var(--ink-2); font-size: var(--t-sm); }
+.tour-tip .row { margin-top: 6px; }
+
+.mic-wrap { position: relative; display: flex; flex: 1; min-width: 0; }
+.mic-wrap > .input, .mic-wrap > .textarea { flex: 1; min-width: 0; padding-right: 36px; }
+.mic-btn { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.mic-btn svg { width: 16px; height: 16px; }
+.mic-btn:hover { background: var(--surface-2); color: var(--ink); }
+.mic-btn.on { background: #e5484d; color: #fff; animation: micPulse 1.2s ease-in-out infinite; }
+@keyframes micPulse { 50% { box-shadow: 0 0 0 6px rgba(229, 72, 77, .2); } }
+@media (prefers-reduced-motion: reduce) { .mic-btn.on { animation: none; } .tour-spot, .goal-bar i { transition: none; } }

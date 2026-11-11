@@ -2,7 +2,7 @@
 // AI anahtarı sunucuya yazılır ve bir daha tarayıcıya gönderilmez.
 import { api } from '../api.js';
 import { THEMES, themePref, setTheme, THEME_ENABLED } from '../theme.js';
-import { esc, toast, openModal, pageHead, emptyState, busy } from '../ui.js';
+import { esc, icon, toast, openModal, pageHead, emptyState, busy } from '../ui.js';
 import { reminderPrefs, setReminderPrefs } from '../reminders.js';
 import { state, renderChrome, refreshBrands } from '../app.js';
 
@@ -59,6 +59,7 @@ export async function renderSettings(view) {
         <label class="check mt-2"><input type="checkbox" id="rm-tasks" ${reminderPrefs().tasks ? 'checked' : ''}> Görev hatırlatması: son günü gelen ve geciken görevler için günde bir kez bildirim (09:00'dan sonra)</label>
         <label class="check mt-2"><input type="checkbox" id="rm-sound" ${reminderPrefs().sound ? 'checked' : ''}> Ses efektleri (kaydetme, görev tamamlama, bildirim, hata)</label>
         <p class="hint mt-2">${typeof Notification === 'undefined' ? 'Bu tarayıcı bildirimleri desteklemiyor.' : 'Bildirimler uygulama açıkken (sekme arka planda olsa da) gelir; ilk açışta tarayıcı izin ister.'}</p>
+        <div class="row mt-3"><button type="button" class="btn btn-sm" id="tour-restart">${icon('sparkle')}Tanıtım turunu yeniden başlat</button></div>
       </section>
       <section class="card" id="ai-card">
         <div class="card-head"><h3>Yapay zekâ</h3>${ai.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
@@ -194,6 +195,7 @@ export async function renderSettings(view) {
   });
 
   view.querySelector('#theme-card').addEventListener('click', e => { const b = e.target.closest('[data-theme-set]'); if (!b) return; setTheme(b.dataset.themeSet); view.querySelectorAll('[data-theme-set]').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
+  view.querySelector('#tour-restart').addEventListener('click', async () => { const { startTour } = await import('../tour.js'); location.hash = '#/'; setTimeout(startTour, 700); });
   view.querySelector('#rm-summary').addEventListener('change', e => { setReminderPrefs({ summary: e.target.checked }); toast('Kaydedildi.', 'success'); });
   view.querySelector('#rm-tasks').addEventListener('change', e => { setReminderPrefs({ tasks: e.target.checked }); toast('Kaydedildi.', 'success'); });
   view.querySelector('#rm-sound').addEventListener('change', e => { setReminderPrefs({ sound: e.target.checked }); toast(e.target.checked ? 'Ses efektleri açık.' : 'Ses efektleri kapalı.', 'success'); });

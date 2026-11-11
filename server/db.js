@@ -428,6 +428,10 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_recipes ON recipes(owner_id, kind, created_at);
+  `,
+  // 22: Aylık içerik hedefi (marka başına; 0 = hedef yok)
+  `
+  ALTER TABLE brands ADD COLUMN monthly_goal INTEGER NOT NULL DEFAULT 0;
   `
 ];
 

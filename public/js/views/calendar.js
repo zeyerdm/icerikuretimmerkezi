@@ -49,7 +49,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     return `${from.getDate()} ${from.getMonth() !== to.getMonth() ? TR_MONTHS[from.getMonth()] + ' ' : ''}– ${to.getDate()} ${TR_MONTHS[to.getMonth()]} ${to.getFullYear()}`;
   };
 
-  const chip = c => `<button class="cal-item status-${esc(c.status)}" data-item="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}" title="${esc(`${timeStr(c.scheduledAt)} · ${c.title} · ${c.brandName} · ${c.typeLabel} · ${c.statusLabel}`)}">
+  const chip = c => `<button class="cal-item status-${esc(c.status)}" data-item="${esc(c.id)}" draggable="true" style="--item-color:${esc(c.brandColor || '#7d6bf0')}" title="${esc(`${timeStr(c.scheduledAt)} · ${c.title} · ${c.brandName} · ${c.typeLabel} · ${c.statusLabel}`)}">
       <span class="ci-time">${timeStr(c.scheduledAt)}</span><span class="ci-title">${esc(c.title)}</span></button>`;
 
   // Tek günlük özel günler hücrede; dönemler yalnızca başladıkları gün (görünümde başlamıyorsa ilk gün)
@@ -86,7 +86,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
       const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
       return `<div class="cw-col ${sameDay(day, today) ? 'today' : ''}" data-day="${day.getTime()}">
         <div class="cw-head"><span>${TR_DAYS_SHORT[i]}</span><b>${day.getDate()}</b></div>
-        <div class="cw-body">${daySpecials(day).map(spChip).join('')}${list.map(c => `<button class="cw-item status-${esc(c.status)}" data-item="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}">
+        <div class="cw-body">${daySpecials(day).map(spChip).join('')}${list.map(c => `<button class="cw-item status-${esc(c.status)}" data-item="${esc(c.id)}" draggable="true" style="--item-color:${esc(c.brandColor || '#7d6bf0')}">
             <span class="ci-time">${timeStr(c.scheduledAt)}</span><b>${esc(c.title)}</b>
             <span class="cw-meta">${brand ? '' : esc(c.brandName) + ' · '}${esc(c.typeLabel)}</span><span class="st">${esc(c.statusLabel)}</span></button>`).join('')}
           <button class="cw-add" data-add="${day.getTime()}" aria-label="${esc(fmtDate(day))} için içerik planla">${icon('plus')}</button></div>
@@ -205,6 +205,44 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     if (add) return plan(add.dataset.add);
     const cell = t.closest('.cal-cell');
     if (cell && !t.closest('button')) return plan(cell.dataset.day);
+  };
+
+  // S.3: Sürükle-bırak: içeriği başka bir güne taşı (saat aynı kalır)
+  let dragId = null;
+  const dropZone = t => t && t.closest && t.closest('.cal-cell[data-day], .cw-col[data-day]');
+  view.ondragstart = e => {
+    const it = e.target.closest && e.target.closest('[data-item][draggable]');
+    if (!it) return;
+    dragId = it.dataset.item;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', dragId); } catch { /* bazı tarayıcılar */ }
+    it.classList.add('dragging');
+  };
+  view.ondragend = () => { dragId = null; view.querySelectorAll('.dragging, .drop-over').forEach(x => x.classList.remove('dragging', 'drop-over')); };
+  view.ondragover = e => {
+    const z = dragId && dropZone(e.target);
+    if (!z) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    view.querySelectorAll('.drop-over').forEach(x => x !== z && x.classList.remove('drop-over'));
+    z.classList.add('drop-over');
+  };
+  view.ondragleave = e => { const z = dropZone(e.target); if (z && !z.contains(e.relatedTarget)) z.classList.remove('drop-over'); };
+  view.ondrop = async e => {
+    const z = dragId && dropZone(e.target);
+    if (!z) return;
+    e.preventDefault();
+    const id = dragId; dragId = null;
+    z.classList.remove('drop-over');
+    const c = items.find(x => x.id === id);
+    if (!c || !c.scheduledAt) return;
+    const from = new Date(c.scheduledAt); const day = new Date(Number(z.dataset.day));
+    if (sameDay(from, day)) return;
+    const to = new Date(day.getFullYear(), day.getMonth(), day.getDate(), from.getHours(), from.getMinutes());
+    try {
+      await api.updateContent(id, { scheduledAt: to.toISOString() });
+      toast(`“${c.title}” ${fmtDate(to, { day: 'numeric', month: 'long' })} tarihine taşındı.`, 'success');
+      await draw();
+    } catch (err) { toast(err.message, 'error'); }
   };
 
   // Klavye: gün hücresinde Enter/boşluk içerik planlar
