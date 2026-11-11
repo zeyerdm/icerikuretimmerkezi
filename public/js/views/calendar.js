@@ -18,6 +18,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   let cursor = startOfDay(new Date());
   let brandFilter = brand ? brand.id : '';
   let items = [];
+  let root = null; // bu takvimin şu anki çizimi (bkz. alive)
   let unscheduled = [];
   let specials = [];
   let showSpecial = true;
@@ -131,6 +132,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
       ${!embedded && unscheduled.length ? `<section class="card mt-5"><div class="card-head"><h3>Tarihsiz içerikler</h3><span class="small muted">${unscheduled.length}</span></div>
         <div class="unsched">${unscheduled.map(c => `<button class="ag-item status-${esc(c.status)}" data-item="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}"><span class="ag-title">${esc(c.title)}</span><span class="ag-meta">${esc(c.brandName)} · ${esc(c.typeLabel)} · <span class="st">${esc(c.statusLabel)}</span></span></button>`).join('')}</div></section>` : ''}`;
 
+    root = view.querySelector('.cal-card');
     view.querySelector('#cal-special').addEventListener('change', e => {
       showSpecial = e.target.checked;
       try { localStorage.setItem(SPECIAL_PREF, showSpecial ? '1' : '0'); } catch { /* tercih kaydedilemezse sorun değil */ }
@@ -176,7 +178,11 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     });
   }
 
+  // Sayfa değişince bu takvimin çizimi DOM'dan kalkar; görünüm öğesinde (ör. #view) kalan eski işleyiciler
+  // iç içe çizilen başka bir takvimin (Çalışma masası) olaylarını işlemesin
+  const alive = () => Boolean(root && root.isConnected);
   view.onclick = async e => {
+    if (!alive()) return;
     const t = e.target;
     const sp = t.closest('[data-special]');
     if (sp) { const s = specials.find(x => `${x.date}|${x.name}` === sp.dataset.special); if (s) specialModal(s); return; }
@@ -211,7 +217,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   let dragId = null;
   const dropZone = t => t && t.closest && t.closest('.cal-cell[data-day], .cw-col[data-day]');
   view.ondragstart = e => {
-    const it = e.target.closest && e.target.closest('[data-item][draggable]');
+    const it = alive() && e.target.closest && e.target.closest('[data-item][draggable]');
     if (!it) return;
     dragId = it.dataset.item;
     e.dataTransfer.effectAllowed = 'move';
@@ -220,7 +226,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   };
   view.ondragend = () => { dragId = null; view.querySelectorAll('.dragging, .drop-over').forEach(x => x.classList.remove('dragging', 'drop-over')); };
   view.ondragover = e => {
-    const z = dragId && dropZone(e.target);
+    const z = alive() && dragId && dropZone(e.target);
     if (!z) return;
     e.preventDefault(); e.dataTransfer.dropEffect = 'move';
     view.querySelectorAll('.drop-over').forEach(x => x !== z && x.classList.remove('drop-over'));
@@ -228,7 +234,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   };
   view.ondragleave = e => { const z = dropZone(e.target); if (z && !z.contains(e.relatedTarget)) z.classList.remove('drop-over'); };
   view.ondrop = async e => {
-    const z = dragId && dropZone(e.target);
+    const z = alive() && dragId && dropZone(e.target);
     if (!z) return;
     e.preventDefault();
     const id = dragId; dragId = null;
@@ -247,6 +253,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
 
   // Klavye: gün hücresinde Enter/boşluk içerik planlar
   view.onkeydown = e => {
+    if (!alive()) return;
     const cell = e.target.classList && e.target.classList.contains('cal-cell') ? e.target : null;
     if (cell && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); plan(cell.dataset.day); }
   };
