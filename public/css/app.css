@@ -1750,3 +1750,6 @@ body.editor-mode .radial-fab { display: none; }
 .radial-order li { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: grab; }
 .radial-all { max-height: 340px; overflow-y: auto; display: grid; gap: 2px; }
 @media (max-width: 640px) { .radial-edit { grid-template-columns: 1fr; } }
+
+/* 8.19 Hata günlüğü */
+.err-detail { white-space: pre-wrap; font-size: 11px; margin: 4px 0 0; max-width: 60ch; }

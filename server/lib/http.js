@@ -28,6 +28,7 @@ export const route = fn => (req, res, next) => {
 function errorBody(err) {
   if (err instanceof HttpError) return { status: err.status, error: { code: err.code, message: err.message } };
   console.error(err);
+  reportError(err, 'akışlı istek');
   return { status: 500, error: { code: 'INTERNAL', message: 'Beklenmeyen bir sunucu hatası oluştu.' } };
 }
 
@@ -81,6 +82,11 @@ export function parseJson(value, fallback) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
+// 8.19: beklenmeyen hatalar hata günlüğüne de yazılır (app.js bağlar)
+let errorSink = null;
+export const setErrorSink = fn => { errorSink = fn; };
+export function reportError(err, source) { try { if (errorSink) errorSink(err, source); } catch { /* günlük yazılamazsa uygulama durmaz */ } }
+
 export function errorHandler(err, req, res, _next) {
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: { code: err.code, message: err.message, details: err.details } });
@@ -92,5 +98,6 @@ export function errorHandler(err, req, res, _next) {
     return res.status(400).json({ error: { code: 'INVALID_JSON', message: 'İstek gövdesi geçerli JSON değil.' } });
   }
   console.error(err);
+  reportError(err, `${req.method} ${String(req.originalUrl || req.url || '').split('?')[0]}`);
   res.status(500).json({ error: { code: 'INTERNAL', message: 'Beklenmeyen bir sunucu hatası oluştu.' } });
 }

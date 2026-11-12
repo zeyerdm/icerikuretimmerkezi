@@ -519,6 +519,18 @@ const MIGRATIONS = [
   // 34: 8.15 Hashtag grupları ve imza kapanışları (marka başına JSON)
   `
   ALTER TABLE brands ADD COLUMN caption_sets TEXT NOT NULL DEFAULT '{}';
+  `,
+  // 35: 8.19 Hata günlüğü: beklenmeyen sunucu hataları ve arayüz (tarayıcı) hataları; AI hataları ai_usage'dan okunur
+  `
+  CREATE TABLE error_log (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    message TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX idx_error_log ON error_log(created_at);
   `
 ];
 

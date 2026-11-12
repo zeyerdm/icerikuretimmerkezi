@@ -34,7 +34,7 @@ async function waitForRestart(out) {
 
 // Ayarlar sekmeleri: Genel ve Yapay zekâ (sağlayıcılar, modeller, karşılaştırma, harcama)
 export function settingsTabs(active) {
-  return `<div class="tabs" role="tablist" aria-label="Ayarlar bölümleri"><a role="tab" href="#/ayarlar" class="${active === 'genel' ? 'active' : ''}" aria-selected="${active === 'genel'}">Genel</a><a role="tab" href="#/ai/modeller" class="${active === 'ai' ? 'active' : ''}" aria-selected="${active === 'ai'}">Yapay zekâ</a></div>`;
+  return `<div class="tabs" role="tablist" aria-label="Ayarlar bölümleri"><a role="tab" href="#/ayarlar" class="${active === 'genel' ? 'active' : ''}" aria-selected="${active === 'genel'}">Genel</a><a role="tab" href="#/ai/modeller" class="${active === 'ai' ? 'active' : ''}" aria-selected="${active === 'ai'}">Yapay zekâ</a><a role="tab" href="#/ayarlar/hatalar" class="${active === 'hatalar' ? 'active' : ''}" aria-selected="${active === 'hatalar'}">Hata günlüğü</a></div>`;
 }
 
 export async function renderSettings(view) {
