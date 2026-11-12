@@ -3,6 +3,7 @@
 // Koordinatlar 1080 px genişlikli tuval üzerinde; çizim ve PNG dışa aktarma tarayıcıda aynı veriden yapılır.
 import { newId, now, text, badRequest, notFound, oneOf, parseJson, HttpError, HEX } from '../lib/http.js';
 import { polish } from './reels/rules.js';
+import { markIdeaUsed, IDEA_FORMATS, IDEA_CATEGORIES } from './ideas.js';
 
 export const POST_KINDS = { carousel: 'Carousel', post: 'Tek görsel post', story: 'Story', kapak: 'Reels kapağı', reklam: 'Reklam', grafik: 'Bilgi grafiği', youtube: 'YouTube kapağı' };
 // Türün varsayılan boyutu ve takvimdeki içerik türü
@@ -247,7 +248,36 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       hashtags: (Array.isArray(out.hashtags) ? out.hashtags : []).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 8), r };
   }
   // Şablonlar: bir tasarımın yerleşimi (katmanlar, renkler, görseller, metinler) markaya kaydedilir; yeni tasarım ondan açılır
-  const toTemplate = r => ({ id: r.id, name: r.name, kind: r.kind, kindLabel: POST_KINDS[r.kind] || r.kind, data: parseJson(r.data, {}), createdAt: r.created_at });
+  const cleanMatch = m => ({
+    formats: [...new Set((Array.isArray(m && m.formats) ? m.formats : []).map(String).filter(k => IDEA_FORMATS[k]))],
+    categories: [...new Set((Array.isArray(m && m.categories) ? m.categories : []).map(String).filter(k => IDEA_CATEGORIES[k]))]
+  });
+  const toTemplate = r => ({ id: r.id, name: r.name, kind: r.kind, kindLabel: POST_KINDS[r.kind] || r.kind, data: parseJson(r.data, {}), match: cleanMatch(parseJson(r.match, {})), createdAt: r.created_at });
+  // 10.8: fikre en uygun şablon: tür ve kategori eşleşmesi puanlanır (ikisi de tutarsa en iyi); hiçbiri tutmazsa yok
+  const bestTemplate = (brandId, idea) => {
+    let best = null;
+    for (const t of db.prepare('SELECT * FROM post_templates WHERE brand_id = ? ORDER BY created_at DESC').all(brandId).map(toTemplate)) {
+      const f = t.match.formats.includes(idea.format) ? 2 : 0;
+      const c = t.match.categories.includes(idea.category) ? 1 : 0;
+      if (f + c > 0 && (!best || f + c > best.score)) best = { score: f + c, t };
+    }
+    return best ? best.t : null;
+  };
+  // Şablonun metin katmanlarına yeni metinler yerleşir; görseller, renkler ve yerleşim aynen kalır
+  const fillTemplate = (data, texts) => Object.assign({}, data, {
+    slides: (data.slides || []).map((sl, i) => {
+      const t = texts[Math.min(i, texts.length - 1)] || { title: '', body: '', items: [], cta: '' };
+      let k = 0;
+      return Object.assign({}, sl, { layers: (sl.layers || []).map(l => {
+        if (l.type !== 'text') return l;
+        if (l.role === 'title') return Object.assign({}, l, { text: t.title });
+        if (l.role === 'body') return Object.assign({}, l, { text: t.body || '' });
+        if (l.role === 'item') return Object.assign({}, l, { text: (t.items || [])[k++] || '' });
+        if (l.role === 'cta' && t.cta) return Object.assign({}, l, { text: t.cta });
+        return l;
+      }) });
+    })
+  });
   function fromTemplate(b, templateId, title) {
     const tpl = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
     if (!tpl) throw notFound('Şablon bulunamadı.');
@@ -317,6 +347,42 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
 
     remove(brandId, id) { db.prepare('DELETE FROM posts WHERE id = ?').run(row(brands.get(brandId).id, id).id); },
 
+    // 10.8 Fikirden tasarım: fikrin metni marka diliyle yazılır, eşleşen (ya da seçilen) şablona yerleşir; şablon yoksa
+    // fikrin türüne uygun marka yerleşimiyle hazırlanır. Fikir "kullanıldı (Post stüdyosu)" olur.
+    async fromIdea(brandId, { ideaId, templateId = null, modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const ir = db.prepare('SELECT * FROM ideas WHERE id = ? AND brand_id = ?').get(String(ideaId || ''), b.id);
+      if (!ir) throw notFound('Fikir bulunamadı.');
+      const idea = { id: ir.id, title: ir.title, description: ir.description, format: ir.format || 'genel', category: ir.category };
+      const topic = idea.title + (idea.description ? ` — ${idea.description}` : '');
+      let tpl = null;
+      if (templateId) {
+        const r0 = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
+        if (!r0) throw notFound('Şablon bulunamadı.');
+        tpl = toTemplate(r0);
+      } else tpl = bestTemplate(b.id, idea);
+      let post;
+      if (tpl) {
+        const w = await writeTexts(b, { topic, kind: tpl.kind, slides: (tpl.data.slides || []).length || 1, modelRef });
+        const data = Object.assign(fillTemplate(cleanData(tpl.data, b.id), w.texts), { caption: w.caption, hashtags: w.hashtags, topic });
+        const r = { id: newId(), brand_id: b.id, title: w.title, kind: tpl.kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
+        db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
+        brands.logActivity(b.id, 'post.created', `"${tpl.name}" şablonuyla hazırlandı: ${w.title}`);
+        post = Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r) });
+      } else {
+        const kind = idea.format === 'story' ? 'story' : 'post';
+        post = await this.create(b.id, { topic, kind, modelRef });
+      }
+      const used = markIdeaUsed(db, b.id, idea.id, 'post');
+      return { post, template: tpl ? { id: tpl.id, name: tpl.name } : null, warning: used && used.warning };
+    },
+    setTemplateMatch(brandId, templateId, body = {}) {
+      const b = brands.get(brandId);
+      const r = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
+      if (!r) throw notFound('Şablon bulunamadı.');
+      db.prepare('UPDATE post_templates SET match = ? WHERE id = ?').run(JSON.stringify(cleanMatch(body)), r.id);
+      return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(r.id));
+    },
     listTemplates: brandId => db.prepare('SELECT * FROM post_templates WHERE brand_id = ? ORDER BY created_at DESC').all(brands.get(brandId).id).map(toTemplate),
     saveTemplate(brandId, id, { name } = {}) {
       const b = brands.get(brandId);

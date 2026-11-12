@@ -334,7 +334,13 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ✅ **10.5 Fikir işlemleri:** Her kartın ⋯ menüsünde: benzerlerini üret (1–10 adet, AI), kullanıldı/kullanılmadı, arşivle, tür değiştir, sil (çöp kutusuna). Durum filtresi: Hepsi, Kullanılmamış, Kullanıldı, Arşiv. Kullanıldı görünümünde "Kullanılanları arşivle" ve "Kullanılanları sil" toplu düğmeleri. Benzerlerini üret (kaç tane olacağı seçilir), beğen, sil, "kullanıldı" işaretle, kullanılanları toplu sil ya da arşivle.
 - ✅ **10.6 Tekrarın önlenmesi:** Takvime giren fikir kendiliğinden "kullanıldı" olur ve nerede kullanıldığı yazar. Kullanılmış ya da arşivdeki fikir rastgele seçimlere ve haftalık plana girmez. Çok benzer başlıklı fikir eklenince uyarı çıkar; benzerini üretirken çok benzeri hiç eklenmez. Kullanılmış fikri takvime eklerken onay istenir. Önceki tanım: Bir fikir bir yerde (post, YouTube, Reels…) kullanılınca işaretlenir. Başka bir yerde aynı ya da çok benzer fikir seçilirse uyarı verilir; rastgele seçimlere bu fikir girmez.
 - ✅ **10.7 Prompt Studio fikirden üretir:** "Havuzdan fikir çek" düğmesi var; tür seçilir, varsayılan Post. Kullanılmamış bir fikir rastgele seçilip istek kutusuna yazılır. "Başka fikir" ve "Bırak" seçenekleri var. Prompt üretilince fikir "kullanıldı (Prompt Studio)" olur. Elle yazma seçeneği duruyor. Önceki tanım: "Rastgele fikir çek" ilgili kategoriden bir fikir seçer, prompt'u bu fikirden üretilir. Elle yazma seçeneği kalır.
-- ⬜ **10.8 Post stüdyosu fikirden ve tasarım şablonundan üretir:** Kullanıcı tasarım şablonlarını önceden oluşturur, örneğin "Haftalık bilgi" ya da "Hikâye". Fikir türleri bu şablonlarla eşleştirilir. "Rastgele seç" bir post fikri seçer, içeriği üretir ve eşleşen şablona yerleştirir.
+- ✅ **10.8 Post stüdyosu fikirden ve şablondan üretir:** Yapılanlar:
+  - Şablonlar (düzenleyicide Dosya → Şablon olarak kaydet) "Fikirlerle eşleştir" ile fikir türlerine ve kategorilerine bağlanır (göç 38: post_templates.match).
+  - "Havuzdan fikir çek" kullanılmamış bir fikir seçer; tür seçilebilir, "Başka fikir" denebilir.
+  - Metin marka diliyle yazılır ve eşleşen şablona yerleşir; görseller, renkler ve yerleşim aynen kalır. Şablon elle de seçilebilir; eşleşme yoksa marka yerleşimi kullanılır.
+  - Fikir "kullanıldı (Post stüdyosu)" olur.
+  
+  Önceki tanım: Kullanıcı tasarım şablonlarını önceden oluşturur, örneğin "Haftalık bilgi" ya da "Hikâye". Fikir türleri bu şablonlarla eşleştirilir. "Rastgele seç" bir post fikri seçer, içeriği üretir ve eşleşen şablona yerleştirir.
 - ⬜ **10.9 YouTube kapağı yeniden:** Kapak rastgele bir görselden değil, kullanıcının kendi çekimlerinden üretilir: videodan kareler ve fotoğraflar yüklenir. Kullanıcı beğendiği kapakları referans olarak ekler (ör. Pinterest'ten). Kapak, bu referansların yazı fontu, yazı yerleşimi ve düzeni örnek alınarak oluşturulur.
 - 💬 **10.10 Konuşulacak:**
   - Reels fikri ile "Video ve altyazı" birleşsin mi?

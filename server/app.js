@@ -662,6 +662,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.delete('/shared-templates/:tid', (req, res) => { shared.remove(req.params.tid); res.status(204).end(); });
   api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
+  api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
+  api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, modelRef: mr(b) })); }));
   api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
   api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
   api.post('/brands/:brandId/posts/:id/schedule', (req, res) => res.status(201).json({ content: posts.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));

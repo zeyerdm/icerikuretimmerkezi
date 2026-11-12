@@ -543,6 +543,10 @@ const MIGRATIONS = [
   ALTER TABLE ideas ADD COLUMN used_in TEXT NOT NULL DEFAULT '';
   ALTER TABLE ideas ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
   CREATE INDEX idx_ideas_pool ON ideas(brand_id, archived, format);
+  `,
+  // 38: 10.8 Tasarım şablonu ↔ fikir eşleşmesi (hangi tür ve kategorideki fikirler bu şablonla üretilir)
+  `
+  ALTER TABLE post_templates ADD COLUMN match TEXT NOT NULL DEFAULT '{}';
   `
 ];
 

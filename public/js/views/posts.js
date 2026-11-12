@@ -23,7 +23,7 @@ export async function renderPosts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
-      actions: `<a class="btn btn-ghost" href="${base(brand)}/izgara">${icon('grid')}Izgara önizlemesi</a><button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn" data-ref>${icon('image')}Referanstan şablon</button><button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : ''}`
+      actions: `<a class="btn btn-ghost" href="${base(brand)}/izgara">${icon('grid')}Izgara önizlemesi</a><button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn" data-ref>${icon('image')}Referanstan şablon</button><button class="btn" data-new>${icon('sparkle')}Konudan üret</button><button class="btn btn-primary" data-from-idea>${icon('idea')}Havuzdan fikir çek</button>` : ''}`
     })}
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     ${posts.length ? `<div class="post-grid">${posts.map(p => `
@@ -39,7 +39,8 @@ export async function renderPosts(view, brand, sub) {
       <div class="post-grid">${templates.map(t => `<div class="post-card tpl-card">
         <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
         <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)}</div>
-        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
+        <div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
+        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Fikirlerle eşleştir</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
       </div>`).join('')}</div></section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
@@ -76,6 +77,21 @@ export async function renderPosts(view, brand, sub) {
     sync();
   };
   view.onclick = async e => {
+    // 10.8: şablonu fikir türü ve kategorileriyle eşleştir
+    const mt = e.target.closest('[data-match-tpl]');
+    if (mt) {
+      const t = templates.find(x => x.id === mt.dataset.matchTpl);
+      const box = (name, dict, sel) => `<div class="chip-row">${Object.entries(dict).map(([k, v]) => `<label class="chip-check"><input type="checkbox" name="${name}" value="${k}" ${sel.includes(k) ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')}</div>`;
+      openModal({
+        title: `"${t.name}" şablonu hangi fikirlerle kullanılsın?`, submitLabel: 'Kaydet',
+        body: `<p class="small muted mb-3">"Havuzdan fikir çek" bu türdeki ya da kategorideki bir fikri seçtiğinde tasarım bu şablonla hazırlanır. Ör. "Haftalık bilgi" şablonu → Post + Bilgilendirici.</p>
+          <fieldset class="field"><legend class="field-label">Fikir türleri</legend>${box('formats', state.meta.ideaFormats, t.match.formats)}</fieldset>
+          <fieldset class="field mt-3"><legend class="field-label">Kategoriler</legend>${box('categories', state.meta.ideaCategories, t.match.categories)}</fieldset>`,
+        onSubmit: async fd => { await api.setTemplateMatch(brand.id, t.id, { formats: fd.getAll('formats'), categories: fd.getAll('categories') }); toast('Eşleşme kaydedildi.', 'success'); renderPosts(view, brand, null); }
+      });
+      return;
+    }
+    if (e.target.closest('[data-from-idea]')) return fromIdeaFlow(brand, models, templates);
     const useTpl = e.target.closest('[data-use-tpl]');
     if (useTpl) {
       const t = templates.find(x => x.id === useTpl.dataset.useTpl);
@@ -135,6 +151,43 @@ export async function renderPosts(view, brand, sub) {
       return wireKind(m);
     }
   };
+}
+
+// ------------------------------------------------------------ 10.8 Fikir havuzundan tasarım
+// Kullanılmamış bir fikir rastgele seçilir (tür seçilebilir, varsayılan Post); "Başka fikir" yenisini çeker. Tasarım, fikre
+// eşleşen şablonla (ya da seçilen şablonla, yoksa marka yerleşimiyle) hazırlanır; fikir "kullanıldı" olur.
+async function fromIdeaFlow(brand, models, templates) {
+  const seen = [];
+  let idea = null;
+  const m = openModal({
+    title: 'Havuzdan fikir çek', submitLabel: 'Tasarımı üret',
+    body: `<div class="form-grid">
+      <div class="field"><label for="fi-format">Fikir türü</label><select class="select" id="fi-format" name="format">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+      <div class="field"><label for="fi-tpl">Şablon</label><select class="select" id="fi-tpl" name="templateId"><option value="">Eşleşen şablon (otomatik)</option>${templates.map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
+      <div class="field full"><span class="field-label">Seçilen fikir</span><div class="pool-pick" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></div>
+      <div class="field"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
+    </div>`,
+    onSubmit: async (fd, form) => {
+      if (!idea) throw new Error('Önce bir fikir çek.');
+      const r = await busyTimer(form.querySelector('[type=submit]'), () => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, model: form.querySelector('#fi-model').value || null }), 'Hazırlıyor');
+      toast(`${r.template ? `"${r.template.name}" şablonuyla` : 'Marka yerleşimiyle'} hazırlandı; fikir kullanıldı olarak işaretlendi.`, 'success', 5000);
+      if (r.warning) toast(r.warning, 'info', 6000);
+      go(base(brand) + '/' + r.post.id);
+    }
+  });
+  const box = m.form.querySelector('#fi-idea');
+  const pull = async () => {
+    try {
+      const r = await api.randomIdea(brand.id, { format: m.form.querySelector('#fi-format').value, exclude: seen });
+      idea = r.idea;
+      if (!idea) { box.innerHTML = `<span class="small muted">Bu türde kullanılmamış fikir kalmadı. <a class="link" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerine</a> fikir ekle.</span>`; return; }
+      seen.push(idea.id);
+      box.innerHTML = `<div class="grow"><b>${esc(idea.title)}</b> <span class="tag">${esc(idea.formatLabel)}</span> <span class="tag tag-soft">${esc(idea.categoryLabel)}</span>${idea.description ? `<div class="small muted">${esc(idea.description)}</div>` : ''}</div><button type="button" class="btn btn-sm" data-fi-again>Başka fikir</button>`;
+    } catch (err) { box.innerHTML = `<span class="small">${esc(err.message)}</span>`; }
+  };
+  m.form.addEventListener('click', e => { if (e.target.closest('[data-fi-again]')) pull(); });
+  m.form.querySelector('#fi-format').addEventListener('change', () => { seen.length = 0; pull(); });
+  pull();
 }
 
 // ------------------------------------------------------------ Instagram ızgara önizlemesi
