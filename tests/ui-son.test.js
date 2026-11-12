@@ -472,3 +472,29 @@ test('8.4 arayüz: prompt üretirken metin canlı akar; İptal üretimi keser ve
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.5 arayüz: üretim öncesi tahmini tutar, sahne sayısıyla değişir; bütçe yetmeyecekse uyarı', { skip }, async () => {
+  const srv = await startServer({ aiProvider: { label: 'T', async generate() { return { title: 'x', prompt: 'x' }; }, async test() { return { ok: true, modelCount: 1, modelAvailable: true }; } } });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Tutar UI' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/prompt`);
+    const hint = page.locator('#ps-cost');
+    await hint.waitFor();
+    assert.match(await hint.innerText(), /Tahmini tutar bilinmiyor/, 'fiyatı olmayan model');
+    assert.equal((await srv.request('PUT', '/api/ai/prices', { ref: 'fake:test', price: { input: 3, output: 15 } })).status, 200);
+    await page.evaluate(() => location.reload());
+    await hint.waitFor();
+    // 2.500 × 3 + 700 × 15 = 18.000 / 1e6 = 0,018 $
+    assert.match(await hint.innerText(), /Tahmini tutar ~0,018 \$ \(eksik çıkarsa bir kez daha yazılır\)/);
+    await page.selectOption('#ps-scenes', '3');
+    assert.match(await hint.innerText(), /~0,054 \$ \(3 sahne\)/);
+    assert.equal(await hint.evaluate(el => el.classList.contains('cost-warn')), false);
+    await srv.request('PUT', '/api/ai/budget', { monthlyUsd: 0.01 });
+    await page.evaluate(() => location.reload());
+    await hint.waitFor();
+    await page.waitForFunction(() => /yetmeyebilir/.test(document.querySelector('#ps-cost').textContent));
+    assert.equal(await hint.evaluate(el => el.classList.contains('cost-warn')), true);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

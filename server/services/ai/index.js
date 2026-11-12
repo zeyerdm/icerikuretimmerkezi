@@ -304,7 +304,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
           const ref = modelRef(m.provider, m.id);
           return Object.assign({}, m, { ref, price: priceFor(ref) || m.price, available: isConfigured(m.provider), unavailable: unavailable().includes(ref) });
         }),
-        tasks: Object.entries(TASKS).map(([id, t]) => Object.assign({ id }, t, assignment(id), { primaryLabel: assignment(id).primary ? labelOf(assignment(id).primary) : null, primaryUnavailable: unavailable().includes(assignment(id).primary) })),
+        tasks: Object.entries(TASKS).map(([id, t]) => Object.assign({ id }, t, assignment(id), { primaryLabel: assignment(id).primary ? labelOf(assignment(id).primary) : null, primaryUnavailable: unavailable().includes(assignment(id).primary), primaryPrice: assignment(id).primary ? priceFor(assignment(id).primary) : null })),
         budget: budgetStatus(),
         priceOverrides: priceOverrides()
       };

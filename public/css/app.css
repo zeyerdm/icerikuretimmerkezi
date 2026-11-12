@@ -1709,3 +1709,6 @@ html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; c
 .stream-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .stream-text { white-space: pre-wrap; font-size: var(--t-sm); line-height: 1.5; max-height: 220px; overflow-y: auto; color: var(--ink); min-height: 1.5em; }
 .stream-text:empty::before { content: '…'; color: var(--muted); }
+
+/* 8.5 Tahmini tutar */
+.cost-warn { color: var(--amber-ink, #9a5b00); font-weight: 500; }

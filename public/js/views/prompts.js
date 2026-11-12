@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { openRecipes } from '../recipes.js';
 import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
-import { aiModels, modelSelect, busyTimer, streamBusy, aiNote } from '../aiPicker.js';
+import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { imageBox } from './imageGen.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 
@@ -47,6 +47,7 @@ export async function renderPrompts(view, brand, sub) {
           <select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
           <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
           <button class="btn" data-brainstorm>${icon('grid')}Beyin fırtınası</button></div>
+        <p class="xsmall muted mt-2 cost-hint" id="ps-cost"></p>
         <div id="ps-bs" class="mt-4"></div>`
       : '<div class="notice"><div><strong>AI bağlı değil.</strong> Prompt üretmek ve geliştirmek için bir sağlayıcı bağla; o zamana kadar kendi prompt\'larını elle kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     </section>
@@ -68,6 +69,8 @@ export async function renderPrompts(view, brand, sub) {
     }
   };
   hint();
+  // 8.5 tahmini tutar (sahneli üretimde sahne sayısıyla; kalite kontrolü bir kez daha yazdırabilir)
+  if (aiReady) bindCostHint(view.querySelector('#ps-cost'), models, () => { const n = Number(view.querySelector('#ps-scenes').value) || 1; return { task: 'yazim', ref: view.querySelector('#ps-model').value, job: 'prompt', times: n, suffix: n > 1 ? ` (${n} sahne)` : ' (eksik çıkarsa bir kez daha yazılır)' }; }, [view.querySelector('#ps-model'), view.querySelector('#ps-scenes')]);
 
   async function loadList() {
     const box = view.querySelector('#ps-list');
