@@ -46,7 +46,10 @@ const toAsset = r => ({
   pack: r.pack || '', tags: r.tags ? r.tags.split(',').filter(Boolean) : [],
   refRole: r.ref_role || '', mention: mentionOf(r.label, r.id),
   ocrText: r.ocr_text || '', analyzedAt: r.analyzed_at || null,
-  url: `/api/brands/${r.brand_id}/assets/${r.id}/file`
+  url: `/api/brands/${r.brand_id}/assets/${r.id}/file`,
+  // 8.10: ızgaralar küçük resmi kullanır; yoksa asıl dosya. Büyük durağan görsellerin küçük resmi tarayıcıda bir kez üretilir.
+  thumbUrl: r.thumb ? `/api/brands/${r.brand_id}/assets/${r.id}/thumb` : `/api/brands/${r.brand_id}/assets/${r.id}/file`,
+  needsThumb: !r.thumb && r.size > THUMB_MIN_BYTES && /^image\/(png|jpeg|webp)$/.test(r.mime)
 });
 
 // Paket adı tek satır; etiketler küçük harfli, tekrarsız, virgülle saklanır
@@ -54,12 +57,15 @@ const cleanPack = v => String(v || '').replace(/[\r\n,]+/g, ' ').trim().slice(0,
 const cleanTags = v => [...new Set((Array.isArray(v) ? v : String(v || '').split(','))
   .map(t => String(t).trim().toLocaleLowerCase('tr-TR').replace(/^#/, '').slice(0, 30)).filter(Boolean))].slice(0, 12).join(',');
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
+export const THUMB_MIN_BYTES = 150 * 1024; // daha küçük dosyada küçük resme gerek yok
+export const MAX_THUMB_BYTES = 200 * 1024;
 export const MAX_PACK_BYTES = 60 * 1024 * 1024;
 const MAX_PACK_FILES = 200;
 
 export function createAssetService(db, uploadDir) {
   const brandDir = brandId => path.join(uploadDir, brandId);
   const filePath = row => path.join(brandDir(row.brand_id), row.file_name);
+  const thumbPath = row => path.join(brandDir(row.brand_id), '.thumbs', `${row.id}.img`);
   const stashPath = row => path.join(brandDir(row.brand_id), '.trash', path.basename(row.file_name));
   const getRow = (brandId, assetId) => {
     const row = db.prepare('SELECT * FROM assets WHERE id = ? AND brand_id = ?').get(String(assetId), brandId);
@@ -106,6 +112,7 @@ export function createAssetService(db, uploadDir) {
     remove(brandId, assetId, { stash = false } = {}) {
       const row = getRow(brandId, assetId);
       db.prepare('DELETE FROM assets WHERE id = ? AND brand_id = ?').run(row.id, brandId);
+      fs.rmSync(thumbPath(row), { force: true }); // geri alınırsa küçük resim yeniden üretilir
       if (stash && fs.existsSync(filePath(row))) {
         fs.mkdirSync(path.dirname(stashPath(row)), { recursive: true });
         fs.renameSync(filePath(row), stashPath(row));
@@ -117,9 +124,29 @@ export function createAssetService(db, uploadDir) {
         if (!fs.existsSync(stashPath(row))) throw badRequest('Görselin dosyası bulunamadı; geri alınamaz.');
         fs.mkdirSync(brandDir(row.brand_id), { recursive: true });
         fs.renameSync(stashPath(row), filePath(row));
+        row.thumb = 0; // küçük resim silmede kaldırıldı; tarayıcı yeniden üretir
       },
       undo(row) { if (fs.existsSync(filePath(row))) { fs.mkdirSync(path.dirname(stashPath(row)), { recursive: true }); fs.renameSync(filePath(row), stashPath(row)); } },
       drop(row) { fs.rmSync(stashPath(row), { force: true }); }
+    },
+
+    // 8.10 küçük resim: tarayıcı üretir (canvas), sunucu biçimini ve boyutunu denetleyip saklar
+    saveThumb(brandId, assetId, buffer) {
+      const row = getRow(brandId, assetId);
+      const kind = Buffer.isBuffer(buffer) ? detectImage(buffer) : null;
+      if (!kind || kind.mime === 'image/gif') throw badRequest('Küçük resim PNG, JPEG ya da WebP olmalı.');
+      if (buffer.length > MAX_THUMB_BYTES) throw badRequest('Küçük resim en çok 200 KB olabilir.');
+      fs.mkdirSync(path.dirname(thumbPath(row)), { recursive: true });
+      fs.writeFileSync(thumbPath(row), buffer);
+      db.prepare('UPDATE assets SET thumb = 1 WHERE id = ?').run(row.id);
+      return toAsset(Object.assign(row, { thumb: 1 }));
+    },
+    thumb(brandId, assetId) {
+      const row = getRow(brandId, assetId);
+      const p = thumbPath(row);
+      if (!row.thumb || !fs.existsSync(p)) return { path: filePath(row), mime: row.mime, fallback: true };
+      const kind = detectImage(fs.readFileSync(p).subarray(0, 16));
+      return { path: p, mime: kind ? kind.mime : 'image/webp', fallback: false };
     },
 
     file(brandId, assetId) {

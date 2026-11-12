@@ -6,6 +6,7 @@ import { esc, toast, openModal, busy } from '../ui.js';
 import { busyTimer, aiModels, costText } from '../aiPicker.js';
 import { downloadBlob, safeName } from '../titlePng.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
+import { ensureThumbs } from '../thumbs.js';
 
 const money = c => (c ? (c < 0.01 ? '< 0,01 $' : c.toFixed(3).replace('.', ',') + ' $') : '');
 
@@ -66,10 +67,11 @@ export async function imageBox(box, brand, opts = {}) {
     try {
       gens = (await api.images(brand.id, opts.promptId || null)).images;
       $('-list').innerHTML = gens.length ? gens.map(card).join('') : '';
+      ensureThumbs(brand.id, gens.map(g => g.asset), a => { const img = box.querySelector(`[data-gen] img[src*="/assets/${CSS.escape(a.id)}/"]`); if (img) img.src = a.thumbUrl; });
       drawCompareBar();
     } catch { /* geçmiş yüklenemezse üretim yine çalışır */ }
   }
-  const card = g => `<figure class="gen-card" data-gen="${esc(g.id)}"><a href="${esc(g.asset.url)}" target="_blank" rel="noopener"><img src="${esc(g.asset.url)}" alt="${esc(g.prompt.slice(0, 80))}" loading="lazy"></a>
+  const card = g => `<figure class="gen-card" data-gen="${esc(g.id)}"><a href="${esc(g.asset.url)}" target="_blank" rel="noopener"><img src="${esc(g.asset.thumbUrl || g.asset.url)}" alt="${esc(g.prompt.slice(0, 80))}" loading="lazy"></a>
     <figcaption class="xsmall muted">${esc(g.modelLabel)} · ${esc(g.aspect)}${g.usedRefs ? ' · referanslı' : ''}</figcaption>
     <div class="gen-actions">
       <button type="button" class="btn btn-sm btn-ghost" data-detail="${esc(g.id)}">Ayrıntı</button>

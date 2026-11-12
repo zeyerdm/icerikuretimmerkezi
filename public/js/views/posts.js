@@ -223,7 +223,7 @@ async function referenceFlow(brand, models, refresh) {
   const m = openModal({
     title: 'Referanstan şablon', submitLabel: 'İncele ve şablona çevir',
     body: `<p class="small muted mb-3">Beğendiğin bir tasarımın ekran görüntüsünü seç ya da yükle. Model renk paletini, font benzerlerini ve yerleşimi çıkarır; metinler kopyalanmaz, görsel alanlarına markanın kendi logo ve maskotu konur.</p>
-      <div class="asset-grid" id="ref-grid">${refs.map(a => `<button type="button" class="asset asset-pick ${a.id === picked ? 'is-picked' : ''}" data-ref-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || 'Referans')}</div></button>`).join('')}</div>
+      <div class="asset-grid" id="ref-grid">${refs.map(a => `<button type="button" class="asset asset-pick ${a.id === picked ? 'is-picked' : ''}" data-ref-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.thumbUrl || a.url)}" alt=""></div><div class="meta small">${esc(a.label || 'Referans')}</div></button>`).join('')}</div>
       <label class="btn btn-sm mt-3">${icon('upload')}Yeni referans yükle<input type="file" id="ref-file" accept="image/png,image/jpeg,image/webp" class="sr-only"></label>
       <div class="form-grid mt-3">
         <div class="field"><label for="ref-name">Şablon adı</label><input class="input" id="ref-name" name="name" maxlength="80" placeholder="Ör. Minimal duyuru"></div>
@@ -444,7 +444,7 @@ async function renderEditor(view, brand, id, models) {
   // ---- Sol panel içerikleri
   async function assets() { if (!assetCache) assetCache = (await api.assets(brand.id)).assets; return assetCache; }
   const assetGrid = (list, empty) => (list.length
-    ? `<div class="ed-asset-grid">${list.map(a => `<button type="button" class="ed-asset" data-add-asset="${esc(a.id)}" title="${esc(a.label || a.categoryLabel)}"><img src="${esc(a.url)}" alt="${esc(a.label || '')}" loading="lazy"></button>`).join('')}</div>`
+    ? `<div class="ed-asset-grid">${list.map(a => `<button type="button" class="ed-asset" data-add-asset="${esc(a.id)}" title="${esc(a.label || a.categoryLabel)}"><img src="${esc(a.thumbUrl || a.url)}" alt="${esc(a.label || '')}" loading="lazy"></button>`).join('')}</div>`
     : `<p class="small muted">${empty}</p>`);
 
   async function drawPanelBody() {
@@ -581,7 +581,7 @@ async function renderEditor(view, brand, id, models) {
       const list = only ? all.filter(a => a.category === only) : all;
       const m = openModal({
         title: 'Kütüphaneden görsel', submitLabel: 'Kapat',
-        body: list.length ? `<div class="asset-grid">${list.map(a => `<button type="button" class="asset asset-pick" data-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.url)}" alt=""></div><div class="meta small">${esc(a.label || a.categoryLabel)}</div></button>`).join('')}</div>`
+        body: list.length ? `<div class="asset-grid">${list.map(a => `<button type="button" class="asset asset-pick" data-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.thumbUrl || a.url)}" alt=""></div><div class="meta small">${esc(a.label || a.categoryLabel)}</div></button>`).join('')}</div>`
           : emptyState({ icon: 'image', title: 'Kütüphane boş', text: `<a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> görsel yükle.`, compact: true }),
         onSubmit: async () => {}
       });

@@ -5,6 +5,7 @@ import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy, openModal } from '../ui.js';
 import { state, refreshBrands, go, renderChrome } from '../app.js';
 import { INSPIRATION_NOTE, takeLibraryCategory } from '../inspiration.js';
+import { ensureThumbs } from '../thumbs.js';
 
 const LONG_FIELDS = new Set(['description', 'audience', 'character', 'tone', 'goals', 'competitors']);
 const PLACEHOLDERS = {
@@ -350,10 +351,12 @@ async function renderAssets(body, brand, driveOk) {
       const pending = assets.filter(a => !a.analyzedAt);
       body.querySelector('#ocr-bulk').innerHTML = aiOn && pending.length ? `<button type="button" class="btn btn-sm" data-ocr-bulk>${icon('sparkle')}Okunmamışları oku ve etiketle (${pending.length})</button>` : '';
       bulkIds = pending.map(a => a.id);
+      // 8.10: büyük görsellerin küçük resmi arka planda üretilir; hazır olunca ızgaradaki görsel küçüğüyle değişir
+      ensureThumbs(brand.id, assets, a => { const img = grid.querySelector(`[data-asset-id="${CSS.escape(a.id)}"] img`); if (img) img.src = a.thumbUrl; });
       grid.innerHTML = assets.length
         ? `<div class="asset-grid">${assets.map(a => `
-            <div class="asset">
-              <div class="thumb"><img src="${esc(a.url)}" alt="${esc(a.label || a.categoryLabel)}" loading="lazy"></div>
+            <div class="asset" data-asset-id="${esc(a.id)}">
+              <div class="thumb"><img src="${esc(a.thumbUrl || a.url)}" alt="${esc(a.label || a.categoryLabel)}" loading="lazy"></div>
               <div class="meta"><input class="input" data-asset-label="${esc(a.id)}" value="${esc(a.label)}" placeholder="Etiket" maxlength="80" aria-label="Etiket">
               <button class="btn btn-sm btn-ghost icon-btn" data-asset-delete="${esc(a.id)}" aria-label="Sil">${icon('trash')}</button></div>
               <div class="meta"><select class="select input-sm" data-asset-role="${esc(a.id)}" aria-label="Referans rolü" title="Görsel üretiminde @${esc(a.mention)} ile anılınca nasıl kullanılacağı"><option value="">Referans: —</option>${[['kimlik', 'Kimlik'], ['nesne', 'Nesne'], ['stil', 'Stil']].map(([k, v]) => `<option value="${k}" ${a.refRole === k ? 'selected' : ''}>Referans: ${v}</option>`).join('')}</select><span class="xsmall muted" title="Görsel tarifinde bu adla an">@${esc(a.mention)}</span></div>
