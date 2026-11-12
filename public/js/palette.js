@@ -7,27 +7,28 @@ import { contentModal, taskModal, noteModal } from './views/forms.js';
 
 const norm = s => String(s || '').toLocaleLowerCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ı/g, 'i');
 
-function commands() {
+// Her komutun sabit kimliği var (8.20 dairesel menü kişinin seçtiği kısa yolları bu kimlikle saklar)
+export function commands() {
   const brand = activeBrand();
   const out = [];
-  const act = (label, iconName, run, keys = '') => out.push({ group: 'Eylemler', label, icon: iconName, run, keys });
+  const act = (id, label, iconName, run, keys = '') => out.push({ id, group: 'Eylemler', label, icon: iconName, run, keys });
   const saved = () => { toast('Kaydedildi.'); route(); };
   if (state.brands.length) {
-    act(brand ? `İçerik planla (${brand.name})` : 'İçerik planla', 'calendar', () => contentModal({ brandId: brand && brand.id, onSaved: saved }), 'takvim yayin gonderi ekle yeni');
-    act('Görev ekle', 'tasks', () => taskModal({ brandId: brand && brand.id, onSaved: saved }), 'yapilacak is yeni');
+    act('plan', brand ? `İçerik planla (${brand.name})` : 'İçerik planla', 'calendar', () => contentModal({ brandId: brand && brand.id, onSaved: saved }), 'takvim yayin gonderi ekle yeni');
+    act('task', 'Görev ekle', 'tasks', () => taskModal({ brandId: brand && brand.id, onSaved: saved }), 'yapilacak is yeni');
   }
-  act('Not al', 'notes', async () => {
+  act('note', 'Not al', 'notes', async () => {
     let categories = [];
     try { categories = (await api.notes()).categories || []; } catch { /* kategoriler olmadan da not alınır */ }
     noteModal({ brandId: brand && brand.id, categories, onSaved: saved });
   }, 'yeni not yaz');
-  act('Yeni marka oluştur', 'plus', () => go('#/marka/yeni'), 'marka ekle');
-  act('Tanıtım turunu başlat', 'sparkle', async () => { const { startTour } = await import('./tour.js'); if (location.hash !== '#/' && location.hash !== '') { location.hash = '#/'; setTimeout(startTour, 700); } else startTour(); }, 'tur yardim rehber nasil kullanilir');
-  if (brand) BRAND_NAV.filter(n => !n.soon).forEach(n => out.push({ group: brand.name, label: n.label, icon: n.icon, run: () => go(`#/m/${brand.id}${n.path}`), keys: 'git ac sayfa' }));
+  act('new-brand', 'Yeni marka oluştur', 'plus', () => go('#/marka/yeni'), 'marka ekle');
+  act('tour', 'Tanıtım turunu başlat', 'sparkle', async () => { const { startTour } = await import('./tour.js'); if (location.hash !== '#/' && location.hash !== '') { location.hash = '#/'; setTimeout(startTour, 700); } else startTour(); }, 'tur yardim rehber nasil kullanilir');
+  if (brand) BRAND_NAV.filter(n => !n.soon).forEach(n => out.push({ id: 'brand:' + n.path, group: brand.name, label: n.label, icon: n.icon, run: () => go(`#/m/${brand.id}${n.path}`), keys: 'git ac sayfa' }));
   [['Görevler', 'tasks', '#/gorevler'], ['Notlar', 'notes', '#/notlar'], ['Yapay zekâ ayarları', 'sparkle', '#/ai/modeller'], ['Model karşılaştır', 'sparkle', '#/ai'], ['AI harcaması', 'chart', '#/ai/harcama']]
-    .forEach(([label, ic, hash]) => out.push({ group: 'Yönetim Merkezi', label, icon: ic, run: () => go(hash), keys: 'git ac sayfa' }));
-  CENTER_NAV.forEach(n => out.push({ group: 'Yönetim Merkezi', label: n.label, icon: n.icon, run: () => go(n.hash), keys: 'git ac sayfa' }));
-  state.brands.filter(b => !brand || b.id !== brand.id).forEach(b => out.push({ group: 'Markaya geç', label: b.name + (b.isDemo ? ' (örnek)' : ''), icon: 'brands', run: () => go('#/m/' + b.id), keys: 'marka gec degistir calisma alani' }));
+    .forEach(([label, ic, hash]) => out.push({ id: 'go:' + hash, group: 'Yönetim Merkezi', label, icon: ic, run: () => go(hash), keys: 'git ac sayfa' }));
+  CENTER_NAV.forEach(n => out.push({ id: 'go:' + n.hash, group: 'Yönetim Merkezi', label: n.label, icon: n.icon, run: () => go(n.hash), keys: 'git ac sayfa' }));
+  state.brands.filter(b => !brand || b.id !== brand.id).forEach(b => out.push({ id: 'open:' + b.id, group: 'Markaya geç', label: b.name + (b.isDemo ? ' (örnek)' : ''), icon: 'brands', run: () => go('#/m/' + b.id), keys: 'marka gec degistir calisma alani' }));
   return out;
 }
 

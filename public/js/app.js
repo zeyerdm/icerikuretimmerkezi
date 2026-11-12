@@ -23,6 +23,7 @@ import { renderMemory } from './views/memory.js';
 import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 import { initPalette, openPalette } from './palette.js';
+import { initRadial } from './radial.js';
 import { initInspiration } from './inspiration.js';
 import { renderTrash, initTrashUndo } from './views/trash.js';
 import { renderExporter } from './views/exporter.js';
@@ -329,6 +330,7 @@ async function start() {
   }
   window.addEventListener('hashchange', route);
   initPalette();
+  initRadial(); // 8.20 dairesel hızlı menü
   initInspiration();
   initTrashUndo();
   initFx();

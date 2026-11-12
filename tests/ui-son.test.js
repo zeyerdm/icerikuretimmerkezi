@@ -656,3 +656,48 @@ test('8.16 arayüz: takvimde Haftalık plan; taslak, satır düzenleme/çıkarma
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.20 dairesel hızlı menü: Alt+Q imleçte açılır, ok/Enter ve 1–8, düzenleme ve sıralama kalıcı, orta tuş, ◎ düğmesi', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Menü UI' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}`);
+    await page.locator('.radial-fab').waitFor();
+    await page.mouse.move(600, 400);
+    await page.keyboard.press('Alt+q');
+    const items = page.locator('.radial-item');
+    await items.first().waitFor();
+    assert.equal(await items.count(), 7, 'varsayılan kısa yollar');
+    const box = await page.locator('.radial').boundingBox();
+    assert.ok(Math.abs(box.x - 600) < 2 && Math.abs(box.y - 400) < 2, 'imlecin olduğu yerde');
+    // Ok tuşu odağı gezdirir; Esc kapatır
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.i), '1');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.radial-backdrop').count(), 0);
+    // 3: Not al → not penceresi
+    await page.keyboard.press('Alt+q');
+    await page.keyboard.press('3');
+    await page.locator('.modal', { hasText: 'Not' }).waitFor();
+    await page.keyboard.press('Escape');
+    await page.locator('.modal-backdrop').waitFor({ state: 'detached' });
+    // Düzenle: hepsini kaldır, Prompt Studio ve Görevler'i seç, sırayı değiştir
+    await page.locator('.radial-fab').click();
+    await page.locator('.radial-center').click();
+    while (await page.locator('#rd-all input:checked').count()) await page.locator('#rd-all input:checked').first().uncheck();
+    await page.locator('#rd-all label', { hasText: 'Prompt Studio' }).locator('input').check();
+    await page.locator('#rd-all label', { hasText: /^ ?Görevler$/ }).first().locator('input').check();
+    await page.locator('#rd-order [data-down="0"]').click();
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.modal-backdrop').waitFor({ state: 'detached' });
+    await page.reload();
+    await page.locator('.radial-fab').waitFor();
+    await page.mouse.click(700, 300, { button: 'middle' });
+    await items.first().waitFor();
+    assert.deepEqual(await items.locator('span').allInnerTexts(), ['Görevler', 'Prompt Studio'], 'seçim ve sıra kalıcı');
+    await page.keyboard.press('2');
+    await page.waitForURL(/\/prompt$/);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
