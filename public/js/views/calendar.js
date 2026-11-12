@@ -105,7 +105,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
       ${embedded ? '' : pageHead({
         title: brand ? 'Takvim' : 'İçerik Takvimi',
         desc: brand ? esc(brand.name) + ' markasının planlanan ve yayınlanan içerikleri. Bir güne tıklayarak içerik planla.' : 'Bütün markaların planlanan gönderileri. Boş bir güne tıklayarak içerik planla.',
-        actions: `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
+        actions: `<button class="btn" data-week-plan>${icon('calendar')}Haftalık plan</button><button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
       })}
       <div class="card cal-card${embedded ? ' desk-cal-card' : ''}">
         <div class="cal-toolbar">
@@ -192,6 +192,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
       return contentModal({ content: c, lockBrand: Boolean(brand), onSaved: () => draw() });
     }
     if (t.closest('[data-new]')) return plan(addDays(startOfDay(new Date()), 1).getTime());
+    if (t.closest('[data-week-plan]')) return weekPlanModal(brand ? brand.id : (brandFilter || (state.brands[0] && state.brands[0].id)), Boolean(brand), () => draw());
     const nav = t.closest('[data-nav]');
     if (nav) {
       const step = Number(nav.dataset.nav);
@@ -259,4 +260,55 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   };
 
   await draw();
+}
+
+// 8.16 Haftalık plan sihirbazı: N içerik → taslak (fikir havuzu, Reels havuzu, özel günler, aylık hedef) → düzenle → takvime yaz
+function weekPlanModal(brandId, lockBrand, onDone) {
+  if (!brandId) return toast('Önce bir marka oluştur.', 'error');
+  const types = state.meta.contentTypes;
+  const mon = d => { const x = startOfWeek(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+  const thisWeek = mon(new Date());
+  const nextWeek = mon(addDays(new Date(), 7));
+  const SRC = { fikir: 'Fikir havuzu', 'reels-havuzu': 'Reels havuzu', 'ozel-gun': 'Özel gün', bos: 'Başlığı düzenle' };
+  let draft = null;
+  const m = openModal({
+    title: 'Haftalık plan', submitLabel: 'Takvime yaz',
+    body: `<div class="form-grid">
+        ${lockBrand ? '' : `<div class="field"><label for="wp-brand">Marka</label><select class="select" id="wp-brand">${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandId ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></div>`}
+        <div class="field"><label for="wp-week">Hafta</label><select class="select" id="wp-week"><option value="${nextWeek}">Gelecek hafta</option><option value="${thisWeek}">Bu hafta</option></select></div>
+        <div class="field"><label for="wp-count">İçerik sayısı</label><input class="input" type="number" id="wp-count" min="1" max="14" value="5"></div>
+        <div class="field"><label for="wp-time">Saat</label><input class="input" type="time" id="wp-time" value="12:00"></div>
+      </div>
+      <div class="row mt-2"><button type="button" class="btn btn-primary" data-wp-draft>Taslak oluştur</button><span class="xsmall muted">Yapay zekâ kullanmaz; fikir havuzu, özel günler ve aylık hedefe göre hazırlanır.</span></div>
+      <div id="wp-out" class="mt-3"></div>`,
+    onSubmit: async (fd, form) => {
+      if (!draft) throw new Error('Önce "Taslak oluştur"a bas.');
+      const rows = [...form.querySelectorAll('[data-wp-row]')].filter(r => r.querySelector('[data-wp-on]').checked).map(r => {
+        const x = draft.items[Number(r.dataset.wpRow)];
+        const day = r.querySelector('[data-wp-date]').value;
+        const tm = form.querySelector('#wp-time').value || '12:00';
+        return { title: r.querySelector('[data-wp-title]').value, type: r.querySelector('[data-wp-type]').value, scheduledAt: new Date(`${day}T${tm}`).toISOString(), ideaId: x.ideaId || null, note: x.note || '' };
+      });
+      if (!rows.length) throw new Error('En az bir satır seç.');
+      const bid = lockBrand ? brandId : form.querySelector('#wp-brand').value;
+      const r = await api.weekApply(bid, rows);
+      toast(`${r.created.length} içerik takvime yazıldı.`, 'success');
+      onDone && onDone();
+    }
+  });
+  const dk = iso => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  m.form.querySelector('[data-wp-draft]').addEventListener('click', async e => {
+    const bid = lockBrand ? brandId : m.form.querySelector('#wp-brand').value;
+    try {
+      draft = await busy(e.target, () => api.weekDraft(bid, { weekStart: m.form.querySelector('#wp-week').value, count: Number(m.form.querySelector('#wp-count').value), time: m.form.querySelector('#wp-time').value, tz: new Date().getTimezoneOffset() }));
+      m.form.querySelector('#wp-out').innerHTML = `${draft.notes.map(n => `<p class="small muted">${esc(n)}</p>`).join('')}
+        <div class="table-wrap"><table class="table"><thead><tr><th></th><th>Gün</th><th>Tür</th><th>Başlık</th><th>Kaynak</th></tr></thead><tbody>
+        ${draft.items.map((x, i) => `<tr data-wp-row="${i}"><td><input type="checkbox" data-wp-on checked aria-label="Bu satırı ekle"></td>
+          <td><input class="input input-sm" type="date" data-wp-date value="${dk(x.scheduledAt)}" aria-label="Gün"></td>
+          <td><select class="select input-sm" data-wp-type aria-label="Tür">${Object.entries(types).map(([k, v]) => `<option value="${k}" ${k === x.type ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></td>
+          <td><input class="input input-sm" data-wp-title maxlength="200" value="${esc(x.title)}" aria-label="Başlık"></td>
+          <td class="xsmall ${x.source === 'bos' ? 'cost-warn' : 'muted'}">${esc(SRC[x.source] || x.source)}</td></tr>`).join('')}
+        </tbody></table></div>`;
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
