@@ -1,7 +1,7 @@
 // AI servis katmanı: birden çok sağlayıcı, işe göre model ataması, yedek modele geçiş, harcama kaydı ve aylık sınır.
 // Anahtarlar yalnızca sunucuda (ayarlar tablosunda ya da ortam değişkeninde) durur; istemciye hiçbir zaman gönderilmez.
 import { newId, now, badRequest, parseJson, HttpError } from '../../lib/http.js';
-import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMAGE_DEFAULTS, IMAGE_ASPECTS, modelRef, parseRef, catalogModel } from './catalog.js';
+import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMAGE_DEFAULTS, IMAGE_ASPECTS, TTS_MODELS, TTS_VOICES, modelRef, parseRef, catalogModel } from './catalog.js';
 import { createGeminiProvider } from './providers/gemini.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
 import { createOpenAiCompatibleProvider } from './providers/openai.js';
@@ -225,11 +225,36 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     }
   }
 
+  // 8.13 Seslendirme: yalnız Gemini (bağlı değilse açık hata; sahte ses üretilmez)
+  function speechOverview() {
+    return { configured: isConfigured('gemini'), voices: TTS_VOICES, models: TTS_MODELS.map(m => Object.assign({}, m, { ref: modelRef(m.provider, m.id) })), default: modelRef('gemini', TTS_MODELS[0].id) };
+  }
+  async function speech({ brandId = null, text, voice = 'Kore', modelRef: ref = null }) {
+    checkBudget();
+    if (!isConfigured('gemini') || !providers.gemini.speech) throw new HttpError(409, 'AI_TTS_NOT_CONFIGURED', 'Seslendirme için Google Gemini anahtarı gerekli. Yapay zekâ → Sağlayıcılar bölümünden ekle.');
+    const chosen = ref || modelRef('gemini', TTS_MODELS[0].id);
+    const cat = TTS_MODELS.find(m => modelRef(m.provider, m.id) === chosen);
+    if (!cat) throw badRequest('Geçersiz seslendirme modeli.');
+    if (!TTS_VOICES[voice]) throw badRequest('Geçersiz ses.');
+    const started = Date.now();
+    try {
+      const r = await providers.gemini.speech({ model: cat.id, text, voice });
+      const cost = ((r.usage.input || 0) * cat.price.input + (r.usage.output || 0) * cat.price.output) / 1e6;
+      record({ ref: chosen, task: 'seslendirme', brandId, usage: r.usage, cost });
+      return Object.assign(r, { ref: chosen, label: cat.label, cost, ms: Date.now() - started });
+    } catch (err) {
+      record({ ref: chosen, task: 'seslendirme', brandId, ok: false, error: err.message });
+      throw err;
+    }
+  }
+
   return {
     providers,
     tasks: TASKS,
     image,
     imageOverview,
+    speech,
+    speechOverview,
     setImageDefault(ref) {
       const p = parseRef(ref);
       if (ref && (!p || !imageProviders.includes(p.provider))) throw badRequest('Geçersiz görsel modeli.');
@@ -382,7 +407,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
         month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
         total,
         byBrand: q("COALESCE(b.name, 'Markasız')", ''),
-        byTask: q('u.task', '').map(r => Object.assign(r, { label: (TASKS[r.k] && TASKS[r.k].label) || (r.k === 'karsilastirma' ? 'Model karşılaştırma' : r.k === 'gorsel' ? 'Görsel üretimi' : r.k) })),
+        byTask: q('u.task', '').map(r => Object.assign(r, { label: (TASKS[r.k] && TASKS[r.k].label) || (r.k === 'karsilastirma' ? 'Model karşılaştırma' : r.k === 'gorsel' ? 'Görsel üretimi' : r.k === 'seslendirme' ? 'Seslendirme' : r.k) })),
         byModel: q("u.provider || ':' || u.model", '').map(r => Object.assign(r, { label: labelOf(r.k) })),
         budget: budgetStatus()
       };

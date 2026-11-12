@@ -73,6 +73,13 @@ export const IMAGE_MODELS = [
   { provider: 'openrouter', id: 'google/gemini-2.5-flash-image', label: 'Gemini Flash Image (OpenRouter)', refs: true, perImage: 0.039, note: 'OpenRouter anahtarıyla; maskot referansı' }
 ];
 export const IMAGE_DEFAULTS = { gemini: 'gemini-2.5-flash-image', openai: 'gpt-image-1', openrouter: 'google/gemini-2.5-flash-image' };
+// 8.13 Seslendirme (Gemini TTS). Fiyat 1M token başına $ (ses çıktısı token olarak sayılır; yaklaşık).
+export const TTS_MODELS = [
+  { provider: 'gemini', id: 'gemini-2.5-flash-preview-tts', label: 'Gemini Flash TTS', price: { input: 0.5, output: 10 }, note: 'Hızlı ve ucuz' },
+  { provider: 'gemini', id: 'gemini-2.5-pro-preview-tts', label: 'Gemini Pro TTS', price: { input: 1, output: 20 }, note: 'Daha doğal tonlama' }
+];
+// Hazır sesler (Türkçe dahil çok dilli). Ad → kısa tarif
+export const TTS_VOICES = { Kore: 'Kararlı (kadın)', Puck: 'Neşeli (erkek)', Zephyr: 'Parlak (kadın)', Charon: 'Bilgilendirici (erkek)', Fenrir: 'Heyecanlı (erkek)', Leda: 'Genç (kadın)', Aoede: 'Ferah (kadın)', Orus: 'Sağlam (erkek)', Achird: 'Samimi (erkek)', Sulafat: 'Sıcak (kadın)' };
 export const IMAGE_ASPECTS = { '1:1': 'Kare 1:1', '4:5': 'Dikey 4:5', '9:16': 'Story 9:16', '16:9': 'Yatay 16:9' };
 
 export const modelRef = (provider, id) => `${provider}:${id}`;
