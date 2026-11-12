@@ -24,6 +24,7 @@ import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 import { initPalette, openPalette } from './palette.js';
 import { initRadial } from './radial.js';
+import { initDrafts, draftsOnRoute } from './drafts.js';
 import { renderErrors, initClientErrors } from './views/errors.js';
 import { initInspiration } from './inspiration.js';
 import { renderTrash, initTrashUndo } from './views/trash.js';
@@ -258,6 +259,7 @@ export async function route() {
   old.replaceWith(view);
   let r = parseRoute();
   if (r.redirect) { location.replace(r.redirect); return; }
+  draftsOnRoute();
   // Tam ekran düzenleyiciden çıkınca normal yerleşime dönülür
   document.body.classList.remove('editor-mode');
   // Sayfa değişince önceki sayfadan kalan pencereler kapanır
@@ -334,6 +336,7 @@ async function start() {
   initPalette();
   initClientErrors(); // 8.19 tarayıcı hataları hata günlüğüne
   initRadial(); // 8.20 dairesel hızlı menü
+  initDrafts(); // 9.1 yarım kalan yazının korunması (yalnız bellekte)
   initInspiration();
   initTrashUndo();
   initFx();
