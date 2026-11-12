@@ -1729,3 +1729,24 @@ html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; c
 .set-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .set-edit { display: flex; gap: 6px; align-items: flex-start; }
 .set-edit .grow { flex: 1; }
+
+/* 8.20 Dairesel hızlı menü */
+.radial-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(27, 31, 59, .18); animation: fade .12s ease-out; }
+.radial { position: absolute; width: 0; height: 0; }
+.radial-item, .radial-center { position: absolute; left: 0; top: 0; margin: -36px 0 0 -48px; width: 96px; height: 72px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; line-height: 1.2; text-align: center; padding: 6px; cursor: pointer;
+  box-shadow: 0 6px 24px rgba(27, 31, 59, .16); animation: radial-in .16s ease-out both; }
+.radial-item svg { width: 22px; height: 22px; flex: none; }
+.radial-item span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.radial-item:hover, .radial-item:focus-visible { background: var(--brand-soft); border-color: var(--brand); outline: none; }
+.radial-center { margin: -24px 0 0 -24px; width: 48px; height: 48px; border-radius: 50%; font-size: 18px; background: var(--brand); color: var(--on-brand, #fff); border-color: var(--brand); }
+@keyframes radial-in { from { opacity: 0; scale: .6; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .radial-item, .radial-center, .radial-backdrop { animation: none; } }
+.radial-fab { position: fixed; right: 26px; bottom: 92px; z-index: 30; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--brand-ink, var(--ink)); font-size: 22px; line-height: 1; cursor: pointer; box-shadow: 0 4px 16px rgba(27, 31, 59, .14); }
+.radial-fab:hover, .radial-fab:focus-visible { background: var(--brand-soft); }
+body.editor-mode .radial-fab { display: none; }
+.radial-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.radial-order { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; align-content: start; }
+.radial-order li { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: grab; }
+.radial-all { max-height: 340px; overflow-y: auto; display: grid; gap: 2px; }
+@media (max-width: 640px) { .radial-edit { grid-template-columns: 1fr; } }
