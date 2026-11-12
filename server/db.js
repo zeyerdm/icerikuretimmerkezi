@@ -480,6 +480,17 @@ const MIGRATIONS = [
   // 30: 8.10 Küçük resim: tarayıcının ürettiği ~400 px önizleme (.thumbs klasöründe) var mı
   `
   ALTER TABLE assets ADD COLUMN thumb INTEGER NOT NULL DEFAULT 0;
+  `,
+  // 31: 8.11 Onay akışı: içerik başına onay geçmişi (gönder, yorum, onayla, düzeltme iste)
+  `
+  CREATE TABLE content_reviews (
+    id TEXT PRIMARY KEY,
+    content_id TEXT NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_content_reviews ON content_reviews(content_id, created_at);
   `
 ];
 

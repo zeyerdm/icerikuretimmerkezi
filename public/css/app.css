@@ -1712,3 +1712,10 @@ html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; c
 
 /* 8.5 Tahmini tutar */
 .cost-warn { color: var(--amber-ink, #9a5b00); font-weight: 500; }
+
+/* 8.11 Onay geçmişi */
+.review-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.review-list li { padding: 6px 10px; border-left: 3px solid var(--line-strong); background: var(--bg); border-radius: 6px; }
+.review-list li.rv-onayla { border-left-color: var(--c-teal, #12a48f); }
+.review-list li.rv-duzelt { border-left-color: var(--c-rose, #e5486b); }
+.review-list li.rv-gonder { border-left-color: var(--c-amber, #e09612); }

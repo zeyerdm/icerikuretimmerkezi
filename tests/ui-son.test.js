@@ -546,3 +546,37 @@ test('8.9 arayüz: büyük arşiv 200\'er satır çizilir, "Daha fazla göster" 
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.11 arayüz: içerik kartında onaya gönder, düzeltme iste, açık adım sorusu ve onay; Kaydet durumu geri almaz', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Onay UI' })).data.brand;
+  const c = (await srv.request('POST', '/api/contents', { brandId: b.id, title: 'Afiş', type: 'post' })).data.content;
+  const { browser, page, problems } = await open(srv);
+  const dialogs = [];
+  page.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/arsiv`);
+    await page.locator(`[data-edit="${c.id}"]`).click();
+    await page.locator('#c-review summary').click();
+    await page.locator('#c-rv-list', { hasText: 'Henüz onay geçmişi yok' }).waitFor();
+    await page.locator('[data-rv="gonder"]').click();
+    await page.locator('[data-rv="onayla"]').waitFor();
+    assert.equal(await page.locator('#c-status').inputValue(), 'onay');
+    await page.locator('[data-rv="duzelt"]').click();
+    await page.locator('.toast', { hasText: 'Neyin düzeltilmesi' }).waitFor();
+    await page.locator('#c-rv-note').fill('Logo küçük');
+    await page.locator('[data-rv="duzelt"]').click();
+    await page.locator('#c-rv-list', { hasText: 'Logo küçük' }).waitFor();
+    await page.locator('[data-rv="gonder"]').click();
+    await page.locator('[data-rv="onayla"]').click();
+    await page.locator('#c-rv-list li', { hasText: 'Onaylandı' }).waitFor();
+    assert.match(dialogs[0], /adım açık/, 'açık yapılacaklar için sorulur');
+    assert.equal(await page.locator('#c-status').inputValue(), 'tamamlandi');
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.modal-backdrop').waitFor({ state: 'detached' });
+    assert.equal((await srv.request('GET', `/api/contents/${c.id}`)).data.content.status, 'tamamlandi');
+    assert.equal((await srv.request('GET', `/api/contents/${c.id}/reviews`)).data.reviews.length, 4);
+    // Bilerek tetiklenen doğrulama yanıtları (400 boş not, 409 açık adım) dışında hata yok
+    assert.deepEqual(problems.filter(p => !/status of (400|409)/.test(p)), []);
+  } finally { await browser.close(); await srv.stop(); }
+});

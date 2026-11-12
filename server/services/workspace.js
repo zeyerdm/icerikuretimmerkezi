@@ -1,7 +1,7 @@
 // Yönetim merkezi verileri: içerik planı (takvim ve arşiv), görevler ve notlar.
 // İçerikler her zaman bir markaya aittir; görev ve notlar markasız da olabilir.
 // Bütün sorgular sahibe göre süzülür; başka kullanıcının ya da markanın kaydı görünmez.
-import { badRequest, notFound, newId, now, text, oneOf, parseJson } from '../lib/http.js';
+import { badRequest, notFound, newId, now, text, oneOf, parseJson, HttpError } from '../lib/http.js';
 
 export const CONTENT_TYPES = {
   post: 'Instagram post',
@@ -61,6 +61,13 @@ export const CONTENT_STATUSES = {
   yayinlandi: 'Yayınlandı'
 };
 export const DONE_STATUSES = ['tamamlandi', 'yayinlandi'];
+// 8.11 Onay akışı: işlem → (gerekli durum, yeni durum). Yorum durumu değiştirmez.
+export const REVIEW_ACTIONS = {
+  gonder: { label: 'Onaya gönderildi', to: 'onay' },
+  yorum: { label: 'Yorum', to: null, needsNote: true },
+  onayla: { label: 'Onaylandı', from: 'onay', to: 'tamamlandi' },
+  duzelt: { label: 'Düzeltme istendi', from: 'onay', to: 'hazirlaniyor', needsNote: true }
+};
 
 export const TASK_PRIORITIES = { dusuk: 'Düşük', orta: 'Orta', yuksek: 'Yüksek' };
 export const TASK_STATUSES = { yapilacak: 'Yapılacak', devam: 'Devam ediyor', tamamlandi: 'Tamamlandı' };
@@ -141,6 +148,36 @@ export function createWorkspaceService(db, ownerId, brands) {
     },
 
     getContent(id) { return toContent(getContentRow(id)); },
+
+    // 8.11 Onay geçmişi (eskiden yeniye)
+    reviews(id) {
+      const row = getContentRow(id);
+      return db.prepare('SELECT * FROM content_reviews WHERE content_id = ? ORDER BY created_at, rowid').all(row.id)
+        .map(r => ({ id: r.id, action: r.action, label: (REVIEW_ACTIONS[r.action] || {}).label || r.action, note: r.note, createdAt: r.created_at }));
+    },
+    // Onay işlemi. Tek kullanıcıda "kontrol listesi" olarak çalışır: yapılacaklar bitmeden onay verilmez (force ile verilir).
+    review(id, { action, note = '', checklist, force = false } = {}) {
+      const row = getContentRow(id);
+      const a = REVIEW_ACTIONS[oneOf(action, Object.keys(REVIEW_ACTIONS), 'Onay işlemi')];
+      const n = text(note, { field: 'Not', max: 1000 }) || '';
+      if (a.needsNote && !n) throw badRequest(action === 'duzelt' ? 'Neyin düzeltilmesi gerektiğini yaz.' : 'Yorumu yaz.');
+      if (a.from && row.status !== a.from) throw badRequest('Bu işlem yalnız "Onay bekliyor" durumundaki içerikte yapılır.');
+      if (action === 'gonder' && row.status === 'onay') throw badRequest('İçerik zaten onay bekliyor.');
+      if (checklist !== undefined) db.prepare('UPDATE contents SET checklist = ? WHERE id = ?').run(cleanChecklist(checklist), row.id);
+      if (action === 'onayla' && !force) {
+        const list = toContent(getContentRow(row.id)).checklist;
+        const open = list.filter(i => !i.done);
+        if (open.length) throw new HttpError(409, 'CHECKLIST_OPEN', `Yapılacaklarda ${open.length} adım açık: ${open.map(i => i.label).join(', ')}. Yine de onaylamak için "Yine de onayla"yı seç.`);
+      }
+      const t = now();
+      if (a.to) {
+        const isDone = DONE_STATUSES.includes(a.to);
+        db.prepare('UPDATE contents SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?').run(a.to, isDone ? (row.completed_at || t) : null, t, row.id);
+      }
+      db.prepare('INSERT INTO content_reviews (id, content_id, action, note, created_at) VALUES (?, ?, ?, ?, ?)').run(newId(), row.id, action, n, t);
+      if (action !== 'yorum') brands.logActivity(row.brand_id, 'content.review', `${a.label}: ${row.title}`);
+      return { content: toContent(getContentRow(row.id)), reviews: this.reviews(row.id) };
+    },
 
     createContent(body) {
       const brand = ownBrand(body.brandId);
