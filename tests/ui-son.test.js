@@ -437,3 +437,38 @@ test('7.13 arayüz: prompt karşılaştırması kalite puanıyla gösterilir ve 
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.4 arayüz: prompt üretirken metin canlı akar; İptal üretimi keser ve kayıt açılmaz', { skip }, async () => {
+  const out = { title: 'Canlı', prompt: 'Barista kafede latte art yapıyor, yakın plan, sıcak ışık' };
+  let gate = null;
+  const provider = { label: 'Akış', async generate(prompt, opts) {
+    const txt = JSON.stringify(out);
+    for (let i = 0; i < txt.length; i += 12) { opts.onDelta && opts.onDelta(txt.slice(i, i + 12)); await new Promise(r => setTimeout(r, 30)); }
+    if (gate) await new Promise((resolve, reject) => { gate = resolve; opts.signal.addEventListener('abort', () => reject(new Error('iptal'))); });
+    return out;
+  }, async test() { return { ok: true, modelCount: 1, modelAvailable: true }; } };
+  const srv = await startServer({ aiProvider: provider });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Akış UI' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/prompt`);
+    await page.locator('#ps-brief').fill('Latte');
+    gate = true; // ilk üretim bitmeden bekler (iptal denemesi)
+    await page.locator('[data-create]').click();
+    const box = page.locator('.stream-box');
+    await page.waitForFunction(() => /latte art/.test((document.querySelector('.stream-text') || {}).textContent || ''));
+    assert.doesNotMatch(await box.locator('.stream-text').innerText(), /"prompt"|[{}]/, 'JSON okunur hâlde gösterilir');
+    await box.getByRole('button', { name: 'İptal' }).click();
+    await page.locator('.toast', { hasText: 'iptal edildi' }).waitFor();
+    assert.equal(await page.locator('.stream-box').count(), 0);
+    assert.equal(await page.locator('[data-create]').isDisabled(), false);
+    assert.equal((await srv.request('GET', `/api/brands/${b.id}/prompts`)).data.prompts.length, 0);
+    // İkinci deneme tamamlanır ve editöre gider
+    gate = null;
+    await page.locator('[data-create]').click();
+    await page.waitForURL(/\/prompt\/[^/]+$/);
+    await page.locator('#pp-text').waitFor();
+    assert.equal(await page.locator('#pp-text').inputValue(), out.prompt);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

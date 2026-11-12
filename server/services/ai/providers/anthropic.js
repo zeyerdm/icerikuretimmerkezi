@@ -1,6 +1,6 @@
 // Anthropic Claude sağlayıcısı (resmî @anthropic-ai/sdk ile). Anahtar yalnızca sunucuda kullanılır.
 import Anthropic from '@anthropic-ai/sdk';
-import { aiError, notConfigured, describeStatus, parseJsonOutput, TIMEOUT_MS } from './common.js';
+import { aiError, notConfigured, describeStatus, parseJsonOutput, TIMEOUT_MS, cancelled } from './common.js';
 
 const LABEL = 'Claude';
 // Bu modellerde Anthropic'in sunucu tarafı yedeği açılır: model bir isteği güvenlik nedeniyle
@@ -36,8 +36,9 @@ export function createAnthropicProvider({ getApiKey, fetchImpl, baseURL = 'https
     id: 'anthropic',
     label: 'Anthropic Claude',
 
-    async generate({ model, prompt, json = false, effort = 'medium', images = [] }) {
+    async generate({ model, prompt, json = false, effort = 'medium', images = [], onDelta = null, signal = null }) {
       const sdk = client();
+      if (signal && signal.aborted) throw cancelled();
       const params = {
         model,
         max_tokens: 16000,
@@ -47,11 +48,21 @@ export function createAnthropicProvider({ getApiKey, fetchImpl, baseURL = 'https
       };
       if (supportsEffort(model)) params.output_config = { effort };
       let res;
+      const opts = signal ? { signal } : undefined;
+      const full = SERVER_FALLBACK.has(model) ? { ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : params;
       try {
-        res = SERVER_FALLBACK.has(model)
-          ? await sdk.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
-          : await sdk.messages.create(params);
-      } catch (err) { throw mapError(err); }
+        if (onDelta) {
+          // 8.4 akış: metin parçaları "text" olayıyla gelir; bitince tam mesaj alınır
+          const stream = SERVER_FALLBACK.has(model) ? sdk.beta.messages.stream(full, opts) : sdk.messages.stream(full, opts);
+          stream.on('text', t => onDelta(t));
+          res = await stream.finalMessage();
+        } else {
+          res = SERVER_FALLBACK.has(model) ? await sdk.beta.messages.create(full, opts) : await sdk.messages.create(full, opts);
+        }
+      } catch (err) {
+        if (signal && signal.aborted) throw cancelled();
+        throw mapError(err);
+      }
       const u = res.usage || {};
       const usage = { input: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0), output: u.output_tokens || 0 };
       if (res.stop_reason === 'refusal') throw aiError('AI_REFUSED', 'Claude bu isteği güvenlik nedeniyle yanıtlamadı. İsteği farklı ifade etmeyi dene.', { retryable: true });

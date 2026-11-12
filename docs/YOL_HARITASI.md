@@ -246,7 +246,7 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
   - *yapıldı: "Model listesini kontrol et" ve anahtar kaydında otomatik kontrol; erişilemeyen önerilen modeller seçilemez, atamada "Model erişilemiyor" uyarısı; görsel listesinde gizlenir (tests/ai.test.js).*
 - ✅ **8.3 Gerçek AI duman testi:** Ayarlar'da "Bağlantıları dene" düğmesi her atanmış işe çok kısa bir istek gönderir; çalışan/çalışmayan, süre ve tutar tablosu çıkar. Geliştirici için aynı kontrol bir betik olarak da olur.
   - *yapıldı: Yapay zekâ → Sağlayıcılar ve modeller → "Bağlantıları dene": her işe çok kısa gerçek istek; sonuç/süre/tutar tablosu; "bulunamadı/kapatıldı" yanıtı veren model erişilemez işaretlenir (tests/ai.test.js).*
-- ⬜ **8.4 Uzun üretimde akış (streaming):** Senaryo ve post metni yazılırken metin parça parça görünür; uzun beklemede iptal düğmesi.
+- ✅ **8.4 Uzun üretimde akış (streaming):** Senaryo ve post metni yazılırken metin parça parça görünür; uzun beklemede iptal düğmesi. _(Yapıldı: Reels senaryosu, post ve Prompt Studio üretiminde düğmenin altında metin canlı akar, "İptal" isteği keser. Gemini, OpenAI/OpenRouter ve Claude akışları desteklenir. Yeniden denemede ya da yedek modele geçişte önizleme sıfırlanır. İptal edilen üretim kaydedilmez ve yeniden denenmez.)_
 - ⬜ **8.5 Üretim öncesi tahmini tutar:** Ağır işlerde (senaryo, görsel, karşılaştırma) düğmenin yanında yaklaşık maliyet; aylık bütçeye yaklaşınca uyarı.
 
 **B. Güvenlik ve veri**
