@@ -252,7 +252,7 @@ test('T.17 kalan: üretim geçmişinde varyasyon ve yan yana karşılaştırma',
   } finally { await browser.close(); await srv.stop(); }
 });
 
-test('T.21 kalan: AI bağlı değilken okuma düğmeleri yok; bağlıyken toplu okuma hepsini etiketler', { skip }, async () => {
+test('T.21 kalan: AI bağlı değilken okuma düğmeleri yok; bağlıyken Ayrıntı penceresinde okuyup etiketler', { skip }, async () => {
   const off = await startServer();
   const b0 = (await off.request('POST', '/api/brands', { name: 'AI yok' })).data.brand;
   await off.request('POST', `/api/brands/${b0.id}/assets?category=logo`, PNG_1PX, png);
@@ -269,12 +269,15 @@ test('T.21 kalan: AI bağlı değilken okuma düğmeleri yok; bağlıyken toplu 
   for (let i = 0; i < 2; i++) await srv.request('POST', `/api/brands/${b.id}/assets?category=logo`, PNG_1PX, png);
   const { browser, page, problems } = await open(srv);
   try {
+    // 10.2: okuma isteğe bağlı, görselin Ayrıntı penceresinde
     await page.goto(`${srv.base}/#/m/${b.id}/kutuphane`);
-    await page.locator('[data-ocr-bulk]', { hasText: '(2)' }).click();
-    await page.locator('.toast', { hasText: '2 görsel okundu ve etiketlendi' }).waitFor();
-    await page.waitForFunction(() => !document.querySelector('[data-ocr-bulk]'));
+    await page.locator('[data-detail]').first().click();
+    await page.locator('[data-ld-ocr]').click();
+    await page.waitForFunction(() => /kahve/.test(document.querySelector('#ld-tags').value));
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.toast', { hasText: 'Kaydedildi.' }).waitFor();
     const assets = (await srv.request('GET', `/api/brands/${b.id}/assets`)).data.assets;
-    assert.ok(assets.every(a => a.analyzedAt && a.ocrText === 'KAHVE %20' && a.tags.includes('kahve')));
+    assert.ok(assets.some(a => a.analyzedAt && a.ocrText === 'KAHVE %20' && a.tags.includes('kahve')));
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

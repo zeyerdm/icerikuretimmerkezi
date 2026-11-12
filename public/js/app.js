@@ -7,7 +7,6 @@ import { esc, icon, toast, brandAvatar, applyBrandTheme, errorBox, emptyState, s
 import { renderCenter } from './views/center.js';
 import { renderHome } from './views/home.js';
 import { renderBrands } from './views/brands.js';
-import { renderBrandEditor } from './views/brandEditor.js';
 import { renderSettings } from './views/settings.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderTasks } from './views/tasks.js';
@@ -20,6 +19,7 @@ import { renderReels } from './views/reels.js';
 import { renderPosts } from './views/posts.js';
 import { renderPrompts } from './views/prompts.js';
 import { renderIdentity, renderNewBrandSetup } from './views/identity.js';
+import { renderLibrary } from './views/library.js';
 import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 import { initPalette, openPalette } from './palette.js';
@@ -280,7 +280,7 @@ export async function route() {
       selectBrand(brand.id).catch(() => {});
       if (r.page === 'home') await renderHome(view, brand);
       else if (r.page === 'kimlik') await renderIdentity(view, brand, r.tab, r.step);
-      else if (r.page === 'kutuphane') await renderBrandEditor(view, brand.id, 'varliklar');
+      else if (r.page === 'kutuphane') await renderLibrary(view, brand);
       else if (r.page === 'fikirler') await renderIdeas(view, brand);
       else if (r.page === 'takvim') await renderCalendar(view, { brand });
       else if (r.page === 'arsiv') await renderArchive(view, brand);

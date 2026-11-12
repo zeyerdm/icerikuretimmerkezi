@@ -242,3 +242,29 @@ export async function imageBox(box, brand, opts = {}) {
     } catch (err) { toast(err.message, 'error', 6000); }
   });
 }
+
+// 7.4 Hazır görsel şablonları (Prompt Studio'da; 10.2'den önce kütüphanedeydi)
+export async function templateBox(box, brand, refresh) {
+  if (!box) return;
+  let ov;
+  try { ov = await api.imageOverview(); } catch { return; }
+  if (!ov.configured) { box.innerHTML = '<p class="small muted">Görsel üretimi bağlı değil; şablonlar görsel anahtarı eklenince çalışır.</p>'; return; }
+  const { templates } = await api.imageTemplates();
+  box.innerHTML = `<p class="small muted mb-2">İki soruya cevap ver: prompt markanın prompt kimliğine ve maskot kitabına göre yazılır, Prompt Studio'ya kaydedilir ve görsel üretilir.</p>
+    <div class="row">${Object.entries(templates).map(([k, t]) => `<button type="button" class="btn btn-sm" data-tpl="${k}">${esc(t.label)} <span class="xsmall muted">${esc(t.aspect)}</span></button>`).join('')}</div>`;
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-tpl]');
+    if (!b) return;
+    const t = templates[b.dataset.tpl];
+    openModal({
+      title: t.label, submitLabel: 'Prompt yaz ve görsel üret',
+      body: `<div class="stack-sm">${t.questions.map((q, i) => `<div class="field"><label for="tq-${i}">${esc(q)}${i === 0 ? ' *' : ''}</label><input class="input" id="tq-${i}" name="a${i}" maxlength="300" ${i === 0 ? 'required' : ''} data-mic></div>`).join('')}
+        ${t.useMascot ? '<p class="xsmall muted">Maskot karakter kitabındaki pozlar referans olarak gider (Nano Banana gibi referans alan model gerekir).</p>' : ''}</div>`,
+      onSubmit: async (fd, form) => {
+        const r = await busyTimer(form.querySelector('[type=submit]'), () => api.imageFromTemplate(brand.id, { template: b.dataset.tpl, answers: [fd.get('a0'), fd.get('a1')] }), 'Üretiyor');
+        toast(`Görsel üretildi ve kütüphaneye kaydedildi (${r.ai.modelLabel}).`, 'success');
+        refresh();
+      }
+    });
+  });
+}

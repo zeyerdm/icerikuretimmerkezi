@@ -6,7 +6,7 @@ import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo, busy } from
 import { downloadBlob, safeName } from '../titlePng.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
-import { imageBox } from './imageGen.js';
+import { imageBox, templateBox } from './imageGen.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 
 // Görsel üretilebilen prompt türleri (video ve metin türleri için görsel üretilmez)
@@ -57,7 +57,10 @@ export async function renderPrompts(view, brand, sub) {
         <input class="input w-auto" type="search" id="ps-q" placeholder="Ara" aria-label="Prompt ara"></div>
       <div class="chips mb-3" aria-label="Türe göre filtre"><button type="button" class="chip active" data-filter="">Tümü</button>${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip" data-filter="${k}">${esc(v.label)}</button>`).join('')}</div>
       <div id="ps-list"></div>
-    </section>`;
+    </section>
+    <section class="card mt-4"><div class="card-head"><h3>Hazır görsel şablonları</h3></div><div id="ps-tpl"></div></section>`;
+  // 10.2: hazır görsel şablonları kütüphaneden buraya taşındı (üretim üretim ekranında)
+  templateBox(view.querySelector('#ps-tpl'), brand, () => loadList());
 
   const hint = () => {
     const k = meta.kinds[kind];

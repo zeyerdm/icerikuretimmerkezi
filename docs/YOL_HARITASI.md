@@ -321,12 +321,12 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
   - Görseller üretildikleri yerde "İndir" ve "Drive'a gönder" düğmelerini aldı.
   - Prompt listesi "İndir (.txt)" ve "Drive" düğmelerini aldı.
   - Post tasarımları ve Reels'te zaten PNG, metin, altyazı, ses ve video indirme ile Drive'a gönderme vardı.
-- ⬜ **10.2 Kütüphane sadeleşir (yalnız sergileme):** Kütüphane şunların durduğu yerdir:
-  - Belirlenmiş varlıklar: logolar, maskot pozları.
-  - Yapılan tasarımlar.
-  - Dışarıdan alınan referans tasarımlar ve görseller.
-  
-  Kütüphanede marka bilgisi girilmez; bilgiler yalnız Marka kimliğinde. Kategori yapısı sadeleşir ve ekran karışıklıktan arındırılır.
+- ✅ **10.2 Kütüphane sadeleşti (yalnız sergileme):** (public/js/views/library.js)
+  - Beş bölüm: Logolar, Maskot, Tasarımlarım, Marka görselleri, Referanslar (ilham yapıştırmaları ve linkler dahil).
+  - Kartlar sade bir galeri: görsel, ad, İndir, Drive'a gönder, Ayrıntı, Sil. Kartlarda form alanı yok.
+  - Ad, etiket, @ referans rolü, görseldeki yazıyı okuma ve paketi silme isteğe bağlı olarak "Ayrıntı" penceresinde.
+  - Kütüphanedeki AI görsel üretimi ve hazır şablonlar kaldırıldı; şablonlar Prompt Studio'ya taşındı.
+  - Sunucudaki kategoriler değişmedi; eski kayıtlar olduğu gibi görünür.
 - ⬜ **10.3 Menü düzeni:** "Video ve altyazı" Varlıklar'dan İçerik üretimine taşınır. İçerik üretimi menüsü kullanım sırasına göre dizilir: fikirler başta, Arşiv en sonda. Araştırma grubu (Rakipler, Analizler, Aylık rapor) en sonda kalır. Analizler ve Rakipler en son ele alınacak; ne yüklenmesi ve nasıl kurgulanması gerektiği o zaman konuşulacak.
 
 **İçerik havuzu ve stüdyolar**

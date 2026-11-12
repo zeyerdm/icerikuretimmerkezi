@@ -122,7 +122,7 @@ async function renderMascot(view, brand) {
     (idt.hasMascot
       ? `<section class="card"><div class="card-head"><h3>Maskot bilgileri</h3><a class="btn btn-sm" href="${base}/duzenle/maskot">${icon('edit')}Düzenle</a></div>
           <dl class="dossier-dl">${[['Adı', idt.mascotName], ['Görünüş', idt.mascotLook], ['Konuşma', idt.mascotVoice], ['Hareket', idt.mascotMoves], ['Asla', idt.mascotNever]].map(([k, v]) => `<dt>${k}</dt><dd>${val(v)}</dd>`).join('')}</dl>
-          <p class="xsmall muted mt-2">Pozları <a href="#/m/${esc(brand.id)}/kutuphane">Kütüphane → Maskot pozu</a> bölümünden ya da Düzenle sayfasından yükleyebilirsin.</p></section>`
+          <p class="xsmall muted mt-2">Pozları <a href="#/m/${esc(brand.id)}/kutuphane">Kütüphane → Maskot</a> bölümünden ya da Düzenle sayfasından yükleyebilirsin.</p></section>`
       : emptyState({ icon: 'identity', title: 'Bu markanın maskotu yok', text: 'Maskot varsa kurulumda "Maskot var" de; adı, görünüşü ve pozları sorulur.', action: `<a class="btn btn-sm btn-primary" href="${base}/duzenle/yapi">Maskot ekle</a>`, card: true }));
   bindIdentityActions(view, brand);
   if (idt.hasMascot) await characterBookCard(view, brand);
