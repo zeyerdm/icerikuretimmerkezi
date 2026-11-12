@@ -283,6 +283,22 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ⏸️ 6.3 Arayüz dili (TR/EN): altyapı hazır, çeviri bekliyor (~2.050 metin).
 - ⏸️ 5.20 Koyu tema: kullanıcının isteğiyle kapalı.
 
+## Aşama 9 — Kullanıcının yeni istekleri (2. tur, sırayla)
+
+**A. Yazılanlar kaybolmasın**
+- ⬜ **9.1 Yarım kalan yazının korunması:** Bir forma, editöre ya da sohbet kutusuna yazılan metin, sekme değişince silinmez. Bu hem uygulama içi geçişi (başka sayfa ya da sekme, pencereyi kapatma) hem de tarayıcıda başka sekmeye geçişi kapsar. Aynı yere dönünce yazılanlar yerinde olur. Taslak yalnız şu durumlarda temizlenir: sayfa yenilendiğinde (F5), kaydedildiğinde ya da "Vazgeç" seçildiğinde. Taslaklar yalnız açık sayfanın belleğinde tutulur; diske ve sunucuya yazılmaz. Kapsam: içerik, görev ve not pencereleri; marka kimliği, prompt kimliği ve karakter kitabı; Prompt Studio, Reels, post ve kapak istek kutuları; asistan sohbeti; kalıp ve rakip metinleri.
+- ⬜ **9.2 Korumanın testleri:** Yazılan metin sayfa ya da sekme değişince geri gelir; yenilemede, kaydetmede ve vazgeçmede temizlenir; iki marka arasında karışmaz.
+
+**B. Tek akışta marka kurulumu (birbirini tamamlayan sorularla)**
+- ⬜ **9.3 Marka kurulum sihirbazı (tek yer, adım adım):** Bugün ayrı sayfalarda yapılan işler tek bir akışta birleşir: dijital kimlik, görsel kimlik (renk, font, logo), marka hafızası (yasaklı kelimeler, imza cümleleri, bilgiler), prompt kimliği ve maskot karakter kitabı. Her adım ayrı bir sayfa olur; ilerleme çubuğu, Geri, İleri ve "Sonra doldururum" seçenekleri bulunur.
+- ⬜ **9.4 İlk sorular:** Bu marka ne markası (sektör, ne satıyor, kime)? Maskotu var mı? Hangi içerikleri üretiyor (Reels, post, carousel, story, YouTube, reklam)? Hangi kanallarda yayın yapıyor?
+- ⬜ **9.5 Cevaba göre dallanan sorular:** Sonraki sorular önceki cevaplara göre seçilir. Örnekler: Maskot varsa adı, görünüşü, kişiliği, konuşması, yasakları ve pozları sorulur, karakter kitabı adım adım detaylanır. Reels üretiyorsa konuşan karakter, görsel stil ve seslendirme sesi sorulur. YouTube üretiyorsa kapak tarzı sorulur. Ürün satıyorsa ürün fotoğrafı tercihleri sorulur. Gereksiz sorular hiç gösterilmez. İstenirse yapıştırılan metinden (web sitesi, biyografi) AI ile ön doldurma yapılır; kullanıcı onaylar.
+- ⬜ **9.6 İhtiyaçların istenmesi:** Cevaplara göre gerekenler istenir: logo, renkler, maskot pozları, örnek görseller, beğenilen içerik örnekleri. Yüklemeler doğrudan kütüphaneye doğru kategoriyle gider.
+- ⬜ **9.7 Kaldığı yerden devam:** Yarıda bırakılan kurulum kaydedilir, sonra kaldığı adımdan devam edilir. Kurulumdaki cevaplar markanın asıl kayıtlarına yazılır (tek kaynak); eski sayfalar aynı veriyi gösterir.
+- ⬜ **9.8 Marka dosyası (toplu görünüm):** Kurulum bitince bütün cevaplar tek sayfada bölüm bölüm durur: kimlik, görsel, hafıza, prompt kimliği, maskot ve içerik türleri. Eksikler işaretlenir. Her bölümün "Düzenle" düğmesi ilgili adımı açar; değişiklik her yere yansır.
+- ⬜ **9.9 Var olan markalar için "Eksikleri tamamla":** Kurulmuş markada sihirbaz yalnız boş kalan soruları sorar.
+- ⬜ **9.10 Kurulumun testleri:** Dallanma (maskot yok → maskot adımları gelmez), kayıtların doğru tablolara yazılması, yarıda bırakıp devam etme, marka dosyasından düzenleme ve eski sayfalarla tutarlılık.
+
 ## Aşama 6 — İleride
 
 - ❌ 6.1 Telefondan erişim (sunucuya taşıma + giriş şifresi) ve 6.2 Instagram'a doğrudan yayınlama: kullanıcının isteğiyle listeden çıkarıldı.
