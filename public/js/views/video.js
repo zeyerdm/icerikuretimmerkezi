@@ -30,6 +30,8 @@ export async function renderVideo(view, brand) {
   view.onclick = view.onchange = view.oninput = null;
   const clips = []; // { id, name, url, duration, start, end, w, h }
   let srt = '';
+  // 8.13: seçilen Reels'in seslendirme izi (varsa) kayda eklenir
+  let voice = null; let useVoice = true;
   let opts = { ratio: '9:16', width: 1080, size: 6, pos: 82, box: true };
   let busyRec = null;
   const mime = pickMime();
@@ -73,7 +75,8 @@ export async function renderVideo(view, brand) {
                 <label class="btn btn-sm">${icon('upload')}.srt dosyası<input type="file" id="vid-srt-file" accept=".srt,text/plain" class="sr-only"></label>
                 ${reels.length ? `<select class="select input-sm w-auto" id="vid-reels" aria-label="Reels senaryosundan altyazı"><option value="">Reels senaryosundan al…</option>${reels.map(r => `<option value="${esc(r.id)}">${esc(r.title)}</option>`).join('')}</select>` : ''}
                 <span class="xsmall muted">${parseSrt(srt).length} satır</span>
-              </div></div>
+              </div>
+              ${voice ? `<label class="check mt-2"><input type="checkbox" id="vid-voice" ${useVoice ? 'checked' : ''}> Seslendirmeyi ekle (${String(voice.seconds).replace('.', ',')} sn, ${esc(voice.voice)})</label>` : ''}</div>
             <div class="field"><label for="vid-ratio">Kırpma</label><select class="select" id="vid-ratio">${Object.entries(RATIOS).map(([k, v]) => `<option value="${k}" ${opts.ratio === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
             <div class="field"><label for="vid-width">Genişlik</label><select class="select" id="vid-width">${[1080, 720, 540].map(w => `<option value="${w}" ${+opts.width === w ? 'selected' : ''}>${w} px</option>`).join('')}</select></div>
             <div class="field"><label for="vid-size">Yazı boyu <span>${opts.size}</span></label><input type="range" id="vid-size" min="3" max="10" step="0.5" value="${opts.size}"></div>
@@ -170,7 +173,16 @@ export async function renderVideo(view, brand) {
     const dur = total();
     busyRec = { pct: 0, stop: false };
     draw();
+    // Seslendirme izi baştan itibaren kayda karışır (altyazıyla aynı zamanlama)
+    let voiceSrc = null;
+    if (voice && useVoice) {
+      try {
+        const buf = await ac.decodeAudioData(await (await fetch(voice.url)).arrayBuffer());
+        voiceSrc = ac.createBufferSource(); voiceSrc.buffer = buf; voiceSrc.connect(dest);
+      } catch { toast('Seslendirme yüklenemedi; video seslendirmesiz oluşturuluyor.', 'error'); }
+    }
     rec.start(500);
+    if (voiceSrc) { await ac.resume(); voiceSrc.start(); }
     let offset = 0;
     try {
       for (const c of clips) {
@@ -199,6 +211,7 @@ export async function renderVideo(view, brand) {
         offset += c.end - c.start;
       }
     } finally {
+      if (voiceSrc) try { voiceSrc.stop(); } catch { /* zaten bitti */ }
       rec.stop();
       await done;
       ac.close();
@@ -229,7 +242,15 @@ export async function renderVideo(view, brand) {
     const t = e.target;
     if (t.id === 'vid-file') return addFiles(t.files);
     if (t.id === 'vid-srt-file') { srt = await t.files[0].text(); return draw(); }
-    if (t.id === 'vid-reels' && t.value) { try { const { reels: r } = await api.reels(brand.id, t.value); srt = r.srt || ''; if (!srt) toast('Bu senaryoda altyazı yok.', 'error'); } catch (err) { toast(err.message, 'error'); } return draw(); }
+    if (t.id === 'vid-reels' && t.value) {
+      try {
+        const [{ reels: r }, v] = await Promise.all([api.reels(brand.id, t.value), api.reelsVoice(brand.id, t.value).catch(() => ({ voiceover: null }))]);
+        srt = r.srt || ''; voice = v.voiceover; useVoice = true;
+        if (!srt) toast('Bu senaryoda altyazı yok.', 'error');
+      } catch (err) { toast(err.message, 'error'); }
+      return draw();
+    }
+    if (t.id === 'vid-voice') { useVoice = t.checked; return; }
     if (t.dataset.start || t.dataset.end) {
       const c = clip(t.dataset.start || t.dataset.end);
       const v = Math.min(c.duration, Math.max(0, +t.value || 0));

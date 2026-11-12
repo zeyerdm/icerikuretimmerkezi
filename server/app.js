@@ -25,6 +25,7 @@ import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
 import { createIgImportService } from './services/igImport.js';
+import { createVoiceoverService } from './services/voiceover.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
@@ -134,6 +135,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
   const dataExport = createDataExportService({ db, ownerId, brands });
   const igImport = createIgImportService({ db, brands, workspace });
+  const voiceover = createVoiceoverService({ db, ai, brands, uploadDir: path.join(dataDir, 'uploads') });
   const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
   const compare = createCompareService({ db, ai, brands, prompts });
@@ -587,6 +589,18 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     res.status(201).json({ reels: await reels.create(req.brand.id, { topic: b.topic, poolId: b.poolId || null, format: b.format || null, patternId: b.patternId || null, modelRef: mr(b) }) });
   }));
+  // 8.13 Seslendirme
+  api.get('/tts', (req, res) => res.json(voiceover.overview()));
+  api.get('/brands/:brandId/reels/:id/voice', (req, res) => res.json({ voiceover: voiceover.get(req.brand.id, req.params.id) }));
+  api.post('/brands/:brandId/reels/:id/voice', route(async (req, res) => {
+    const b = req.body || {};
+    res.status(201).json(await voiceover.generate(req.brand.id, req.params.id, { voice: b.voice, style: b.style, model: b.model || null, sceneIndex: b.sceneIndex == null || b.sceneIndex === '' ? null : b.sceneIndex }));
+  }));
+  api.get('/brands/:brandId/reels/:id/voice/:name', (req, res) => {
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.sendFile(voiceover.file(req.brand.id, req.params.id, req.params.name));
+  });
   api.get('/brands/:brandId/reels/:id', (req, res) => res.json({ reels: reels.get(req.brand.id, req.params.id) }));
   api.patch('/brands/:brandId/reels/:id', (req, res) => res.json({ reels: reels.update(req.brand.id, req.params.id, req.body || {}) }));
   api.delete('/brands/:brandId/reels/:id', (req, res) => trashed(res, 'reels', req.params.id, () => reels.remove(req.brand.id, req.params.id)));

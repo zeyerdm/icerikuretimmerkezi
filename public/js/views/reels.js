@@ -287,6 +287,9 @@ async function renderDetail(view, brand, id, models) {
   let r;
   try { r = (await api.reels(brand.id, id)).reels; } catch (err) { view.innerHTML = errorNotice(err); return; }
   const settings = (await api.reelsSettings(brand.id)).settings;
+  // 8.13 seslendirme
+  const tts = await api.tts().catch(() => ({ configured: false, voices: {}, models: [] }));
+  let vo = (await api.reelsVoice(brand.id, id).catch(() => ({ voiceover: null }))).voiceover;
   const aiReady = models.ov.providers.some(p => p.configured);
   const driveReady = Boolean(state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId);
   let lastAi = null;
@@ -329,7 +332,7 @@ async function renderDetail(view, brand, id, models) {
             </div></div>
         </header>
         <div class="ed-body ${panel ? 'has-panel' : ''}">
-          <nav class="ed-rail" aria-label="Araçlar">${[['ozet', 'Özet', 'notes'], ['yaz', 'Yeniden yaz', 'sparkle'], ['baslik', 'Başlık', 'edit'], ['aciklama', 'Açıklama', 'palette'], ['kalite', `Kalite${r.issues.length ? ` (${r.issues.length})` : ''}`, 'check'], ['surumler', 'Sürümler', 'refresh']].map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
+          <nav class="ed-rail" aria-label="Araçlar">${[['ozet', 'Özet', 'notes'], ['yaz', 'Yeniden yaz', 'sparkle'], ['baslik', 'Başlık', 'edit'], ['aciklama', 'Açıklama', 'palette'], ['kalite', `Kalite${r.issues.length ? ` (${r.issues.length})` : ''}`, 'check'], ['ses', 'Seslendirme', 'mic'], ['surumler', 'Sürümler', 'refresh']].map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
           <aside class="ed-panel" ${panel ? '' : 'hidden'}>
             ${panelBox('ozet', 'Özet', `<dl class="kv">
               <dt>Konu</dt><dd>${esc(d.topic || '-')}</dd><dt>Asıl espri</dt><dd>${esc(d.punchline || '-')}</dd><dt>Neden paylaşılır</dt><dd>${esc(d.why || '-')}</dd>
@@ -345,6 +348,19 @@ async function renderDetail(view, brand, id, models) {
             ${panelBox('aciklama', 'Açıklama ve hashtag', `<div class="field"><label for="rs-caption">Instagram açıklaması</label><textarea class="textarea" id="rs-caption" rows="8" maxlength="3000">${esc(d.caption || '')}</textarea></div>
               <div class="field mt-3"><label for="rs-tags">Hashtag'ler</label><input class="input" id="rs-tags" value="${esc((d.hashtags || []).join(' '))}" maxlength="400"></div><div id="rs-review" class="mt-3"></div>`)}
             ${panelBox('kalite', 'Kalite kontrolü', `<div class="reels-side">${r.issues.length ? `<span class="status-badge status-hazirlaniyor">${r.issues.length} uyarı</span><ul class="issue-list mt-2">${r.issues.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '<span class="status-badge status-tamamlandi">Sorun yok</span><p class="card-text mt-2">Kodla denetlenen kurallar (zamanlama, konuşma süresi, süreklilik, çağrı, gerçek isim, başlık uzunluğu) sağlanıyor.</p>'}</div>`)}
+            ${panelBox('ses', 'Seslendirme', !tts.configured
+              ? '<div class="notice"><div><strong>Gemini bağlı değil.</strong> Replikleri seslendirmek için Google Gemini anahtarı gerekir.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'
+              : `<p class="small muted mb-2">Repliklerin markanın sesiyle okunur. Her sahne ayrı dosya olur; ayrıca altyazıyla aynı zamanlamada tek ses izi çıkar.</p>
+                <div class="stack-sm">
+                  <div class="field"><label for="vo-voice">Ses</label><select class="select" id="vo-voice">${Object.entries(tts.voices).map(([k, v]) => `<option value="${esc(k)}" ${(vo ? vo.voice : settings.voice) === k ? 'selected' : ''}>${esc(k)} · ${esc(v)}</option>`).join('')}</select></div>
+                  <div class="field"><label for="vo-style">Konuşma tarzı</label><input class="input" id="vo-style" maxlength="120" value="${esc(vo ? vo.style : settings.voiceStyle || '')}" placeholder="Ör. samimi, enerjik, hafif gülümseyerek"></div>
+                  <div class="field"><label for="vo-model">Model</label><select class="select" id="vo-model">${tts.models.map(m => `<option value="${esc(m.ref)}">${esc(m.label)} · ${esc(m.note)}</option>`).join('')}</select></div>
+                  <label class="check xsmall"><input type="checkbox" id="vo-save" checked> Markanın sesi olarak kaydet</label>
+                  <button class="btn btn-primary" data-voice-all>${icon('mic')}${vo ? 'Bütün replikleri yeniden seslendir' : 'Replikleri seslendir'}</button>
+                </div>
+                ${vo ? `<hr class="sep"><div class="field"><span class="field-label">Tam ses izi · ${String(vo.seconds).replace('.', ',')} sn</span><audio controls preload="none" src="${esc(vo.url)}" class="vo-audio"></audio>
+                  <div class="row mt-1"><a class="btn btn-sm btn-ghost" href="${esc(vo.url)}" download="seslendirme.wav">${icon('download')}İndir</a><a class="btn btn-sm btn-ghost" href="#/m/${esc(brand.id)}/video">Video sayfasında kullan</a></div></div>
+                  <ol class="vo-scenes">${vo.scenes.map(s => `<li><div class="xsmall muted">Sahne ${s.i + 1} · ${String(s.seconds).replace('.', ',')} sn${d.scenes[s.i] && d.scenes[s.i].line !== s.line ? ' · <b>replik değişti</b>' : ''}</div><audio controls preload="none" src="${esc(s.url)}" class="vo-audio"></audio><button class="btn btn-sm btn-ghost" data-voice-scene="${s.i}">Yeniden seslendir</button></li>`).join('')}</ol>` : ''}`)}
             ${panelBox('surumler', `Sürümler <span class="small muted">${r.versions.length}</span>`, `<ul class="version-list">${r.versions.map((v, i) => `<li><div class="grow"><div class="small strong">${esc(v.note)}</div><div class="xsmall muted">${esc(new Date(v.createdAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}${v.modelLabel ? ` · ${esc(v.modelLabel)}` : ''}</div></div>
               ${i === 0 ? '<span class="xsmall muted">Şu anki</span>' : `<button class="btn btn-sm btn-ghost" data-restore="${esc(v.id)}">Geri dön</button>`}</li>`).join('')}</ul>`)}
             <button type="button" class="ed-collapse" data-rail-close aria-label="Paneli kapat">${icon('chevronLeft')}</button>
@@ -446,6 +462,19 @@ async function renderDetail(view, brand, id, models) {
     const go2 = e.target.closest('[data-goto]');
     if (go2) { const el = view.querySelector(`[data-scene="${go2.dataset.goto}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
     const model = sel => (view.querySelector(sel) || {}).value || null;
+    const va = e.target.closest('[data-voice-all], [data-voice-scene]');
+    if (va) {
+      const body = { voice: view.querySelector('#vo-voice').value, style: view.querySelector('#vo-style').value, model: view.querySelector('#vo-model').value };
+      if (va.dataset.voiceScene != null) body.sceneIndex = Number(va.dataset.voiceScene);
+      try {
+        const res = await busyTimer(va, () => api.makeReelsVoice(brand.id, r.id, body), 'Seslendiriyor');
+        vo = res.voiceover;
+        if (view.querySelector('#vo-save') && view.querySelector('#vo-save').checked) await api.saveReelsSettings(brand.id, { voice: body.voice, voiceStyle: body.style }).catch(() => {});
+        draw();
+        toast(`${res.ai.modelLabel} ile seslendirildi.`, 'success');
+      } catch (err) { toast(err.message, 'error', 6000); }
+      return;
+    }
     const regen = e.target.closest('[data-regen]');
     if (regen) {
       try { apply(await busyTimer(regen, () => api.regenerateReels(brand.id, r.id, { model: model('#rg-model') }))); } catch (err) { toast(err.message, 'error'); }

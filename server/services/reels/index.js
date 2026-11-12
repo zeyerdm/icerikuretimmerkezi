@@ -3,6 +3,7 @@
 // havuz: fikir üretimi, çeviri: çeviri ve prompt) çalışır, geçici hatada işin yedek modeline geçilir.
 import { newId, now, text, badRequest, notFound, oneOf, parseJson, HttpError } from '../../lib/http.js';
 import { IDEA_CATEGORIES } from '../ideas.js';
+import { TTS_VOICES } from '../ai/catalog.js';
 import { FORMATS, STYLES, STATUSES, TITLE_STYLES, LIMITS, normalizeScenario, checkQuality, flowPrompt, cleanVideoPrompt, buildSrt, scriptText,
   scenarioPrompt, rewriteTask, poolPrompt, translatePrompt, totalSeconds, polish, titleKeyword } from './rules.js';
 
@@ -14,7 +15,8 @@ export function createReelsService({ db, ai, brands, workspace, patterns = null 
     const b = brands.get(brandId);
     const row = db.prepare('SELECT reels_settings FROM brands WHERE id = ?').get(b.id);
     const s = parseJson(row && row.reels_settings, {});
-    return { character: s.character || b.name, style: STYLES[s.style] ? s.style : '3d', titleStyle: TITLE_STYLES[s.titleStyle] ? s.titleStyle : 'marka', colors: b.colors };
+    // 8.13: markanın sesi (hazır ses + konuşma tarzı) seslendirmede varsayılan olur
+    return { character: s.character || b.name, style: STYLES[s.style] ? s.style : '3d', titleStyle: TITLE_STYLES[s.titleStyle] ? s.titleStyle : 'marka', colors: b.colors, voice: TTS_VOICES[s.voice] ? s.voice : 'Kore', voiceStyle: s.voiceStyle || '' };
   }
   function setSettings(brandId, body = {}) {
     const b = brands.get(brandId);
@@ -22,7 +24,9 @@ export function createReelsService({ db, ai, brands, workspace, patterns = null 
     const next = {
       character: 'character' in body ? text(body.character, { field: 'Karakter adı', max: 40, required: true }) : cur.character,
       style: 'style' in body ? oneOf(body.style, Object.keys(STYLES), 'Görsel stil') : cur.style,
-      titleStyle: 'titleStyle' in body ? oneOf(body.titleStyle, Object.keys(TITLE_STYLES), 'Başlık stili') : cur.titleStyle
+      titleStyle: 'titleStyle' in body ? oneOf(body.titleStyle, Object.keys(TITLE_STYLES), 'Başlık stili') : cur.titleStyle,
+      voice: 'voice' in body ? oneOf(body.voice, Object.keys(TTS_VOICES), 'Ses') : cur.voice,
+      voiceStyle: 'voiceStyle' in body ? (text(body.voiceStyle, { field: 'Konuşma tarzı', max: 120 }) || '') : cur.voiceStyle
     };
     db.prepare('UPDATE brands SET reels_settings = ? WHERE id = ?').run(JSON.stringify(next), b.id);
     return settings(b.id);

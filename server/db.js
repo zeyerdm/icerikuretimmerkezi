@@ -491,6 +491,10 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL
   );
   CREATE INDEX idx_content_reviews ON content_reviews(content_id, created_at);
+  `,
+  // 32: 8.13 Seslendirme: senaryonun seslendirme bilgisi (ses, tarz, sahne süreleri); dosyalar uploads/<marka>/voice altında
+  `
+  ALTER TABLE reels ADD COLUMN voiceover TEXT NOT NULL DEFAULT '';
   `
 ];
 

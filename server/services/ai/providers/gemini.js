@@ -83,6 +83,21 @@ export function createGeminiProvider({ getApiKey, fetchImpl = fetch }) {
       return { buffer: Buffer.from(img.data, 'base64'), mime: img.mimeType || img.mime_type || 'image/png', model, usage: { input: u.promptTokenCount || 0, output: u.candidatesTokenCount || 0 } };
     },
 
+    // 8.13 Seslendirme: yanıt 16 bit tek kanallı PCM (genelde 24 kHz); mime türünden örnekleme hızı okunur
+    async speech({ model, text, voice = 'Kore' }) {
+      const data = await request(encodeURIComponent(model) + ':generateContent', {
+        method: 'POST',
+        body: JSON.stringify({ contents: [{ parts: [{ text }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } })
+      });
+      const parts = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      const a = parts.map(p => p.inlineData || p.inline_data).find(x => x && x.data);
+      if (!a) throw aiError('AI_EMPTY', 'Gemini ses döndürmedi (metin içerik filtresine takılmış olabilir).', { retryable: false });
+      const mime = a.mimeType || a.mime_type || '';
+      const rate = Number((/rate=(\d+)/.exec(mime) || [])[1]) || 24000;
+      const u = (data && data.usageMetadata) || {};
+      return { pcm: Buffer.from(a.data, 'base64'), rate, mime, usage: { input: u.promptTokenCount || 0, output: u.candidatesTokenCount || 0 }, model };
+    },
+
     async listModels() {
       const data = await request('?pageSize=200', { method: 'GET' });
       return ((data && data.models) || [])

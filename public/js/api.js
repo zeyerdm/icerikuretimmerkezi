@@ -187,6 +187,9 @@ export const api = {
   deleteNote: id => request('DELETE', '/api/notes/' + encodeURIComponent(id)),
   updateIdea: (id, ideaId, body) => request('PATCH', `${b(id)}/ideas/${ideaId}`, body),
 
+  tts: () => request('GET', '/api/tts'),
+  reelsVoice: (id, rid) => request('GET', `${b(id)}/reels/${rid}/voice`),
+  makeReelsVoice: (id, rid, body) => request('POST', `${b(id)}/reels/${rid}/voice`, body),
   reelsSettings: id => request('GET', b(id) + '/reels/settings'),
   saveReelsSettings: (id, body) => request('PUT', b(id) + '/reels/settings', body),
   reelsPool: id => request('GET', b(id) + '/reels/pool'),
