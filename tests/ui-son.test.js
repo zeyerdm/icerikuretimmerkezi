@@ -602,3 +602,32 @@ test('8.12 arayüz: arşivde Instagram CSV\'si yüklenir, eşleşmeler gösteril
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.15 arayüz: içerik kartında set düzenle, grup ve imzayı tek tıkla ekle (tekrarsız)', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Set UI' })).data.brand;
+  const c = (await srv.request('POST', '/api/contents', { brandId: b.id, title: 'Post', type: 'post' })).data.content;
+  await srv.request('PATCH', `/api/contents/${c.id}`, { hashtags: '#kahve', caption: 'Yeni menü geldi.' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/arsiv`);
+    await page.locator(`[data-edit="${c.id}"]`).click();
+    await page.locator('[data-sets-edit]').click();
+    await page.locator('[data-g-name]').fill('Kampüs');
+    await page.locator('[data-g-tags]').fill('#kahve #kampus #vize');
+    await page.locator('[data-s-name]').fill('Kapanış');
+    await page.locator('[data-s-text]').fill('Bio\'daki linkten menüye bak ☕');
+    await page.locator('.modal:has(#se-groups) [type=submit]').click();
+    await page.locator('[data-tag-group]').waitFor();
+    await page.locator('[data-tag-group]').click();
+    assert.equal(await page.locator('#c-tags').inputValue(), '#kahve #kampus #vize', 'var olan etiket tekrarlanmaz');
+    await page.locator('[data-sig]').click();
+    await page.locator('[data-sig]').click();
+    assert.equal(await page.locator('#c-caption').inputValue(), 'Yeni menü geldi.\n\nBio\'daki linkten menüye bak ☕', 'imza bir kez eklenir');
+    await page.locator('.modal [type=submit]').last().click();
+    await page.locator('.modal-backdrop').waitFor({ state: 'detached' });
+    const g = (await srv.request('GET', `/api/contents/${c.id}`)).data.content;
+    assert.deepEqual(g.hashtags, ['#kahve', '#kampus', '#vize']);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

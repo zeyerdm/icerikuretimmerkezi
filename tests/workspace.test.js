@@ -166,7 +166,7 @@ test('eski veritabanı (sürüm 2) veri kaybetmeden yeni sürüme taşınır', (
   old.close();
   const db = openDb(file);
   try {
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 33);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 34);
     const act = db.prepare('SELECT * FROM activity').get();
     assert.equal(act.owner_id, 'u1');
     assert.equal(act.summary, 'Eski Marka markası oluşturuldu');

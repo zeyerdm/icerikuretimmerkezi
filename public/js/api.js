@@ -187,6 +187,8 @@ export const api = {
   deleteNote: id => request('DELETE', '/api/notes/' + encodeURIComponent(id)),
   updateIdea: (id, ideaId, body) => request('PATCH', `${b(id)}/ideas/${ideaId}`, body),
 
+  captionSets: id => request('GET', `${b(id)}/caption-sets`),
+  saveCaptionSets: (id, body) => request('PUT', `${b(id)}/caption-sets`, body),
   tts: () => request('GET', '/api/tts'),
   videoGen: () => request('GET', '/api/video-gen'),
   videoJobs: (id, reelsId) => request('GET', `${b(id)}/video-jobs${reelsId ? '?reelsId=' + encodeURIComponent(reelsId) : ''}`),
