@@ -57,7 +57,7 @@ export async function renderIdeas(view, brand) {
           <button type="button" role="menuitem" class="danger" data-del="${esc(i.id)}">${icon('trash')}Sil</button>
         </div>
       </article>`).join('')}</div>`
-      : emptyState({ icon: 'idea', title: ideas.length ? 'Bu filtrede fikir yok' : (status === 'arsiv' ? 'Arşiv boş' : 'İçerik havuzu boş'), text: ideas.length ? 'Başka bir tür, durum ya da kategori seç.' : `Yukarıdan fikir ekle ya da <a class="link" href="#/m/${esc(brand.id)}">asistandan fikir iste</a>.`, compact: false });
+      : emptyState({ icon: 'idea', title: ideas.length ? 'Bu filtrede fikir yok' : (status === 'arsiv' ? 'Arşiv boş' : 'İçerik havuzu boş'), text: ideas.length ? 'Başka bir tür, durum ya da kategori seç.' : `Yukarıdan fikir ekle ya da <a class="link" href="#/m/${esc(brand.id)}">asistandan fikir iste</a>.`, card: true });
     view.querySelector('#fav-only').addEventListener('change', e => { favOnly = e.target.checked; draw(); });
   }
 
@@ -156,7 +156,7 @@ export async function renderIdeas(view, brand) {
       const i = find(plan.dataset.plan);
       if (i.used && !confirm(`Bu fikir daha önce kullanıldı (${i.usedInLabels.join(', ')}). Yine de takvime eklensin mi?`)) return;
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(12, 0, 0, 0);
-      return contentModal({ brandId: brand.id, lockBrand: true, title: i.title, ideaId: i.id, date: tomorrow, onSaved: () => { toast('Takvime eklendi; fikir kullanıldı olarak işaretlendi.', 'success'); draw(); } });
+      return contentModal({ brandId: brand.id, lockBrand: true, title: i.title, ideaId: i.id, date: tomorrow, onSaved: () => { toast('Takvime eklendi. Fikir kullanıldı olarak işaretlendi.', 'success'); draw(); } });
     }
     const del = e.target.closest('[data-del]');
     if (del) {
