@@ -24,6 +24,7 @@ import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
+import { createIgImportService } from './services/igImport.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
@@ -132,6 +133,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const promptIdentity = createPromptIdentityService({ db, brands });
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
   const dataExport = createDataExportService({ db, ownerId, brands });
+  const igImport = createIgImportService({ db, brands, workspace });
   const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
   const compare = createCompareService({ db, ai, brands, prompts });
@@ -500,6 +502,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     res.send(body);
   };
   const stamp = () => new Date().toISOString().slice(0, 10);
+  // 8.12 Instagram sonuçlarını içe aktarma (CSV metni gövde olarak; en çok 5 MB)
+  api.post('/brands/:brandId/import/instagram/preview', express.text({ type: () => true, limit: '5mb' }), (req, res) => res.json(igImport.preview(req.brand.id, typeof req.body === 'string' ? req.body : '')));
+  api.post('/brands/:brandId/import/instagram/apply', (req, res) => res.json(igImport.apply(req.brand.id, (req.body || {}).items)));
   api.get('/export/types', (req, res) => res.json({ types: dataExport.types }));
   api.get('/brands/:brandId/export.json', (req, res) => download(res, `${req.brand.name}-${stamp()}.json`, 'application/json; charset=utf-8', JSON.stringify(dataExport.json(req.brand.id), null, 2)));
   api.get('/brands/:brandId/export/:type.csv', (req, res) => download(res, `${req.brand.name}-${req.params.type}-${stamp()}.csv`, 'text/csv; charset=utf-8', dataExport.csv(req.brand.id, req.params.type)));

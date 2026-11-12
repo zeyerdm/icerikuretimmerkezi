@@ -1,6 +1,6 @@
 // Marka arşivi: markanın bütün içerikleri (planlanan, hazırlanan, tamamlanan, yayınlanan); süzme ve arama
 import { api } from '../api.js';
-import { esc, icon, fmtDate, timeStr, pageHead, emptyState } from '../ui.js';
+import { esc, icon, fmtDate, timeStr, pageHead, emptyState, openModal, toast } from '../ui.js';
 import { state } from '../app.js';
 import { contentModal } from './forms.js';
 
@@ -41,7 +41,7 @@ export async function renderArchive(view, brand) {
     ${pageHead({
       title: 'Arşiv',
       desc: `${esc(brand.name)} markasının bütün içerikleri: taslaklar, hazırlananlar, tamamlananlar ve yayınlananlar.`,
-      actions: `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
+      actions: `<button class="btn" data-ig>${icon('upload')}Instagram sonuçlarını içe aktar</button><button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
     })}
     <div class="toolbar">
       <input class="input w-md" type="search" id="arch-q" placeholder="Başlıkta ara" aria-label="Başlıkta ara">
@@ -57,6 +57,7 @@ export async function renderArchive(view, brand) {
   view.querySelector('#arch-type').addEventListener('change', e => { filter.type = e.target.value; shown = PAGE; drawList(); });
   view.onclick = e => {
     if (e.target.closest('[data-more]')) { shown += PAGE; return drawList(); }
+    if (e.target.closest('[data-ig]')) return igImportModal(brand, load);
     const ed = e.target.closest('[data-edit]');
     if (ed) return contentModal({ content: all.find(c => c.id === ed.dataset.edit), lockBrand: true, onSaved: load });
     if (e.target.closest('[data-new]')) {
@@ -65,4 +66,41 @@ export async function renderArchive(view, brand) {
     }
   };
   await load();
+}
+
+// 8.12 Instagram sonuçlarını içe aktarma: Meta İstatistikler CSV'si → ön izleme ve eşleştirme → onaylanınca metrikler yazılır
+function igImportModal(brand, onDone) {
+  const M = { views: 'Görüntüleme', reach: 'Erişim', likes: 'Beğeni', comments: 'Yorum', saves: 'Kaydetme', shares: 'Paylaşım', follows: 'Takip' };
+  const day = iso => new Date(iso).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  let items = [];
+  const m = openModal({
+    title: 'Instagram sonuçlarını içe aktar', submitLabel: 'Eşleşenleri kaydet',
+    body: `<p class="small muted mb-3">Meta Business Suite ya da Instagram'da <b>İstatistikler → Dışa aktar</b> ile indirdiğin CSV dosyasını seç. Satırlar ${esc(brand.name)} takvimindeki içeriklerle yayın tarihi ve metne göre eşleştirilir; kaydetmeden önce kontrol edebilirsin.</p>
+      <input class="input" type="file" id="ig-file" accept=".csv,text/csv">
+      <div id="ig-preview" class="mt-3"></div>`,
+    onSubmit: async () => {
+      const chosen = [...m.form.querySelectorAll('[data-ig-row]')].map(sel => ({ contentId: sel.value, metrics: items[Number(sel.dataset.igRow)].metrics })).filter(x => x.contentId);
+      if (!chosen.length) throw new Error('Kaydedilecek eşleşme yok; önce dosya seç ya da satırları bir içerikle eşleştir.');
+      const r = await api.igImportApply(brand.id, chosen);
+      toast(`${r.updated} içeriğe paylaşım sonuçları yazıldı.`, 'success');
+      onDone && onDone();
+    }
+  });
+  m.form.querySelector('#ig-file').addEventListener('change', async e => {
+    const f = e.target.files[0];
+    const box = m.form.querySelector('#ig-preview');
+    if (!f) return;
+    box.innerHTML = '<div class="skeleton" style="height:80px"></div>';
+    try {
+      const p = await api.igImportPreview(brand.id, f);
+      items = p.items;
+      box.innerHTML = `<p class="small mb-2"><b>${p.matched}</b> / ${p.total} satır eşleşti. Tanınan sütunlar: ${esc(Object.values(p.columns).join(', '))}</p>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Yayın</th><th>Gönderi</th><th>Sonuç</th><th>İçerik</th></tr></thead><tbody>
+        ${items.map((it, i) => `<tr><td class="nowrap">${esc(day(it.date))}</td><td class="small">${esc(it.caption.slice(0, 60) || '—')}</td>
+          <td class="xsmall">${Object.entries(it.metrics).map(([k, v]) => `${esc(M[k] || k)} ${v.toLocaleString('tr-TR')}`).join(' · ')}</td>
+          <td><select class="select input-sm" data-ig-row="${i}" aria-label="Eşleşen içerik"><option value="">Eşleştirme</option>${(it.match && !it.candidates.some(c => c.id === it.match.contentId) ? [{ id: it.match.contentId, title: it.match.title, scheduledAt: it.match.scheduledAt }] : []).concat(it.candidates).map(c => `<option value="${esc(c.id)}" ${it.match && it.match.contentId === c.id ? 'selected' : ''}>${esc(c.title.slice(0, 40))} · ${esc(day(c.scheduledAt))}</option>`).join('')}</select>
+            ${it.match && it.match.confidence === 'dusuk' ? '<div class="xsmall cost-warn">Emin değilim; kontrol et</div>' : ''}${it.match && it.match.hasMetrics ? '<div class="xsmall muted">Var olan sonuçların üzerine yazılır</div>' : ''}</td></tr>`).join('')}
+        </tbody></table></div>`;
+    } catch (err) { box.innerHTML = `<div class="notice notice-error"><div>${esc(err.message)}</div></div>`; }
+  });
 }
