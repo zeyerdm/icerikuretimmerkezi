@@ -379,12 +379,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const ideaRows = brandId
       ? db.prepare('SELECT brand_id, category, created_at FROM ideas WHERE brand_id = ? ORDER BY created_at').all(brandId)
       : db.prepare('SELECT i.brand_id, i.category, i.created_at FROM ideas i JOIN brands b ON b.id = i.brand_id WHERE b.owner_id = ? ORDER BY i.created_at').all(ownerId);
+    // 8.9: içerik başına tekrarlanan marka adı/rengi ve etiketler bir kez "lookup" içinde gönderilir; istemci (api.dashboard) doldurur
+    const lookup = { brands: {}, types: CONTENT_TYPES, statuses: CONTENT_STATUSES };
     res.json({
       brands: scope.map(brandSummary),
-      contents: workspace.listContents({ brandId }).map(c => ({
-        id: c.id, title: c.title, brandId: c.brandId, brandName: c.brandName, brandColor: c.brandColor, type: c.type, typeLabel: c.typeLabel,
-        status: c.status, statusLabel: c.statusLabel, done: c.done, scheduledAt: c.scheduledAt, createdAt: c.createdAt, completedAt: c.completedAt
-      })),
+      lookup,
+      contents: workspace.listContents({ brandId, limit: null }).map(c => {
+        if (!lookup.brands[c.brandId]) lookup.brands[c.brandId] = { name: c.brandName, color: c.brandColor };
+        return { id: c.id, title: c.title, brandId: c.brandId, type: c.type, status: c.status, done: c.done, scheduledAt: c.scheduledAt, createdAt: c.createdAt, completedAt: c.completedAt };
+      }),
       ideas: ideaRows.map(r => ({ brandId: r.brand_id, category: r.category, createdAt: r.created_at })),
       tasks: workspace.listTasks({ brandId }),
       pinnedNotes: workspace.listNotes({ brandId }).filter(n => n.pinned).slice(0, 6),
@@ -395,11 +398,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // İçerik planı: takvim, arşiv
   api.get('/contents', (req, res) => {
     const q = req.query;
-    res.json({ contents: workspace.listContents({
+    // 8.9: limit 1..10.000 (varsayılan 2.000); sınıra ulaşıldıysa "truncated" ile söylenir
+    const limit = Math.min(10000, Math.max(1, Number(q.limit) || 2000));
+    const contents = workspace.listContents({
       brandId: q.brandId ? String(q.brandId) : null, from: q.from ? String(q.from) : null, to: q.to ? String(q.to) : null,
-      status: q.status ? String(q.status) : null, type: q.type ? String(q.type) : null, unscheduled: q.unscheduled === '1'
-    }) });
+      status: q.status ? String(q.status) : null, type: q.type ? String(q.type) : null, unscheduled: q.unscheduled === '1', limit
+    });
+    res.json({ contents, truncated: contents.length === limit });
   });
+  api.get('/contents/:id', (req, res) => res.json({ content: workspace.getContent(req.params.id) }));
   api.post('/contents', (req, res) => res.status(201).json({ content: workspace.createContent(req.body || {}) }));
   api.post('/contents/:id/write', route(async (req, res) => res.json(await captions.write(req.params.id, { modelRef: mr(req.body) }))));
   api.patch('/contents/:id', (req, res) => res.json({ content: workspace.updateContent(req.params.id, req.body || {}) }));

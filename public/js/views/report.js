@@ -7,7 +7,7 @@ export async function renderReport(view, brand) {
   view.onclick = null;
   const now = new Date();
   let month = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [{ contents }, dash] = await Promise.all([api.contents({ brandId: brand.id }), api.dashboard(brand.id)]);
+  const [{ contents }, dash] = await Promise.all([api.contents({ brandId: brand.id, limit: 10000 }), api.dashboard(brand.id)]);
   const inMonth = (iso, m) => { if (!iso) return false; const d = new Date(iso); return d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth(); };
   const pct = (a, b) => (b ? Math.round(a / b * 100) : 0);
 
