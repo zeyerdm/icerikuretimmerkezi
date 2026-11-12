@@ -93,14 +93,30 @@ const DEFAULT_BRAND = '#5b55e6';
 
 // Seçili markanın ana rengi kenar çubuğuna, düğmelere ve vurgulara uygulanır.
 // --on-brand: marka rengi üzerindeki yazı rengi; --brand-ink: beyaz zemin üzerindeki marka rengi yazı (gerekirse koyulaştırılır)
+// 8.17 Erişilebilirlik: yazı renkleri WCAG AA (4,5:1) kontrastı sağlayacak biçimde hesaplanır
+export const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+export function mixHex(a, b, t) {
+  const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return '#' + x.map((v, i) => Math.round(v * (1 - t) + y[i] * t).toString(16).padStart(2, '0')).join('');
+}
+// Marka rengini, açık marka zemini (%12 marka + beyaz) üzerinde 4,6:1 olana kadar koyulaştırır
+export function brandInk(color) {
+  const soft = mixHex('#ffffff', color, 0.12);
+  for (let t = 0; t <= 0.9; t += 0.05) { const c = mixHex(color, '#000000', t); if (contrast(c, soft) >= 4.6) return c; }
+  return '#1b1f3b';
+}
 export function applyBrandTheme(brand) {
   const raw = brand && brand.colors && brand.colors.primary;
   const color = /^#[0-9a-fA-F]{6}$/.test(raw || '') ? raw.toLowerCase() : DEFAULT_BRAND;
-  const lum = luminance(color);
   const root = document.documentElement.style;
   root.setProperty('--brand', color);
-  root.setProperty('--on-brand', lum > 0.45 ? '#1b1f3b' : '#ffffff');
-  root.setProperty('--brand-ink', lum > 0.3 ? `color-mix(in srgb, ${color} 45%, #000)` : color);
+  // Marka rengi üzerinde beyaz ya da koyu yazıdan hangisi daha okunaklıysa; kenar çubuğu geçişinin ikinci rengi
+  // yazı koyuysa açılarak, açıksa koyulaşarak gider (iki uçta da yazı okunur kalsın)
+  const onBrand = contrast('#ffffff', color) >= contrast('#1b1f3b', color) ? '#ffffff' : '#1b1f3b';
+  root.setProperty('--on-brand', onBrand);
+  root.setProperty('--brand-deep', onBrand === '#ffffff' ? mixHex(color, '#000000', 0.22) : mixHex(color, '#ffffff', 0.22));
+  root.setProperty('--brand-ink', brandInk(color));
 }
 
 // Yüzde halkası (SVG)

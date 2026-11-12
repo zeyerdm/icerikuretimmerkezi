@@ -44,7 +44,7 @@ export function openPalette() {
   wrap.className = 'modal-backdrop palette-backdrop';
   wrap.innerHTML = `<div class="palette" role="dialog" aria-modal="true" aria-label="Komut paleti">
       <div class="palette-in">${icon('search')}<input id="palette-q" type="text" placeholder="Komut ya da arama (ör. içerik planla, kampanya, marka adı)" autocomplete="off" aria-controls="palette-list"></div>
-      <div class="palette-list" id="palette-list" role="listbox"></div>
+      <div class="palette-list" id="palette-list" role="listbox" aria-label="Komutlar" tabindex="0"></div>
       <div class="palette-foot xsmall muted"><span><kbd>↑</kbd><kbd>↓</kbd> seç</span><span><kbd>Enter</kbd> çalıştır</span><span><kbd>Esc</kbd> kapat</span></div>
     </div>`;
   document.body.appendChild(wrap);

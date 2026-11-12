@@ -46,6 +46,6 @@ jobs:
       - name: Arayüz testleri için tarayıcı
         if: matrix.ui
         run: |
-          npm install --no-save playwright@1.56.1
+          npm install --no-save playwright@1.56.1 axe-core@4.10.2
           npx playwright install --with-deps chromium
       - run: npm test

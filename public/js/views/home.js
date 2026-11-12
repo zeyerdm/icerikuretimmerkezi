@@ -88,7 +88,7 @@ export async function renderHome(view, brand) {
           </section>
           <section class="card activity">
             <div class="card-head"><h3>Son çalışmalar</h3><a class="small link" href="#/m/${id}/arsiv">Tümü ›</a></div>
-            <div class="bg-list">${overview.activity.length
+            <div class="bg-list" tabindex="0" role="region" aria-label="Son etkinlikler">${overview.activity.length
               ? `<ul>${overview.activity.slice(0, 3).map(a => `<li><span class="a-dot"></span><div>${esc(a.summary)}<div class="muted xsmall">${timeAgo(a.createdAt)}</div></div></li>`).join('')}</ul>`
               : emptyState({ icon: 'refresh', title: 'Henüz bir çalışma yok', compact: true })}</div>
           </section>
