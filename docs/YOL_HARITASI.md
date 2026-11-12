@@ -275,7 +275,7 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
   - Komut paletiyle (Ctrl+K) aynı komut listesini kullanır; palet arama, dairesel menü tek hareketle erişim içindir.
 
 **E. Kalite**
-- ⬜ **8.17 Erişilebilirlik denetimi:** Bütün sayfalarda otomatik erişilebilirlik taraması (kontrast, etiket, klavye sırası) ve bulguların düzeltilmesi.
+- ✅ **8.17 Erişilebilirlik denetimi:** Bütün sayfalarda otomatik erişilebilirlik taraması (kontrast, etiket, klavye sırası) ve bulguların düzeltilmesi. _(Yapıldı: tests/erisilebilirlik.test.js axe-core ile 29 sayfayı ve 3 sık pencereyi WCAG 2.1 A/AA kurallarına göre tarar; CI'da da çalışır. Bulunup düzeltilenler: marka yazı rengi açık marka zemininde 4,34:1'di, artık her marka rengi için 4,5:1 sağlanacak biçimde hesaplanıyor. Marka rengi üzerindeki yazı (beyaz/koyu) kontrasta göre seçiliyor; orta tonlarda kenar çubuğunun koyu ucundaki 3:1 sorunu giderildi. Ay dışı takvim günleri, KPI alt yazıları, kelime bulutu ve özel gün tarihlerinin rengi düzeltildi. Takvimin hatalı ızgara (grid) rolleri kaldırıldı. Kaydırılabilir alanlar klavyeyle erişilebilir oldu. Komut paleti listesi ve hızlı menü etiketlendi.)_
 - ⬜ **8.18 Kısmi toplu testlerin tamamlanması:** 🟡 işaretli T. maddelerinde kalan kısımlar (çoğu arayüz ayrıntısı).
 - ⬜ **8.19 Hata günlüğü ekranı:** Ayarlar'da son sunucu ve AI hataları (zaman, iş, model, mesaj); "destek için kopyala" düğmesi.
 

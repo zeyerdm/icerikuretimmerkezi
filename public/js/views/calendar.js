@@ -65,12 +65,13 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const { from } = range();
     const today = new Date();
     const cells = Array.from({ length: 42 }, (_, i) => addDays(from, i));
-    return `<div class="cal-month" role="grid" aria-label="${esc(title())}">
-      ${TR_DAYS_SHORT.map(d => `<div class="cal-dow" role="columnheader">${d}</div>`).join('')}
+    // 8.17: ızgara rolü satır yapısı istediği için kullanılmaz; her gün odaklanabilir, adıyla okunan bir düğmedir
+    return `<div class="cal-month" role="group" aria-label="${esc(title())}">
+      ${TR_DAYS_SHORT.map(d => `<div class="cal-dow" aria-hidden="true">${d}</div>`).join('')}
       ${cells.map(day => {
         const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
         const out = day.getMonth() !== cursor.getMonth();
-        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''}" role="gridcell" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
+        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
           <div class="cal-num">${day.getDate()}</div>
           ${daySpecials(day).map(spChip).join('')}
           ${list.slice(0, 3).map(chip).join('')}

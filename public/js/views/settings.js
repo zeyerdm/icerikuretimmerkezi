@@ -106,7 +106,7 @@ export async function renderSettings(view) {
             <li>Google izin isterse hesabını seç → "Gelişmiş" → "projeye git (güvenli değil)" → İzin ver. (Uyarı, kodu kendin yayınladığın için çıkar.)</li>
             <li>Verilen <b>Web uygulaması URL'sini</b> kopyalayıp aşağıya yapıştır → <b>Bağlan</b>.</li>
           </ol>
-          <div class="code-box"><pre id="drive-script">${esc(drive.script)}</pre><button class="btn btn-sm" type="button" data-action="copy-script">Kodu kopyala</button></div>
+          <div class="code-box"><pre id="drive-script" tabindex="0" aria-label="Apps Script kodu">${esc(drive.script)}</pre><button class="btn btn-sm" type="button" data-action="copy-script">Kodu kopyala</button></div>
           <p class="hint mt-2">Koddaki anahtar bu uygulamaya özeldir; kimseyle paylaşma.</p>
         </details>
         <form id="drive-form" class="stack-sm card-section">

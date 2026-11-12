@@ -40,7 +40,7 @@ export function openRadial(x = last.x, y = last.y) {
         const a = (-90 + (360 / items.length) * i) * Math.PI / 180;
         return `<button type="button" class="radial-item" role="menuitem" data-i="${i}" style="transform:translate(${Math.round(Math.cos(a) * RADIUS)}px,${Math.round(Math.sin(a) * RADIUS)}px)" title="${esc(c.label)} (${i + 1})">${icon(c.icon || 'sparkle')}<span>${esc(c.label)}</span></button>`;
       }).join('')}
-      <button type="button" class="radial-center" data-edit title="Kısa yolları düzenle" aria-label="Kısa yolları düzenle">${items.length ? '⚙' : '+'}</button>
+      <button type="button" class="radial-center" role="menuitem" data-edit title="Kısa yolları düzenle" aria-label="Kısa yolları düzenle">${items.length ? '⚙' : '+'}</button>
     </div>`;
   document.body.appendChild(wrap);
   const btns = [...wrap.querySelectorAll('.radial-item')];
