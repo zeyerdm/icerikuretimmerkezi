@@ -136,6 +136,7 @@ export const api = {
   deleteTrash: id => request('DELETE', `/api/trash/${encodeURIComponent(id)}`),
   emptyTrash: () => request('DELETE', '/api/trash'),
   updateAsset: (id, assetId, body) => request('PATCH', `${b(id)}/assets/${assetId}`, body),
+  exportTypes: () => request('GET', '/api/export/types'),
   deleteAsset: (id, assetId) => request('DELETE', `${b(id)}/assets/${assetId}`),
 
   ideas: (id, query = '') => request('GET', b(id) + '/ideas' + query),
