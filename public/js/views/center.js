@@ -156,8 +156,7 @@ export async function renderCenter(view) {
     const item = e.target.closest('[data-content]');
     if (item) {
       // Özet listede not alanı yok; düzenleme için içeriğin tamamı alınır
-      const { contents } = await api.contents({});
-      return contentModal({ content: contents.find(c => c.id === item.dataset.content), onSaved: refresh });
+      try { const { content } = await api.content(item.dataset.content); return contentModal({ content, onSaved: refresh }); } catch (err) { return toast(err.message, 'error'); }
     }
     const done = e.target.closest('[data-task-done]');
     if (done) {

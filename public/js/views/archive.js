@@ -7,26 +7,33 @@ import { contentModal } from './forms.js';
 export async function renderArchive(view, brand) {
   const filter = { status: '', type: '', q: '' };
   let all = [];
+  let truncated = false;
+  // 8.9: büyük arşivde tablo 200'er satır çizilir ("Daha fazla göster")
+  const PAGE = 200;
+  let shown = PAGE;
 
   function drawList() {
     const q = filter.q.toLocaleLowerCase('tr-TR');
     const list = all.filter(c => (!filter.status || c.status === filter.status) && (!filter.type || c.type === filter.type) && (!q || c.title.toLocaleLowerCase('tr-TR').includes(q)));
-    view.querySelector('#arch-count').textContent = `${list.length} içerik`;
+    view.querySelector('#arch-count').textContent = `${list.length} içerik${truncated ? ' (en yeni 10.000)' : ''}`;
+    const more = list.length - shown;
     view.querySelector('#arch-list').innerHTML = list.length ? `
       <div class="table-wrap"><table class="table">
         <thead><tr><th>Tarih</th><th>Başlık</th><th>Tür</th><th>Durum</th><th></th></tr></thead>
-        <tbody>${list.map(c => `<tr>
+        <tbody>${list.slice(0, shown).map(c => `<tr>
           <td class="nowrap">${c.scheduledAt ? `${esc(fmtDate(c.scheduledAt, { day: 'numeric', month: 'short', year: 'numeric' }))} <span class="muted">${timeStr(c.scheduledAt)}</span>` : '<span class="muted">Tarihsiz</span>'}</td>
           <td><b>${esc(c.title)}</b>${c.notes ? `<div class="small muted">${esc(c.notes.slice(0, 90))}</div>` : ''}${c.reelsId ? `<div><a class="link small" href="#/m/${esc(brand.id)}/reels/${esc(c.reelsId)}">Senaryoyu aç</a></div>` : ''}${c.postId ? `<div><a class="link small" href="#/m/${esc(brand.id)}/post/${esc(c.postId)}">Tasarımı aç</a></div>` : ''}</td>
           <td>${esc(c.typeLabel)}</td>
           <td><span class="status-badge status-${esc(c.status)}">${esc(c.statusLabel)}</span>${c.checklist && c.checklist.length ? `<div class="xsmall muted mt-1" title="Yapılacaklar">✓ ${c.checklist.filter(i => i.done).length}/${c.checklist.length}${c.caption ? ' · açıklama hazır' : ''}</div>` : ''}${c.rate != null ? `<div class="xsmall muted">etkileşim %${String(c.rate).replace('.', ',')}</div>` : ''}</td>
           <td><button class="btn btn-sm btn-ghost icon-btn" data-edit="${esc(c.id)}" aria-label="Düzenle">${icon('edit')}</button></td></tr>`).join('')}</tbody>
-      </table></div>`
+      </table></div>${more > 0 ? `<div class="row mt-3"><button class="btn" data-more>Daha fazla göster (${more} kaldı)</button></div>` : ''}`
       : emptyState({ icon: all.length ? 'search' : 'archive', title: all.length ? 'Bu filtrede içerik yok' : 'Arşiv boş', text: all.length ? 'Aramayı ya da filtreleri değiştir.' : 'Takvimden ya da fikirlerden içerik planladıkça burada birikir.' });
   }
 
   async function load() {
-    all = (await api.contents({ brandId: brand.id })).contents;
+    const r = await api.contents({ brandId: brand.id, limit: 10000 });
+    all = r.contents;
+    truncated = Boolean(r.truncated);
     drawList();
   }
 
@@ -44,10 +51,12 @@ export async function renderArchive(view, brand) {
     </div>
     <section class="card" id="arch-list"></section>`;
 
-  view.querySelector('#arch-q').addEventListener('input', e => { filter.q = e.target.value.trim(); drawList(); });
-  view.querySelector('#arch-status').addEventListener('change', e => { filter.status = e.target.value; drawList(); });
-  view.querySelector('#arch-type').addEventListener('change', e => { filter.type = e.target.value; drawList(); });
+  // Filtre değişince ilk sayfadan başlanır
+  view.querySelector('#arch-q').addEventListener('input', e => { filter.q = e.target.value.trim(); shown = PAGE; drawList(); });
+  view.querySelector('#arch-status').addEventListener('change', e => { filter.status = e.target.value; shown = PAGE; drawList(); });
+  view.querySelector('#arch-type').addEventListener('change', e => { filter.type = e.target.value; shown = PAGE; drawList(); });
   view.onclick = e => {
+    if (e.target.closest('[data-more]')) { shown += PAGE; return drawList(); }
     const ed = e.target.closest('[data-edit]');
     if (ed) return contentModal({ content: all.find(c => c.id === ed.dataset.edit), lockBrand: true, onSaved: load });
     if (e.target.closest('[data-new]')) {

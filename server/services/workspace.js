@@ -134,8 +134,9 @@ export function createWorkspaceService(db, ownerId, brands) {
       if (unscheduled) sql += ' AND c.scheduled_at IS NULL';
       if (status) { sql += ' AND c.status = ?'; args.push(oneOf(status, Object.keys(CONTENT_STATUSES), 'Durum')); }
       if (type) { sql += ' AND c.type = ?'; args.push(oneOf(type, Object.keys(CONTENT_TYPES), 'İçerik türü')); }
-      sql += ' ORDER BY COALESCE(c.scheduled_at, c.created_at) DESC, c.rowid DESC LIMIT ?';
-      args.push(limit);
+      // limit null: sınırsız (8.9: Yönetim Merkezi sayımları 2.000'de kesilmesin)
+      sql += ' ORDER BY COALESCE(c.scheduled_at, c.created_at) DESC, c.rowid DESC' + (limit == null ? '' : ' LIMIT ?');
+      if (limit != null) args.push(limit);
       return db.prepare(sql).all(...args).map(toContent);
     },
 

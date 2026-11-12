@@ -161,8 +161,14 @@ export const api = {
   identityDraft: body => request('POST', '/api/identity-draft', body),
   specialDays: (from, to) => request('GET', `/api/special-days?from=${from}&to=${to}`),
   performance: brandId => request('GET', '/api/performance' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
-  dashboard: brandId => request('GET', '/api/dashboard' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
+  // 8.9: sunucu tekrarlanan alanları "lookup" ile bir kez gönderir; burada her içeriğe geri eklenir
+  dashboard: brandId => request('GET', '/api/dashboard' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')).then(d => {
+    const l = d && d.lookup;
+    if (l) d.contents.forEach(c => { const b = l.brands[c.brandId] || {}; c.brandName = b.name || ''; c.brandColor = b.color || null; c.typeLabel = l.types[c.type] || c.type; c.statusLabel = l.statuses[c.status] || c.status; });
+    return d;
+  }),
   contents: (params = {}) => request('GET', '/api/contents?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString()),
+  content: id => request('GET', '/api/contents/' + encodeURIComponent(id)),
   createContent: body => request('POST', '/api/contents', body),
   updateContent: (id, body) => request('PATCH', '/api/contents/' + encodeURIComponent(id), body),
   deleteContent: id => request('DELETE', '/api/contents/' + encodeURIComponent(id)),

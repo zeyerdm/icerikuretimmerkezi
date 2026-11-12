@@ -256,7 +256,7 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ✅ **8.8 Veri dışa aktarma:** Marka başına bütün kayıtlar (fikir, senaryo, takvim, notlar) JSON/CSV olarak indirilir; takvim .ics olarak Google/Outlook takvimine aktarılır. _(Yapıldı: marka sayfasında "Dışa aktar" düğmesi var. Seçenekler: bütün kayıtlar JSON olarak; 14 kayıt türü ayrı ayrı CSV olarak (Excel uyumlu, formül korumalı); marka takvimi ya da bütün markaların takvimi .ics olarak. Görsel dosyaları ve API anahtarları aktarılmaz.)_
 
 **C. Performans**
-- ⬜ **8.9 Büyük veride hız:** Yönetim Merkezi ve takvim bütün içerikleri tek seferde yüklüyor; sayfalama, tarih aralığıyla yükleme ve sık sorgular için veritabanı indeksleri gerekiyor. 5.000 içerikle ölçüm yapılmalı.
+- ✅ **8.9 Büyük veride hız:** Yönetim Merkezi ve takvim bütün içerikleri tek seferde yüklüyor; sayfalama, tarih aralığıyla yükleme ve sık sorgular için veritabanı indeksleri gerekiyor. 5.000 içerikle ölçüm yapılmalı. _(Yapıldı. Ölçüm aracı: `node scripts/olcum.js 5000`. 5.000 içerik, 5.000 fikir ve 1.000 görevle sunucu yanıtları 2–70 ms; sık sorguların hepsi indeks kullanıyor, yeni indeks gerekmedi. Bulunan hata: Yönetim Merkezi, Analiz ve rozet sayımları 2.000 içerikte kesiliyordu; düzeltildi. Yönetim Merkezi verisinde tekrarlanan alanlar kaldırıldı. Arşiv 200 satır çizip "Daha fazla göster" diyor. Yönetim Merkezi'nde içerik açmak artık bütün içerikleri yüklemiyor. Liste uç noktası sınır (en çok 10.000) alıyor ve sınıra ulaşınca bunu söylüyor.)_
 - ⬜ **8.10 Görsel küçük resimleri:** Kütüphane ve ızgara tam boy dosyaları yüklüyor; sunucuda küçük resim (ör. 400 px) üretilip önbelleğe alınmalı.
 
 **D. Ürün eksikleri ve yeni özellik önerileri**

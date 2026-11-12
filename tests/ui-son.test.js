@@ -517,3 +517,32 @@ test('8.8 arayüz: marka sayfasında Dışa aktar penceresi; JSON, CSV ve takvim
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.9 arayüz: büyük arşiv 200\'er satır çizilir, "Daha fazla göster" ve filtre ilk sayfaya döner', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Arşiv UI' })).data.brand;
+  const { DatabaseSync } = await import('node:sqlite');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const db = new DatabaseSync(path.join(srv.dataDir, fs.readdirSync(srv.dataDir).find(f => f.endsWith('.db'))));
+  db.exec('BEGIN');
+  const ins = db.prepare("INSERT INTO contents (id, brand_id, title, type, status, scheduled_at, notes, created_at, updated_at) VALUES (?, ?, ?, ?, 'taslak', ?, '', ?, ?)");
+  for (let i = 0; i < 450; i++) { const at = new Date(Date.UTC(2026, 0, 1) + i * 3600e3).toISOString(); ins.run(`c${i}`, b.id, `İçerik ${i}`, i % 2 ? 'post' : 'reels', at, at, at); }
+  db.exec('COMMIT');
+  db.close();
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/arsiv`);
+    const rows = page.locator('#arch-list tbody tr');
+    await rows.first().waitFor();
+    assert.equal(await rows.count(), 200);
+    assert.match(await page.locator('#arch-count').innerText(), /450 içerik/);
+    await page.getByRole('button', { name: 'Daha fazla göster (250 kaldı)' }).click();
+    await page.waitForFunction(() => document.querySelectorAll('#arch-list tbody tr').length === 400);
+    await page.selectOption('#arch-type', 'reels');
+    await page.waitForFunction(() => document.querySelectorAll('#arch-list tbody tr').length === 200);
+    assert.match(await page.locator('#arch-count').innerText(), /225 içerik/);
+    assert.equal(await page.getByRole('button', { name: 'Daha fazla göster (25 kaldı)' }).count(), 1);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
