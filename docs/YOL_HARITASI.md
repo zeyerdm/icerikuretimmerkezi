@@ -315,7 +315,12 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 ## Aşama 10 — Kullanıcının yeni istekleri (3. tur)
 
 **Menü ve varlıklar**
-- ⬜ **10.1 Ayrı dışa aktarma kalkar:** Her üretim kendi yerinden dışa aktarılır (indir ya da Drive'a gönder). Örnek: prompt Prompt Studio'dan, görsel üretildiği yerden. Bu yüzden "Dışa aktar" sayfası ve marka geneli dışa aktarma penceresi kaldırılır. Her üretim ekranında indirme ve Drive'a gönderme düğmesi olup olmadığı kontrol edilir; eksik olanlara eklenir.
+- ✅ **10.1 Ayrı dışa aktarma kalkar:** Yapılanlar:
+  - "Dışa aktar" sayfası (görsel kırpma/sıkıştırma merkezi) ve marka geneli JSON/CSV dışa aktarma kaldırıldı.
+  - Takvim aktarımı (.ics) Takvim sayfasının kendi düğmesine taşındı.
+  - Görseller üretildikleri yerde "İndir" ve "Drive'a gönder" düğmelerini aldı.
+  - Prompt listesi "İndir (.txt)" ve "Drive" düğmelerini aldı.
+  - Post tasarımları ve Reels'te zaten PNG, metin, altyazı, ses ve video indirme ile Drive'a gönderme vardı.
 - ⬜ **10.2 Kütüphane sadeleşir (yalnız sergileme):** Kütüphane şunların durduğu yerdir:
   - Belirlenmiş varlıklar: logolar, maskot pozları.
   - Yapılan tasarımlar.

@@ -7,11 +7,16 @@ import { busyTimer, aiModels, costText } from '../aiPicker.js';
 import { downloadBlob, safeName } from '../titlePng.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 import { ensureThumbs } from '../thumbs.js';
+import { state } from '../app.js';
 
 const money = c => (c ? (c < 0.01 ? '< 0,01 $' : c.toFixed(3).replace('.', ',') + ' $') : '');
 
 // opts: { getPrompt(): string, promptId, aspect, editablePrompt: bool, onCreated(asset) }
+// 10.1: Drive bağlıysa ve markanın klasörü varsa görsel üretildiği yerden Drive'a gönderilir
+const driveFor = brand => Boolean(state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId);
+
 export async function imageBox(box, brand, opts = {}) {
+  const driveOn = () => driveFor(brand);
   if (!box) return;
   let ov;
   try { ov = await api.imageOverview(); } catch (err) { box.innerHTML = `<div class="notice">${esc(err.message)}</div>`; return; }
@@ -79,6 +84,7 @@ export async function imageBox(box, brand, opts = {}) {
       ${g.aspect !== 'kaynak' ? `<button type="button" class="btn btn-sm btn-ghost" data-example="${esc(g.id)}" aria-pressed="${g.example}" title="Tarifi sonraki prompt üretimlerine örnek olarak girer (en çok 3)">${g.example ? '✓ Marka örneği' : '👍 Örnek yap'}</button>` : ''}
       <button type="button" class="btn btn-sm btn-ghost" data-region="${esc(g.id)}">Alanı düzenle</button>
       <button type="button" class="btn btn-sm btn-ghost" data-dl="${esc(g.asset.url)}">İndir</button>
+      ${driveOn() ? `<button type="button" class="btn btn-sm btn-ghost" data-drive-asset="${esc(g.asset.id)}">Drive'a gönder</button>` : ''}
       ${feedbackButtons(g.feedback, 'image', g.id)}
       <label class="check xsmall"><input type="checkbox" data-cmp="${esc(g.id)}" ${compare.has(g.id) ? 'checked' : ''}> Karşılaştır</label></div></figure>`;
   function drawCompareBar() {
@@ -211,6 +217,11 @@ export async function imageBox(box, brand, opts = {}) {
       const sel = gens.filter(g => compare.has(g.id));
       openModal({ title: `Karşılaştır (${sel.length})`, submitLabel: 'Kapat',
         body: `<div class="cmp-grid">${sel.map(g => `<figure><img src="${esc(g.asset.url)}" alt=""><figcaption class="xsmall"><b>${esc(g.modelLabel)}</b> · ${esc(g.aspect)}<div class="muted">${esc(g.prompt.slice(0, 140))}</div></figcaption></figure>`).join('')}</div>`, onSubmit: async () => {} });
+      return;
+    }
+    const dv = e.target.closest('[data-drive-asset]');
+    if (dv) {
+      try { await busy(dv, () => api.sendAssetToDrive(brand.id, dv.dataset.driveAsset)); toast('Görsel markanın Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const dl = e.target.closest('[data-dl]');

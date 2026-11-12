@@ -140,7 +140,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const promptIdentity = createPromptIdentityService({ db, brands });
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
   const brandSetup = createBrandSetupService({ db, brands, memory, identity: promptIdentity, characterBook, assets });
-  const dataExport = createDataExportService({ db, ownerId, brands });
+  const dataExport = createDataExportService({ db, brands });
   const igImport = createIgImportService({ db, brands, workspace });
   const captionSets = createCaptionSetService({ db, brands });
   const errorLog = createErrorLogService({ db, settings, ai });
@@ -519,9 +519,6 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // 8.12 Instagram sonuçlarını içe aktarma (CSV metni gövde olarak; en çok 5 MB)
   api.post('/brands/:brandId/import/instagram/preview', express.text({ type: () => true, limit: '5mb' }), (req, res) => res.json(igImport.preview(req.brand.id, typeof req.body === 'string' ? req.body : '')));
   api.post('/brands/:brandId/import/instagram/apply', (req, res) => res.json(igImport.apply(req.brand.id, (req.body || {}).items)));
-  api.get('/export/types', (req, res) => res.json({ types: dataExport.types }));
-  api.get('/brands/:brandId/export.json', (req, res) => download(res, `${req.brand.name}-${stamp()}.json`, 'application/json; charset=utf-8', JSON.stringify(dataExport.json(req.brand.id), null, 2)));
-  api.get('/brands/:brandId/export/:type.csv', (req, res) => download(res, `${req.brand.name}-${req.params.type}-${stamp()}.csv`, 'text/csv; charset=utf-8', dataExport.csv(req.brand.id, req.params.type)));
   api.get('/brands/:brandId/calendar.ics', (req, res) => download(res, `${req.brand.name}-takvim.ics`, 'text/calendar; charset=utf-8', dataExport.ics(req.brand.id)));
   api.get('/export/calendar.ics', (req, res) => download(res, `icerik-takvimi-${stamp()}.ics`, 'text/calendar; charset=utf-8', dataExport.ics()));
   api.patch('/brands/:brandId', (req, res) => res.json({ brand: brands.update(req.brand.id, req.body || {}) }));

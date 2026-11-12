@@ -141,7 +141,6 @@ export const api = {
   igImportApply: (id, items) => request('POST', `${b(id)}/import/instagram/apply`, { items }),
   errors: () => request('GET', '/api/errors'),
   clearErrors: () => request('DELETE', '/api/errors'),
-  exportTypes: () => request('GET', '/api/export/types'),
   deleteAsset: (id, assetId) => request('DELETE', `${b(id)}/assets/${assetId}`),
 
   ideas: (id, query = '') => request('GET', b(id) + '/ideas' + query),

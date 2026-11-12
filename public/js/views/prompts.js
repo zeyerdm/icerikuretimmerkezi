@@ -2,7 +2,8 @@
 // Her üretim/geliştirme düğmesinin yanında model seçici var; seçilmezse "Metin yazımı" işine atanmış model çalışır.
 import { api } from '../api.js';
 import { openRecipes } from '../recipes.js';
-import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo } from '../ui.js';
+import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo, busy } from '../ui.js';
+import { downloadBlob, safeName } from '../titlePng.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { imageBox } from './imageGen.js';
@@ -82,6 +83,8 @@ export async function renderPrompts(view, brand, sub) {
         <a class="grow prompt-link" href="${base(brand)}/${esc(p.id)}"><div class="strong truncate">${p.favorite ? '★ ' : ''}${p.example ? '<span class="badge" title="Marka örneği: sonraki üretimlere örnek olarak girer">Örnek</span> ' : ''}${esc(p.title)}</div><div class="xsmall muted truncate">${esc(p.text.slice(0, 160))}</div></a>
         <span class="xsmall muted">${timeAgo(p.updatedAt)}</span>
         <button class="btn btn-sm btn-ghost" data-copy="${esc(p.id)}" title="Kopyala">Kopyala</button>
+        <button class="btn btn-sm btn-ghost" data-ptxt="${esc(p.id)}" title="Metin dosyası olarak indir">İndir</button>
+        ${state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId ? `<button class="btn btn-sm btn-ghost" data-pdrive="${esc(p.id)}" title="Markanın Drive klasörüne gönder">Drive</button>` : ''}
       </li>`).join('')}</ul>`
       : emptyState({ icon: 'wand', title: q || filter ? 'Eşleşen prompt yok' : 'Henüz prompt yok', text: q || filter ? 'Aramayı ya da filtreyi değiştir.' : 'Yukarıdan bir tür seçip kısaca ne istediğini yaz.', compact: true });
     box._prompts = prompts;
@@ -105,6 +108,15 @@ export async function renderPrompts(view, brand, sub) {
       filter = f.dataset.filter;
       view.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b === f));
       return loadList();
+    }
+    const px = e.target.closest('[data-ptxt],[data-pdrive]');
+    if (px) {
+      const p = (view.querySelector('#ps-list')._prompts || []).find(x => x.id === (px.dataset.ptxt || px.dataset.pdrive));
+      if (!p) return;
+      const blob = new Blob([p.text], { type: 'text/plain;charset=utf-8' });
+      if (px.dataset.ptxt) return downloadBlob(blob, `${safeName(p.title || 'prompt')}.txt`);
+      try { await busy(px, () => api.driveUpload(brand.id, blob, p.title || 'prompt', 'text/plain')); toast('Prompt Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
+      return;
     }
     const c = e.target.closest('[data-copy]');
     if (c) {

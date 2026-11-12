@@ -28,7 +28,6 @@ import { initDrafts, draftsOnRoute } from './drafts.js';
 import { renderErrors, initClientErrors } from './views/errors.js';
 import { initInspiration } from './inspiration.js';
 import { renderTrash, initTrashUndo } from './views/trash.js';
-import { renderExporter } from './views/exporter.js';
 import { renderDesk } from './views/desk.js';
 import { renderVideo } from './views/video.js';
 import { renderCampaigns } from './views/campaigns.js';
@@ -109,7 +108,6 @@ export const BRAND_NAV = [
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart', group: 'arastirma' },
   { page: 'rapor', path: '/rapor', label: 'Aylık rapor', icon: 'archive', group: 'arastirma' },
   { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image', group: 'varlik' },
-  { page: 'disa', path: '/disa-aktar', label: 'Dışa aktar', icon: 'download', group: 'varlik' },
   { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'varlik' }
 ];
 // U.6: marka menüsü grupları (açılıp kapanır; tercih hatırlanır, açık sayfanın grubu her zaman açık)
@@ -291,7 +289,6 @@ export async function route() {
       else if (r.page === 'post') await renderPosts(view, brand, r.sub);
       else if (r.page === 'prompt') await renderPrompts(view, brand, r.sub);
       else if (r.page === 'rakipler') await renderCompetitors(view, brand);
-      else if (r.page === 'disa') await renderExporter(view, brand);
       else if (r.page === 'video') await renderVideo(view, brand);
       else if (r.page === 'kampanya') await renderCampaigns(view, brand, r.sub);
       else if (r.page === 'youtube') await renderYoutube(view, brand);

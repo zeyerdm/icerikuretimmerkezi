@@ -7,7 +7,7 @@
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, busy, skeletonPage, emptyState } from '../ui.js';
 import { state, refreshBrands, go } from '../app.js';
-import { renderBrandEditor, exportModal } from './brandEditor.js';
+import { renderBrandEditor } from './brandEditor.js';
 import { renderMemory } from './memory.js';
 import { renderPromptIdentity, characterBookCard } from './promptIdentity.js';
 
@@ -18,18 +18,17 @@ export function identityHead(brand, active, desc) {
   return pageHead({
     title: 'Marka kimliği',
     desc: desc || `${esc(brand.name)} hakkında yapay zekânın bildiği her şey tek yerde. Burada yazdıkların bütün üretimlere (asistan, Reels, post, prompt, denetçi) kendiliğinden girer.`,
-    actions: `<a class="btn" href="${base}/kurulum">${icon('wand')}Kurulum sihirbazı</a><button type="button" class="btn" data-id-action="export">${icon('download')}Dışa aktar</button><button type="button" class="btn btn-danger" data-id-action="delete">${icon('trash')}Markayı sil</button>`
+    actions: `<a class="btn" href="${base}/kurulum">${icon('wand')}Kurulum sihirbazı</a><button type="button" class="btn btn-danger" data-id-action="delete">${icon('trash')}Markayı sil</button>`
   }) + `<nav class="tabs id-tabs" aria-label="Marka kimliği bölümleri">${ID_TABS.map(([k, p, l]) => `<a href="${base}${p}" class="${k === active ? 'active' : ''}"${k === active ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
 }
 
-// Başlıktaki Dışa aktar / Markayı sil (başlık her çizimde yeniden oluşur; dinleyici birikmez)
+// Başlıktaki Markayı sil (başlık her çizimde yeniden oluşur; dinleyici birikmez)
 export function bindIdentityActions(view, brand) {
   const head = view.querySelector('.page-head');
   if (!head) return;
   head.addEventListener('click', async e => {
     const t = e.target.closest('[data-id-action]');
     if (!t) return;
-    if (t.dataset.idAction === 'export') return exportModal(brand);
     if (!confirm(`"${brand.name}" markası; fikirleri, dosyaları, takvim içerikleri, görevleri, notları ve sohbet geçmişiyle birlikte kalıcı olarak silinsin mi?`)) return;
     try {
       await api.deleteBrand(brand.id);
