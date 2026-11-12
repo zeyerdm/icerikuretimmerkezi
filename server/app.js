@@ -45,6 +45,7 @@ import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
 import { createMemoryService } from './services/memory.js';
+import { createBrandSetupService } from './services/brandSetup.js';
 import { createSharedTemplateService } from './services/sharedTemplates.js';
 import { createPatternService } from './services/patterns.js';
 import { createCompetitorService } from './services/competitors.js';
@@ -138,6 +139,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
+  const brandSetup = createBrandSetupService({ db, brands, memory, identity: promptIdentity, characterBook, assets });
   const dataExport = createDataExportService({ db, ownerId, brands });
   const igImport = createIgImportService({ db, brands, workspace });
   const captionSets = createCaptionSetService({ db, brands });
@@ -705,6 +707,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/images/template', route(async (req, res) => res.status(201).json(await imageTemplates.run(req.brand.id, req.body || {}))));
   // Alan düzenleme: gövde işaretli görselin kendisi (PNG/JPEG), diğerleri adres parametresi
   api.post('/brands/:brandId/images/edit', express.raw({ type: () => true, limit: MAX_ASSET_BYTES }), route(async (req, res) => res.status(201).json(await images.editRegion(req.brand.id, { assetId: String(req.query.assetId || ''), marked: req.body, instruction: String(req.query.instruction || ''), modelRef: req.query.model ? String(req.query.model) : null }))));
+
+  // --- 9.3–9.9 Tek akışta marka kurulumu ve Marka dosyası ---
+  api.get('/brands/:brandId/setup', (req, res) => res.json(brandSetup.dossier(req.brand.id)));
+  api.put('/brands/:brandId/setup/:step', (req, res) => res.json(brandSetup.save(req.brand.id, req.params.step, req.body || {})));
 
   // --- 7.2 Marka prompt kimliği ---
   api.get('/brands/:brandId/prompt-identity', (req, res) => res.json({ identity: promptIdentity.get(req.brand.id), questions: promptIdentity.questions }));

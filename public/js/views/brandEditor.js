@@ -3,9 +3,10 @@ import { api } from '../api.js';
 import { imageBox } from './imageGen.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy, openModal } from '../ui.js';
-import { state, refreshBrands, go, renderChrome } from '../app.js';
+import { state, refreshBrands, go } from '../app.js';
 import { INSPIRATION_NOTE, takeLibraryCategory } from '../inspiration.js';
 import { ensureThumbs } from '../thumbs.js';
+import { identityHead, bindIdentityActions } from './identity.js';
 
 const LONG_FIELDS = new Set(['description', 'audience', 'character', 'tone', 'goals', 'competitors']);
 const PLACEHOLDERS = {
@@ -43,17 +44,13 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   let dirty = false;
 
   function shell() {
-    view.innerHTML = `
-      ${pageHead({
-        title: isNew ? 'Yeni marka' : brand.name,
-        desc: isNew ? 'Kimliği bir kez tanımla; bütün üretimler buna göre yapılsın.' : 'Dijital kimlik: asistan ve üretim araçları bu bilgileri kullanır.',
-        actions: isNew ? '' : `<button class="btn" data-action="export">${icon('download')}Dışa aktar</button><button class="btn btn-danger" data-action="delete">${icon('trash')}Markayı sil</button>`
-      })}
-      ${isNew ? '' : `<div class="tabs" role="tablist">
-        ${[['profil', 'Marka profili'], ['gorsel', 'Görsel kimlik'], ['varliklar', 'Varlık kütüphanesi']].map(([id, label]) =>
-          `<button role="tab" data-tab="${id}" class="${tab === id ? 'active' : ''}" aria-selected="${tab === id}">${label}</button>`).join('')}
-      </div>`}
-      <div id="tab-body"></div>`;
+    // Profil ve Görsel kimlik, Marka kimliği sayfasının sekmeleri; Kütüphane kendi sayfası
+    view.innerHTML = isNew
+      ? `${pageHead({ title: 'Yeni marka', desc: 'Kimliği bir kez tanımla; bütün üretimler buna göre yapılsın.' })}<div id="tab-body"></div>`
+      : tab === 'varliklar'
+        ? `${pageHead({ title: 'Kütüphane', desc: `${esc(brand.name)} markasının logoları, maskot pozları, görselleri ve referansları.` })}<div id="tab-body"></div>`
+        : `${identityHead(brand, tab)}<div id="tab-body"></div>`;
+    if (!isNew && tab !== 'varliklar') bindIdentityActions(view, brand);
     renderTab();
   }
 
@@ -165,7 +162,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         const { brand: created } = await api.createBrand(payload);
         await refreshBrands();
         toast('Marka oluşturuldu.', 'success');
-        go('#/m/' + created.id + '/kimlik/gorsel');
+        go('#/m/' + created.id + '/kimlik/kurulum');
         return;
       }
       const { brand: saved } = await api.updateBrand(brand.id, payload);
@@ -237,17 +234,20 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   };
 
   view.onclick = async e => {
+    // Profil ↔ Görsel kimlik aynı düzenleyicide: sekme değişince yazılanlar (kaydedilmemiş olsa da) kaybolmaz
+    const link = e.target.closest('.id-tabs a');
+    const m = link && !isNew && tab !== 'varliklar' && link.getAttribute('href').match(/\/kimlik\/(profil|gorsel)$/);
+    if (m) {
+      e.preventDefault();
+      if (m[1] === tab) return;
+      tab = m[1];
+      history.replaceState(null, '', link.getAttribute('href'));
+      shell();
+      return;
+    }
     const t = e.target.closest('button');
     if (!t) return;
-    if (t.dataset.tab) {
-      if (t.dataset.tab === tab) return;
-      if (dirty && !confirm('Kaydedilmemiş değişiklikler var. Kaydetmeden sekme değiştirilsin mi? Değişiklikler bu sayfada kalır, kaydetmeyi unutma.')) return;
-      tab = t.dataset.tab;
-      // Sekme adresi değişir ama sayfa yeniden yüklenmez (kaydedilmemiş değişiklikler korunur)
-      history.replaceState(null, '', `#/m/${brand.id}${{ profil: '/kimlik', gorsel: '/kimlik/gorsel', varliklar: '/kutuphane' }[tab]}`);
-      renderChrome();
-      shell();
-    } else if (t.dataset.action === 'save') save(t);
+    if (t.dataset.action === 'save') save(t);
     else if (t.dataset.action === 'drive-test') {
       if (draft.driveFolder.trim() !== brand.driveFolder) return toast('Önce Kaydet\'e bas; sonra bağlantıyı test et.', 'error');
       t.disabled = true;
@@ -263,15 +263,6 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     } else if (t.dataset.removeColor) {
       draft.colors[t.dataset.removeColor].splice(Number(t.dataset.index), 1);
       markDirty(); renderTab();
-    } else if (t.dataset.action === 'export') exportModal(brand);
-    else if (t.dataset.action === 'delete') {
-      if (!confirm(`"${brand.name}" markası; fikirleri, dosyaları, takvim içerikleri, görevleri, notları ve sohbet geçmişiyle birlikte kalıcı olarak silinsin mi?`)) return;
-      try {
-        await api.deleteBrand(brand.id);
-        await refreshBrands();
-        toast('Marka silindi.', 'success');
-        go('#/markalar');
-      } catch (err) { toast(err.message, 'error'); }
     }
   };
 
@@ -502,7 +493,7 @@ async function templateBox(box, brand, refresh) {
 }
 
 // 8.8 Veri dışa aktarma: bütün kayıtlar (JSON), tür tür tablo (CSV, Excel'de açılır), takvim (.ics)
-async function exportModal(brand) {
+export async function exportModal(brand) {
   let types = {};
   try { types = (await api.exportTypes()).types; } catch (err) { return toast(err.message, 'error'); }
   const base = `/api/brands/${encodeURIComponent(brand.id)}`;

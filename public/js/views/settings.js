@@ -95,7 +95,7 @@ export async function renderSettings(view) {
       </section>
       <section class="card" id="drive-card">
         <div class="card-head"><h3>Google Drive</h3>${drive.configured ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn"><span class="dot"></span>Bağlı değil</span>'}</div>
-        <p class="card-text">Her markanın dosyaları kendi Drive klasörüne gönderilir (klasör linkini markanın <b>Dijital kimlik → Marka profili</b> sayfasında girersin). Bunun için kendi Google hesabında bir kez küçük bir Apps Script yayınlaman gerekiyor; Google Cloud hesabı gerekmez.</p>
+        <p class="card-text">Her markanın dosyaları kendi Drive klasörüne gönderilir (klasör linkini markanın <b>Marka kimliği → Profil</b> sayfasında girersin). Bunun için kendi Google hesabında bir kez küçük bir Apps Script yayınlaman gerekiyor; Google Cloud hesabı gerekmez.</p>
         ${drive.configured ? `<dl class="kv mt-3"><dt>Apps Script</dt><dd><code>${esc(drive.urlHint)}</code></dd></dl>` : ''}
         <details class="disclosure" ${drive.configured ? '' : 'open'}>
           <summary>${drive.configured ? 'Kurulum adımları ve kod' : 'Kurulum (bir kez, yaklaşık 3 dakika)'}</summary>
@@ -162,7 +162,7 @@ export async function renderSettings(view) {
     try {
       const r = await api.saveDrive(input.value);
       await renderSettings(view);
-      view.querySelector('#drive-result').innerHTML = `<div class="notice notice-ok"><div><strong>Google Drive bağlandı.</strong> ${r.rootFolder ? esc(r.rootFolder) + ' erişilebilir. ' : ''}Şimdi markanın Dijital kimlik sayfasından Drive klasör linkini ekleyebilirsin.</div></div>`;
+      view.querySelector('#drive-result').innerHTML = `<div class="notice notice-ok"><div><strong>Google Drive bağlandı.</strong> ${r.rootFolder ? esc(r.rootFolder) + ' erişilebilir. ' : ''}Şimdi markanın Marka kimliği → Profil sayfasından Drive klasör linkini ekleyebilirsin.</div></div>`;
     } catch (err) {
       out.innerHTML = `<div class="notice notice-error"><div><strong>Bağlanılamadı.</strong> ${esc(err.message)}</div></div>`;
     } finally { btn.disabled = false; }

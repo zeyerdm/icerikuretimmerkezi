@@ -107,7 +107,7 @@ export async function renderHome(view, brand) {
 function demoGuide(brand, aiReady) {
   const id = esc(brand.id);
   const steps = [
-    ['1', 'Marka kimliğini incele', 'Hedef kitle, iletişim dili, karakter: asistan her yanıtta bunları kullanır.', `<a class="btn btn-sm" href="#/m/${id}/kimlik">Profili aç</a>`],
+    ['1', 'Marka kimliğini incele', 'Hedef kitle, iletişim dili, karakter: asistan her yanıtta bunları kullanır.', `<a class="btn btn-sm" href="#/m/${id}/kimlik">Marka dosyasını aç</a>`],
     ['2', 'Renk ve fontlara bak', 'Canlı önizlemede bir rengi değiştir, post nasıl değişiyor gör.', `<a class="btn btn-sm" href="#/m/${id}/kimlik/gorsel">Görsel kimlik</a>`],
     ['3', 'Logo ve maskot pozları', '"Çekirdek" maskotunun pozları ve logo varlık kütüphanesinde.', `<a class="btn btn-sm" href="#/m/${id}/kutuphane">Kütüphane</a>`],
     ['4', 'Asistandan fikir iste', aiReady ? 'Dene\'ye bas: hazır bir istek gönderilir, fikirler bu markanın diliyle üretilip kaydedilir.' : 'Önce Yapay zekâ sayfasından bir sağlayıcı bağla, sonra asistana yaz.',
@@ -127,7 +127,7 @@ function identityCard(brand, overview) {
   const colors = [brand.colors.primary, ...brand.colors.secondary].filter(Boolean);
   return `
     <section class="card">
-      <div class="card-head"><h3>Dijital kimlik</h3>${colors.length ? `<div class="swatches">${colors.slice(0, 5).map(col => `<span class="swatch" style="background:${esc(col)}" title="${esc(col)}"></span>`).join('')}</div>` : ''}</div>
+      <div class="card-head"><h3>Marka kimliği</h3>${colors.length ? `<div class="swatches">${colors.slice(0, 5).map(col => `<span class="swatch" style="background:${esc(col)}" title="${esc(col)}"></span>`).join('')}</div>` : ''}</div>
       <div class="identity">
         ${ring(c.percent, 64)}
         <div class="grow">
@@ -184,8 +184,8 @@ function actionHtml(a, brand) {
   if (a.type === 'create_prompt') return box(`✓ ${esc(a.kindLabel || '')} prompt'u yazıldı: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/prompt/${esc(a.id)}">Prompt'u aç</a>`);
   if (a.type === 'create_image') return box(`✓ Görsel üretildi (${esc(a.modelLabel)}), kütüphaneye kaydedildi`, `<a href="${esc(a.asset.url)}" target="_blank" rel="noopener"><img class="act-img" src="${esc(a.asset.url)}" alt=""></a><a class="small" href="${m}/kutuphane">Kütüphaneyi aç</a>`);
   if (a.type === 'plan_content') return box(`✓ ${a.items.length} içerik takvime eklendi`, li(a.items.map(c => `<li>${esc(c.title)} <span class="muted small">· ${esc(c.typeLabel)}${c.scheduledAt ? ' · ' + esc(new Date(c.scheduledAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) : ''}</span></li>`)) + `<a class="small" href="${m}/takvim">Takvimi aç</a>`);
-  if (a.type === 'remember') return box(`✓ Hafızaya kaydedildi: ${esc(a.fact.title)} <span class="muted small">· ${esc(a.fact.categoryLabel)}</span>`, `<a class="small" href="${m}/hafiza">Hafızayı aç</a>`);
-  if (a.type === 'forbid_words') return box(`✓ Yasaklı listeye eklendi: ${esc(a.words.join(', '))}`, `<a class="small" href="${m}/hafiza">Hafızayı aç</a>`);
+  if (a.type === 'remember') return box(`✓ Hafızaya kaydedildi: ${esc(a.fact.title)} <span class="muted small">· ${esc(a.fact.categoryLabel)}</span>`, `<a class="small" href="${m}/kimlik/ses">Hafızayı aç</a>`);
+  if (a.type === 'forbid_words') return box(`✓ Yasaklı listeye eklendi: ${esc(a.words.join(', '))}`, `<a class="small" href="${m}/kimlik/ses">Hafızayı aç</a>`);
   if (a.type === 'add_task') return box(`✓ Görev eklendi: ${esc(a.task.title)}${a.task.dueDate ? ` <span class="muted small">· son tarih ${esc(a.task.dueDate)}</span>` : ''}`, '<a class="small" href="#/gorevler">Görevleri aç</a>');
   return '';
 }

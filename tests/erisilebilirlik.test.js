@@ -30,7 +30,7 @@ test('8.17 bütün sayfalar ve sık pencereler WCAG 2.1 AA taramasından geçer'
     const b = (await s.request('GET', '/api/brands')).data.brands[0];
     const y = (await s.request('POST', '/api/brands', { name: 'Sarı marka', colors: { primary: '#f6c90e' } })).data.brand;
     const pages = ['#/', '#/markalar', '#/masa', '#/analizler', '#/ai', '#/ai/modeller', '#/ai/harcama', '#/ayarlar', '#/cop', '#/marka/yeni',
-      ...['', '/kimlik', '/hafiza', '/prompt-kimligi', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane', '/video'].map(p => `#/m/${b.id}${p}`),
+      ...['', '/kimlik', '/kimlik/profil', '/kimlik/gorsel', '/kimlik/ses', '/kimlik/prompt', '/kimlik/maskot', '/kimlik/kurulum/yapi', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane', '/video'].map(p => `#/m/${b.id}${p}`),
       `#/m/${y.id}`, `#/m/${y.id}/fikirler`];
     const page = await (await browser.newContext({ bypassCSP: true, viewport: { width: 1280, height: 800 } })).newPage();
     const found = [];

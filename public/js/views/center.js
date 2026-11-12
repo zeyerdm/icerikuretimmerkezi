@@ -127,8 +127,8 @@ export async function renderCenter(view) {
     try {
       const { brand } = await busy(e.submitter || onboard.querySelector('[type=submit]'), () => api.createBrand({ name: fd.get('name'), sector: fd.get('sector') }));
       await refreshBrands();
-      toast('Marka oluşturuldu. Şimdi kimliğini tamamlayalım.', 'success');
-      go('#/m/' + brand.id + '/kimlik');
+      toast('Marka oluşturuldu. Şimdi kimliğini adım adım kuralım.', 'success');
+      go('#/m/' + brand.id + '/kimlik/kurulum');
     } catch (err) { toast(err.message, 'error'); }
   });
   const demoBtn = view.querySelector('#demo-btn');

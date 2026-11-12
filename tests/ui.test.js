@@ -46,16 +46,19 @@ test('ilk açılış: yönetim merkezi → marka oluştur → kimlik → kütüp
     await page.getByLabel('Sektör').fill('Kafe');
     await page.getByRole('button', { name: 'Oluştur' }).click();
 
-    // Marka çalışma alanında dijital kimlik
-    await page.getByRole('heading', { name: 'Kahve Durağı' }).waitFor();
-    assert.match(page.url(), /#\/m\/[^/]+\/kimlik$/);
+    // Yeni marka kurulum sihirbazıyla açılır (ilk adım: adı ve sektörü dolu); kimlik Marka kimliği sayfasında
+    await page.waitForURL(/#\/m\/[^/]+\/kimlik\/kurulum\/temel$/);
+    assert.equal(await page.getByLabel('Marka adı *').inputValue(), 'Kahve Durağı');
     assert.ok(await page.getByRole('link', { name: 'Yönetim Merkezine dön' }).isVisible());
+    await page.getByRole('link', { name: 'Marka kimliği' }).first().click();
+    await page.getByRole('link', { name: 'Profil', exact: true }).click();
+    await page.waitForURL(/#\/m\/[^/]+\/kimlik\/profil$/);
     await page.getByLabel('Hedef kitle').fill('Üniversite öğrencileri');
     await page.getByLabel('Marka sloganı').fill('Her yudum bir mola');
     await page.getByRole('button', { name: 'Kaydet' }).click();
     await page.getByText('Tüm değişiklikler kayıtlı').waitFor();
 
-    await page.getByRole('tab', { name: 'Görsel kimlik' }).click();
+    await page.getByRole('link', { name: 'Görsel kimlik' }).click();
     assert.match(page.url(), /\/kimlik\/gorsel$/);
     await page.locator('[data-hex="primary"]').fill('#aa3300');
     await page.getByLabel('Başlık fontu').selectOption('Poppins');
@@ -380,7 +383,7 @@ test('Google Drive: ayarlardan bağlan, markaya klasör linki ekle, test et, kü
     await page.locator('.asset').first().waitFor();
     assert.equal(await page.getByRole('button', { name: 'Drive\'a gönder' }).count(), 0);
 
-    await page.goto(srv.base + `/#/m/${brand.id}/kimlik`);
+    await page.goto(srv.base + `/#/m/${brand.id}/kimlik/profil`);
     await page.getByLabel('Google Drive klasörü').fill(`https://drive.google.com/drive/folders/${FOLDER}?usp=sharing`);
     await page.getByRole('button', { name: 'Kaydet' }).click();
     await page.getByText('Tüm değişiklikler kayıtlı').waitFor();
