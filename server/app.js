@@ -23,6 +23,7 @@ import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
 import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
+import { createDataExportService } from './services/dataExport.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
@@ -130,6 +131,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
+  const dataExport = createDataExportService({ db, ownerId, brands });
   const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
   const compare = createCompareService({ db, ai, brands, prompts });
@@ -479,6 +481,20 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     res.json({ brand: req.brand, completeness: identityCompleteness(req.brand, counts), assetCounts: counts });
   });
 
+  // 8.8 Veri dışa aktarma (JSON, CSV, .ics); indirme olarak verilir
+  const download = (res, name, type, body) => {
+    const ascii = name.replace(/ı/g, 'i').replace(/İ/g, 'I').normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^\w.-]+/g, '-');
+    res.setHeader('Content-Type', type);
+    res.setHeader('Content-Disposition', `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(body);
+  };
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  api.get('/export/types', (req, res) => res.json({ types: dataExport.types }));
+  api.get('/brands/:brandId/export.json', (req, res) => download(res, `${req.brand.name}-${stamp()}.json`, 'application/json; charset=utf-8', JSON.stringify(dataExport.json(req.brand.id), null, 2)));
+  api.get('/brands/:brandId/export/:type.csv', (req, res) => download(res, `${req.brand.name}-${req.params.type}-${stamp()}.csv`, 'text/csv; charset=utf-8', dataExport.csv(req.brand.id, req.params.type)));
+  api.get('/brands/:brandId/calendar.ics', (req, res) => download(res, `${req.brand.name}-takvim.ics`, 'text/calendar; charset=utf-8', dataExport.ics(req.brand.id)));
+  api.get('/export/calendar.ics', (req, res) => download(res, `icerik-takvimi-${stamp()}.ics`, 'text/calendar; charset=utf-8', dataExport.ics()));
   api.patch('/brands/:brandId', (req, res) => res.json({ brand: brands.update(req.brand.id, req.body || {}) }));
 
   api.delete('/brands/:brandId', (req, res) => {

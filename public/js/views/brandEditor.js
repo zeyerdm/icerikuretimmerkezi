@@ -46,7 +46,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       ${pageHead({
         title: isNew ? 'Yeni marka' : brand.name,
         desc: isNew ? 'Kimliği bir kez tanımla; bütün üretimler buna göre yapılsın.' : 'Dijital kimlik: asistan ve üretim araçları bu bilgileri kullanır.',
-        actions: isNew ? '' : `<button class="btn btn-danger" data-action="delete">${icon('trash')}Markayı sil</button>`
+        actions: isNew ? '' : `<button class="btn" data-action="export">${icon('download')}Dışa aktar</button><button class="btn btn-danger" data-action="delete">${icon('trash')}Markayı sil</button>`
       })}
       ${isNew ? '' : `<div class="tabs" role="tablist">
         ${[['profil', 'Marka profili'], ['gorsel', 'Görsel kimlik'], ['varliklar', 'Varlık kütüphanesi']].map(([id, label]) =>
@@ -262,7 +262,8 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     } else if (t.dataset.removeColor) {
       draft.colors[t.dataset.removeColor].splice(Number(t.dataset.index), 1);
       markDirty(); renderTab();
-    } else if (t.dataset.action === 'delete') {
+    } else if (t.dataset.action === 'export') exportModal(brand);
+    else if (t.dataset.action === 'delete') {
       if (!confirm(`"${brand.name}" markası; fikirleri, dosyaları, takvim içerikleri, görevleri, notları ve sohbet geçmişiyle birlikte kalıcı olarak silinsin mi?`)) return;
       try {
         await api.deleteBrand(brand.id);
@@ -495,4 +496,28 @@ async function templateBox(box, brand, refresh) {
       }
     });
   });
+}
+
+// 8.8 Veri dışa aktarma: bütün kayıtlar (JSON), tür tür tablo (CSV, Excel'de açılır), takvim (.ics)
+async function exportModal(brand) {
+  let types = {};
+  try { types = (await api.exportTypes()).types; } catch (err) { return toast(err.message, 'error'); }
+  const base = `/api/brands/${encodeURIComponent(brand.id)}`;
+  const m = openModal({
+    title: 'Dışa aktar', submitLabel: 'Kapat',
+    body: `<p class="small muted mb-3">${esc(brand.name)} markasının kayıtları bilgisayarına iner. Görsel dosyaları ve API anahtarları dosyalara girmez.</p>
+      <div class="stack-sm">
+        <div class="row"><a class="btn" id="ex-json" href="${base}/export.json" download>${icon('download')}Bütün kayıtlar (JSON)</a><span class="xsmall muted">Fikir, senaryo, takvim, not, görev, prompt, tasarım…</span></div>
+        <div class="row"><select class="select w-auto" id="ex-type" aria-label="Tablo türü">${Object.entries(types).map(([k, v]) => `<option value="${esc(k)}" ${k === 'contents' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
+          <a class="btn" id="ex-csv" download>${icon('download')}Tablo (CSV)</a><span class="xsmall muted">Excel ve Google E-Tablolar'da açılır</span></div>
+        <div class="row"><a class="btn" id="ex-ics" href="${base}/calendar.ics" download>${icon('calendar')}Takvim (.ics)</a><a class="btn btn-ghost" href="/api/export/calendar.ics" download>Bütün markaların takvimi</a></div>
+        <p class="xsmall muted">.ics dosyasını Google Takvim'de Ayarlar → İçe aktar, Outlook'ta Dosya → Aç ve Dışarı Aktar → İçeri Aktar ile ekleyebilirsin.</p>
+      </div>`,
+    onSubmit: () => {}
+  });
+  const sel = m.form.querySelector('#ex-type');
+  const link = m.form.querySelector('#ex-csv');
+  const upd = () => { link.href = `${base}/export/${encodeURIComponent(sel.value)}.csv`; };
+  sel.addEventListener('change', upd);
+  upd();
 }

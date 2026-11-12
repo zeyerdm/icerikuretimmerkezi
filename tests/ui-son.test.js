@@ -498,3 +498,22 @@ test('8.5 arayüz: üretim öncesi tahmini tutar, sahne sayısıyla değişir; b
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.8 arayüz: marka sayfasında Dışa aktar penceresi; JSON, CSV ve takvim bağlantıları iner', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Aktar UI' })).data.brand;
+  await srv.request('POST', '/api/contents', { brandId: b.id, title: 'Reels', type: 'reels', scheduledAt: '2026-11-20T09:30:00.000Z' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
+    await page.locator('[data-action="export"]').click();
+    await page.locator('#ex-type').waitFor();
+    await page.selectOption('#ex-type', 'ideas');
+    assert.equal(await page.locator('#ex-csv').getAttribute('href'), `/api/brands/${b.id}/export/ideas.csv`);
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('#ex-ics').click()]);
+    assert.equal(dl.suggestedFilename(), 'Aktar UI-takvim.ics', 'tarayıcı UTF-8 adını kullanır');
+    const text = await (await import('node:fs')).promises.readFile(await dl.path(), 'utf8');
+    assert.match(text, /SUMMARY:Reels · Reels/);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
