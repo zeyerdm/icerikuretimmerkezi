@@ -426,8 +426,8 @@ async function renderAssets(body, brand, driveOk) {
   function wireGrid() {
     body.querySelectorAll('[data-pack]').forEach(b => b.addEventListener('click', () => { packFilter = b.dataset.pack; draw(); }));
     body.querySelectorAll('[data-pack-delete]').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm(`"${b.dataset.packDelete}" paketindeki bütün dosyalar silinsin mi?`)) return;
-      try { const r = await api.deleteAssetPack(brand.id, b.dataset.packDelete); toast(`${r.removed} dosya silindi.`, 'success'); packFilter = ''; await refreshBrands(); draw(); } catch (err) { toast(err.message, 'error'); }
+      if (!confirm(`"${b.dataset.packDelete}" paketindeki bütün dosyalar çöp kutusuna taşınsın mı? 30 gün içinde geri alabilirsin.`)) return;
+      try { const r = await api.deleteAssetPack(brand.id, b.dataset.packDelete); toast(`${r.removed} dosya çöp kutusuna taşındı (Ayarlar → Çöp kutusu).`, 'success'); packFilter = ''; await refreshBrands(); draw(); } catch (err) { toast(err.message, 'error'); }
     }));
     body.querySelectorAll('[data-asset-role]').forEach(sel => sel.addEventListener('change', async () => {
       try { await api.updateAsset(brand.id, sel.dataset.assetRole, { refRole: sel.value }); toast('Referans rolü kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
@@ -463,7 +463,7 @@ async function renderAssets(body, brand, driveOk) {
       draw();
     });
     body.querySelectorAll('[data-asset-delete]').forEach(btn => btn.addEventListener('click', async () => {
-      if (!confirm('Bu dosya silinsin mi?')) return;
+      if (!confirm('Bu dosya çöp kutusuna taşınsın mı? 30 gün içinde geri alabilirsin.')) return;
       try { await api.deleteAsset(brand.id, btn.dataset.assetDelete); await refreshBrands(); draw(); } catch (err) { toast(err.message, 'error'); }
     }));
   }

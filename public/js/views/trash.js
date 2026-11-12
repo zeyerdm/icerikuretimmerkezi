@@ -4,7 +4,7 @@ import { esc, icon, toast, pageHead, emptyState, timeAgo } from '../ui.js';
 import { route } from '../app.js';
 
 // Silinen kaydın geri alınınca açılacak yeri (marka sayfası) bulmak için
-const PLACE = { idea: '/fikirler', post: '/post', prompt: '/prompt', reels: '/reels', competitor: '/rakipler', pattern: '/reels/kaliplar', content: '/takvim' };
+const PLACE = { idea: '/fikirler', post: '/post', prompt: '/prompt', reels: '/reels', competitor: '/rakipler', pattern: '/reels/kaliplar', content: '/takvim', asset: '/kutuphane' };
 
 export function initTrashUndo() {
   document.addEventListener('ium:trashed', e => {
@@ -24,7 +24,7 @@ export function initTrashUndo() {
 export async function renderTrash(view) {
   const { items, days } = await api.trash();
   view.innerHTML = `
-    ${pageHead({ title: 'Çöp kutusu', desc: `Silinen fikir, not, görev, takvim içeriği, tasarım, prompt, Reels senaryosu, kalıp ve rakip kayıtları ${days} gün burada durur, sonra kendiliğinden silinir. Kütüphane dosyaları çöp kutusuna gelmez.`,
+    ${pageHead({ title: 'Çöp kutusu', desc: `Silinen fikir, not, görev, takvim içeriği, tasarım, prompt, Reels senaryosu, kalıp, rakip ve kütüphane görselleri ${days} gün burada durur, sonra kendiliğinden silinir.`,
       actions: items.length ? `<button class="btn btn-danger" data-empty>${icon('trash')}Çöp kutusunu boşalt</button>` : '' })}
     ${items.length ? `<div class="card"><div class="trash-list">${items.map(t => `
       <div class="trash-item">
