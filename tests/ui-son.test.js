@@ -580,3 +580,25 @@ test('8.11 arayüz: içerik kartında onaya gönder, düzeltme iste, açık adı
     assert.deepEqual(problems.filter(p => !/status of (400|409)/.test(p)), []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.12 arayüz: arşivde Instagram CSV\'si yüklenir, eşleşmeler gösterilir, kaydedilince sonuçlar içeriğe yazılır', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'IG UI' })).data.brand;
+  const c = (await srv.request('POST', '/api/contents', { brandId: b.id, title: 'Latte', type: 'reels', scheduledAt: new Date(2026, 10, 3, 10, 0).toISOString() })).data.content;
+  const csv = 'Description,Publish time,Views,Likes,Comments,Saves,Shares\nLatte günü,11/03/2026 10:15,2000,100,10,20,5\nBaşka,10/01/2026 09:00,5,1,0,0,0\n';
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/arsiv`);
+    await page.locator('[data-ig]').click();
+    await page.locator('#ig-file').setInputFiles({ name: 'instagram.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+    await page.locator('#ig-preview', { hasText: '1 / 2 satır eşleşti' }).waitFor();
+    assert.equal(await page.locator('[data-ig-row="0"]').inputValue(), c.id);
+    assert.equal(await page.locator('[data-ig-row="1"]').inputValue(), '');
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.toast', { hasText: '1 içeriğe paylaşım sonuçları yazıldı' }).waitFor();
+    const g = (await srv.request('GET', `/api/contents/${c.id}`)).data.content;
+    assert.equal(g.metrics.views, 2000);
+    await page.locator('#arch-list', { hasText: 'etkileşim %' }).waitFor();
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
