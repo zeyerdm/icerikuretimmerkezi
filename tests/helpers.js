@@ -40,7 +40,7 @@ export async function startServer(options = {}) {
   return {
     base, dataDir, request,
     async stop() {
-      await new Promise(resolve => server.close(resolve));
+      await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
       close();
       fs.rmSync(dataDir, { recursive: true, force: true });
     }

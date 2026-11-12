@@ -32,3 +32,28 @@ export function parseJsonOutput(label, text) {
 
 // Uzun Reels senaryoları özenli modellerde 1-2 dakika sürebilir
 export const TIMEOUT_MS = 180000;
+
+// 8.4 İptal ve akış yardımcıları
+export const cancelled = () => aiError('AI_CANCELLED', 'Üretim iptal edildi.', { status: 499 });
+// Zaman aşımı + (varsa) kullanıcının iptal sinyali
+export const requestSignal = signal => (signal ? AbortSignal.any([AbortSignal.timeout(TIMEOUT_MS), signal]) : AbortSignal.timeout(TIMEOUT_MS));
+// Server-Sent Events gövdesini satır satır okur; her "data:" satırının içeriğini verir
+export async function* sseData(res, signal) {
+  const decoder = new TextDecoder();
+  let buf = '';
+  try {
+    for await (const chunk of res.body) {
+      buf += decoder.decode(chunk, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).replace(/\r$/, '');
+        buf = buf.slice(i + 1);
+        if (line.startsWith('data:')) yield line.slice(5).trim();
+      }
+    }
+    if (buf.startsWith('data:')) yield buf.slice(5).trim();
+  } catch (err) {
+    if (signal && signal.aborted) throw cancelled();
+    throw aiError('AI_UNAVAILABLE', 'Yanıt akışı yarıda kesildi.', { retryable: true, transient: true });
+  }
+}

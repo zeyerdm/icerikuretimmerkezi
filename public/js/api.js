@@ -31,6 +31,48 @@ async function request(method, url, body, headers = {}) {
   return data;
 }
 
+// 8.4 Akışlı istek: sunucu metni parça parça (SSE) gönderir; signal ile iptal edilir. Sonuç normal istekle aynıdır.
+export async function streamRequest(method, url, body, { onDelta = () => {}, onReset = () => {}, signal } = {}) {
+  const cancelled = () => new ApiError(499, 'AI_CANCELLED', 'Üretim iptal edildi.');
+  let res;
+  try {
+    res = await fetch(url + (url.includes('?') ? '&' : '?') + 'stream=1', { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal });
+  } catch {
+    if (signal && signal.aborted) throw cancelled();
+    throw new ApiError(0, 'NETWORK', 'Sunucuya ulaşılamadı. Uygulama çalışıyor mu? (npm start)');
+  }
+  if (!(res.headers.get('content-type') || '').includes('text/event-stream')) {
+    const data = await res.json().catch(() => null);
+    if (!res.ok) { const e = (data && data.error) || {}; throw new ApiError(res.status, e.code || 'ERROR', e.message || 'İstek başarısız oldu.'); }
+    return data;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const block = buf.slice(0, i); buf = buf.slice(i + 2);
+        const ev = (/^event: (.+)$/m.exec(block) || [])[1];
+        const raw = (/^data: (.*)$/m.exec(block) || [])[1];
+        const data = raw ? JSON.parse(raw) : {};
+        if (ev === 'delta') onDelta(data.t || '');
+        else if (ev === 'reset') onReset();
+        else if (ev === 'done') { if (data.status >= 400) throw new ApiError(data.status, 'ERROR', 'İstek başarısız oldu.'); return data.body; }
+        else if (ev === 'error') { const e = data.error || {}; throw new ApiError(data.status || 500, e.code || 'ERROR', e.message || 'İstek başarısız oldu.'); }
+      }
+    }
+  } catch (err) {
+    if (signal && signal.aborted) throw cancelled();
+    throw err;
+  }
+  throw new ApiError(0, 'NETWORK', 'Bağlantı yarıda kesildi; tekrar dene.');
+}
+
 const b = id => `/api/brands/${encodeURIComponent(id)}`;
 
 export const api = {
@@ -141,7 +183,7 @@ export const api = {
   updateReelsPool: (id, pid, body) => request('PATCH', `${b(id)}/reels/pool/${pid}`, body),
   deleteReelsPool: (id, pid) => request('DELETE', `${b(id)}/reels/pool/${pid}`),
   reelsList: id => request('GET', b(id) + '/reels'),
-  createReels: (id, body) => request('POST', b(id) + '/reels', body),
+  createReels: (id, body, stream) => (stream ? streamRequest('POST', b(id) + '/reels', body, stream) : request('POST', b(id) + '/reels', body)),
   reels: (id, rid) => request('GET', `${b(id)}/reels/${rid}`),
   updateReels: (id, rid, body) => request('PATCH', `${b(id)}/reels/${rid}`, body),
   deleteReels: (id, rid) => request('DELETE', `${b(id)}/reels/${rid}`),
@@ -164,7 +206,7 @@ export const api = {
   addCampaignItem: (id, cid, body) => request('POST', `${b(id)}/campaigns/${cid}/items`, body),
   updateCampaignItem: (id, cid, iid, body) => request('PATCH', `${b(id)}/campaigns/${cid}/items/${iid}`, body),
   deleteCampaignItem: (id, cid, iid) => request('DELETE', `${b(id)}/campaigns/${cid}/items/${iid}`),
-  createPost: (id, body) => request('POST', b(id) + '/posts', body),
+  createPost: (id, body, stream) => (stream ? streamRequest('POST', b(id) + '/posts', body, stream) : request('POST', b(id) + '/posts', body)),
   post: (id, pid) => request('GET', `${b(id)}/posts/${pid}`),
   savePost: (id, pid, body) => request('PUT', `${b(id)}/posts/${pid}`, body),
   youtubeIdeas: (id, body) => request('POST', b(id) + '/youtube/ideas', body),
@@ -200,7 +242,7 @@ export const api = {
   prompts: (id, params = {}) => request('GET', b(id) + '/prompts?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v))),
   brainstormPrompts: (id, body) => request('POST', b(id) + '/prompts/brainstorm', body),
   enhancePrompt: (id, body) => request('POST', b(id) + '/prompts/enhance', body),
-  createPrompt: (id, body) => request('POST', b(id) + '/prompts', body),
+  createPrompt: (id, body, stream) => (stream ? streamRequest('POST', b(id) + '/prompts', body, stream) : request('POST', b(id) + '/prompts', body)),
   prompt: (id, pid) => request('GET', `${b(id)}/prompts/${pid}`),
   savePrompt: (id, pid, body) => request('PUT', `${b(id)}/prompts/${pid}`, body),
   deletePrompt: (id, pid) => request('DELETE', `${b(id)}/prompts/${pid}`),

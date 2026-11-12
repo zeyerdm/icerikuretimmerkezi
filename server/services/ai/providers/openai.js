@@ -1,21 +1,24 @@
 // OpenAI uyumlu sağlayıcılar: OpenAI ve OpenRouter (aynı sohbet API'si, farklı adres ve anahtar).
 // OpenRouter model listesi fiyatlarla birlikte gelir; yanıtta harcanan tutarı da bildirir.
-import { aiError, notConfigured, describeStatus, parseJsonOutput, TIMEOUT_MS } from './common.js';
+import { aiError, notConfigured, describeStatus, parseJsonOutput, cancelled, requestSignal, sseData } from './common.js';
 
 export function createOpenAiCompatibleProvider({ id, label, shortLabel, baseURL, getApiKey, fetchImpl = fetch, extraHeaders = {} }) {
-  async function request(path, init) {
+  async function request(path, init, { signal = null, raw = false } = {}) {
     const key = getApiKey();
     if (!key) throw notConfigured(label);
+    if (signal && signal.aborted) throw cancelled();
     let res;
     try {
       res = await fetchImpl(baseURL + path, {
         ...init,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...extraHeaders },
-        signal: AbortSignal.timeout(TIMEOUT_MS)
+        signal: requestSignal(signal)
       });
     } catch (err) {
+      if (signal && signal.aborted) throw cancelled();
       throw aiError('AI_UNAVAILABLE', err.name === 'TimeoutError' ? `${shortLabel} 3 dakika içinde yanıt vermedi.` : `${shortLabel} sunucusuna bağlanılamadı.`, { retryable: true, transient: err.name !== 'TimeoutError' });
     }
+    if (raw && res.ok) return res;
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       const d = describeStatus(shortLabel, res.status, data && data.error && (data.error.message || data.error));
@@ -28,13 +31,31 @@ export function createOpenAiCompatibleProvider({ id, label, shortLabel, baseURL,
     id,
     label,
 
-    async generate({ model, prompt, json = false, images = [] }) {
+    async generate({ model, prompt, json = false, images = [], onDelta = null, signal = null }) {
       const textPart = json ? prompt + '\n\nYanıtı yalnızca geçerli JSON olarak ver.' : prompt;
       const content = images.length ? [{ type: 'text', text: textPart }, ...images.map(i => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.data.toString('base64')}` } }))] : textPart;
       const body = { model, messages: [{ role: 'user', content }] };
       if (json) body.response_format = { type: 'json_object' };
       if (id === 'openrouter') body.usage = { include: true };
-      const data = await request('/chat/completions', { method: 'POST', body: JSON.stringify(body) });
+      if (onDelta) {
+        // 8.4 akış: metin parça parça gelir; kullanım son parçada
+        body.stream = true;
+        if (id === 'openai') body.stream_options = { include_usage: true };
+        const res = await request('/chat/completions', { method: 'POST', body: JSON.stringify(body) }, { signal, raw: true });
+        let text = ''; let u = {}; let served = model;
+        for await (const d of sseData(res, signal)) {
+          if (d === '[DONE]') break;
+          let ev; try { ev = JSON.parse(d); } catch { continue; }
+          const t = ev.choices && ev.choices[0] && ev.choices[0].delta && ev.choices[0].delta.content;
+          if (t) { text += t; onDelta(t); }
+          if (ev.usage) u = ev.usage;
+          if (ev.model) served = ev.model;
+        }
+        text = text.trim();
+        if (!text) throw aiError('AI_EMPTY', `${shortLabel} boş yanıt döndürdü.`, { retryable: true });
+        return { output: json ? parseJsonOutput(shortLabel, text) : text, usage: { input: u.prompt_tokens || 0, output: u.completion_tokens || 0 }, cost: typeof u.cost === 'number' ? u.cost : undefined, model: served };
+      }
+      const data = await request('/chat/completions', { method: 'POST', body: JSON.stringify(body) }, { signal });
       const choice = data && data.choices && data.choices[0];
       const text = String((choice && choice.message && choice.message.content) || '').trim();
       const u = (data && data.usage) || {};

@@ -3,7 +3,7 @@
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
-import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
+import { aiModels, modelSelect, busyTimer, streamBusy, aiNote } from '../aiPicker.js';
 import { drawSlide, resolveImages, slideBlob, hitTest } from '../postCanvas.js';
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
@@ -111,7 +111,7 @@ export async function renderPosts(view, brand, sub) {
           <div class="field"><label for="pc-model">Model</label>${modelSelect(models, 'yazim', { id: 'pc-model' })}</div>
         </div>`,
         onSubmit: async (fd, form) => {
-          const res = await busyTimer(form.querySelector('[type=submit]'), () => api.createPost(brand.id, { topic: fd.get('topic'), kind: fd.get('kind'), format: fd.get('format'), slides: Number(fd.get('slides')), model: form.querySelector('#pc-model').value || null }));
+          const res = await streamBusy(form.querySelector('[type=submit]'), st => api.createPost(brand.id, { topic: fd.get('topic'), kind: fd.get('kind'), format: fd.get('format'), slides: Number(fd.get('slides')), model: form.querySelector('#pc-model').value || null }, st));
           toast(aiNote(res.post.ai), 'success', 5000);
           go(base(brand) + '/' + res.post.id);
         }

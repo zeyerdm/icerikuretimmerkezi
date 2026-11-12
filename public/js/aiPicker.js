@@ -53,6 +53,36 @@ export async function busyTimer(btn, fn, verb = 'Yazıyor') {
   }
 }
 
+// 8.4 Canlı yazım: düğme süre sayar, düğmenin altında model yazdıkça metin akar; "İptal" isteği keser.
+// fn(stream) çağrılır; stream = { onDelta, onReset, signal } api.* fonksiyonlarına üçüncü argüman olarak verilir.
+// JSON yanıtlar okunur hâle getirilir (anahtar adları ve tırnaklar gizlenir); asıl sonuç her zaman tamamlanınca gelir.
+export const readableStream = raw => String(raw)
+  .replace(/\\n/g, '\n').replace(/\\"/g, '"')
+  .replace(/"[A-Za-z_]+"\s*:\s*/g, '').replace(/[{}[\]]/g, '').replace(/^\s*,\s*$/gm, '').replace(/",\s*"/g, '\n').replace(/"/g, '')
+  .replace(/\n{3,}/g, '\n\n').trimStart();
+export async function streamBusy(btn, fn, verb = 'Yazıyor') {
+  if (!btn) return fn(undefined);
+  if (btn.dataset.busy) return undefined;
+  const ac = new AbortController();
+  const box = document.createElement('div');
+  box.className = 'stream-box';
+  box.setAttribute('role', 'status');
+  box.innerHTML = '<div class="stream-head"><span class="small muted stream-state">Model yazıyor…</span><button type="button" class="btn btn-sm btn-ghost" data-stream-cancel>İptal</button></div><div class="stream-text" aria-live="off"></div>';
+  // Düğmenin satırının altına; pencerede alt çubuğun hemen üstüne
+  const foot = btn.closest('.modal-foot');
+  if (foot) foot.insertAdjacentElement('beforebegin', box);
+  else (btn.closest('.row, .card-actions') || btn).insertAdjacentElement('afterend', box);
+  box.querySelector('[data-stream-cancel]').addEventListener('click', () => { ac.abort(); box.querySelector('.stream-state').textContent = 'İptal ediliyor…'; });
+  let raw = '';
+  const out = box.querySelector('.stream-text');
+  const stream = {
+    signal: ac.signal,
+    onDelta: t => { raw += t; out.textContent = readableStream(raw); out.scrollTop = out.scrollHeight; },
+    onReset: () => { raw = ''; out.textContent = ''; box.querySelector('.stream-state').textContent = 'Yeniden deneniyor…'; }
+  };
+  try { return await busyTimer(btn, () => fn(stream), verb); } finally { box.remove(); }
+}
+
 // Üretim sonucu notu: "Claude Opus 5.5 ile yazıldı · 14 sn · 0,04 $"
 export function aiNote(meta) {
   if (!meta) return '';

@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { openRecipes } from '../recipes.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
-import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
+import { aiModels, modelSelect, busyTimer, streamBusy, aiNote } from '../aiPicker.js';
 import { drawTitle, ensureTitleFonts, titleBlob, downloadBlob, safeName } from '../titlePng.js';
 import { reviewBox } from './review.js';
 
@@ -69,7 +69,7 @@ async function scenarioModal(brand, models, meta, { poolItem = null, patternId =
     </div>`,
     onSubmit: async (fd, form) => {
       const btn = form.querySelector('[type=submit]');
-      const res = await busyTimer(btn, () => api.createReels(brand.id, { topic: fd.get('topic'), poolId: poolItem ? poolItem.id : null, format: fd.get('format') || null, patternId: fd.get('patternId') || null, model: fd.get('model-pick-modal') || form.querySelector('#model-pick-modal').value || null }));
+      const res = await streamBusy(btn, st => api.createReels(brand.id, { topic: fd.get('topic'), poolId: poolItem ? poolItem.id : null, format: fd.get('format') || null, patternId: fd.get('patternId') || null, model: fd.get('model-pick-modal') || form.querySelector('#model-pick-modal').value || null }, st));
       toast(aiNote(res.reels.ai), 'success', 6000);
       go(base(brand) + '/' + res.reels.id);
     }

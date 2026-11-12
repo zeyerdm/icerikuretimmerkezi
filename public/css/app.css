@@ -1703,3 +1703,9 @@ html[data-theme="dark"] .status-badge.status-yayinlandi { background: #173a35; c
 .fb-btn.on { background: var(--brand-soft); }
 .fb-sug { align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
 .fb-sug:first-child { border-top: 0; }
+
+/* 8.4 Canlı yazım kutusu */
+.stream-box { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 12px; }
+.stream-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.stream-text { white-space: pre-wrap; font-size: var(--t-sm); line-height: 1.5; max-height: 220px; overflow-y: auto; color: var(--ink); min-height: 1.5em; }
+.stream-text:empty::before { content: '…'; color: var(--muted); }

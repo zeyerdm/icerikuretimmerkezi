@@ -5,6 +5,8 @@ import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMA
 import { createGeminiProvider } from './providers/gemini.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
 import { createOpenAiCompatibleProvider } from './providers/openai.js';
+import { cancelled } from './providers/common.js';
+import { currentStream } from '../../lib/streamCtx.js';
 
 const TASKS_SETTING = 'ai.tasks';
 const BUDGET_SETTING = 'ai.budget';
@@ -42,8 +44,8 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   if (legacyProvider) {
     providers.fake = {
       id: 'fake', label: legacyProvider.label || 'Test',
-      async generate({ prompt, json, temperature, images }) {
-        const r = await legacyProvider.generate(prompt, { json, temperature, images });
+      async generate({ prompt, json, temperature, images, onDelta, signal }) {
+        const r = await legacyProvider.generate(prompt, { json, temperature, images, onDelta, signal });
         return { output: r, usage: { input: 0, output: 0 }, model: 'test' };
       },
       async listModels() { return [{ id: 'test', label: 'Test modeli' }]; }
@@ -125,12 +127,17 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     if (!isConfigured(p.provider)) throw new HttpError(409, 'AI_NOT_CONFIGURED', `${PROVIDERS[p.provider] ? PROVIDERS[p.provider].label : p.provider} bağlı değil.`);
     const started = Date.now();
     try {
-      const r = await providers[p.provider].generate(Object.assign({ model: p.id, prompt, json, temperature, effort: EFFORT[task] || 'medium', images }, videoUrl ? { videoUrl } : {}));
+      // 8.4: akışlı istekte metin parçaları istemciye gider; iptal sinyali sağlayıcı isteğini keser
+      const sc = currentStream();
+      if (sc.signal && sc.signal.aborted) throw cancelled();
+      const r = await providers[p.provider].generate(Object.assign({ model: p.id, prompt, json, temperature, effort: EFFORT[task] || 'medium', images, onDelta: sc.onDelta || null, signal: sc.signal || null }, videoUrl ? { videoUrl } : {}));
       const servedRef = modelRef(p.provider, r.model || p.id);
       const cost = typeof r.cost === 'number' ? r.cost : costOf(servedRef, r.usage || {}) || costOf(ref, r.usage || {});
       record({ ref: servedRef, task, brandId, usage: r.usage, cost });
       return { output: r.output, ref, servedRef, usage: r.usage || { input: 0, output: 0 }, cost, ms: Date.now() - started };
     } catch (err) {
+      // İptal edilen istek harcama/hata günlüğüne hata olarak yazılmaz
+      if (currentStream().signal && currentStream().signal.aborted) throw cancelled();
       record({ ref, task, brandId, ok: false, error: err.message });
       throw err;
     }
@@ -159,18 +166,21 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     const fallback = fb && (!videoUrl || (parseRef(fb) || {}).provider === 'gemini') ? fb : null;
     const args = { task, brandId, prompt, json, temperature, images, videoUrl };
     // Geçici hatada aynı modelle kısa bekleyip en çok iki kez daha dener
+    const sc = currentStream();
     const attempt = async ref => {
       for (let i = 0; ; i++) {
         try { return await runOne(ref, args); } catch (err) {
-          if (!err.transient || i >= retryDelays.length) throw err;
+          if (!err.transient || i >= retryDelays.length || (sc.signal && sc.signal.aborted)) throw err;
           await sleep(retryDelays[i]);
+          if (sc.onDelta) sc.onDelta(null); // yarım kalan önizleme temizlenir
         }
       }
     };
     try {
       return Object.assign(await attempt(primary), { fallbackUsed: false });
     } catch (err) {
-      if (!fallback || !err.retryable) throw err;
+      if (!fallback || !err.retryable || err.code === 'AI_CANCELLED') throw err;
+      if (sc.onDelta) sc.onDelta(null);
       const r = await attempt(fallback);
       return Object.assign(r, { fallbackUsed: true, primaryError: err.message });
     }

@@ -1,5 +1,6 @@
 // Ortak HTTP yardımcıları: tutarlı hata yanıtı, doğrulama, kimlik ve zaman
 import { randomUUID } from 'node:crypto';
+import { streamCtx } from './streamCtx.js';
 
 export class HttpError extends Error {
   constructor(status, code, message, details) {
@@ -16,8 +17,45 @@ export const notFound = (message = 'Kayıt bulunamadı.') => new HttpError(404, 
 export const newId = () => randomUUID();
 export const now = () => new Date().toISOString();
 
-// Express 5 async hataları kendisi yakalar; bu sarmalayıcı yalnızca okunabilirlik için
-export const route = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+// Express 5 async hataları kendisi yakalar; bu sarmalayıcı yalnızca okunabilirlik için.
+// 8.4: ?stream=1 ile çağrılınca yanıt Server-Sent Events olur: "delta" (metin parçası), "reset" (yedek modele/yeniden
+// denemeye geçildi), sonunda "done" ({ status, body }) ya da "error" ({ status, error }). Bağlantı kapanırsa üretim iptal edilir.
+export const route = fn => (req, res, next) => {
+  if (req.query && req.query.stream === '1') return streamRoute(fn, req, res);
+  return Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+function errorBody(err) {
+  if (err instanceof HttpError) return { status: err.status, error: { code: err.code, message: err.message } };
+  console.error(err);
+  return { status: 500, error: { code: 'INTERNAL', message: 'Beklenmeyen bir sunucu hatası oluştu.' } };
+}
+
+async function streamRoute(fn, req, res) {
+  res.status(200);
+  res.set({ 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  const ac = new AbortController();
+  let finished = false;
+  res.on('close', () => { if (!finished) ac.abort(); });
+  const send = (event, data) => { if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
+  const finish = (event, data) => { if (finished) return; finished = true; send(event, data); res.end(); };
+  let code = 200;
+  // İşleyicinin res.status(...).json(...) çağrıları "done" olayına çevrilir
+  const shim = {
+    status(c) { code = c; return shim; },
+    json(body) { finish('done', { status: code, body }); return shim; },
+    end() { finish('done', { status: code, body: null }); return shim; },
+    set() { return shim; }, setHeader() { return shim; }, get locals() { return res.locals; }
+  };
+  try {
+    await streamCtx.run({ signal: ac.signal, onDelta: t => (t === null ? send('reset', {}) : send('delta', { t })) }, () => fn(req, shim, err => { throw err; }));
+    if (!finished) finish('done', { status: code, body: null });
+  } catch (err) {
+    if (ac.signal.aborted) { finished = true; return; } // istemci gitti; yazılacak yer yok
+    finish('error', errorBody(err));
+  }
+}
 
 // Metin alanı: kırpılır, uzunluk sınırı uygulanır
 export function text(value, { field, max = 2000, required = false } = {}) {

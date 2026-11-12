@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { openRecipes } from '../recipes.js';
 import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
-import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
+import { aiModels, modelSelect, busyTimer, streamBusy, aiNote } from '../aiPicker.js';
 import { imageBox } from './imageGen.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 
@@ -138,7 +138,7 @@ export async function renderPrompts(view, brand, sub) {
       const brief = view.querySelector('#ps-brief').value.trim();
       if (!brief) return toast('Önce ne istediğini kısaca yaz.', 'error');
       try {
-        const { prompt } = await busyTimer(create, () => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0), tool: (view.querySelector('#ps-tool') || {}).value || '' }));
+        const { prompt } = await streamBusy(create, st => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0), tool: (view.querySelector('#ps-tool') || {}).value || '' }, st));
         toast(aiNote(prompt.ai), 'success', 5000);
         go(base(brand) + '/' + prompt.id);
       } catch (err) { toast(err.message, 'error'); }
