@@ -1,12 +1,15 @@
 // 7.2 Marka prompt kişiliği sihirbazı: sorular ve işaretlemelerle bir kez doldurulur; cevaplar markanın bütün
 // prompt üretimlerine kendiliğinden girer (Prompt Studio). Sorular sabit, cevaplar markaya özel.
 import { api } from '../api.js';
-import { esc, icon, toast, pageHead, busy, openModal } from '../ui.js';
+import { esc, icon, toast, busy, openModal } from '../ui.js';
+import { identityHead, bindIdentityActions } from './identity.js';
 import { suggestionsCard } from '../feedback.js';
 import { openRecipes } from '../recipes.js';
 
 export async function renderPromptIdentity(view, brand) {
-  const { identity, questions } = await api.promptIdentity(brand.id);
+  const { identity, questions: all } = await api.promptIdentity(brand.id);
+  // Maskot soruları Marka kimliği → Maskot sekmesinde; burada kaydederken onlar korunur (birleştirilerek yazılır)
+  const questions = all.filter(q => q.group !== 'Maskot');
   let idt = Object.assign({}, identity);
   const groups = [...new Set(questions.map(q => q.group))];
 
@@ -26,13 +29,14 @@ export async function renderPromptIdentity(view, brand) {
   };
 
   view.innerHTML = `
-    ${pageHead({ title: 'Prompt kimliği', desc: `${esc(brand.name)} için bir kez doldur: görsel dil, his ve (varsa) maskot. Prompt Studio'daki her üretim bu tercihlere göre yazılır; model değişse de yapı aynı kalır.`,
-      actions: `<button type="button" class="btn" data-pi-recipes>${icon('star')}Tariflerden başlat</button><button type="button" class="btn" data-pi-save-recipe>${icon('pin')}Tarif olarak kaydet</button>` })}
+    ${identityHead(brand, 'prompt', `${esc(brand.name)} için görsel dil, his ve kontrol kuralları. Prompt Studio'daki her üretim bu tercihlere göre yazılır; model değişse de yapı aynı kalır.`)}
+    <div class="row mb-4"><button type="button" class="btn" data-pi-recipes>${icon('star')}Tariflerden başlat</button><button type="button" class="btn" data-pi-save-recipe>${icon('pin')}Tarif olarak kaydet</button></div>
     <form id="pi-form" class="stack">
       ${groups.map(g => `<section class="card"><div class="card-head"><h3>${esc(g)}</h3></div><div class="stack-sm">${questions.filter(q => q.group === g).map(field).join('')}</div></section>`).join('')}
       <div class="save-bar card"><span class="small muted">Boş bıraktığın sorular üretimi etkilemez.</span><button class="btn btn-primary" type="submit">${icon('check')}Kaydet</button></div>
     </form>`;
 
+  bindIdentityActions(view, brand);
   const form = view.querySelector('#pi-form');
   const read = () => {
     const out = {};
@@ -59,24 +63,20 @@ export async function renderPromptIdentity(view, brand) {
       onSubmit: async fd => { await api.identityToRecipe(brand.id, Boolean(fd.get('withMascot'))); toast('Prompt kimliği tariflere kaydedildi.', 'success'); }
     });
   });
-  form.addEventListener('change', e => {
-    if (e.target.name === 'hasMascot') questions.filter(q => q.when === 'hasMascot').forEach(q => { form.querySelector(`[data-q="${q.key}"]`).hidden = !e.target.checked; });
-  });
   form.addEventListener('submit', async e => {
     e.preventDefault();
     try {
-      const r = await busy(e.submitter, () => api.savePromptIdentity(brand.id, read()));
+      const r = await busy(e.submitter, () => api.savePromptIdentity(brand.id, Object.assign({}, idt, read())));
       idt = r.identity;
       toast('Prompt kimliği kaydedildi; bundan sonraki prompt\'lar bu tercihlerle yazılır.', 'success');
     } catch (err) { toast(err.message, 'error'); }
   });
-  await characterBookCard(view, brand);
   // 7.11: tekrar eden 👎 nedenlerinden öneriler (uygulanınca sayfa yeni kimlikle yeniden çizilir)
   await suggestionsCard(form, brand, () => renderPromptIdentity(view, brand));
 }
 
 // 7.3 Maskot karakter kitabı
-async function characterBookCard(view, brand) {
+export async function characterBookCard(view, brand) {
   const [{ book }, { assets }] = await Promise.all([api.characterBook(brand.id), api.assets(brand.id)]);
   const poses = assets.filter(a => a.category === 'mascot' || (book.poseAssetIds || []).includes(a.id));
   const box = document.createElement('section');

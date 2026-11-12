@@ -299,7 +299,7 @@ test('T.29 marka sayfaları: akordeon gruplar ve tercihin hatırlanması, açık
     await page.goto(srv.base + `/#/m/${a.id}/kutuphane`);
     await page.waitForFunction(() => document.querySelector('[data-nav-group="varlik"]').getAttribute('aria-expanded') === 'true');
     // Bütün modüllere menüden erişilir
-    for (const href of ['', '/kimlik', '/hafiza', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane', '/disa-aktar', '/video']) {
+    for (const href of ['', '/kimlik', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane', '/disa-aktar', '/video']) {
       assert.equal(await page.locator(`.sidebar a[href="#/m/${a.id}${href}"]`).count(), 1, `menüde ${href || 'ana sayfa'} yok`);
     }
 

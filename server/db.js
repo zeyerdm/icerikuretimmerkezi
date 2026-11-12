@@ -531,6 +531,10 @@ const MIGRATIONS = [
     detail TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX idx_error_log ON error_log(created_at);
+  `,
+  // 36: 9.3 Tek akışta marka kurulumu: kanallar, içerik türleri, maskot/mekân cevapları ve tamamlanan adımlar
+  `
+  ALTER TABLE brands ADD COLUMN setup TEXT NOT NULL DEFAULT '{}';
   `
 ];
 

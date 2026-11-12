@@ -1758,3 +1758,28 @@ body.editor-mode .radial-fab { display: none; }
 /* 8.18 Yönetim Merkezi özet satırı (onay bekleyen, yayın bekleyen, geciken) */
 .w-summary { margin: 4px 0 12px; font-size: var(--t-sm); color: var(--ink-2); }
 .w-summary b { color: var(--ink); }
+
+/* 9.3–9.9 Marka kimliği: Marka dosyası ve kurulum sihirbazı */
+.id-tabs { display: flex; flex-wrap: wrap; }
+.setup-callout { display: flex; align-items: center; gap: var(--s-5); justify-content: space-between; }
+.setup-callout h2 { font-size: var(--t-lg); margin-bottom: var(--s-1); }
+.dossier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--s-5); align-items: start; }
+.dossier-dl { display: grid; grid-template-columns: minmax(110px, 34%) 1fr; gap: var(--s-2) var(--s-3); margin: 0; font-size: var(--t-sm); }
+.dossier-dl dt { color: var(--muted); font-weight: 600; }
+.dossier-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ds-logo { width: 56px; height: 56px; object-fit: contain; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface); }
+.ds-poses { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.ds-poses img { width: 56px; height: 56px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface-3); }
+.setup-steps { display: flex; flex-wrap: wrap; gap: var(--s-2); list-style: none; padding: 0; margin: 0 0 var(--s-2); }
+.setup-steps a { display: inline-flex; align-items: center; gap: var(--s-2); height: 34px; padding: 0 var(--s-3) 0 var(--s-1); border-radius: var(--r-pill, 999px); border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: var(--t-sm); font-weight: 700; text-decoration: none; }
+.setup-steps .ss-num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--surface-3); color: var(--ink-2); font-size: var(--t-xs); }
+.setup-steps .done a { color: var(--teal-ink); }
+.setup-steps .done .ss-num { background: var(--teal-soft); color: var(--teal-ink); }
+.setup-steps .current a { border-color: var(--brand); color: var(--ink); }
+.setup-steps .current .ss-num { background: var(--brand); color: var(--on-brand, #fff); }
+.setup-card { max-width: 820px; }
+.setup-card h2 { font-size: var(--t-xl, 1.35rem); margin-bottom: var(--s-1); }
+.setup-foot { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-5); padding-top: var(--s-4); border-top: 1px solid var(--line); flex-wrap: wrap; }
+@media (max-width: 720px) { .setup-callout { flex-direction: column; align-items: flex-start; } .dossier-grid { grid-template-columns: 1fr; } .setup-steps .ss-label { display: none; } .setup-steps .current .ss-label { display: inline; } }
+.setup-card fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
+.setup-card fieldset.field legend { padding: 0; margin-bottom: var(--s-2); }

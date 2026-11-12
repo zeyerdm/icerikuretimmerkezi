@@ -1,8 +1,9 @@
 // Akıllı marka hafızası: yapay zekânın bu marka hakkında bildiği her şey tek yerde.
-// Kimlik alanları (dil, kitle, renk, font) Dijital kimlikte düzenlenir; burada yasaklı kelimeler, tercih edilen ifadeler
+// Marka kimliğinin "Ses ve hafıza" sekmesi. Kimlik alanları (dil, kitle, renk, font) Profil sekmesinde düzenlenir; burada yasaklı kelimeler, tercih edilen ifadeler
 // ve bilgi kartları yönetilir. Hepsi her AI üretimine (asistan, Reels, post, prompt, denetçi) otomatik girer.
 import { api } from '../api.js';
-import { esc, icon, toast, pageHead, emptyState, openModal } from '../ui.js';
+import { esc, icon, toast, emptyState, openModal } from '../ui.js';
+import { identityHead, bindIdentityActions } from './identity.js';
 
 export async function renderMemory(view, brand) {
   view.onclick = view.onkeydown = null;
@@ -15,8 +16,7 @@ export async function renderMemory(view, brand) {
   function draw() {
     const byCat = Object.keys(categories).map(k => [k, memory.facts.filter(f => f.category === k)]).filter(([, l]) => l.length);
     view.innerHTML = `
-      ${pageHead({ title: 'Hafıza', desc: `Yapay zekânın ${esc(brand.name)} hakkında bildikleri. Burada ve Dijital kimlikte yazdıkların her üretime (asistan, Reels, post, prompt, denetçi) otomatik eklenir; markayı her seferinde yeniden anlatman gerekmez.`,
-        actions: `<a class="btn" href="#/m/${esc(brand.id)}/kimlik">${icon('identity')}Dijital kimlik</a>` })}
+      ${identityHead(brand, 'ses', `Yapay zekânın ${esc(brand.name)} hakkında bildikleri: kaçınılacak kelimeler, sevilen ifadeler ve bilgi kartları. Hepsi her üretime (asistan, Reels, post, prompt, denetçi) kendiliğinden eklenir.`)}
       <div class="grid-2 mb-5">
         <section class="card"><div class="card-head"><h3>Kullanılmaması gereken kelimeler</h3><span class="small muted">${memory.banned.length}</span></div>
           <p class="small muted mb-3">Üretimlerde kaçınılır; içerik denetçisi metinde geçerse "yüksek" uyarı verir.</p>
@@ -34,6 +34,7 @@ export async function renderMemory(view, brand) {
       </section>
       <section class="card"><div class="card-head"><h3>Yapay zekâya giden hafıza</h3><span class="small muted">Her üretimde isteme eklenen metin</span></div>
         <details class="disclosure"><summary>Metnin tamamını göster</summary><pre class="mem-preview">${esc(memory.preview)}</pre></details></section>`;
+    bindIdentityActions(view, brand);
   }
 
   async function saveLists(body, msg) {

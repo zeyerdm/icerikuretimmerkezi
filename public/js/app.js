@@ -19,7 +19,7 @@ import { renderAi } from './views/ai.js';
 import { renderReels } from './views/reels.js';
 import { renderPosts } from './views/posts.js';
 import { renderPrompts } from './views/prompts.js';
-import { renderMemory } from './views/memory.js';
+import { renderIdentity, renderNewBrandSetup } from './views/identity.js';
 import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 import { initPalette, openPalette } from './palette.js';
@@ -33,7 +33,6 @@ import { renderVideo } from './views/video.js';
 import { renderCampaigns } from './views/campaigns.js';
 import { renderReport } from './views/report.js';
 import { renderYoutube } from './views/youtube.js';
-import { renderPromptIdentity } from './views/promptIdentity.js';
 import { mountAssistant } from './assistantWidget.js';
 import { initFx } from './fx.js';
 import { initI18n } from './i18n.js';
@@ -96,9 +95,7 @@ export const CENTER_NAV = [
 // Marka çalışma alanı alt menüsü. "Yakında" olanlar tıklanamaz; bitmiş gibi gösterilmez.
 export const BRAND_NAV = [
   { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home', group: 'yonetim' },
-  { page: 'kimlik', path: '/kimlik', label: 'Dijital kimlik', icon: 'identity', group: 'yonetim' },
-  { page: 'hafiza', path: '/hafiza', label: 'Hafıza', icon: 'notes', group: 'yonetim' },
-  { page: 'promptkimlik', path: '/prompt-kimligi', label: 'Prompt kimliği', icon: 'wand', group: 'yonetim' },
+  { page: 'kimlik', path: '/kimlik', label: 'Marka kimliği', icon: 'identity', group: 'yonetim' },
   { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea', group: 'uretim' },
   { page: 'reels', path: '/reels', label: 'Reels', icon: 'film', group: 'uretim' },
   { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette', group: 'uretim' },
@@ -127,8 +124,12 @@ export function parseRoute(hash = location.hash || '#/') {
     const rest = (m[2] || '').replace(/\/$/, '');
     const id = decodeURIComponent(m[1]);
     if (rest === '') return { layer: 'brand', page: 'home', brandId: id };
-    if (rest === '/kimlik') return { layer: 'brand', page: 'kimlik', brandId: id, tab: 'profil' };
-    if (rest === '/kimlik/gorsel') return { layer: 'brand', page: 'kimlik', brandId: id, tab: 'gorsel' };
+    // 9.x Marka kimliği: Marka dosyası, sekmeler, kurulum sihirbazı ve bölüm düzenleme
+    let km;
+    if ((km = rest.match(/^\/kimlik(?:\/(profil|gorsel|ses|prompt|maskot)|\/(kurulum|duzenle)(?:\/([a-z]+))?)?$/))) return { layer: 'brand', page: 'kimlik', brandId: id, tab: km[1] || km[2] || 'ozet', step: km[3] || null };
+    // Eski adresler: Hafıza ve Prompt kimliği artık Marka kimliğinin sekmeleri
+    if (rest === '/hafiza') return { redirect: `#/m/${m[1]}/kimlik/ses` };
+    if (rest === '/prompt-kimligi') return { redirect: `#/m/${m[1]}/kimlik/prompt` };
     // Reels: /reels (fikir havuzu), /reels/liste (senaryolar), /reels/<id> (senaryo); Post: /post, /post/<id>
     let mm;
     if ((mm = rest.match(/^\/reels(?:\/(liste|kaliplar|[A-Za-z0-9-]{8,}))?$/))) return { layer: 'brand', page: 'reels', brandId: id, sub: mm[1] || null };
@@ -278,7 +279,7 @@ export async function route() {
       if (!brand) { view.innerHTML = emptyState({ icon: 'brands', title: 'Marka bulunamadı', text: 'Silinmiş olabilir.', action: '<a class="btn btn-sm" href="#/">Yönetim Merkezine dön</a>', card: true }); return; }
       selectBrand(brand.id).catch(() => {});
       if (r.page === 'home') await renderHome(view, brand);
-      else if (r.page === 'kimlik') await renderBrandEditor(view, brand.id, r.tab);
+      else if (r.page === 'kimlik') await renderIdentity(view, brand, r.tab, r.step);
       else if (r.page === 'kutuphane') await renderBrandEditor(view, brand.id, 'varliklar');
       else if (r.page === 'fikirler') await renderIdeas(view, brand);
       else if (r.page === 'takvim') await renderCalendar(view, { brand });
@@ -287,20 +288,18 @@ export async function route() {
       else if (r.page === 'reels') await renderReels(view, brand, r.sub);
       else if (r.page === 'post') await renderPosts(view, brand, r.sub);
       else if (r.page === 'prompt') await renderPrompts(view, brand, r.sub);
-      else if (r.page === 'hafiza') await renderMemory(view, brand);
       else if (r.page === 'rakipler') await renderCompetitors(view, brand);
       else if (r.page === 'disa') await renderExporter(view, brand);
       else if (r.page === 'video') await renderVideo(view, brand);
       else if (r.page === 'kampanya') await renderCampaigns(view, brand, r.sub);
       else if (r.page === 'youtube') await renderYoutube(view, brand);
-      else if (r.page === 'promptkimlik') await renderPromptIdentity(view, brand);
       else if (r.page === 'rapor') await renderReport(view, brand);
       else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: `<a class="btn btn-sm" href="#/m/${esc(brand.id)}">Marka ana sayfasına dön</a>`, card: true });
       return;
     }
     if (r.page === 'center') { await renderCenter(view); maybeStartTour(); }
     else if (r.page === 'brands') await renderBrands(view);
-    else if (r.page === 'newBrand') await renderBrandEditor(view, 'yeni', 'profil');
+    else if (r.page === 'newBrand') await renderNewBrandSetup(view);
     else if (r.page === 'calendar') await renderCalendar(view, {});
     else if (r.page === 'tasks') await renderTasks(view);
     else if (r.page === 'notes') await renderNotes(view);

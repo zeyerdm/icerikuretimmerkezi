@@ -25,7 +25,7 @@ test('T.10 kalan: "AI ile doldur" yalnız boş alanları doldurur; işaret kald�
   const b = (await srv.request('POST', '/api/brands', { name: 'Doldur', sector: 'Elle yazılan sektör' })).data.brand;
   const { browser, page, problems } = await open(srv);
   try {
-    await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik/profil`);
     await page.locator('[data-action="ai-fill"]').click();
     await page.locator('#af-text').fill('Doldur, kampüsün yanında öğrencilere uygun fiyatlı kahve sunan samimi bir kafedir.');
     await page.locator('.modal [type=submit]').click();
@@ -190,6 +190,7 @@ test('T.30 kalan: AI düğmesinde geçen süre ("Yazıyor… N sn") ve uzun işl
   const srv = await startServer({ aiProvider: slow });
   const b = (await srv.request('POST', '/api/brands', { name: 'Süreli' })).data.brand;
   await srv.request('POST', `/api/brands/${b.id}/assets?category=mascot`, PNG_1PX, png);
+  await srv.request('PUT', `/api/brands/${b.id}/prompt-identity`, { hasMascot: true });
   const { browser, page, problems } = await open(srv);
   try {
     await page.goto(`${srv.base}/#/m/${b.id}/prompt`);
@@ -199,7 +200,7 @@ test('T.30 kalan: AI düğmesinde geçen süre ("Yazıyor… N sn") ve uzun işl
     await page.waitForFunction(() => /Yazıyor… [1-9]\d* sn/.test(document.querySelector('[data-create]').textContent));
     await page.waitForURL(/\/prompt\/[^/]+$/);
     // busy(): 2 sn'yi geçen işte düğmede "N sn" rozeti
-    await page.goto(`${srv.base}/#/m/${b.id}/prompt-kimligi`);
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik/maskot`);
     await page.locator('#cb-draft').click();
     await page.locator('#cb-draft .bt-time').waitFor({ timeout: 5000 });
     assert.match(await page.locator('#cb-draft .bt-time').innerText(), /^\d+ sn$/);

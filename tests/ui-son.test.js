@@ -239,27 +239,26 @@ test('5.21 YouTube kapak stüdyosu: fikir al, tarifi kutuya al, tasarım aç, Yo
   } finally { await browser.close(); await srv.stop(); }
 });
 
-test('7.2 Prompt kimliği sayfası: seçim, maskot soruları açılır, kaydedilir ve yeniden açılınca gelir', { skip }, async () => {
+test('7.2 Prompt kimliği sekmesi (Marka kimliği içinde): seçim kaydedilir, maskot cevapları korunur, yeniden açılınca gelir', { skip }, async () => {
   const srv = await startServer();
   const brand = (await srv.request('POST', '/api/brands', { name: 'Kimlik' })).data.brand;
+  await srv.request('PUT', `/api/brands/${brand.id}/prompt-identity`, { hasMascot: true, mascotName: 'Kahveci' });
   const { browser, page, problems } = await open(srv);
   try {
-    await page.goto(srv.base + `/#/m/${brand.id}/prompt-kimligi`);
-    await page.getByRole('heading', { name: 'Prompt kimliği', level: 1 }).waitFor();
+    await page.goto(srv.base + `/#/m/${brand.id}/kimlik/prompt`);
+    await page.getByRole('heading', { name: 'Marka kimliği', level: 1 }).waitFor();
+    assert.equal(await page.locator('.id-tabs a.active').innerText(), 'Prompt kimliği');
     await page.locator('.chip-check', { hasText: 'Gerçekçi fotoğraf' }).click();
     await page.locator('.chip-check', { hasText: 'Samimi' }).click();
     await page.locator('.chip-check', { hasText: 'Enerjik' }).click();
-    assert.equal(await page.locator('[data-q="mascotName"]').isVisible(), false);
-    await page.getByLabel('Markanın bir maskotu var mı?').check();
-    await page.getByLabel('Maskotun adı').fill('Kahveci');
+    assert.equal(await page.locator('[data-q="mascotName"]').count(), 0, 'maskot soruları Maskot sekmesinde');
     await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
     await page.locator('.toast', { hasText: 'Prompt kimliği kaydedildi' }).waitFor();
     const idt = (await srv.request('GET', `/api/brands/${brand.id}/prompt-identity`)).data.identity;
     assert.deepEqual([idt.visualStyle, idt.mood, idt.hasMascot, idt.mascotName], ['gercekci', ['samimi', 'enerjik'], true, 'Kahveci']);
     await page.reload();
-    await page.getByLabel('Maskotun adı').waitFor();
-    assert.equal(await page.getByLabel('Maskotun adı').inputValue(), 'Kahveci');
-    assert.ok(await page.locator('.sidebar a[href$="/prompt-kimligi"]').count());
+    await page.locator('#pi-form input[name="visualStyle"][value="gercekci"]:checked').waitFor();
+    assert.ok(await page.locator('.sidebar a[href$="/kimlik"]').count());
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
@@ -269,9 +268,10 @@ test('7.3 karakter kitabı kartı: poz seç, alanları doldur, kaydet, yeniden a
   const srv = await startServer();
   const brand = (await srv.request('POST', '/api/brands', { name: 'Kitap' })).data.brand;
   const pose = (await srv.request('POST', `/api/brands/${brand.id}/assets?category=mascot&label=Poz`, PNG_1PX, { 'Content-Type': 'image/png' })).data.asset;
+  await srv.request('PUT', `/api/brands/${brand.id}/prompt-identity`, { hasMascot: true });
   const { browser, page, problems } = await open(srv);
   try {
-    await page.goto(srv.base + `/#/m/${brand.id}/prompt-kimligi`);
+    await page.goto(srv.base + `/#/m/${brand.id}/kimlik/maskot`);
     const card = page.locator('#cb-card');
     await card.getByRole('heading', { name: 'Maskot karakter kitabı' }).waitFor();
     await card.locator(`[name="pose"][value="${pose.id}"]`).check();
@@ -362,7 +362,7 @@ test('7.11 arayüz: 👍/👎 ve neden; tekrar eden neden Prompt kimliğinde ön
     const fb = (await srv.request('GET', `/api/brands/${b.id}/prompts/${ps[2].id}`)).data.prompt.feedback;
     assert.deepEqual(fb, { vote: -1, reasons: ['karanlik'], note: 'gece gibi' });
 
-    await page.goto(`${srv.base}/#/m/${b.id}/prompt-kimligi`);
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik/prompt`);
     const card = page.locator('#fb-suggest');
     await card.waitFor();
     assert.match(await card.innerText(), /Çok karanlık[\s\S]*3 kez/);
@@ -381,17 +381,17 @@ test('7.12 arayüz: prompt kimliğini tarif olarak kaydet, başka markada tarift
   await srv.request('PUT', `/api/brands/${a.id}/prompt-identity`, { visualStyle: '3d', hasMascot: true, mascotName: 'Fıstık' });
   const { browser, page, problems } = await open(srv);
   try {
-    await page.goto(`${srv.base}/#/m/${a.id}/prompt-kimligi`);
+    await page.goto(`${srv.base}/#/m/${a.id}/kimlik/prompt`);
     await page.locator('[data-pi-save-recipe]').click();
     await page.locator('.modal [type=submit]').click();
     await page.locator('.toast', { hasText: 'tariflere kaydedildi' }).waitFor();
-    await page.goto(`${srv.base}/#/m/${b.id}/prompt-kimligi`);
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik/prompt`);
     await page.locator('[data-pi-recipes]').click();
     await page.locator('.rc-item', { hasText: 'Kaynak UI prompt kimliği' }).getByRole('button', { name: 'Ekle' }).click();
     await page.locator('.toast', { hasText: '1 boş cevap tariften dolduruldu' }).waitFor();
     await page.locator('#pi-form input[name="visualStyle"][value="3d"]:checked').waitFor();
     assert.equal(await page.locator('.modal-backdrop').count(), 0);
-    assert.equal(await page.locator('#pi-form input[name="hasMascot"]').isChecked(), false, 'maskot taşınmadı');
+    assert.ok(!(await srv.request('GET', `/api/brands/${b.id}/prompt-identity`)).data.identity.hasMascot, 'maskot taşınmadı');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
@@ -506,7 +506,7 @@ test('8.8 arayüz: marka sayfasında Dışa aktar penceresi; JSON, CSV ve takvim
   const { browser, page, problems } = await open(srv);
   try {
     await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
-    await page.locator('[data-action="export"]').click();
+    await page.locator('[data-id-action="export"]').click();
     await page.locator('#ex-type').waitFor();
     await page.selectOption('#ex-type', 'ideas');
     assert.equal(await page.locator('#ex-csv').getAttribute('href'), `/api/brands/${b.id}/export/ideas.csv`);

@@ -290,14 +290,51 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ⬜ **9.2 Korumanın testleri:** Yazılan metin sayfa ya da sekme değişince geri gelir; yenilemede, kaydetmede ve vazgeçmede temizlenir; iki marka arasında karışmaz.
 
 **B. Tek akışta marka kurulumu (birbirini tamamlayan sorularla)**
-- ⬜ **9.3 Marka kurulum sihirbazı (tek yer, adım adım):** Bugün ayrı sayfalarda yapılan işler tek bir akışta birleşir: dijital kimlik, görsel kimlik (renk, font, logo), marka hafızası (yasaklı kelimeler, imza cümleleri, bilgiler), prompt kimliği ve maskot karakter kitabı. Her adım ayrı bir sayfa olur; ilerleme çubuğu, Geri, İleri ve "Sonra doldururum" seçenekleri bulunur.
-- ⬜ **9.4 İlk sorular:** Bu marka ne markası (sektör, ne satıyor, kime)? Maskotu var mı? Hangi içerikleri üretiyor (Reels, post, carousel, story, YouTube, reklam)? Hangi kanallarda yayın yapıyor?
-- ⬜ **9.5 Cevaba göre dallanan sorular:** Sonraki sorular önceki cevaplara göre seçilir. Örnekler: Maskot varsa adı, görünüşü, kişiliği, konuşması, yasakları ve pozları sorulur, karakter kitabı adım adım detaylanır. Reels üretiyorsa konuşan karakter, görsel stil ve seslendirme sesi sorulur. YouTube üretiyorsa kapak tarzı sorulur. Ürün satıyorsa ürün fotoğrafı tercihleri sorulur. Gereksiz sorular hiç gösterilmez. İstenirse yapıştırılan metinden (web sitesi, biyografi) AI ile ön doldurma yapılır; kullanıcı onaylar.
-- ⬜ **9.6 İhtiyaçların istenmesi:** Cevaplara göre gerekenler istenir: logo, renkler, maskot pozları, örnek görseller, beğenilen içerik örnekleri. Yüklemeler doğrudan kütüphaneye doğru kategoriyle gider.
-- ⬜ **9.7 Kaldığı yerden devam:** Yarıda bırakılan kurulum kaydedilir, sonra kaldığı adımdan devam edilir. Kurulumdaki cevaplar markanın asıl kayıtlarına yazılır (tek kaynak); eski sayfalar aynı veriyi gösterir.
-- ⬜ **9.8 Marka dosyası (toplu görünüm):** Kurulum bitince bütün cevaplar tek sayfada bölüm bölüm durur: kimlik, görsel, hafıza, prompt kimliği, maskot ve içerik türleri. Eksikler işaretlenir. Her bölümün "Düzenle" düğmesi ilgili adımı açar; değişiklik her yere yansır.
-- ⬜ **9.9 Var olan markalar için "Eksikleri tamamla":** Kurulmuş markada sihirbaz yalnız boş kalan soruları sorar.
-- ⬜ **9.10 Kurulumun testleri:** Dallanma (maskot yok → maskot adımları gelmez), kayıtların doğru tablolara yazılması, yarıda bırakıp devam etme, marka dosyasından düzenleme ve eski sayfalarla tutarlılık.
+- ✅ **9.0 Kimliklerin birleşmesi:** Dijital kimlik, Hafıza, Prompt kimliği ve Maskot artık ayrı sayfalar değil. Tek bir **Marka kimliği** sayfası var; menüde de tek kalem. Sekmeleri: Marka dosyası, Profil, Görsel kimlik, Ses ve hafıza, Prompt kimliği, Maskot. Maskot soruları ve karakter kitabı Maskot sekmesinde toplandı. Eski adresler (/hafiza, /prompt-kimligi) yeni sekmelere yönlenir. Profil ile Görsel kimlik arasında geçişte kaydedilmemiş yazı kaybolmaz.
+- ✅ **9.3 Marka kurulum sihirbazı (tek yer, adım adım):** Her adım ayrı sayfa. Adım çubuğu, Geri, "Şimdilik atla" ve "Kaydet ve devam et" var. Yeni marka doğrudan sihirbazla açılır.
+- ✅ **9.4 İlk sorular:** Ne markası (ad, sektör, açıklama, slogan)? Hangi kanallar? Hangi içerik türleri? Maskotu var mı? Müşterinin geldiği bir mekân var mı?
+- 🟡 **9.5 Cevaba göre dallanan sorular:** Yapılanlar:
+  - Maskot varsa Maskot adımı açılır: adı, görünüşü, kişiliği, konuşması, hareketi, yapmadıkları ve pozlar.
+  - Görsel içerik varsa Görsel dil adımı açılır: stil, ışık, renk kullanımı, his, insanlar, kaçınılanlar.
+  - Reels, video, TikTok ya da YouTube varsa Video adımı açılır: kamera dili ve mekânlar.
+  - Mekân varsa adres ve çalışma saatleri sorulur.
+  - Maskot "yok" olunca maskot adımı kapanır.
+  - **Kalan:** seslendirme sesi, YouTube kapak tarzı, ürün fotoğrafı tercihleri ve sihirbaz içinden metinden AI ile ön doldurma. Bu ön doldurma şimdilik Profil sekmesinde.
+- 🟡 **9.6 İhtiyaçların istenmesi:** Logo ve maskot pozları adımın içinde yüklenir ve kütüphaneye doğru kategoriyle gider. Yükleme yazılanları silmez. Her adımın eksikleri (logo, ana renk, fontlar, pozlar…) kayıtlı veriden hesaplanır. **Kalan:** örnek görseller ve beğenilen içerik örnekleri.
+- ✅ **9.7 Kaldığı yerden devam:** Her adım kaydedilir. "Kurulum sihirbazı" ilk tamamlanmamış adımdan açılır. Cevaplar markanın asıl kayıtlarına yazılır; tek kaynak bunlar: profil, hafıza, prompt kimliği, karakter kitabı. Maskot cevabının tek doğrusu prompt kimliği.
+- ✅ **9.8 Marka dosyası:** Bütün kimlik tek sayfada, bölüm bölüm durur. Her bölümde "Tamam" ya da "N eksik" işareti, bir "Düzenle" düğmesi (sihirbazın aynı sayfası; kaydedince geri döner) ve bir "Ayrıntılı" sekme bağlantısı var.
+- ✅ **9.9 Eksikleri tamamla:** Marka dosyasındaki düğme önce atlanan, sonra eksiği olan adımı açar.
+- ✅ **9.10 Kurulumun testleri** (tests/marka-kurulum.test.js) şunları doğrular:
+  - Dallanma ve kapanan adımlar.
+  - Kayıtların doğru yerlere yazılması.
+  - Bilgi kartlarının çoğalmaması.
+  - Eksiklerin hesaplanması.
+  - Arayüzde yeni marka → adımlar → yüklemeler → Marka dosyası → Düzenle akışı.
+  - Eski adreslerin yönlenmesi.
+
+## Aşama 10 — Kullanıcının yeni istekleri (3. tur)
+
+**Menü ve varlıklar**
+- ⬜ **10.1 Ayrı dışa aktarma kalkar:** Her üretim kendi yerinden dışa aktarılır (indir ya da Drive'a gönder). Örnek: prompt Prompt Studio'dan, görsel üretildiği yerden. Bu yüzden "Dışa aktar" sayfası ve marka geneli dışa aktarma penceresi kaldırılır. Her üretim ekranında indirme ve Drive'a gönderme düğmesi olup olmadığı kontrol edilir; eksik olanlara eklenir.
+- ⬜ **10.2 Kütüphane sadeleşir (yalnız sergileme):** Kütüphane şunların durduğu yerdir:
+  - Belirlenmiş varlıklar: logolar, maskot pozları.
+  - Yapılan tasarımlar.
+  - Dışarıdan alınan referans tasarımlar ve görseller.
+  
+  Kütüphanede marka bilgisi girilmez; bilgiler yalnız Marka kimliğinde. Kategori yapısı sadeleşir ve ekran karışıklıktan arındırılır.
+- ⬜ **10.3 Menü düzeni:** "Video ve altyazı" Varlıklar'dan İçerik üretimine taşınır. İçerik üretimi menüsü kullanım sırasına göre dizilir: fikirler başta, Arşiv en sonda. Araştırma grubu (Rakipler, Analizler, Aylık rapor) en sonda kalır. Analizler ve Rakipler en son ele alınacak; ne yüklenmesi ve nasıl kurgulanması gerektiği o zaman konuşulacak.
+
+**İçerik havuzu ve stüdyolar**
+- ⬜ **10.4 İçerik fikirleri kategorilere ayrılır:** Reels fikirleri, post fikirleri, YouTube fikirleri ve gerekirse diğerleri. İçerik havuzu bütün üretimin ana kaynağıdır.
+- ⬜ **10.5 Fikir işlemleri:** Benzerlerini üret (kaç tane olacağı seçilir), beğen, sil, "kullanıldı" işaretle, kullanılanları toplu sil ya da arşivle.
+- ⬜ **10.6 Tekrarın önlenmesi:** Bir fikir bir yerde (post, YouTube, Reels…) kullanılınca işaretlenir. Başka bir yerde aynı ya da çok benzer fikir seçilirse uyarı verilir; rastgele seçimlere bu fikir girmez.
+- ⬜ **10.7 Prompt Studio fikirden üretir:** "Rastgele fikir çek" ilgili kategoriden bir fikir seçer, prompt'u bu fikirden üretilir. Elle yazma seçeneği kalır.
+- ⬜ **10.8 Post stüdyosu fikirden ve tasarım şablonundan üretir:** Kullanıcı tasarım şablonlarını önceden oluşturur, örneğin "Haftalık bilgi" ya da "Hikâye". Fikir türleri bu şablonlarla eşleştirilir. "Rastgele seç" bir post fikri seçer, içeriği üretir ve eşleşen şablona yerleştirir.
+- ⬜ **10.9 YouTube kapağı yeniden:** Kapak rastgele bir görselden değil, kullanıcının kendi çekimlerinden üretilir: videodan kareler ve fotoğraflar yüklenir. Kullanıcı beğendiği kapakları referans olarak ekler (ör. Pinterest'ten). Kapak, bu referansların yazı fontu, yazı yerleşimi ve düzeni örnek alınarak oluşturulur.
+- 💬 **10.10 Konuşulacak:**
+  - Reels fikri ile "Video ve altyazı" birleşsin mi?
+  - Post, Prompt ve Reels stüdyoları birleştirilsin mi?
+  - Kampanya kanvası kalsın mı? Ne olduğu kullanıcıya açıklandı; karar bekleniyor.
 
 ## Aşama 6 — İleride
 
