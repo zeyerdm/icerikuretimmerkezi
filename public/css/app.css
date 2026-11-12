@@ -1813,3 +1813,13 @@ body.editor-mode .radial-fab { display: none; }
 .idea-menu > button.danger { color: var(--danger, #c0392b); }
 .idea-menu-row select { margin-left: auto; width: auto; }
 .pool-pick { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+
+/* 10.9 YouTube kapağı: çekim ve referans seçimi */
+.yt-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--s-2); }
+.yt-pick { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 2px solid var(--line); border-radius: var(--r-sm); background: var(--surface); cursor: pointer; min-width: 0; }
+.yt-pick input { position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; accent-color: var(--brand); }
+.yt-pick img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: var(--surface-3); }
+.yt-pick.on { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+.yt-cover { margin: 0 0 var(--s-4); }
+.yt-cover img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.yt-cover figcaption { margin-top: var(--s-2); flex-wrap: wrap; }

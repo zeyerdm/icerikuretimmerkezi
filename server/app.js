@@ -727,6 +727,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/character-book/draft', route(async (req, res) => res.json(await characterBook.draft(req.brand.id, { modelRef: mr(req.body || {}) }))));
 
   // --- YouTube kapak stüdyosu: kapak fikirleri (kaydedilmez) ---
+  api.post('/brands/:brandId/youtube/cover', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await images.youtubeCover(req.brand.id, { shotIds: b.shotIds, refIds: b.refIds, text: b.text, composition: b.composition, emotion: b.emotion, modelRef: mr(b) })); }));
   api.post('/brands/:brandId/youtube/ideas', route(async (req, res) => {
     const b = req.body || {};
     res.json(await thumbnails.ideas(req.brand.id, { topic: b.topic, title: b.title, url: b.url, count: b.count, modelRef: mr(b) }));

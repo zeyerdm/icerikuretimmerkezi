@@ -341,7 +341,13 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
   - Fikir "kullanıldı (Post stüdyosu)" olur.
   
   Önceki tanım: Kullanıcı tasarım şablonlarını önceden oluşturur, örneğin "Haftalık bilgi" ya da "Hikâye". Fikir türleri bu şablonlarla eşleştirilir. "Rastgele seç" bir post fikri seçer, içeriği üretir ve eşleşen şablona yerleştirir.
-- ⬜ **10.9 YouTube kapağı yeniden:** Kapak rastgele bir görselden değil, kullanıcının kendi çekimlerinden üretilir: videodan kareler ve fotoğraflar yüklenir. Kullanıcı beğendiği kapakları referans olarak ekler (ör. Pinterest'ten). Kapak, bu referansların yazı fontu, yazı yerleşimi ve düzeni örnek alınarak oluşturulur.
+- ✅ **10.9 YouTube kapağı yeniden:** Dört adım:
+  1. **Çekimlerin:** Videodan eşit aralıklı 8 kare tarayıcıda çıkarılır, seçilenler kaydedilir; fotoğraf da eklenebilir. Bunlar "YouTube çekimleri" paketinde durur.
+  2. **Beğendiğin kapaklar:** Referanslar "YouTube kapak referansı" paketinde durur.
+  3. **Kapak yazısı:** Öneriler alınır, "Bu yazıyı kullan" ile seçilir.
+  4. **Kapağı oluştur:** En az bir çekim şart. Çekimdeki kişi ve nesneler korunur; referanslardan yalnız yazı stili, yerleşim ve renk işlenişi alınır; yazı kapağa yazdırılır.
+  
+  Sonuçta YouTube önizlemesi, İndir, Drive'a gönder ve "Tasarım olarak aç" var. Rastgele görselden üretim kutusu kaldırıldı. Gerçek görsel anahtarıyla denenmedi. Önceki tanım: Kapak rastgele bir görselden değil, kullanıcının kendi çekimlerinden üretilir: videodan kareler ve fotoğraflar yüklenir. Kullanıcı beğendiği kapakları referans olarak ekler (ör. Pinterest'ten). Kapak, bu referansların yazı fontu, yazı yerleşimi ve düzeni örnek alınarak oluşturulur.
 - 💬 **10.10 Konuşulacak:**
   - Reels fikri ile "Video ve altyazı" birleşsin mi?
   - Post, Prompt ve Reels stüdyoları birleştirilsin mi?

@@ -238,6 +238,7 @@ export const api = {
   post: (id, pid) => request('GET', `${b(id)}/posts/${pid}`),
   savePost: (id, pid, body) => request('PUT', `${b(id)}/posts/${pid}`, body),
   youtubeIdeas: (id, body) => request('POST', b(id) + '/youtube/ideas', body),
+  youtubeCover: (id, body) => request('POST', b(id) + '/youtube/cover', body),
   promptIdentity: id => request('GET', b(id) + '/prompt-identity'),
   savePromptIdentity: (id, body) => request('PUT', b(id) + '/prompt-identity', body),
   saveFeedback: (id, body) => request('PUT', b(id) + '/feedback', body),

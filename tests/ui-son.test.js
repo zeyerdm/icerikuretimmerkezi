@@ -201,7 +201,7 @@ test('T.36 aylık hedef: marka ana sayfasında hedef koy, ilerleme ve rozetler',
   } finally { await browser.close(); await srv.stop(); }
 });
 
-test('5.21 YouTube kapak stüdyosu: fikir al, tarifi kutuya al, tasarım aç, YouTube önizlemesi; ızgarada görünmez', { skip }, async () => {
+test('5.21/10.9 YouTube kapak stüdyosu: yazı öner, yazıyı kullan, tasarım aç, YouTube önizlemesi; ızgarada görünmez', { skip }, async () => {
   const { fakeProvider } = await import('./helpers.js');
   const provider = fakeProvider([p => (p.startsWith('YOUTUBE KAPAK') ? { summary: '', ideas: [
     { name: 'Şaşkın yüz', text: '3 MALZEME YETER Mİ?', promise: 'Evde kafe latte', emotion: 'şaşkın', composition: 'Yazı solda', imagePrompt: 'Surprised barista, 16:9', colors: ['#e11d48'] },
@@ -213,13 +213,15 @@ test('5.21 YouTube kapak stüdyosu: fikir al, tarifi kutuya al, tasarım aç, Yo
     await page.goto(srv.base + `/#/m/${brand.id}/youtube`);
     await page.getByRole('heading', { name: 'YouTube kapağı', level: 1 }).waitFor();
     await page.getByLabel('Video başlığı').fill('Evde barista latte');
-    await page.getByRole('button', { name: 'Kapak fikirleri' }).click();
+    await page.getByRole('button', { name: 'Kapak yazısı öner' }).click();
     await page.locator('.yt-idea').nth(1).waitFor();
     assert.equal(await page.locator('.yt-idea').count(), 2);
     assert.match(await page.locator('.yt-idea-text').first().innerText(), /3 MALZEME YETER/i);
-    // Görsel modeli bağlı değil: üretim kutusu açık uyarı verir (sahte görsel yok)
-    assert.match(await page.locator('#yt-gen').innerText(), /Görsel üretimi bağlı değil/);
-    await page.locator('[data-yt-design="0"]').click();
+    // 10.9: kapak kendi çekiminden; görsel modeli yoksa oluştur düğmesi kapalı (sahte görsel yok)
+    assert.ok(await page.getByRole('button', { name: 'Kapağı oluştur' }).isDisabled());
+    await page.locator('[data-yt-use="0"]').click();
+    assert.equal(await page.locator('#yt-text').inputValue(), '3 MALZEME YETER Mİ?');
+    await page.locator('#yt-blank').click();
     await page.waitForURL(/\/post\/[A-Za-z0-9-]{8,}$/);
     const posts = (await srv.request('GET', `/api/brands/${brand.id}/posts`)).data.posts;
     assert.equal(posts[0].kind, 'youtube');
