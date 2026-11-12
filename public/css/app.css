@@ -1812,3 +1812,4 @@ body.editor-mode .radial-fab { display: none; }
 .idea-menu > button:hover, .idea-menu-row:hover { background: var(--surface-3); }
 .idea-menu > button.danger { color: var(--danger, #c0392b); }
 .idea-menu-row select { margin-left: auto; width: auto; }
+.pool-pick { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
