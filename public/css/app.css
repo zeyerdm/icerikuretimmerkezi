@@ -196,6 +196,7 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .btn.w-full { width: 100%; }
 .btn.is-loading { color: transparent !important; pointer-events: none; }
 .btn.is-loading > * { visibility: hidden; }
+.btn.is-loading > .bt-time { visibility: visible; } /* 8.18: süre rozeti yükleme sırasında da görünür */
 .btn.is-loading::after {
   content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%;
   border: 2px solid currentColor; border-color: var(--ink-2) transparent var(--ink-2) transparent; animation: spin .7s linear infinite;
@@ -1753,3 +1754,7 @@ body.editor-mode .radial-fab { display: none; }
 
 /* 8.19 Hata günlüğü */
 .err-detail { white-space: pre-wrap; font-size: 11px; margin: 4px 0 0; max-width: 60ch; }
+
+/* 8.18 Yönetim Merkezi özet satırı (onay bekleyen, yayın bekleyen, geciken) */
+.w-summary { margin: 4px 0 12px; font-size: var(--t-sm); color: var(--ink-2); }
+.w-summary b { color: var(--ink); }
