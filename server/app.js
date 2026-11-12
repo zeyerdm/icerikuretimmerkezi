@@ -27,6 +27,7 @@ import { createDataExportService } from './services/dataExport.js';
 import { createIgImportService } from './services/igImport.js';
 import { createVoiceoverService } from './services/voiceover.js';
 import { createVideoGenService } from './services/videoGen.js';
+import { createCaptionSetService } from './services/captionSets.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
@@ -136,6 +137,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
   const dataExport = createDataExportService({ db, ownerId, brands });
   const igImport = createIgImportService({ db, brands, workspace });
+  const captionSets = createCaptionSetService({ db, brands });
   const videoGen = createVideoGenService({ db, ai, brands, reels, uploadDir: path.join(dataDir, 'uploads'), pollMs: videoPollMs });
   const voiceover = createVoiceoverService({ db, ai, brands, uploadDir: path.join(dataDir, 'uploads') });
   const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
@@ -591,6 +593,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     res.status(201).json({ reels: await reels.create(req.brand.id, { topic: b.topic, poolId: b.poolId || null, format: b.format || null, patternId: b.patternId || null, modelRef: mr(b) }) });
   }));
+  // 8.15 Hashtag grupları ve imza kapanışları
+  api.get('/brands/:brandId/caption-sets', (req, res) => res.json({ sets: captionSets.get(req.brand.id) }));
+  api.put('/brands/:brandId/caption-sets', (req, res) => res.json({ sets: captionSets.set(req.brand.id, req.body || {}) }));
   // 8.14 Metinden video (Veo)
   api.get('/video-gen', (req, res) => res.json(videoGen.overview()));
   api.get('/brands/:brandId/video-jobs', route(async (req, res) => res.json({ jobs: await videoGen.list(req.brand.id, req.query.reelsId ? String(req.query.reelsId) : null) })));

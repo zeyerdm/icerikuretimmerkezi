@@ -515,6 +515,10 @@ const MIGRATIONS = [
     updated_at TEXT NOT NULL
   );
   CREATE INDEX idx_video_jobs ON video_jobs(brand_id, reels_id, created_at);
+  `,
+  // 34: 8.15 Hashtag grupları ve imza kapanışları (marka başına JSON)
+  `
+  ALTER TABLE brands ADD COLUMN caption_sets TEXT NOT NULL DEFAULT '{}';
   `
 ];
 

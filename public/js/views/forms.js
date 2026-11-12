@@ -39,6 +39,7 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
         <summary>Yayın metni</summary>
         <div class="field"><label for="c-caption">Açıklama <span class="xsmall muted" id="c-cap-count">${(c.caption || '').length}/2200</span></label><textarea class="textarea" id="c-caption" name="caption" rows="6" maxlength="2200" placeholder="Instagram açıklaması">${esc(c.caption || '')}</textarea></div>
         <div class="field mt-3"><label for="c-tags">Hashtag'ler</label><input class="input" id="c-tags" name="hashtags" maxlength="600" value="${esc((c.hashtags || []).join(' '))}" placeholder="#ornek #marka"></div>
+        <div class="set-row mt-2" id="c-sets" aria-label="Hashtag grupları ve imzalar"></div>
         <div class="field mt-3"><label for="c-first">İlk yorum</label><textarea class="textarea" id="c-first" name="firstComment" rows="2" maxlength="2200" placeholder="Paylaşınca markanın ilk yorumu">${esc(c.firstComment || '')}</textarea></div>
         <div class="row mt-3"><button type="button" class="btn btn-sm" data-c-write>AI ile yaz</button><span id="c-model"></span>
           <button type="button" class="btn btn-sm btn-ghost" data-c-copy="caption">Açıklama + hashtag kopyala</button><button type="button" class="btn btn-sm btn-ghost" data-c-copy="first">İlk yorumu kopyala</button></div>
@@ -84,7 +85,67 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
       onSaved && onSaved();
     }
   });
-  if (content) { wireContentCard(modal.form, content); wireReview(modal.form, content, onSaved); }
+  if (content) { wireContentCard(modal.form, content); wireReview(modal.form, content, onSaved); wireSets(modal.form, content.brandId); }
+}
+
+// 8.15 Hashtag grupları ve imza kapanışları: tek tıkla ekleme; "Setleri düzenle" ile marka için yönetilir
+async function wireSets(form, brandId) {
+  const box = form.querySelector('#c-sets');
+  let sets = { hashtagGroups: [], signatures: [] };
+  const draw = () => {
+    box.innerHTML = `${sets.hashtagGroups.map(g => `<button type="button" class="chip" data-tag-group="${esc(g.id)}" title="${esc(g.tags.join(' '))}">#️⃣ ${esc(g.name)} <span class="muted">${g.tags.length}</span></button>`).join('')}
+      ${sets.signatures.map(x => `<button type="button" class="chip" data-sig="${esc(x.id)}" title="${esc(x.text)}">✍️ ${esc(x.name)}</button>`).join('')}
+      <button type="button" class="btn btn-sm btn-ghost" data-sets-edit>${sets.hashtagGroups.length || sets.signatures.length ? 'Setleri düzenle' : '+ Hashtag grubu / imza ekle'}</button>`;
+  };
+  try { sets = (await api.captionSets(brandId)).sets; } catch { /* setler gelmezse yalnız düzenle düğmesi */ }
+  draw();
+  box.addEventListener('click', e => {
+    const g = e.target.closest('[data-tag-group]');
+    if (g) {
+      const grp = sets.hashtagGroups.find(x => x.id === g.dataset.tagGroup);
+      const input = form.querySelector('#c-tags');
+      const cur = input.value.split(/\s+/).filter(Boolean);
+      const low = new Set(cur.map(t => t.toLocaleLowerCase('tr-TR')));
+      input.value = [...cur, ...grp.tags.filter(t => !low.has(t.toLocaleLowerCase('tr-TR')))].join(' ');
+      return;
+    }
+    const sg = e.target.closest('[data-sig]');
+    if (sg) {
+      const x = sets.signatures.find(y => y.id === sg.dataset.sig);
+      const cap = form.querySelector('#c-caption');
+      if (!cap.value.includes(x.text)) { cap.value = cap.value.trim() ? `${cap.value.trimEnd()}\n\n${x.text}` : x.text; cap.dispatchEvent(new Event('input')); }
+      return;
+    }
+    if (e.target.closest('[data-sets-edit]')) setsEditor(brandId, sets, next => { sets = next; draw(); });
+  });
+}
+
+function setsEditor(brandId, sets, onSaved) {
+  const gRow = (g = {}) => `<div class="set-edit" data-g><input class="input input-sm" data-g-name maxlength="40" placeholder="Grup adı (ör. Kampüs)" value="${esc(g.name || '')}" aria-label="Grup adı"><input class="input input-sm grow" data-g-tags maxlength="1200" placeholder="#kahve #kampus #vize" value="${esc((g.tags || []).join(' '))}" aria-label="Hashtag'ler"><input type="hidden" data-g-id value="${esc(g.id || '')}"><button type="button" class="btn btn-sm btn-ghost icon-btn" data-row-del aria-label="Sil">✕</button></div>`;
+  const sRow = (x = {}) => `<div class="set-edit" data-s><input class="input input-sm" data-s-name maxlength="40" placeholder="İmza adı (ör. Kapanış)" value="${esc(x.name || '')}" aria-label="İmza adı"><textarea class="textarea grow" data-s-text rows="2" maxlength="300" placeholder="Ör. Kampüsteki kahve durağın ☕ Bio'daki linkten menüye bak!" aria-label="İmza metni">${esc(x.text || '')}</textarea><input type="hidden" data-s-id value="${esc(x.id || '')}"><button type="button" class="btn btn-sm btn-ghost icon-btn" data-row-del aria-label="Sil">✕</button></div>`;
+  const m = openModal({
+    title: 'Hashtag grupları ve imzalar', submitLabel: 'Kaydet',
+    body: `<p class="small muted mb-3">İçerik kartında tek tıkla eklenir. Marka hafızasındaki yasaklı kelimeler kullanılamaz.</p>
+      <h4 class="mb-2">Hashtag grupları</h4><div class="stack-sm" id="se-groups">${(sets.hashtagGroups.length ? sets.hashtagGroups : [{}]).map(gRow).join('')}</div>
+      <button type="button" class="btn btn-sm mt-2" data-add-g>+ Grup</button>
+      <h4 class="mt-4 mb-2">İmza kapanışları</h4><div class="stack-sm" id="se-sigs">${(sets.signatures.length ? sets.signatures : [{}]).map(sRow).join('')}</div>
+      <button type="button" class="btn btn-sm mt-2" data-add-s>+ İmza</button>`,
+    onSubmit: async (fd, form) => {
+      const body = {
+        hashtagGroups: [...form.querySelectorAll('[data-g]')].map(r => ({ id: r.querySelector('[data-g-id]').value, name: r.querySelector('[data-g-name]').value, tags: r.querySelector('[data-g-tags]').value })),
+        signatures: [...form.querySelectorAll('[data-s]')].map(r => ({ id: r.querySelector('[data-s-id]').value, name: r.querySelector('[data-s-name]').value, text: r.querySelector('[data-s-text]').value }))
+      };
+      const { sets: next } = await api.saveCaptionSets(brandId, body);
+      toast('Setler kaydedildi.', 'success');
+      onSaved(next);
+    }
+  });
+  m.form.addEventListener('click', e => {
+    if (e.target.closest('[data-add-g]')) return m.form.querySelector('#se-groups').insertAdjacentHTML('beforeend', gRow());
+    if (e.target.closest('[data-add-s]')) return m.form.querySelector('#se-sigs').insertAdjacentHTML('beforeend', sRow());
+    const del = e.target.closest('[data-row-del]');
+    if (del) del.closest('.set-edit').remove();
+  });
 }
 
 // 8.11 Onay akışı: geçmiş, durumuna göre düğmeler; açık yapılacak varsa onay için ayrıca sorulur
