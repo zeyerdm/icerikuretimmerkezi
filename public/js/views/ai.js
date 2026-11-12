@@ -81,6 +81,7 @@ async function renderCompare(body, ov, connected, view) {
       <form id="cmp-form" class="stack-sm">
         <div class="row-between" style="flex-wrap:wrap">
           <div class="seg" role="tablist" aria-label="İstek türü">${Object.entries(kinds).map(([k, v]) => `<button type="button" role="tab" data-kind="${k}" class="${k === kind ? 'active' : ''}" aria-selected="${k === kind}">${esc(v)}</button>`).join('')}</div>
+          <select class="select w-auto" id="cmp-pkind" aria-label="Prompt türü" hidden>${Object.entries((state.meta.prompts || {}).kinds || {}).map(([k, v]) => `<option value="${esc(k)}">${esc(v.label)} prompt'u</option>`).join('')}</select>
           <select class="select w-auto" id="cmp-brand" aria-label="Marka"><option value="">Markasız (genel)</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === state.activeBrandId ? 'selected' : ''}>${esc(b.name)} (marka diliyle)</option>`).join('')}</select>
         </div>
         <div class="field"><label for="cmp-brief">İstek</label>
@@ -97,7 +98,7 @@ async function renderCompare(body, ov, connected, view) {
     <section class="card mt-5" id="cmp-history"></section>
     ${optionsTable(ov)}`;
 
-  const kindHints = { serbest: 'İstek modele olduğu gibi gönderilir.', reels: 'Sahne sahne, süreli ve konuşma metinli 30-45 saniyelik senaryo istenir.', aciklama: 'İlk cümle, kısa paragraflar, çağrı ve hashtag\'li açıklama istenir.', fikir: '5 farklı içerik fikri ve önerilen format istenir.' };
+  const kindHints = { serbest: 'İstek modele olduğu gibi gönderilir.', reels: 'Sahne sahne, süreli ve konuşma metinli 30-45 saniyelik senaryo istenir.', aciklama: 'İlk cümle, kısa paragraflar, çağrı ve hashtag\'li açıklama istenir.', fikir: '5 farklı içerik fikri ve önerilen format istenir.', prompt: 'Prompt Studio\'nun kemiği ve markanın prompt kimliğiyle aynı istem her modele gider; her sonuç kalite kontrolünden geçer. Marka seçmek zorunlu.' };
   const labelOf = ref => { const m = ov.models.find(x => x.ref === ref); if (m) return m.label; for (const l of Object.values(lists)) { const x = l.find(y => y.ref === ref); if (x) return x.label || x.id; } return ref.split(':').slice(1).join(':'); };
   const priceOf = ref => { const m = ov.models.find(x => x.ref === ref); if (m) return m.price; for (const l of Object.values(lists)) { const x = l.find(y => y.ref === ref); if (x) return x.price; } return null; };
 
@@ -106,7 +107,8 @@ async function renderCompare(body, ov, connected, view) {
     body.querySelector('#cmp-models').innerHTML = refs.map(ref => `<button type="button" class="chip ${picked.has(ref) ? 'active' : ''}" data-pick="${esc(ref)}" aria-pressed="${picked.has(ref)}">${picked.has(ref) ? '✓ ' : ''}${esc(labelOf(ref))}</button>`).join('');
     const est = [...picked].map(ref => priceOf(ref) ? `${labelOf(ref)} ≈ ${estimate(priceOf(ref))}` : `${labelOf(ref)}: fiyat bilinmiyor`).join(' · ');
     body.querySelector('#cmp-est').textContent = picked.size ? `Tahmini tutar (bir Reels senaryosu kadar metin): ${est}` : '';
-    body.querySelector('#cmp-kind-hint').textContent = kindHints[kind];
+    body.querySelector('#cmp-kind-hint').textContent = kindHints[kind] || '';
+    body.querySelector('#cmp-pkind').hidden = kind !== 'prompt';
   }
   drawModels();
 
@@ -132,19 +134,31 @@ async function renderCompare(body, ov, connected, view) {
       <div class="section-head"><h2>Sonuçlar</h2><span class="small muted">${esc(c.kindLabel)} · ${esc(c.brief.slice(0, 60))}${c.brief.length > 60 ? '…' : ''}</span></div>
       <div class="cmp-grid" style="--cols:${c.results.length}">${c.results.map(r => `
         <section class="card cmp-col ${c.winner === r.ref ? 'is-winner' : ''}">
-          <div class="card-head"><h3>${esc(r.label)}</h3>${c.winner === r.ref ? '<span class="pill pill-ok"><span class="dot"></span>Seçtiğin</span>' : ''}</div>
+          <div class="card-head"><h3>${esc(r.label)}</h3>${r.quality ? `<span class="q-badge ${r.quality.ok ? 'ok' : 'bad'}" title="Kalite kontrolü">%${r.quality.score}</span>` : ''}${c.winner === r.ref ? '<span class="pill pill-ok"><span class="dot"></span>Seçtiğin</span>' : ''}</div>
           ${r.ok ? `<div class="xsmall muted">${(r.ms / 1000).toFixed(1).replace('.', ',')} sn · ${((r.usage.input || 0) + (r.usage.output || 0)).toLocaleString('tr-TR')} token · ${usd(r.cost)}</div>
+            ${r.quality && r.quality.missing.length ? `<div class="xsmall muted mt-1">Eksik: ${esc(r.quality.missing.join(' · '))}</div>` : ''}
             <div class="cmp-text">${esc(r.text)}</div>
             <div class="card-foot row">
               <button class="btn btn-sm ${c.winner === r.ref ? '' : 'btn-primary'}" data-win="${esc(r.ref)}">${c.winner === r.ref ? 'Seçimi kaldır' : 'Bunu seçtim'}</button>
               <select class="select w-auto tr-status" data-assign="${esc(r.ref)}" aria-label="Bu modeli bir işe ata"><option value="">İşe ata…</option>${taskOptions}</select>
               <button class="btn btn-sm btn-ghost" data-copy="${esc(r.ref)}">Kopyala</button>
+              ${c.kind.startsWith('prompt:') && c.brandId ? `<button class="btn btn-sm btn-ghost" data-save-prompt="${esc(r.ref)}">Prompt Studio'ya kaydet</button>` : ''}
             </div>` : `<div class="notice notice-error"><div><strong>Yanıt alınamadı.</strong> ${esc(r.error)}</div></div>`}
         </section>`).join('')}</div>`;
     box.onclick = async e => {
       const win = e.target.closest('[data-win]');
       if (win) {
         try { const { comparison } = await api.aiSetWinner(c.id, c.winner === win.dataset.win ? '' : win.dataset.win); drawResults(comparison); drawHistory(); } catch (err) { toast(err.message, 'error'); }
+        return;
+      }
+      const sp = e.target.closest('[data-save-prompt]');
+      if (sp) {
+        const r = c.results.find(x => x.ref === sp.dataset.savePrompt);
+        try {
+          const { prompt } = await busy(sp, () => api.createPrompt(c.brandId, { manual: true, kind: c.kind.slice(7), title: r.title || c.brief.slice(0, 60), text: r.text, lang: 'tr', brief: c.brief }));
+          toast('Prompt Studio\'ya kaydedildi.', 'success');
+          go(`#/m/${encodeURIComponent(c.brandId)}/prompt/${encodeURIComponent(prompt.id)}`);
+        } catch (err) { toast(err.message, 'error'); }
         return;
       }
       const cp = e.target.closest('[data-copy]');
@@ -203,7 +217,7 @@ async function renderCompare(body, ov, connected, view) {
     const out = body.querySelector('#cmp-results');
     out.innerHTML = `<div class="cmp-grid" style="--cols:${picked.size}">${[...picked].map(ref => `<section class="card"><div class="card-head"><h3>${esc(labelOf(ref))}</h3></div><div class="skeleton" style="height:220px"></div><p class="small muted mt-3">Yazıyor…</p></section>`).join('')}</div>`;
     try {
-      const { comparison } = await busy(e.submitter, () => api.aiCompare({ brief: brief.value, kind, brandId: body.querySelector('#cmp-brand').value || null, models: [...picked] }));
+      const { comparison } = await busy(e.submitter, () => api.aiCompare({ brief: brief.value, kind, promptKind: body.querySelector('#cmp-pkind').value, brandId: body.querySelector('#cmp-brand').value || null, models: [...picked] }));
       drawResults(comparison);
       drawHistory();
       refreshChrome();

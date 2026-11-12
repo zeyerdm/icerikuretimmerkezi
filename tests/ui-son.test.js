@@ -395,3 +395,45 @@ test('7.12 arayüz: prompt kimliğini tarif olarak kaydet, başka markada tarift
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('7.13 arayüz: prompt karşılaştırması kalite puanıyla gösterilir ve Prompt Studio\'ya kaydedilir', { skip }, async () => {
+  const good = 'Barista kafede latte art yapıyor, yakın plan çekim, sıcak altın saat ışığı, 50mm lens, sığ alan derinliği, krem ve kahve tonları, samimi his, gerçekçi fotoğraf stili, arka planda bulanık ahşap raflar ve yükselen buhar, tezgâhta seramik fincanlar ve taze kahve çekirdekleri, temiz kompozisyon, yazı yok, harf yok, kelime yok, filigran yok, logo yok, altyazı yok, arayüz öğesi yok';
+  const json = body => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const fetchImpl = async (url, init = {}) => {
+    const u = new URL(String(url));
+    if (u.pathname.replace(/\/$/, '').endsWith('/models')) return json({ models: ['gemini-flash-latest', 'gemini-flash-lite-latest'].map(n => ({ name: 'models/' + n, supportedGenerationMethods: ['generateContent'] })) });
+    const model = decodeURIComponent(u.pathname.split('/').pop().split(':')[0]);
+    const out = model === 'gemini-flash-latest' ? { title: 'Latte', prompt: good } : { title: 'Zayıf', prompt: 'Kafede kahve' };
+    return json({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }], usageMetadata: {} });
+  };
+  const srv = await startServer({ fetchImpl });
+  await srv.request('PUT', '/api/ai/keys/gemini', { apiKey: 'AIzaTEST0123456789abcdefghijklmnop' });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Kıyas UI' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/ai`);
+    await page.locator('[data-kind="prompt"]').click();
+    await page.locator('#cmp-pkind').waitFor();
+    await page.selectOption('#cmp-pkind', 'gorsel');
+    await page.selectOption('#cmp-brand', b.id);
+    await page.locator('#cmp-brief').fill('Latte');
+    for (const ref of await page.locator('[data-pick][aria-pressed="true"]').evaluateAll(els => els.map(e => e.dataset.pick))) {
+      if (!/^gemini:gemini-flash(-lite)?-latest$/.test(ref)) await page.locator(`[data-pick="${ref}"]`).click();
+    }
+    for (const id of ['gemini-flash-latest', 'gemini-flash-lite-latest']) {
+      const chip = page.locator(`[data-pick="gemini:${id}"]`);
+      if (await chip.getAttribute('aria-pressed') !== 'true') await chip.click();
+    }
+    await page.locator('#cmp-form [type=submit]').click();
+    const cols = page.locator('#cmp-results .cmp-col');
+    await cols.first().waitFor();
+    assert.equal(await cols.count(), 2);
+    assert.match(await cols.first().innerText(), /%100/);
+    assert.match(await cols.nth(1).innerText(), /Eksik:/);
+    await cols.first().getByRole('button', { name: "Prompt Studio'ya kaydet" }).click();
+    await page.waitForURL(/\/prompt\//);
+    await page.locator('#pp-text').waitFor();
+    assert.equal(await page.locator('#pp-text').inputValue(), good);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
