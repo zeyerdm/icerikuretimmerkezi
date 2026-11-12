@@ -26,6 +26,7 @@ import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
 import { createIgImportService } from './services/igImport.js';
 import { createVoiceoverService } from './services/voiceover.js';
+import { createVideoGenService } from './services/videoGen.js';
 import { createDesignRefService } from './services/designRef.js';
 import { createAssetTagService } from './services/assetTags.js';
 import { createThumbnailService } from './services/thumbnails.js';
@@ -107,7 +108,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -135,6 +136,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
   const dataExport = createDataExportService({ db, ownerId, brands });
   const igImport = createIgImportService({ db, brands, workspace });
+  const videoGen = createVideoGenService({ db, ai, brands, reels, uploadDir: path.join(dataDir, 'uploads'), pollMs: videoPollMs });
   const voiceover = createVoiceoverService({ db, ai, brands, uploadDir: path.join(dataDir, 'uploads') });
   const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
@@ -589,6 +591,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     res.status(201).json({ reels: await reels.create(req.brand.id, { topic: b.topic, poolId: b.poolId || null, format: b.format || null, patternId: b.patternId || null, modelRef: mr(b) }) });
   }));
+  // 8.14 Metinden video (Veo)
+  api.get('/video-gen', (req, res) => res.json(videoGen.overview()));
+  api.get('/brands/:brandId/video-jobs', route(async (req, res) => res.json({ jobs: await videoGen.list(req.brand.id, req.query.reelsId ? String(req.query.reelsId) : null) })));
+  api.post('/brands/:brandId/reels/:id/video', route(async (req, res) => {
+    const b = req.body || {};
+    res.status(201).json({ job: await videoGen.start(req.brand.id, req.params.id, { sceneIndex: b.sceneIndex, model: b.model || null, aspect: b.aspect || '9:16', prompt: b.prompt || '' }) });
+  }));
+  api.get('/brands/:brandId/video-jobs/:id/file', (req, res) => { res.setHeader('Content-Type', 'video/mp4'); res.setHeader('Cache-Control', 'private, max-age=86400'); res.sendFile(videoGen.file(req.brand.id, req.params.id)); });
+  api.delete('/brands/:brandId/video-jobs/:id', (req, res) => { videoGen.remove(req.brand.id, req.params.id); res.status(204).end(); });
   // 8.13 Seslendirme
   api.get('/tts', (req, res) => res.json(voiceover.overview()));
   api.get('/brands/:brandId/reels/:id/voice', (req, res) => res.json({ voiceover: voiceover.get(req.brand.id, req.params.id) }));

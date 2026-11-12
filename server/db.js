@@ -495,6 +495,26 @@ const MIGRATIONS = [
   // 32: 8.13 Seslendirme: senaryonun seslendirme bilgisi (ses, tarz, sahne süreleri); dosyalar uploads/<marka>/voice altında
   `
   ALTER TABLE reels ADD COLUMN voiceover TEXT NOT NULL DEFAULT '';
+  `,
+  // 33: 8.14 Metinden video işleri (Veo uzun süren işlem; durum sorgulanarak tamamlanır)
+  `
+  CREATE TABLE video_jobs (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    reels_id TEXT,
+    scene_index INTEGER,
+    model TEXT NOT NULL,
+    aspect TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'bekliyor',
+    error TEXT NOT NULL DEFAULT '',
+    cost_usd REAL NOT NULL DEFAULT 0,
+    checked_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_video_jobs ON video_jobs(brand_id, reels_id, created_at);
   `
 ];
 

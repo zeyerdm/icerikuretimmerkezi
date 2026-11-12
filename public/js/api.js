@@ -188,6 +188,10 @@ export const api = {
   updateIdea: (id, ideaId, body) => request('PATCH', `${b(id)}/ideas/${ideaId}`, body),
 
   tts: () => request('GET', '/api/tts'),
+  videoGen: () => request('GET', '/api/video-gen'),
+  videoJobs: (id, reelsId) => request('GET', `${b(id)}/video-jobs${reelsId ? '?reelsId=' + encodeURIComponent(reelsId) : ''}`),
+  startVideo: (id, rid, body) => request('POST', `${b(id)}/reels/${rid}/video`, body),
+  deleteVideoJob: (id, jid) => request('DELETE', `${b(id)}/video-jobs/${jid}`),
   reelsVoice: (id, rid) => request('GET', `${b(id)}/reels/${rid}/voice`),
   makeReelsVoice: (id, rid, body) => request('POST', `${b(id)}/reels/${rid}/voice`, body),
   reelsSettings: id => request('GET', b(id) + '/reels/settings'),

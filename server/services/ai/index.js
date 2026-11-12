@@ -1,7 +1,7 @@
 // AI servis katmanı: birden çok sağlayıcı, işe göre model ataması, yedek modele geçiş, harcama kaydı ve aylık sınır.
 // Anahtarlar yalnızca sunucuda (ayarlar tablosunda ya da ortam değişkeninde) durur; istemciye hiçbir zaman gönderilmez.
 import { newId, now, badRequest, parseJson, HttpError } from '../../lib/http.js';
-import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMAGE_DEFAULTS, IMAGE_ASPECTS, TTS_MODELS, TTS_VOICES, modelRef, parseRef, catalogModel } from './catalog.js';
+import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMAGE_DEFAULTS, IMAGE_ASPECTS, TTS_MODELS, TTS_VOICES, VIDEO_MODELS, VIDEO_ASPECTS, modelRef, parseRef, catalogModel } from './catalog.js';
 import { createGeminiProvider } from './providers/gemini.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
 import { createOpenAiCompatibleProvider } from './providers/openai.js';
@@ -248,9 +248,40 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     }
   }
 
+  // 8.14 Metinden video (Veo, Gemini anahtarıyla). Bağlı değilse arayüz düğmeyi hiç göstermez.
+  const videoCat = ref => VIDEO_MODELS.find(m => modelRef(m.provider, m.id) === ref) || null;
+  function videoOverview() {
+    return { configured: isConfigured('gemini') && Boolean(providers.gemini.videoStart), aspects: VIDEO_ASPECTS, default: modelRef('gemini', VIDEO_MODELS[0].id),
+      models: VIDEO_MODELS.map(m => Object.assign({}, m, { ref: modelRef(m.provider, m.id), cost: m.perSecond * m.seconds })) };
+  }
+  async function videoStart({ prompt, modelRef: ref = null, aspect = '9:16' }) {
+    checkBudget();
+    if (!videoOverview().configured) throw new HttpError(409, 'AI_VIDEO_NOT_CONFIGURED', 'Video üretimi için Google Gemini anahtarı (Veo erişimiyle) gerekli.');
+    const chosen = ref || videoOverview().default;
+    const cat = videoCat(chosen);
+    if (!cat) throw badRequest('Geçersiz video modeli.');
+    if (!VIDEO_ASPECTS[aspect]) throw badRequest('Geçersiz video oranı.');
+    const r = await providers.gemini.videoStart({ model: cat.id, prompt, aspect });
+    return { operation: r.operation, ref: chosen, label: cat.label };
+  }
+  // Sorgu; bitince video indirilir ve tutar harcamaya yazılır
+  async function videoPoll({ operation, ref, brandId = null }) {
+    const cat = videoCat(ref);
+    const r = await providers.gemini.videoPoll(operation);
+    if (!r.done) return { done: false };
+    if (r.error) { record({ ref, task: 'video', brandId, ok: false, error: r.error }); return { done: true, error: r.error }; }
+    const buffer = await providers.gemini.videoDownload(r.uri);
+    const cost = cat ? cat.perSecond * cat.seconds : 0;
+    record({ ref, task: 'video', brandId, usage: {}, cost });
+    return { done: true, buffer, cost };
+  }
+
   return {
     providers,
     tasks: TASKS,
+    videoOverview,
+    videoStart,
+    videoPoll,
     image,
     imageOverview,
     speech,
@@ -407,7 +438,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
         month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
         total,
         byBrand: q("COALESCE(b.name, 'Markasız')", ''),
-        byTask: q('u.task', '').map(r => Object.assign(r, { label: (TASKS[r.k] && TASKS[r.k].label) || (r.k === 'karsilastirma' ? 'Model karşılaştırma' : r.k === 'gorsel' ? 'Görsel üretimi' : r.k === 'seslendirme' ? 'Seslendirme' : r.k) })),
+        byTask: q('u.task', '').map(r => Object.assign(r, { label: (TASKS[r.k] && TASKS[r.k].label) || (r.k === 'karsilastirma' ? 'Model karşılaştırma' : r.k === 'gorsel' ? 'Görsel üretimi' : r.k === 'seslendirme' ? 'Seslendirme' : r.k === 'video' ? 'Video üretimi' : r.k) })),
         byModel: q("u.provider || ':' || u.model", '').map(r => Object.assign(r, { label: labelOf(r.k) })),
         budget: budgetStatus()
       };

@@ -46,3 +46,32 @@ export async function startServer(options = {}) {
     }
   };
 }
+
+const gjson = b => new Response(JSON.stringify(b), { status: 200, headers: { 'Content-Type': 'application/json' } });
+const scene = (o = {}) => Object.assign({
+  duration: 6, start: 'Karakter kafede', endFrame: 'Fincan masada',
+  beats: [{ from: 0, to: 3, action: 'Fincanı kaldırır', camera: 'Yakın plan', sound: '' }, { from: 3, to: 6, action: 'Gülümser', camera: 'Geniş plan', sound: 'zil' }],
+  line: 'Vize haftası geldi ama kahven hazır, sakin ol ve nefes al biraz', lineFrom: 0.5, lineTo: 6,
+  flowScene: '0-3s: Kahveci lifts the cup. 3-6s: Kahveci smiles.', flowSceneTr: '0-3 sn: Kahveci fincanı kaldırır. 3-6 sn: Kahveci gülümser.'
+}, o);
+const RAW = { title: 'Vize kahvesi', format: 'skec', topic: 'Vize', why: 'Herkes yaşar', punchline: 'Kahve', setting: 'Kafe', screenTitle: 'Vize haftası kahve molası', titleKeyword: 'kahve',
+  scenes: [scene(), scene({ start: 'Önceki kareden devam', line: 'İkinci sahnenin repliği de burada akıcı biçimde söyleniyor şimdi' })], ending: { twist: 'Fincan konuşur', lastFrame: 'Logo' }, caption: 'Açıklama', hashtags: ['vize'], music: 'Neşeli' };
+
+// Sahte Gemini: senaryo yazımı (Reels JSON) ve TTS (1 sn PCM) — 8.13/8.14 testleri
+export function fakeGeminiReels() {
+  const calls = [];
+  const impl = async (url, init = {}) => {
+    const u = new URL(String(url));
+    if (u.pathname.replace(/\/$/, '').endsWith('/models')) return gjson({ models: ['gemini-flash-latest', 'gemini-flash-lite-latest'].map(n => ({ name: 'models/' + n, supportedGenerationMethods: ['generateContent'] })) });
+    const model = decodeURIComponent(u.pathname.split('/').pop().split(':')[0]);
+    const body = JSON.parse(init.body);
+    calls.push({ model, body });
+    if (model.includes('tts')) {
+      const pcm = Buffer.alloc(24000 * 2, 1); // 1 sn
+      return gjson({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: pcm.toString('base64') } }] } }], usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 100 } });
+    }
+    return gjson({ candidates: [{ content: { parts: [{ text: JSON.stringify(RAW) }] } }], usageMetadata: {} });
+  };
+  return { impl, calls };
+}
+
