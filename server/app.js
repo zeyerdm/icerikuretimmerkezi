@@ -114,7 +114,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
   const ideas = createIdeaService(db);
   const workspace = createWorkspaceService(db, ownerId, brands);
-  const trash = createTrashService(db, ownerId);
+  const trash = createTrashService(db, ownerId, { asset: assets.trashHooks });
   const searcher = createSearchService(db, ownerId);
   const campaigns = createCampaignService({ db, brands });
   // Çöpe atarak sil: kaydın görüntüsü alınır, kimliği X-Trash-Id başlığıyla döner (arayüz "Geri al" gösterir)
@@ -703,12 +703,17 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     res.status(201).json(r);
   });
   api.get('/brands/:brandId/asset-packs', (req, res) => res.json({ packs: assets.packs(req.brand.id) }));
-  api.delete('/brands/:brandId/asset-packs', (req, res) => res.json({ removed: assets.removePack(req.brand.id, String(req.query.pack || '')) }));
+  // 8.7: paketteki her görsel ayrı ayrı çöp kutusuna gider (tek tek geri alınabilir)
+  api.delete('/brands/:brandId/asset-packs', (req, res) => {
+    const ids = assets.packIds(req.brand.id, String(req.query.pack || ''));
+    ids.forEach(id => trash.capture('asset', id, () => assets.remove(req.brand.id, id, { stash: true })));
+    res.json({ removed: ids.length, trashed: true });
+  });
 
   api.post('/brands/:brandId/assets/:assetId/analyze', route(async (req, res) => res.json(await assetTags.analyze(req.brand.id, req.params.assetId, { modelRef: mr(req.body || {}) }))));
   api.patch('/brands/:brandId/assets/:assetId', (req, res) => res.json({ asset: assets.update(req.brand.id, req.params.assetId, req.body || {}) }));
 
-  api.delete('/brands/:brandId/assets/:assetId', (req, res) => { assets.remove(req.brand.id, req.params.assetId); res.status(204).end(); });
+  api.delete('/brands/:brandId/assets/:assetId', (req, res) => trashed(res, 'asset', req.params.assetId, () => assets.remove(req.brand.id, req.params.assetId, { stash: true })));
 
   api.get('/brands/:brandId/assets/:assetId/file', (req, res) => {
     const f = assets.file(req.brand.id, req.params.assetId);

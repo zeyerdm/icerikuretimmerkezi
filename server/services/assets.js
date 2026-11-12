@@ -60,6 +60,7 @@ const MAX_PACK_FILES = 200;
 export function createAssetService(db, uploadDir) {
   const brandDir = brandId => path.join(uploadDir, brandId);
   const filePath = row => path.join(brandDir(row.brand_id), row.file_name);
+  const stashPath = row => path.join(brandDir(row.brand_id), '.trash', path.basename(row.file_name));
   const getRow = (brandId, assetId) => {
     const row = db.prepare('SELECT * FROM assets WHERE id = ? AND brand_id = ?').get(String(assetId), brandId);
     if (!row) throw notFound('Dosya bulunamadı.');
@@ -101,10 +102,24 @@ export function createAssetService(db, uploadDir) {
       return toAsset(Object.assign(row, { label, category, pack, tags, ref_role: refRole }));
     },
 
-    remove(brandId, assetId) {
+    // stash: dosya silinmez, markanın .trash klasörüne taşınır (8.7 çöp kutusu; 30 gün içinde geri alınabilir)
+    remove(brandId, assetId, { stash = false } = {}) {
       const row = getRow(brandId, assetId);
       db.prepare('DELETE FROM assets WHERE id = ? AND brand_id = ?').run(row.id, brandId);
-      fs.rmSync(filePath(row), { force: true });
+      if (stash && fs.existsSync(filePath(row))) {
+        fs.mkdirSync(path.dirname(stashPath(row)), { recursive: true });
+        fs.renameSync(filePath(row), stashPath(row));
+      } else fs.rmSync(filePath(row), { force: true });
+    },
+    // Çöp kutusu kancaları: geri alınca dosya yerine döner; kalıcı silinince saklanan dosya da silinir
+    trashHooks: {
+      restore(row) {
+        if (!fs.existsSync(stashPath(row))) throw badRequest('Görselin dosyası bulunamadı; geri alınamaz.');
+        fs.mkdirSync(brandDir(row.brand_id), { recursive: true });
+        fs.renameSync(stashPath(row), filePath(row));
+      },
+      undo(row) { if (fs.existsSync(filePath(row))) { fs.mkdirSync(path.dirname(stashPath(row)), { recursive: true }); fs.renameSync(filePath(row), stashPath(row)); } },
+      drop(row) { fs.rmSync(stashPath(row), { force: true }); }
     },
 
     file(brandId, assetId) {
@@ -154,14 +169,11 @@ export function createAssetService(db, uploadDir) {
         .map(r => ({ name: r.pack, category: r.category, count: r.count }));
     },
 
-    removePack(brandId, pack) {
-      const rows = db.prepare('SELECT * FROM assets WHERE brand_id = ? AND pack = ?').all(brandId, cleanPack(pack));
-      if (!rows.length) throw notFound('Paket bulunamadı.');
-      db.prepare('DELETE FROM assets WHERE brand_id = ? AND pack = ?').run(brandId, cleanPack(pack));
-      rows.forEach(r => fs.rmSync(filePath(r), { force: true }));
-      return rows.length;
+    packIds(brandId, pack) {
+      const ids = db.prepare('SELECT id FROM assets WHERE brand_id = ? AND pack = ?').all(brandId, cleanPack(pack)).map(r => r.id);
+      if (!ids.length) throw notFound('Paket bulunamadı.');
+      return ids;
     },
-
     removeBrandFiles(brandId) {
       fs.rmSync(brandDir(brandId), { recursive: true, force: true });
     }

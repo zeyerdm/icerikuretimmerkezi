@@ -52,12 +52,17 @@ test('T.6 varlık paketleri: ZIP içe aktarma, klasör → etiket, atlanan dosya
     assert.deepEqual((await s.request('GET', `/api/brands/${b.id}/asset-packs`)).data.packs, []);
     assert.equal((await s.request('DELETE', `/api/brands/${b.id}/asset-packs?pack=Kahve%20Yüzleri`)).status, 404);
 
-    // Silince dosyalar diskten de silinir
-    const files = () => { const dir = path.join(s.dataDir, 'uploads', a.id); return fs.existsSync(dir) ? fs.readdirSync(dir, { recursive: true }).filter(f => /\.\w+$/.test(f)) : []; };
+    // Silince dosyalar kütüphaneden çıkar; 8.7'den beri çöp kutusunda (.trash) 30 gün bekler, çöp boşaltılınca silinir
+    const dir = path.join(s.dataDir, 'uploads', a.id);
+    const files = () => (fs.existsSync(dir) ? fs.readdirSync(dir, { recursive: true }).filter(f => /\.\w+$/.test(f) && !String(f).startsWith('.trash')) : []);
+    const stashed = () => (fs.existsSync(path.join(dir, '.trash')) ? fs.readdirSync(path.join(dir, '.trash')).length : 0);
     assert.ok(files().length >= 4);
     const del = await s.request('DELETE', `${url}?pack=Kahve%20Yüzleri`);
     assert.equal(del.data.removed, 4);
     assert.equal(files().length, 0);
+    assert.equal(stashed(), 4);
+    await s.request('DELETE', '/api/trash');
+    assert.equal(stashed(), 0);
     assert.deepEqual((await s.request('GET', `/api/brands/${a.id}/assets`)).data.assets, []);
   } finally { await s.stop(); }
 });

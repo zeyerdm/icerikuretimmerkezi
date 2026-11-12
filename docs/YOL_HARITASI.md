@@ -252,7 +252,7 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 **B. Güvenlik ve veri**
 - ✅ **8.6 API anahtarlarını şifreli saklama:** Anahtarlar veritabanında açık metin. İşletim sisteminin anahtar zinciri (Windows Credential Manager / macOS Keychain) ya da makineye bağlı şifreleme kullanılmalı. Yedek dosyasına anahtar girmemesi sürüyor.
   - *yapıldı: gizli ayarlar (apikey/token/secret/password) AES-256-GCM ile şifreli; anahtar veri klasöründeki .secret.key (0600); eski düz metinler açılışta şifrelenir; yedeklere gizli ayar zaten girmiyor (tests/guvenlik.test.js). İşletim sistemi anahtar zinciri ileride eklenebilir.*
-- ⬜ **8.7 Kütüphane dosyaları için çöp kutusu:** Silinen görseller şu an geri alınamıyor; 30 günlük geri alma görseller için de olmalı.
+- ✅ **8.7 Kütüphane dosyaları için çöp kutusu:** Silinen görseller şu an geri alınamıyor; 30 günlük geri alma görseller için de olmalı. _(Yapıldı: tek görsel ya da paket silinince her görsel çöp kutusuna gider; dosyası markanın .trash klasöründe bekler. Geri alınca dosya ve kayıt yerine döner; kalıcı silme, çöpü boşaltma ve 30 gün dolması dosyayı da siler.)_
 - ⬜ **8.8 Veri dışa aktarma:** Marka başına bütün kayıtlar (fikir, senaryo, takvim, notlar) JSON/CSV olarak indirilir; takvim .ics olarak Google/Outlook takvimine aktarılır.
 
 **C. Performans**
