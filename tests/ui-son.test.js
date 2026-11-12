@@ -631,3 +631,28 @@ test('8.15 arayüz: içerik kartında set düzenle, grup ve imzayı tek tıkla e
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('8.16 arayüz: takvimde Haftalık plan; taslak, satır düzenleme/çıkarma, takvime yazma', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Plan UI' })).data.brand;
+  await srv.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Latte günü', category: 'guncel' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/takvim`);
+    await page.locator('[data-week-plan]').click();
+    await page.locator('#wp-count').fill('3');
+    await page.locator('[data-wp-draft]').click();
+    const rows = page.locator('[data-wp-row]');
+    await rows.first().waitFor();
+    assert.equal(await rows.count(), 3);
+    assert.ok(await page.locator('[data-wp-title]').evaluateAll(els => els.some(e => e.value === 'Latte günü')));
+    await rows.nth(2).locator('[data-wp-on]').uncheck();
+    await rows.nth(1).locator('[data-wp-title]').fill('Elle değişen başlık');
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.toast', { hasText: '2 içerik takvime yazıldı' }).waitFor();
+    const list = (await srv.request('GET', `/api/contents?brandId=${b.id}`)).data.contents;
+    assert.equal(list.length, 2);
+    assert.ok(list.some(c => c.title === 'Elle değişen başlık'));
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

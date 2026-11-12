@@ -187,6 +187,8 @@ export const api = {
   deleteNote: id => request('DELETE', '/api/notes/' + encodeURIComponent(id)),
   updateIdea: (id, ideaId, body) => request('PATCH', `${b(id)}/ideas/${ideaId}`, body),
 
+  weekDraft: (id, body) => request('POST', `${b(id)}/plan/week/draft`, body),
+  weekApply: (id, items) => request('POST', `${b(id)}/plan/week/apply`, { items }),
   captionSets: id => request('GET', `${b(id)}/caption-sets`),
   saveCaptionSets: (id, body) => request('PUT', `${b(id)}/caption-sets`, body),
   tts: () => request('GET', '/api/tts'),
