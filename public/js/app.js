@@ -96,22 +96,24 @@ export const CENTER_NAV = [
 export const BRAND_NAV = [
   { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home', group: 'yonetim' },
   { page: 'kimlik', path: '/kimlik', label: 'Marka kimliği', icon: 'identity', group: 'yonetim' },
+  // İçerik üretimi kullanım sırasıyla: fikir → üretim stüdyoları → plan → arşiv (en sonda)
   { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea', group: 'uretim' },
   { page: 'reels', path: '/reels', label: 'Reels', icon: 'film', group: 'uretim' },
   { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette', group: 'uretim' },
   { page: 'prompt', path: '/prompt', label: 'Prompt Studio', icon: 'wand', group: 'uretim' },
+  { page: 'youtube', path: '/youtube', label: 'YouTube kapağı', icon: 'image', group: 'uretim' },
+  { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'uretim' },
+  { page: 'kampanya', path: '/kampanya', label: 'Kampanya kanvası', icon: 'grid', group: 'uretim' },
   { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar', group: 'uretim' },
   { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive', group: 'uretim' },
-  { page: 'kampanya', path: '/kampanya', label: 'Kampanya kanvası', icon: 'grid', group: 'uretim' },
-  { page: 'youtube', path: '/youtube', label: 'YouTube kapağı', icon: 'image', group: 'uretim' },
+  { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image', group: 'varlik' },
+  // Araştırma en sonda (Rakipler ve Analizler sonra ele alınacak)
   { page: 'rakipler', path: '/rakipler', label: 'Rakipler', icon: 'brands', group: 'arastirma' },
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart', group: 'arastirma' },
-  { page: 'rapor', path: '/rapor', label: 'Aylık rapor', icon: 'archive', group: 'arastirma' },
-  { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image', group: 'varlik' },
-  { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'varlik' }
+  { page: 'rapor', path: '/rapor', label: 'Aylık rapor', icon: 'archive', group: 'arastirma' }
 ];
 // U.6: marka menüsü grupları (açılıp kapanır; tercih hatırlanır, açık sayfanın grubu her zaman açık)
-const BRAND_GROUPS = [['yonetim', 'Marka yönetimi'], ['uretim', 'İçerik üretimi'], ['arastirma', 'Araştırma'], ['varlik', 'Varlıklar']];
+const BRAND_GROUPS = [['yonetim', 'Marka yönetimi'], ['uretim', 'İçerik üretimi'], ['varlik', 'Varlıklar'], ['arastirma', 'Araştırma']];
 const GROUP_KEY = 'ium.nav.closed';
 function closedGroups() { try { return JSON.parse(localStorage.getItem(GROUP_KEY) || '[]'); } catch { return []; } }
 

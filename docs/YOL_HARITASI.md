@@ -327,7 +327,7 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
   - Ad, etiket, @ referans rolü, görseldeki yazıyı okuma ve paketi silme isteğe bağlı olarak "Ayrıntı" penceresinde.
   - Kütüphanedeki AI görsel üretimi ve hazır şablonlar kaldırıldı; şablonlar Prompt Studio'ya taşındı.
   - Sunucudaki kategoriler değişmedi; eski kayıtlar olduğu gibi görünür.
-- ⬜ **10.3 Menü düzeni:** "Video ve altyazı" Varlıklar'dan İçerik üretimine taşınır. İçerik üretimi menüsü kullanım sırasına göre dizilir: fikirler başta, Arşiv en sonda. Araştırma grubu (Rakipler, Analizler, Aylık rapor) en sonda kalır. Analizler ve Rakipler en son ele alınacak; ne yüklenmesi ve nasıl kurgulanması gerektiği o zaman konuşulacak.
+- ✅ **10.3 Menü düzeni:** "Video ve altyazı" ve "Dışa aktar" Varlıklar grubundan çıktı. "Video ve altyazı" artık İçerik üretiminde; "Dışa aktar" 10.1'de kaldırıldı. İçerik üretimi kullanım sırasıyla dizildi: fikirler, Reels, Post, Prompt Studio, YouTube kapağı, Video ve altyazı, Kampanya kanvası, Takvim, Arşiv (en sonda). Gruplar: Marka yönetimi, İçerik üretimi, Varlıklar (Kütüphane), Araştırma (en sonda). Rakipler ve Analizlerin kurgusu sonra konuşulacak.
 
 **İçerik havuzu ve stüdyolar**
 - ⬜ **10.4 İçerik fikirleri kategorilere ayrılır:** Reels fikirleri, post fikirleri, YouTube fikirleri ve gerekirse diğerleri. İçerik havuzu bütün üretimin ana kaynağıdır.
