@@ -738,6 +738,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
 
   api.delete('/brands/:brandId/assets/:assetId', (req, res) => trashed(res, 'asset', req.params.assetId, () => assets.remove(req.brand.id, req.params.assetId, { stash: true })));
 
+  // 8.10 küçük resim: yoksa asıl dosya verilir (X-Thumb: missing), böylece ızgara her durumda görüntülenir
+  api.get('/brands/:brandId/assets/:assetId/thumb', (req, res) => {
+    const t = assets.thumb(req.brand.id, req.params.assetId);
+    res.setHeader('Content-Type', t.mime);
+    res.setHeader('Cache-Control', t.fallback ? 'no-store' : 'private, max-age=86400');
+    if (t.fallback) res.setHeader('X-Thumb', 'missing');
+    res.sendFile(t.path, { dotfiles: 'allow' }); // küçük resimler .thumbs klasöründe
+  });
+  api.put('/brands/:brandId/assets/:assetId/thumb', express.raw({ type: () => true, limit: '256kb' }), (req, res) => res.json({ asset: assets.saveThumb(req.brand.id, req.params.assetId, req.body) }));
   api.get('/brands/:brandId/assets/:assetId/file', (req, res) => {
     const f = assets.file(req.brand.id, req.params.assetId);
     res.setHeader('Content-Type', f.mime);

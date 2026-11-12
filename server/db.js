@@ -476,6 +476,10 @@ const MIGRATIONS = [
     UNIQUE (brand_id, target_type, target_id)
   );
   ALTER TABLE brands ADD COLUMN feedback_dismissed TEXT NOT NULL DEFAULT '{}';
+  `,
+  // 30: 8.10 Küçük resim: tarayıcının ürettiği ~400 px önizleme (.thumbs klasöründe) var mı
+  `
+  ALTER TABLE assets ADD COLUMN thumb INTEGER NOT NULL DEFAULT 0;
   `
 ];
 

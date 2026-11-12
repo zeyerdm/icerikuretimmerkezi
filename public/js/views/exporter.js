@@ -48,7 +48,7 @@ export async function renderExporter(view, brand) {
 
   function srcHtml() {
     const picked = new Set(items.map(i => i.key));
-    if (tab === 'kutuphane') return assets.length ? `<div class="exp-pick">${assets.map(a => `<button type="button" class="exp-thumb ${picked.has('a' + a.id) ? 'on' : ''}" data-asset="${esc(a.id)}" title="${esc(a.label || a.categoryLabel)}"><img src="${esc(a.url)}" alt="" loading="lazy"><span>${esc(a.label || a.categoryLabel)}</span></button>`).join('')}</div>`
+    if (tab === 'kutuphane') return assets.length ? `<div class="exp-pick">${assets.map(a => `<button type="button" class="exp-thumb ${picked.has('a' + a.id) ? 'on' : ''}" data-asset="${esc(a.id)}" title="${esc(a.label || a.categoryLabel)}"><img src="${esc(a.thumbUrl || a.url)}" alt="" loading="lazy"><span>${esc(a.label || a.categoryLabel)}</span></button>`).join('')}</div>`
       : emptyState({ icon: 'image', title: 'Kütüphane boş', compact: true });
     if (tab === 'tasarim') return posts.length ? `<div class="exp-list">${posts.map(p => `<button type="button" class="exp-post ${picked.has('p' + p.id + ':0') ? 'on' : ''}" data-post="${esc(p.id)}">${icon('palette')}<span class="strong">${esc(p.title)}</span><span class="xsmall muted">${p.data.slides.length} slayt · ${esc(p.data.format)}</span></button>`).join('')}</div><p class="xsmall muted mt-2">Tasarımın bütün slaytları eklenir.</p>`
       : emptyState({ icon: 'palette', title: 'Tasarım yok', compact: true });
