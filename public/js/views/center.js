@@ -21,6 +21,7 @@ export async function renderCenter(view) {
   const hello = hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar';
   const summary = [
     week.scheduledPending ? `bu hafta <b>${week.scheduledPending}</b> içerik yayın bekliyor` : null,
+    k.approval ? `<b>${k.approval}</b> içerik onay bekliyor` : null,
     k.overdueTasks ? `<b>${k.overdueTasks}</b> görevin süresi geçti` : (k.openTasks ? `<b>${k.openTasks}</b> açık görevin var` : null),
     perf.overdue ? `<b>${perf.overdue}</b> içerik tarihi geçtiği halde tamamlanmadı` : null
   ].filter(Boolean);
@@ -48,6 +49,7 @@ export async function renderCenter(view) {
           <div class="w-date">${esc(fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
           ${d.brands.length ? `
             <h1>${hello}! Bugün neler üretiyoruz?</h1>
+            ${summary.length ? `<p class="w-summary" id="w-summary">${summary.join(' · ')}</p>` : ''}
             <div class="w-actions">
               <button class="btn btn-primary" data-act="plan">${icon('calendar')}İçerik planla</button>
               <button class="btn" data-act="task">${icon('tasks')}Görev ekle</button>
