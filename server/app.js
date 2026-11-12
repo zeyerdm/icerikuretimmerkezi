@@ -407,6 +407,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     res.json({ contents, truncated: contents.length === limit });
   });
   api.get('/contents/:id', (req, res) => res.json({ content: workspace.getContent(req.params.id) }));
+  // 8.11 Onay akışı
+  api.get('/contents/:id/reviews', (req, res) => res.json({ reviews: workspace.reviews(req.params.id) }));
+  api.post('/contents/:id/review', (req, res) => res.status(201).json(workspace.review(req.params.id, req.body || {})));
   api.post('/contents', (req, res) => res.status(201).json({ content: workspace.createContent(req.body || {}) }));
   api.post('/contents/:id/write', route(async (req, res) => res.json(await captions.write(req.params.id, { modelRef: mr(req.body) }))));
   api.patch('/contents/:id', (req, res) => res.json({ content: workspace.updateContent(req.params.id, req.body || {}) }));

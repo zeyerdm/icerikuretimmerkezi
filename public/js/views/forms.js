@@ -1,6 +1,6 @@
 // Ortak pencereler: içerik planlama, görev ve not. Takvim, yönetim merkezi, fikir havuzu ve arşiv aynı pencereleri kullanır.
 import { api } from '../api.js';
-import { esc, openModal, dateKey, timeStr, toast } from '../ui.js';
+import { esc, openModal, dateKey, timeStr, toast, busy } from '../ui.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 
 const checkRow = (i, k) => `<li class="check-item"><label class="check"><input type="checkbox" data-ck-done ${i.done ? 'checked' : ''}> <span data-ck-label>${esc(i.label)}</span></label><button type="button" class="btn btn-sm btn-ghost icon-btn" data-ck-del="${k}" aria-label="Adımı sil">×</button></li>`;
@@ -49,6 +49,13 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
         <ul class="check-list" id="c-checklist">${checklist.map(checkRow).join('')}</ul>
         <div class="row mt-2"><input class="input input-sm grow" id="c-ck-new" maxlength="60" placeholder="Yeni adım ekle"><button type="button" class="btn btn-sm" data-ck-add>Ekle</button></div>
       </details>
+      <details class="disclosure mt-4" id="c-review" ${c.status === 'onay' ? 'open' : ''}>
+        <summary>Onay <span class="muted" id="c-rv-state">${c.status === 'onay' ? '· onay bekliyor' : ''}</span></summary>
+        <p class="xsmall muted mb-2">Onaya gönder → yorum → onayla ya da düzeltme iste. Tek başına çalışıyorsan kendi son kontrolün olur: yapılacaklar bitmeden onay verilmez.</p>
+        <ol class="review-list" id="c-rv-list"><li class="small muted">Yükleniyor…</li></ol>
+        <div class="field mt-2"><label for="c-rv-note">Not / yorum</label><textarea class="textarea" id="c-rv-note" rows="2" maxlength="1000" placeholder="Ör. Görseldeki fiyat yanlış yazılmış"></textarea></div>
+        <div class="row mt-2" id="c-rv-actions"></div>
+      </details>
       <details class="disclosure mt-4" ${c.metrics || c.status === 'yayinlandi' ? 'open' : ''}>
         <summary>Paylaşım sonucu${c.rate != null ? ` · etkileşim %${String(c.rate).replace('.', ',')}` : ''}</summary>
         <p class="xsmall muted mb-3">Instagram istatistiklerindeki sayıları gir. Asistan ve üretim ekranları en çok tutan giriş cümlelerinden ve temalardan öğrenir; Analizler'de "Ne işe yaradı" bölümü bunlardan hesaplanır.${c.metrics && c.metrics.at ? ` Son giriş: ${esc(new Date(c.metrics.at).toLocaleDateString('tr-TR'))}.` : ''}</p>
@@ -77,7 +84,44 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
       onSaved && onSaved();
     }
   });
-  if (content) wireContentCard(modal.form, content);
+  if (content) { wireContentCard(modal.form, content); wireReview(modal.form, content, onSaved); }
+}
+
+// 8.11 Onay akışı: geçmiş, durumuna göre düğmeler; açık yapılacak varsa onay için ayrıca sorulur
+async function wireReview(form, content, onSaved) {
+  const $ = s => form.querySelector(s);
+  let status = content.status;
+  const when = iso => new Date(iso).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const drawList = list => {
+    $('#c-rv-list').innerHTML = list.length ? list.map(r => `<li class="rv-${esc(r.action)}"><b>${esc(r.label)}</b> <span class="xsmall muted">${esc(when(r.createdAt))}</span>${r.note ? `<div class="small">${esc(r.note)}</div>` : ''}</li>`).join('') : '<li class="small muted">Henüz onay geçmişi yok.</li>';
+  };
+  const drawActions = () => {
+    const btn = (a, label, primary) => `<button type="button" class="btn btn-sm ${primary ? 'btn-primary' : ''}" data-rv="${a}">${label}</button>`;
+    $('#c-rv-actions').innerHTML = (status === 'onay' ? btn('onayla', 'Onayla', true) + btn('duzelt', 'Düzeltme iste') : btn('gonder', 'Onaya gönder', true)) + btn('yorum', 'Yorum ekle');
+    $('#c-rv-state').textContent = status === 'onay' ? '· onay bekliyor' : '';
+  };
+  drawActions();
+  try { drawList((await api.contentReviews(content.id)).reviews); } catch { drawList([]); }
+  $('#c-rv-actions').addEventListener('click', async e => {
+    const b = e.target.closest('[data-rv]');
+    if (!b) return;
+    const checklist = [...form.querySelectorAll('#c-checklist .check-item')].map(li => ({ label: li.querySelector('[data-ck-label]').textContent, done: li.querySelector('[data-ck-done]').checked }));
+    const body = { action: b.dataset.rv, note: $('#c-rv-note').value, checklist };
+    let r;
+    try { r = await busy(b, () => api.reviewContent(content.id, body)); } catch (err) {
+      if (err.code !== 'CHECKLIST_OPEN') return toast(err.message, 'error');
+      if (!confirm(err.message)) return;
+      try { r = await busy(b, () => api.reviewContent(content.id, Object.assign(body, { force: true }))); } catch (e2) { return toast(e2.message, 'error'); }
+    }
+    status = r.content.status;
+    content.status = status;
+    const sel = $('#c-status'); if (sel) sel.value = status; // Kaydet'e basılırsa durum geri dönmesin
+    $('#c-rv-note').value = '';
+    drawList(r.reviews);
+    drawActions();
+    toast(r.reviews[r.reviews.length - 1].label + '.', 'success');
+    if (onSaved) onSaved();
+  });
 }
 
 // İçerik kartı: AI ile açıklama/hashtag/ilk yorum yazma, kopyalama, yapılacaklar listesi
