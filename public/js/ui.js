@@ -183,7 +183,7 @@ export function emptyState({ icon: iconName = 'inbox', title, text = '', action 
 
 // Yükleniyor iskeleti: sayfa başlığı + kartlar (sayfanın son hâline benzer yerleşim, ekran zıplamaz)
 export function skeletonPage({ cards = 3, height = 180, head = true } = {}) {
-  return `<div class="sk-page" aria-busy="true" aria-label="Yükleniyor">${head ? '<div class="skeleton sk-head"></div>' : ''}
+  return `<div class="sk-page" role="status" aria-busy="true" aria-label="Yükleniyor">${head ? '<div class="skeleton sk-head"></div>' : ''}
     <div class="sk-grid">${`<div class="skeleton" style="height:${height}px"></div>`.repeat(cards)}</div></div>`;
 }
 
