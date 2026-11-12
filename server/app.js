@@ -11,7 +11,7 @@ import { createAiService, GEMINI_TEXT_MODELS } from './services/ai/index.js';
 import { createBrandService, identityCompleteness, PROFILE_FIELDS, FONT_OPTIONS } from './services/brands.js';
 import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES, MAX_PACK_BYTES } from './services/assets.js';
 import { readZip, ZipError } from './lib/zip.js';
-import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
+import { createIdeaService, IDEA_CATEGORIES, IDEA_FORMATS, USE_PLACES } from './services/ideas.js';
 import { createAssistantService } from './services/assistant.js';
 import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES, TASK_PRIORITIES, TASK_STATUSES, METRIC_FIELDS } from './services/workspace.js';
 import { transaction } from './db.js';
@@ -121,7 +121,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const ai = createAiService(settings, { db, provider: aiProvider, fetchImpl, providers: aiProviders, retryDelays: aiRetryDelays });
   const brands = createBrandService(db, ownerId);
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
-  const ideas = createIdeaService(db);
+  const ideas = createIdeaService(db, { ai, brands });
   const workspace = createWorkspaceService(db, ownerId, brands);
   const trash = createTrashService(db, ownerId, { asset: assets.trashHooks });
   const searcher = createSearchService(db, ownerId);
@@ -176,6 +176,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     fonts: FONT_OPTIONS,
     assetCategories: ASSET_CATEGORIES,
     ideaCategories: IDEA_CATEGORIES,
+    ideaFormats: IDEA_FORMATS,
+    ideaPlaces: USE_PLACES,
     contentTypes: CONTENT_TYPES,
     contentStatuses: CONTENT_STATUSES,
     metricFields: METRIC_FIELDS,
@@ -811,8 +813,19 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // --- İçerik fikirleri ---
   api.get('/brands/:brandId/ideas', (req, res) => {
     const category = req.query.category ? oneOf(String(req.query.category), Object.keys(IDEA_CATEGORIES), 'Kategori') : null;
-    res.json({ ideas: ideas.list(req.brand.id, { category, favorite: req.query.favorite === '1' }) });
+    const format = req.query.format ? oneOf(String(req.query.format), Object.keys(IDEA_FORMATS), 'Fikir türü') : null;
+    const status = ['aktif', 'kullanilmamis', 'kullanildi', 'arsiv', 'hepsi'].includes(String(req.query.status)) ? String(req.query.status) : 'aktif';
+    res.json({ ideas: ideas.list(req.brand.id, { category, format, status, favorite: req.query.favorite === '1' }) });
   });
+  // 10.5–10.8 içerik havuzu işlemleri
+  api.post('/brands/:brandId/ideas/random', (req, res) => {
+    const b = req.body || {};
+    const format = b.format ? oneOf(String(b.format), Object.keys(IDEA_FORMATS), 'Fikir türü') : '';
+    res.json({ idea: ideas.random(req.brand.id, { format, exclude: b.exclude }) });
+  });
+  api.post('/brands/:brandId/ideas/bulk-used', (req, res) => res.json(ideas.bulkUsed(req.brand.id, String((req.body || {}).action || ''))));
+  api.post('/brands/:brandId/ideas/:ideaId/use', (req, res) => res.json(ideas.use(req.brand.id, req.params.ideaId, String((req.body || {}).place || 'elle'))));
+  api.post('/brands/:brandId/ideas/:ideaId/similar', route(async (req, res) => res.status(201).json(await ideas.similar(req.brand.id, req.params.ideaId, { count: (req.body || {}).count, modelRef: mr(req.body || {}) }))));
 
   api.post('/brands/:brandId/ideas', (req, res) => res.status(201).json({ idea: ideas.create(req.brand.id, req.body || {}) }));
 

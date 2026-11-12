@@ -1798,3 +1798,17 @@ body.editor-mode .radial-fab { display: none; }
 .lib-detail { display: grid; grid-template-columns: 180px 1fr; gap: var(--s-4); align-items: start; }
 .lib-detail > img { width: 100%; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface-3); }
 @media (max-width: 720px) { .lib-detail { grid-template-columns: 1fr; } .lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 10.4–10.6 İçerik havuzu */
+.idea-formats { display: flex; flex-wrap: wrap; }
+.idea-formats button .muted { font-weight: 600; margin-left: 4px; }
+.idea-card { position: relative; }
+.idea-card.is-used { opacity: .82; }
+.idea-card.is-archived { opacity: .65; }
+.tag.tag-soft { background: var(--surface-3); color: var(--ink-2); }
+.idea-menu { position: absolute; right: var(--s-3); bottom: 48px; z-index: 20; display: flex; flex-direction: column; min-width: 230px; padding: var(--s-1); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,.12)); }
+.idea-menu[hidden] { display: none; }
+.idea-menu > button, .idea-menu-row { display: flex; align-items: center; gap: var(--s-2); padding: 8px 10px; border: 0; background: none; border-radius: 8px; font: inherit; font-size: var(--t-sm); color: var(--ink); text-align: left; cursor: pointer; }
+.idea-menu > button:hover, .idea-menu-row:hover { background: var(--surface-3); }
+.idea-menu > button.danger { color: var(--danger, #c0392b); }
+.idea-menu-row select { margin-left: auto; width: auto; }

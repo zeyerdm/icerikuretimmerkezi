@@ -146,6 +146,10 @@ export const api = {
   ideas: (id, query = '') => request('GET', b(id) + '/ideas' + query),
   createIdea: (id, body) => request('POST', b(id) + '/ideas', body),
   deleteIdea: (id, ideaId) => request('DELETE', `${b(id)}/ideas/${ideaId}`),
+  randomIdea: (id, body = {}) => request('POST', b(id) + '/ideas/random', body),
+  useIdea: (id, ideaId, place) => request('POST', `${b(id)}/ideas/${ideaId}/use`, { place }),
+  similarIdeas: (id, ideaId, body) => request('POST', `${b(id)}/ideas/${ideaId}/similar`, body),
+  bulkUsedIdeas: (id, action) => request('POST', b(id) + '/ideas/bulk-used', { action }),
 
   writeContentText: (id, model) => request('POST', `/api/contents/${encodeURIComponent(id)}/write`, { model }),
   competitors: id => request('GET', b(id) + '/competitors'),

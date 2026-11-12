@@ -535,6 +535,14 @@ const MIGRATIONS = [
   // 36: 9.3 Tek akışta marka kurulumu: kanallar, içerik türleri, maskot/mekân cevapları ve tamamlanan adımlar
   `
   ALTER TABLE brands ADD COLUMN setup TEXT NOT NULL DEFAULT '{}';
+  `,
+  // 37: 10.4–10.6 İçerik havuzu: fikrin türü (Reels/Post/YouTube…), kullanıldığı yerler ve arşiv
+  `
+  ALTER TABLE ideas ADD COLUMN format TEXT NOT NULL DEFAULT 'genel';
+  ALTER TABLE ideas ADD COLUMN used_at TEXT;
+  ALTER TABLE ideas ADD COLUMN used_in TEXT NOT NULL DEFAULT '';
+  ALTER TABLE ideas ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX idx_ideas_pool ON ideas(brand_id, archived, format);
   `
 ];
 
