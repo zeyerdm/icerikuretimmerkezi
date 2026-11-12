@@ -2,6 +2,7 @@
 // İçerikler her zaman bir markaya aittir; görev ve notlar markasız da olabilir.
 // Bütün sorgular sahibe göre süzülür; başka kullanıcının ya da markanın kaydı görünmez.
 import { badRequest, notFound, newId, now, text, oneOf, parseJson, HttpError } from '../lib/http.js';
+import { markIdeaUsed } from './ideas.js';
 
 export const CONTENT_TYPES = {
   post: 'Instagram post',
@@ -203,6 +204,8 @@ export function createWorkspaceService(db, ownerId, brands) {
       if (body.caption || body.hashtags) {
         db.prepare('UPDATE contents SET caption = ?, hashtags = ? WHERE id = ?').run(text(body.caption, { field: 'Açıklama', max: 2200 }), cleanTags(body.hashtags), row.id);
       }
+      // 10.6: takvime giren fikir kullanıldı sayılır (rastgele seçimlere girmez)
+      if (ideaId) markIdeaUsed(db, brand.id, ideaId, 'takvim');
       brands.logActivity(brand.id, 'content.created', `${CONTENT_TYPES[row.type]} planlandı: ${row.title}`);
       return toContent(getContentRow(row.id));
     },

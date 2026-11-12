@@ -286,8 +286,8 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 ## Aşama 9 — Kullanıcının yeni istekleri (2. tur, sırayla)
 
 **A. Yazılanlar kaybolmasın**
-- ⬜ **9.1 Yarım kalan yazının korunması:** Bir forma, editöre ya da sohbet kutusuna yazılan metin, sekme değişince silinmez. Bu hem uygulama içi geçişi (başka sayfa ya da sekme, pencereyi kapatma) hem de tarayıcıda başka sekmeye geçişi kapsar. Aynı yere dönünce yazılanlar yerinde olur. Taslak yalnız şu durumlarda temizlenir: sayfa yenilendiğinde (F5), kaydedildiğinde ya da "Vazgeç" seçildiğinde. Taslaklar yalnız açık sayfanın belleğinde tutulur; diske ve sunucuya yazılmaz. Kapsam: içerik, görev ve not pencereleri; marka kimliği, prompt kimliği ve karakter kitabı; Prompt Studio, Reels, post ve kapak istek kutuları; asistan sohbeti; kalıp ve rakip metinleri.
-- ⬜ **9.2 Korumanın testleri:** Yazılan metin sayfa ya da sekme değişince geri gelir; yenilemede, kaydetmede ve vazgeçmede temizlenir; iki marka arasında karışmaz.
+- ✅ **9.1 Yarım kalan yazının korunması:** (public/js/drafts.js) Bütün yazı alanları ve pencereler genel olarak korunur; geri gelince "Yarım kalan yazın geri getirildi" bilgisi çıkar. Tam ekran belge düzenleyicisinin (contenteditable) içi bu kapsamda değil. Bir forma, editöre ya da sohbet kutusuna yazılan metin, sekme değişince silinmez. Bu hem uygulama içi geçişi (başka sayfa ya da sekme, pencereyi kapatma) hem de tarayıcıda başka sekmeye geçişi kapsar. Aynı yere dönünce yazılanlar yerinde olur. Taslak yalnız şu durumlarda temizlenir: sayfa yenilendiğinde (F5), kaydedildiğinde ya da "Vazgeç" seçildiğinde. Taslaklar yalnız açık sayfanın belleğinde tutulur; diske ve sunucuya yazılmaz. Kapsam: içerik, görev ve not pencereleri; marka kimliği, prompt kimliği ve karakter kitabı; Prompt Studio, Reels, post ve kapak istek kutuları; asistan sohbeti; kalıp ve rakip metinleri.
+- ⏭ **9.2 Korumanın testleri** (kullanıcının isteğiyle atlandı): Yazılan metin sayfa ya da sekme değişince geri gelir; yenilemede, kaydetmede ve vazgeçmede temizlenir; iki marka arasında karışmaz.
 
 **B. Tek akışta marka kurulumu (birbirini tamamlayan sorularla)**
 - ✅ **9.0 Kimliklerin birleşmesi:** Dijital kimlik, Hafıza, Prompt kimliği ve Maskot artık ayrı sayfalar değil. Tek bir **Marka kimliği** sayfası var; menüde de tek kalem. Sekmeleri: Marka dosyası, Profil, Görsel kimlik, Ses ve hafıza, Prompt kimliği, Maskot. Maskot soruları ve karakter kitabı Maskot sekmesinde toplandı. Eski adresler (/hafiza, /prompt-kimligi) yeni sekmelere yönlenir. Profil ile Görsel kimlik arasında geçişte kaydedilmemiş yazı kaybolmaz.
@@ -315,26 +315,71 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 ## Aşama 10 — Kullanıcının yeni istekleri (3. tur)
 
 **Menü ve varlıklar**
-- ⬜ **10.1 Ayrı dışa aktarma kalkar:** Her üretim kendi yerinden dışa aktarılır (indir ya da Drive'a gönder). Örnek: prompt Prompt Studio'dan, görsel üretildiği yerden. Bu yüzden "Dışa aktar" sayfası ve marka geneli dışa aktarma penceresi kaldırılır. Her üretim ekranında indirme ve Drive'a gönderme düğmesi olup olmadığı kontrol edilir; eksik olanlara eklenir.
-- ⬜ **10.2 Kütüphane sadeleşir (yalnız sergileme):** Kütüphane şunların durduğu yerdir:
-  - Belirlenmiş varlıklar: logolar, maskot pozları.
-  - Yapılan tasarımlar.
-  - Dışarıdan alınan referans tasarımlar ve görseller.
-  
-  Kütüphanede marka bilgisi girilmez; bilgiler yalnız Marka kimliğinde. Kategori yapısı sadeleşir ve ekran karışıklıktan arındırılır.
-- ⬜ **10.3 Menü düzeni:** "Video ve altyazı" Varlıklar'dan İçerik üretimine taşınır. İçerik üretimi menüsü kullanım sırasına göre dizilir: fikirler başta, Arşiv en sonda. Araştırma grubu (Rakipler, Analizler, Aylık rapor) en sonda kalır. Analizler ve Rakipler en son ele alınacak; ne yüklenmesi ve nasıl kurgulanması gerektiği o zaman konuşulacak.
+- ✅ **10.1 Ayrı dışa aktarma kalkar:** Yapılanlar:
+  - "Dışa aktar" sayfası (görsel kırpma/sıkıştırma merkezi) ve marka geneli JSON/CSV dışa aktarma kaldırıldı.
+  - Takvim aktarımı (.ics) Takvim sayfasının kendi düğmesine taşındı.
+  - Görseller üretildikleri yerde "İndir" ve "Drive'a gönder" düğmelerini aldı.
+  - Prompt listesi "İndir (.txt)" ve "Drive" düğmelerini aldı.
+  - Post tasarımları ve Reels'te zaten PNG, metin, altyazı, ses ve video indirme ile Drive'a gönderme vardı.
+- ✅ **10.2 Kütüphane sadeleşti (yalnız sergileme):** (public/js/views/library.js)
+  - Beş bölüm: Logolar, Maskot, Tasarımlarım, Marka görselleri, Referanslar (ilham yapıştırmaları ve linkler dahil).
+  - Kartlar sade bir galeri: görsel, ad, İndir, Drive'a gönder, Ayrıntı, Sil. Kartlarda form alanı yok.
+  - Ad, etiket, @ referans rolü, görseldeki yazıyı okuma ve paketi silme isteğe bağlı olarak "Ayrıntı" penceresinde.
+  - Kütüphanedeki AI görsel üretimi ve hazır şablonlar kaldırıldı; şablonlar Prompt Studio'ya taşındı.
+  - Sunucudaki kategoriler değişmedi; eski kayıtlar olduğu gibi görünür.
+- ✅ **10.3 Menü düzeni:** "Video ve altyazı" ve "Dışa aktar" Varlıklar grubundan çıktı. "Video ve altyazı" artık İçerik üretiminde; "Dışa aktar" 10.1'de kaldırıldı. İçerik üretimi kullanım sırasıyla dizildi: fikirler, Reels, Post, Prompt Studio, YouTube kapağı, Video ve altyazı, Kampanya kanvası, Takvim, Arşiv (en sonda). Gruplar: Marka yönetimi, İçerik üretimi, Varlıklar (Kütüphane), Araştırma (en sonda). Rakipler ve Analizlerin kurgusu sonra konuşulacak.
+
+- ✅ **10.3b Menü sırası (kullanıcının sırası):** Takvim, İçerik fikirleri, Post stüdyosu, Prompt Studio, Reels, YouTube kapağı, Video ve altyazı, Kampanya kanvası, Arşiv (en sonda). "Video ve altyazı" İçerik üretiminde. "Dışa aktar" ayrı bölüm olarak yok (10.1). Kırpma ve sıkıştırma gerekirse kütüphanedeki görselin kendi işlemi olarak eklenebilir; karar kullanıcıda.
 
 **İçerik havuzu ve stüdyolar**
-- ⬜ **10.4 İçerik fikirleri kategorilere ayrılır:** Reels fikirleri, post fikirleri, YouTube fikirleri ve gerekirse diğerleri. İçerik havuzu bütün üretimin ana kaynağıdır.
-- ⬜ **10.5 Fikir işlemleri:** Benzerlerini üret (kaç tane olacağı seçilir), beğen, sil, "kullanıldı" işaretle, kullanılanları toplu sil ya da arşivle.
-- ⬜ **10.6 Tekrarın önlenmesi:** Bir fikir bir yerde (post, YouTube, Reels…) kullanılınca işaretlenir. Başka bir yerde aynı ya da çok benzer fikir seçilirse uyarı verilir; rastgele seçimlere bu fikir girmez.
-- ⬜ **10.7 Prompt Studio fikirden üretir:** "Rastgele fikir çek" ilgili kategoriden bir fikir seçer, prompt'u bu fikirden üretilir. Elle yazma seçeneği kalır.
-- ⬜ **10.8 Post stüdyosu fikirden ve tasarım şablonundan üretir:** Kullanıcı tasarım şablonlarını önceden oluşturur, örneğin "Haftalık bilgi" ya da "Hikâye". Fikir türleri bu şablonlarla eşleştirilir. "Rastgele seç" bir post fikri seçer, içeriği üretir ve eşleşen şablona yerleştirir.
-- ⬜ **10.9 YouTube kapağı yeniden:** Kapak rastgele bir görselden değil, kullanıcının kendi çekimlerinden üretilir: videodan kareler ve fotoğraflar yüklenir. Kullanıcı beğendiği kapakları referans olarak ekler (ör. Pinterest'ten). Kapak, bu referansların yazı fontu, yazı yerleşimi ve düzeni örnek alınarak oluşturulur.
-- 💬 **10.10 Konuşulacak:**
+- ✅ **10.4 İçerik fikirleri türlere ayrıldı:** Türler: Reels, Post, YouTube, Hikâye ve Genel (göç 37: ideas.format). İçerik fikirleri sayfasında tür sekmeleri var; yeni fikir seçili türle eklenir. Asistan da fikri türüyle kaydeder. Reels fikirleri, post fikirleri, YouTube fikirleri ve gerekirse diğerleri. İçerik havuzu bütün üretimin ana kaynağıdır.
+- ✅ **10.5 Fikir işlemleri:** Her kartın ⋯ menüsünde: benzerlerini üret (1–10 adet, AI), kullanıldı/kullanılmadı, arşivle, tür değiştir, sil (çöp kutusuna). Durum filtresi: Hepsi, Kullanılmamış, Kullanıldı, Arşiv. Kullanıldı görünümünde "Kullanılanları arşivle" ve "Kullanılanları sil" toplu düğmeleri. Benzerlerini üret (kaç tane olacağı seçilir), beğen, sil, "kullanıldı" işaretle, kullanılanları toplu sil ya da arşivle.
+- ✅ **10.6 Tekrarın önlenmesi:** Takvime giren fikir kendiliğinden "kullanıldı" olur ve nerede kullanıldığı yazar. Kullanılmış ya da arşivdeki fikir rastgele seçimlere ve haftalık plana girmez. Çok benzer başlıklı fikir eklenince uyarı çıkar; benzerini üretirken çok benzeri hiç eklenmez. Kullanılmış fikri takvime eklerken onay istenir. Önceki tanım: Bir fikir bir yerde (post, YouTube, Reels…) kullanılınca işaretlenir. Başka bir yerde aynı ya da çok benzer fikir seçilirse uyarı verilir; rastgele seçimlere bu fikir girmez.
+- ✅ **10.7 Prompt Studio fikirden üretir:** "Havuzdan fikir çek" düğmesi var; tür seçilir, varsayılan Post. Kullanılmamış bir fikir rastgele seçilip istek kutusuna yazılır. "Başka fikir" ve "Bırak" seçenekleri var. Prompt üretilince fikir "kullanıldı (Prompt Studio)" olur. Elle yazma seçeneği duruyor. Önceki tanım: "Rastgele fikir çek" ilgili kategoriden bir fikir seçer, prompt'u bu fikirden üretilir. Elle yazma seçeneği kalır.
+- ✅ **10.8 Post stüdyosu fikirden ve şablondan üretir:** Yapılanlar:
+  - Şablonlar (düzenleyicide Dosya → Şablon olarak kaydet) "Fikirlerle eşleştir" ile fikir türlerine ve kategorilerine bağlanır (göç 38: post_templates.match).
+  - "Havuzdan fikir çek" kullanılmamış bir fikir seçer; tür seçilebilir, "Başka fikir" denebilir.
+  - Metin marka diliyle yazılır ve eşleşen şablona yerleşir; görseller, renkler ve yerleşim aynen kalır. Şablon elle de seçilebilir; eşleşme yoksa marka yerleşimi kullanılır.
+  - Fikir "kullanıldı (Post stüdyosu)" olur.
+  
+  Önceki tanım: Kullanıcı tasarım şablonlarını önceden oluşturur, örneğin "Haftalık bilgi" ya da "Hikâye". Fikir türleri bu şablonlarla eşleştirilir. "Rastgele seç" bir post fikri seçer, içeriği üretir ve eşleşen şablona yerleştirir.
+- ✅ **10.9 YouTube kapağı yeniden:** Dört adım:
+  1. **Çekimlerin:** Videodan eşit aralıklı 8 kare tarayıcıda çıkarılır, seçilenler kaydedilir; fotoğraf da eklenebilir. Bunlar "YouTube çekimleri" paketinde durur.
+  2. **Beğendiğin kapaklar:** Referanslar "YouTube kapak referansı" paketinde durur.
+  3. **Kapak yazısı:** Öneriler alınır, "Bu yazıyı kullan" ile seçilir.
+  4. **Kapağı oluştur:** En az bir çekim şart. Çekimdeki kişi ve nesneler korunur; referanslardan yalnız yazı stili, yerleşim ve renk işlenişi alınır; yazı kapağa yazdırılır.
+  
+  Sonuçta YouTube önizlemesi, İndir, Drive'a gönder ve "Tasarım olarak aç" var. Rastgele görselden üretim kutusu kaldırıldı. Gerçek görsel anahtarıyla denenmedi. Önceki tanım: Kapak rastgele bir görselden değil, kullanıcının kendi çekimlerinden üretilir: videodan kareler ve fotoğraflar yüklenir. Kullanıcı beğendiği kapakları referans olarak ekler (ör. Pinterest'ten). Kapak, bu referansların yazı fontu, yazı yerleşimi ve düzeni örnek alınarak oluşturulur.
+- ⏸ **10.10 Bekletiliyor (kullanıcının isteğiyle; sonra hatırlatılacak, birlikte konuşulacak):**
   - Reels fikri ile "Video ve altyazı" birleşsin mi?
-  - Post, Prompt ve Reels stüdyoları birleştirilsin mi?
-  - Kampanya kanvası kalsın mı? Ne olduğu kullanıcıya açıklandı; karar bekleniyor.
+  - Post, Prompt ve Reels stüdyoları birleşsin mi?
+  - Kampanya kanvası kalsın mı?
+  
+  Şimdilik hepsi olduğu gibi kalıyor.
+
+## Aşama 11 — Kullanıcının yeni istekleri (4. tur, sırayla)
+
+**A. Önce elindekileri at, AI doldursun, yalnız eksikleri sorsun**
+- ⬜ **11.1 Toplu yükleme ile başlangıç:** Marka kurulurken ilk adım soru değil, bir yükleme alanıdır. Buraya elde ne varsa atılır: logo, maskot görselleri, renk paleti ya da marka kılavuzu, tasarım referansları, içerik fikirleri listesi, web sitesi ya da biyografi metni. Yapay zekâ bunlardan doldurabileceği her şeyi kendisi doldurur: maskotun görünüşü ve renkleri, renk paleti, fontlar (görülebiliyorsa), sektör, ton, kitle. Kullanıcı sonra kontrol eder.
+- ⬜ **11.2 Kalıp sorular değil, yalnız eksikler:** Sihirbaz sabit bir soru listesi göstermez; yalnız eksik kalanı sorar. Maskot görseli atıldıysa "maskotun var mı?" sorulmaz. Renk paleti belliyse renk, logo atıldıysa logo istenmez. Boş alan doldurtmak yerine bulunanı gösterip onay istenir.
+- ⬜ **11.3 Marka kurarken yapay zekâ ile karşılama sohbeti:** Yönetim merkezinde "Marka kur" seçilince ilk karşılayan şey bir sohbettir. Bu yalnız marka ilk kurulurken olur, siteye her girişte değil. Sohbet adım adım şunları ister: markanın adı, logosu, maskotu (varsa), renk paleti, nasıl içerik üretileceği (kanallar, türler), varsa içerik fikirleri. Cevaplar ve dosyalar doğrudan Marka kimliğine yazılır. Önce marka konumlandırması düzgünce yapılır; sosyal medya yöneticisinin ayrıntıları sonra gelir.
+- ⬜ **11.4 Boş karşılamasın:** Kurulum bitince kullanıcı boş sayfalarla karşılaşmaz.
+  - Girilen içerik fikirlerinden (ör. 3 tane) yapay zekâ benzerlerini üretir ve içerik havuzu dolu gelir.
+  - Tasarım referansı atıldıysa o referansa göre örnek bir tasarım (şablon) üretilir.
+  - Kullanıcı ilk girdiğinde örnek fikirler ve örnek tasarımla karşılaşır, üzerinde iyileştirme yapar.
+- ⬜ **11.5 Bir yerde sor, tekrar sorma:** Aynı bilgi birden fazla yerde istenmez. Örnek: "kullanılmaması gereken kelimeler" şu an üç yerde soruluyor (kurulum Ses adımı, Ses ve hafıza, Prompt kimliği kontrol kuralları). Bütün formlar taranır; tekrar eden alanlar tek bir alana bağlanır ve her yerde aynı değeri gösterir. Sorulmuş bir şey yeniden sorulmaz.
+- ⬜ **11.6 Hazır seçenekler + "Diğer":** Kullanıcı fazla düşünmesin diye serbest metin yerine her soruda hazır seçenekler bulunur, özel durum için de bir "Diğer" alanı olur. Kullanılmaması gereken kelimeler için örnek seçenekler: ünlü ve gerçek kişi adları, rakip marka adları, argo ve küfür, abartılı fiyat ya da indirim vaadi, siyasi ve dini ifadeler, sağlık vaadi. Bu düzen bütün kurulum ve kimlik sorularına uygulanır: ton, kitle, hedef, maskot kişiliği vb.
+- ⬜ **11.7 Şeffaf logo şeffaf kalsın:** Şeffaf zeminli (PNG) logo beyaz zeminle gösterilmez. Kütüphane, Marka dosyası, önizlemeler, post tasarımı ve kapaklarda logonun arkasına renk konmaz.
+
+**B. Post stüdyosu**
+- ⬜ **11.8 "Tüm sayfalara uygula":** Bir slaytta yapılan değişiklik (ör. logo değişimi, konumu, rengi, fontu) tek tuşla carousel'in bütün slaytlarına uygulanabilir. Örnek: 6 sayfalık postta logo değişince öbür 5 sayfada da değişsin.
+- ⬜ **11.9 Klavye kısayolları kesin çalışsın:** Düzenleyicide Ctrl+C, Ctrl+V, Ctrl+X ve Ctrl+Z çalışır. Ekrandan kırpılıp panoya alınan görsel Ctrl+V ile doğrudan posta yapışır (marka genelindeki ilham rafına değil, açık tasarıma).
+- ⬜ **11.10 Referans görselden AI ile post, adlandırılmış şablonlar:**
+  - Post üretiminde referans görsel atılıp yapay zekânın ona göre oluşturması beklenebilir.
+  - Beğenilen post şablon olarak kaydedilir ve adlandırılır (Şablon 1, Şablon 2…).
+  - "Fikirden post üret"te hangi şablonla üretileceği seçilir (10.8 ile birlikte gözden geçirilir).
+- ⬜ **11.11 Slaytı Drive'a gönder:** "Bu slaytı indir" ile birlikte "Bu slaytı Drive'a gönder" ve "Bütün slaytları Drive'a gönder" her yerde bulunur. Eksik olduğu yer varsa eklenir.
+- ⬜ **11.12 Sabit açılış ve kapanış tasarımları:** Bir kez tasarlanan açılış (kapak) ve kapanış slaytı "tüm üretimlerde kullan" ile her yeni carousel'e kendiliğinden eklenir. Prompt ile küçük değişiklikler istenebilir, örneğin "bunun başlığını değiştir". Böylece markanın standart tasarımları oluşur.
 
 ## Aşama 6 — İleride
 

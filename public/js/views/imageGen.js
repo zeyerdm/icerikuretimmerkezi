@@ -7,11 +7,16 @@ import { busyTimer, aiModels, costText } from '../aiPicker.js';
 import { downloadBlob, safeName } from '../titlePng.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 import { ensureThumbs } from '../thumbs.js';
+import { state } from '../app.js';
 
 const money = c => (c ? (c < 0.01 ? '< 0,01 $' : c.toFixed(3).replace('.', ',') + ' $') : '');
 
 // opts: { getPrompt(): string, promptId, aspect, editablePrompt: bool, onCreated(asset) }
+// 10.1: Drive bağlıysa ve markanın klasörü varsa görsel üretildiği yerden Drive'a gönderilir
+const driveFor = brand => Boolean(state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId);
+
 export async function imageBox(box, brand, opts = {}) {
+  const driveOn = () => driveFor(brand);
   if (!box) return;
   let ov;
   try { ov = await api.imageOverview(); } catch (err) { box.innerHTML = `<div class="notice">${esc(err.message)}</div>`; return; }
@@ -79,6 +84,7 @@ export async function imageBox(box, brand, opts = {}) {
       ${g.aspect !== 'kaynak' ? `<button type="button" class="btn btn-sm btn-ghost" data-example="${esc(g.id)}" aria-pressed="${g.example}" title="Tarifi sonraki prompt üretimlerine örnek olarak girer (en çok 3)">${g.example ? '✓ Marka örneği' : '👍 Örnek yap'}</button>` : ''}
       <button type="button" class="btn btn-sm btn-ghost" data-region="${esc(g.id)}">Alanı düzenle</button>
       <button type="button" class="btn btn-sm btn-ghost" data-dl="${esc(g.asset.url)}">İndir</button>
+      ${driveOn() ? `<button type="button" class="btn btn-sm btn-ghost" data-drive-asset="${esc(g.asset.id)}">Drive'a gönder</button>` : ''}
       ${feedbackButtons(g.feedback, 'image', g.id)}
       <label class="check xsmall"><input type="checkbox" data-cmp="${esc(g.id)}" ${compare.has(g.id) ? 'checked' : ''}> Karşılaştır</label></div></figure>`;
   function drawCompareBar() {
@@ -213,6 +219,11 @@ export async function imageBox(box, brand, opts = {}) {
         body: `<div class="cmp-grid">${sel.map(g => `<figure><img src="${esc(g.asset.url)}" alt=""><figcaption class="xsmall"><b>${esc(g.modelLabel)}</b> · ${esc(g.aspect)}<div class="muted">${esc(g.prompt.slice(0, 140))}</div></figcaption></figure>`).join('')}</div>`, onSubmit: async () => {} });
       return;
     }
+    const dv = e.target.closest('[data-drive-asset]');
+    if (dv) {
+      try { await busy(dv, () => api.sendAssetToDrive(brand.id, dv.dataset.driveAsset)); toast('Görsel markanın Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const dl = e.target.closest('[data-dl]');
     if (dl) {
       try { const blob = await (await fetch(dl.dataset.dl)).blob(); downloadBlob(blob, `${safeName(brand.name + ' gorsel')}.${blob.type.includes('jpeg') ? 'jpg' : 'png'}`); } catch (err) { toast(err.message, 'error'); }
@@ -229,5 +240,31 @@ export async function imageBox(box, brand, opts = {}) {
       else $('-list').insertAdjacentHTML('afterbegin', `<figure class="gen-card"><img src="${esc(r.asset.url)}" alt=""><figcaption class="xsmall muted">${esc(r.ai.modelLabel)}</figcaption></figure>`);
       if (opts.onCreated) opts.onCreated(r.asset);
     } catch (err) { toast(err.message, 'error', 6000); }
+  });
+}
+
+// 7.4 Hazır görsel şablonları (Prompt Studio'da; 10.2'den önce kütüphanedeydi)
+export async function templateBox(box, brand, refresh) {
+  if (!box) return;
+  let ov;
+  try { ov = await api.imageOverview(); } catch { return; }
+  if (!ov.configured) { box.innerHTML = '<p class="small muted">Görsel üretimi bağlı değil; şablonlar görsel anahtarı eklenince çalışır.</p>'; return; }
+  const { templates } = await api.imageTemplates();
+  box.innerHTML = `<p class="small muted mb-2">İki soruya cevap ver: prompt markanın prompt kimliğine ve maskot kitabına göre yazılır, Prompt Studio'ya kaydedilir ve görsel üretilir.</p>
+    <div class="row">${Object.entries(templates).map(([k, t]) => `<button type="button" class="btn btn-sm" data-tpl="${k}">${esc(t.label)} <span class="xsmall muted">${esc(t.aspect)}</span></button>`).join('')}</div>`;
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-tpl]');
+    if (!b) return;
+    const t = templates[b.dataset.tpl];
+    openModal({
+      title: t.label, submitLabel: 'Prompt yaz ve görsel üret',
+      body: `<div class="stack-sm">${t.questions.map((q, i) => `<div class="field"><label for="tq-${i}">${esc(q)}${i === 0 ? ' *' : ''}</label><input class="input" id="tq-${i}" name="a${i}" maxlength="300" ${i === 0 ? 'required' : ''} data-mic></div>`).join('')}
+        ${t.useMascot ? '<p class="xsmall muted">Maskot karakter kitabındaki pozlar referans olarak gider (Nano Banana gibi referans alan model gerekir).</p>' : ''}</div>`,
+      onSubmit: async (fd, form) => {
+        const r = await busyTimer(form.querySelector('[type=submit]'), () => api.imageFromTemplate(brand.id, { template: b.dataset.tpl, answers: [fd.get('a0'), fd.get('a1')] }), 'Üretiyor');
+        toast(`Görsel üretildi ve kütüphaneye kaydedildi (${r.ai.modelLabel}).`, 'success');
+        refresh();
+      }
+    });
   });
 }

@@ -49,7 +49,7 @@ export function createPlanWizardService({ db, brands, workspace }) {
       const mix = hist.length ? hist.flatMap(h => Array(Math.max(1, Math.round(h.n / hist[0].n * 3))).fill(h.type)) : DEFAULT_MIX;
 
       // Kaynaklar: henüz takvime girmemiş fikirler (favoriler önce) ve beğenilmemiş olmayan Reels havuzu fikirleri
-      const ideas = db.prepare('SELECT i.id, i.title, i.description FROM ideas i WHERE i.brand_id = ? AND NOT EXISTS (SELECT 1 FROM contents c WHERE c.idea_id = i.id) ORDER BY i.favorite DESC, i.created_at DESC LIMIT 30').all(b.id);
+      const ideas = db.prepare('SELECT i.id, i.title, i.description FROM ideas i WHERE i.brand_id = ? AND i.archived = 0 AND i.used_at IS NULL AND NOT EXISTS (SELECT 1 FROM contents c WHERE c.idea_id = i.id) ORDER BY i.favorite DESC, i.created_at DESC LIMIT 30').all(b.id);
       const pool = db.prepare('SELECT p.id, p.text FROM reels_pool p WHERE p.brand_id = ? AND p.rating >= 0 AND NOT EXISTS (SELECT 1 FROM reels r WHERE r.pool_id = p.id) ORDER BY p.rating DESC, p.created_at DESC LIMIT 30').all(b.id);
 
       // Özel günler (dönemler değil): o güne bir içerik

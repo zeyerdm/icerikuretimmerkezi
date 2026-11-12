@@ -7,7 +7,7 @@
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, busy, skeletonPage, emptyState } from '../ui.js';
 import { state, refreshBrands, go } from '../app.js';
-import { renderBrandEditor, exportModal } from './brandEditor.js';
+import { renderBrandEditor } from './brandEditor.js';
 import { renderMemory } from './memory.js';
 import { renderPromptIdentity, characterBookCard } from './promptIdentity.js';
 
@@ -18,18 +18,17 @@ export function identityHead(brand, active, desc) {
   return pageHead({
     title: 'Marka kimliği',
     desc: desc || `${esc(brand.name)} hakkında yapay zekânın bildiği her şey tek yerde. Burada yazdıkların bütün üretimlere (asistan, Reels, post, prompt, denetçi) kendiliğinden girer.`,
-    actions: `<a class="btn" href="${base}/kurulum">${icon('wand')}Kurulum sihirbazı</a><button type="button" class="btn" data-id-action="export">${icon('download')}Dışa aktar</button><button type="button" class="btn btn-danger" data-id-action="delete">${icon('trash')}Markayı sil</button>`
+    actions: `<a class="btn" href="${base}/kurulum">${icon('wand')}Kurulum sihirbazı</a><button type="button" class="btn btn-danger" data-id-action="delete">${icon('trash')}Markayı sil</button>`
   }) + `<nav class="tabs id-tabs" aria-label="Marka kimliği bölümleri">${ID_TABS.map(([k, p, l]) => `<a href="${base}${p}" class="${k === active ? 'active' : ''}"${k === active ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
 }
 
-// Başlıktaki Dışa aktar / Markayı sil (başlık her çizimde yeniden oluşur; dinleyici birikmez)
+// Başlıktaki Markayı sil (başlık her çizimde yeniden oluşur; dinleyici birikmez)
 export function bindIdentityActions(view, brand) {
   const head = view.querySelector('.page-head');
   if (!head) return;
   head.addEventListener('click', async e => {
     const t = e.target.closest('[data-id-action]');
     if (!t) return;
-    if (t.dataset.idAction === 'export') return exportModal(brand);
     if (!confirm(`"${brand.name}" markası; fikirleri, dosyaları, takvim içerikleri, görevleri, notları ve sohbet geçmişiyle birlikte kalıcı olarak silinsin mi?`)) return;
     try {
       await api.deleteBrand(brand.id);
@@ -123,7 +122,7 @@ async function renderMascot(view, brand) {
     (idt.hasMascot
       ? `<section class="card"><div class="card-head"><h3>Maskot bilgileri</h3><a class="btn btn-sm" href="${base}/duzenle/maskot">${icon('edit')}Düzenle</a></div>
           <dl class="dossier-dl">${[['Adı', idt.mascotName], ['Görünüş', idt.mascotLook], ['Konuşma', idt.mascotVoice], ['Hareket', idt.mascotMoves], ['Asla', idt.mascotNever]].map(([k, v]) => `<dt>${k}</dt><dd>${val(v)}</dd>`).join('')}</dl>
-          <p class="xsmall muted mt-2">Pozları <a href="#/m/${esc(brand.id)}/kutuphane">Kütüphane → Maskot pozu</a> bölümünden ya da Düzenle sayfasından yükleyebilirsin.</p></section>`
+          <p class="xsmall muted mt-2">Pozları <a href="#/m/${esc(brand.id)}/kutuphane">Kütüphane → Maskot</a> bölümünden ya da Düzenle sayfasından yükleyebilirsin.</p></section>`
       : emptyState({ icon: 'identity', title: 'Bu markanın maskotu yok', text: 'Maskot varsa kurulumda "Maskot var" de; adı, görünüşü ve pozları sorulur.', action: `<a class="btn btn-sm btn-primary" href="${base}/duzenle/yapi">Maskot ekle</a>`, card: true }));
   bindIdentityActions(view, brand);
   if (idt.hasMascot) await characterBookCard(view, brand);

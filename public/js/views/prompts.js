@@ -2,10 +2,11 @@
 // Her üretim/geliştirme düğmesinin yanında model seçici var; seçilmezse "Metin yazımı" işine atanmış model çalışır.
 import { api } from '../api.js';
 import { openRecipes } from '../recipes.js';
-import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo } from '../ui.js';
+import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo, busy } from '../ui.js';
+import { downloadBlob, safeName } from '../titlePng.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
-import { imageBox } from './imageGen.js';
+import { imageBox, templateBox } from './imageGen.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 
 // Görsel üretilebilen prompt türleri (video ve metin türleri için görsel üretilmez)
@@ -27,6 +28,8 @@ export async function renderPrompts(view, brand, sub) {
   let kind = 'gorsel';
   let filter = '';
   let q = '';
+  let picked = null;      // havuzdan çekilen fikir
+  const pickedSeen = [];  // aynı ziyarette tekrar çekilmesin
 
   view.innerHTML = `
     ${pageHead({
@@ -38,6 +41,9 @@ export async function renderPrompts(view, brand, sub) {
       <div class="chips mb-3" role="radiogroup" aria-label="Prompt türü">${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip ${k === kind ? 'active' : ''}" role="radio" aria-checked="${k === kind}" data-kind="${k}">${esc(v.label)}</button>`).join('')}</div>
       <p class="small muted mb-3" id="ps-hint"></p>
       ${aiReady ? `
+        <div class="pool-pick mb-2"><button type="button" class="btn btn-sm" data-pick-idea>${icon('idea')}Havuzdan fikir çek</button>
+          <select class="select w-auto input-sm" id="ps-pick-format" aria-label="Fikir türü">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)} fikirleri</option>`).join('')}</select>
+          <span class="small muted" id="ps-picked">İçerik fikirlerinden kullanılmamış bir fikir rastgele seçilir; istersen elle de yazabilirsin.</span></div>
         <label class="sr-only" for="ps-brief">İstek</label>
         <textarea class="textarea" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
         <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'yazim', { id: 'ps-model' })}
@@ -56,7 +62,10 @@ export async function renderPrompts(view, brand, sub) {
         <input class="input w-auto" type="search" id="ps-q" placeholder="Ara" aria-label="Prompt ara"></div>
       <div class="chips mb-3" aria-label="Türe göre filtre"><button type="button" class="chip active" data-filter="">Tümü</button>${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip" data-filter="${k}">${esc(v.label)}</button>`).join('')}</div>
       <div id="ps-list"></div>
-    </section>`;
+    </section>
+    <section class="card mt-4"><div class="card-head"><h3>Hazır görsel şablonları</h3></div><div id="ps-tpl"></div></section>`;
+  // 10.2: hazır görsel şablonları kütüphaneden buraya taşındı (üretim üretim ekranında)
+  templateBox(view.querySelector('#ps-tpl'), brand, () => loadList());
 
   const hint = () => {
     const k = meta.kinds[kind];
@@ -82,6 +91,8 @@ export async function renderPrompts(view, brand, sub) {
         <a class="grow prompt-link" href="${base(brand)}/${esc(p.id)}"><div class="strong truncate">${p.favorite ? '★ ' : ''}${p.example ? '<span class="badge" title="Marka örneği: sonraki üretimlere örnek olarak girer">Örnek</span> ' : ''}${esc(p.title)}</div><div class="xsmall muted truncate">${esc(p.text.slice(0, 160))}</div></a>
         <span class="xsmall muted">${timeAgo(p.updatedAt)}</span>
         <button class="btn btn-sm btn-ghost" data-copy="${esc(p.id)}" title="Kopyala">Kopyala</button>
+        <button class="btn btn-sm btn-ghost" data-ptxt="${esc(p.id)}" title="Metin dosyası olarak indir">İndir</button>
+        ${state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId ? `<button class="btn btn-sm btn-ghost" data-pdrive="${esc(p.id)}" title="Markanın Drive klasörüne gönder">Drive</button>` : ''}
       </li>`).join('')}</ul>`
       : emptyState({ icon: 'wand', title: q || filter ? 'Eşleşen prompt yok' : 'Henüz prompt yok', text: q || filter ? 'Aramayı ya da filtreyi değiştir.' : 'Yukarıdan bir tür seçip kısaca ne istediğini yaz.', compact: true });
     box._prompts = prompts;
@@ -105,6 +116,15 @@ export async function renderPrompts(view, brand, sub) {
       filter = f.dataset.filter;
       view.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b === f));
       return loadList();
+    }
+    const px = e.target.closest('[data-ptxt],[data-pdrive]');
+    if (px) {
+      const p = (view.querySelector('#ps-list')._prompts || []).find(x => x.id === (px.dataset.ptxt || px.dataset.pdrive));
+      if (!p) return;
+      const blob = new Blob([p.text], { type: 'text/plain;charset=utf-8' });
+      if (px.dataset.ptxt) return downloadBlob(blob, `${safeName(p.title || 'prompt')}.txt`);
+      try { await busy(px, () => api.driveUpload(brand.id, blob, p.title || 'prompt', 'text/plain')); toast('Prompt Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
+      return;
     }
     const c = e.target.closest('[data-copy]');
     if (c) {
@@ -136,6 +156,20 @@ export async function renderPrompts(view, brand, sub) {
       try { await api.createPrompt(brand.id, { manual: true, kind: r.kind, title: `${c.name} · ${vi + 1}`.slice(0, 80), text: v.prompt, textTr: v.promptTr }); bsv.disabled = true; bsv.textContent = 'Kaydedildi ✓'; loadList(); } catch (err) { toast(err.message, 'error'); }
       return;
     }
+    // 10.7: içerik havuzundan rastgele (kullanılmamış) fikir; üretim olunca fikir "kullanıldı" olur
+    const pick = e.target.closest('[data-pick-idea]');
+    if (pick) {
+      try {
+        const { idea } = await busy(pick, () => api.randomIdea(brand.id, { format: view.querySelector('#ps-pick-format').value, exclude: pickedSeen }));
+        const note = view.querySelector('#ps-picked');
+        if (!idea) { picked = null; note.innerHTML = `Bu türde kullanılmamış fikir kalmadı. <a class="link" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerine</a> fikir ekle ya da benzerlerini üret.`; return; }
+        picked = idea; pickedSeen.push(idea.id);
+        view.querySelector('#ps-brief').value = idea.title + (idea.description ? `\n${idea.description}` : '');
+        note.innerHTML = `Fikir: <b>${esc(idea.title)}</b> <span class="tag">${esc(idea.formatLabel)}</span> <button type="button" class="btn btn-sm btn-ghost" data-pick-idea>Başka fikir</button><button type="button" class="btn btn-sm btn-ghost" data-pick-clear>Bırak</button>`;
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    if (e.target.closest('[data-pick-clear]')) { picked = null; view.querySelector('#ps-picked').textContent = 'Fikir bırakıldı; istek elle yazılmış sayılır.'; return; }
     const create = e.target.closest('[data-create]');
     if (create) {
       const brief = view.querySelector('#ps-brief').value.trim();
@@ -143,6 +177,7 @@ export async function renderPrompts(view, brand, sub) {
       try {
         const { prompt } = await streamBusy(create, st => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0), tool: (view.querySelector('#ps-tool') || {}).value || '' }, st));
         toast(aiNote(prompt.ai), 'success', 5000);
+        if (picked) { try { const u = await api.useIdea(brand.id, picked.id, 'prompt'); if (u && u.warning) toast(u.warning, 'info', 6000); } catch { /* fikir silinmiş olabilir */ } picked = null; }
         go(base(brand) + '/' + prompt.id);
       } catch (err) { toast(err.message, 'error'); }
       return;

@@ -11,7 +11,7 @@ import { createAiService, GEMINI_TEXT_MODELS } from './services/ai/index.js';
 import { createBrandService, identityCompleteness, PROFILE_FIELDS, FONT_OPTIONS } from './services/brands.js';
 import { createAssetService, ASSET_CATEGORIES, MAX_ASSET_BYTES, MAX_PACK_BYTES } from './services/assets.js';
 import { readZip, ZipError } from './lib/zip.js';
-import { createIdeaService, IDEA_CATEGORIES } from './services/ideas.js';
+import { createIdeaService, IDEA_CATEGORIES, IDEA_FORMATS, USE_PLACES } from './services/ideas.js';
 import { createAssistantService } from './services/assistant.js';
 import { createWorkspaceService, CONTENT_TYPES, CONTENT_STATUSES, DONE_STATUSES, TASK_PRIORITIES, TASK_STATUSES, METRIC_FIELDS } from './services/workspace.js';
 import { transaction } from './db.js';
@@ -121,7 +121,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const ai = createAiService(settings, { db, provider: aiProvider, fetchImpl, providers: aiProviders, retryDelays: aiRetryDelays });
   const brands = createBrandService(db, ownerId);
   const assets = createAssetService(db, path.join(dataDir, 'uploads'));
-  const ideas = createIdeaService(db);
+  const ideas = createIdeaService(db, { ai, brands });
   const workspace = createWorkspaceService(db, ownerId, brands);
   const trash = createTrashService(db, ownerId, { asset: assets.trashHooks });
   const searcher = createSearchService(db, ownerId);
@@ -140,7 +140,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const promptIdentity = createPromptIdentityService({ db, brands });
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
   const brandSetup = createBrandSetupService({ db, brands, memory, identity: promptIdentity, characterBook, assets });
-  const dataExport = createDataExportService({ db, ownerId, brands });
+  const dataExport = createDataExportService({ db, brands });
   const igImport = createIgImportService({ db, brands, workspace });
   const captionSets = createCaptionSetService({ db, brands });
   const errorLog = createErrorLogService({ db, settings, ai });
@@ -176,6 +176,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     fonts: FONT_OPTIONS,
     assetCategories: ASSET_CATEGORIES,
     ideaCategories: IDEA_CATEGORIES,
+    ideaFormats: IDEA_FORMATS,
+    ideaPlaces: USE_PLACES,
     contentTypes: CONTENT_TYPES,
     contentStatuses: CONTENT_STATUSES,
     metricFields: METRIC_FIELDS,
@@ -519,9 +521,6 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // 8.12 Instagram sonuçlarını içe aktarma (CSV metni gövde olarak; en çok 5 MB)
   api.post('/brands/:brandId/import/instagram/preview', express.text({ type: () => true, limit: '5mb' }), (req, res) => res.json(igImport.preview(req.brand.id, typeof req.body === 'string' ? req.body : '')));
   api.post('/brands/:brandId/import/instagram/apply', (req, res) => res.json(igImport.apply(req.brand.id, (req.body || {}).items)));
-  api.get('/export/types', (req, res) => res.json({ types: dataExport.types }));
-  api.get('/brands/:brandId/export.json', (req, res) => download(res, `${req.brand.name}-${stamp()}.json`, 'application/json; charset=utf-8', JSON.stringify(dataExport.json(req.brand.id), null, 2)));
-  api.get('/brands/:brandId/export/:type.csv', (req, res) => download(res, `${req.brand.name}-${req.params.type}-${stamp()}.csv`, 'text/csv; charset=utf-8', dataExport.csv(req.brand.id, req.params.type)));
   api.get('/brands/:brandId/calendar.ics', (req, res) => download(res, `${req.brand.name}-takvim.ics`, 'text/calendar; charset=utf-8', dataExport.ics(req.brand.id)));
   api.get('/export/calendar.ics', (req, res) => download(res, `icerik-takvimi-${stamp()}.ics`, 'text/calendar; charset=utf-8', dataExport.ics()));
   api.patch('/brands/:brandId', (req, res) => res.json({ brand: brands.update(req.brand.id, req.body || {}) }));
@@ -663,6 +662,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.delete('/shared-templates/:tid', (req, res) => { shared.remove(req.params.tid); res.status(204).end(); });
   api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
+  api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
+  api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, modelRef: mr(b) })); }));
   api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
   api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
   api.post('/brands/:brandId/posts/:id/schedule', (req, res) => res.status(201).json({ content: posts.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));
@@ -726,6 +727,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/character-book/draft', route(async (req, res) => res.json(await characterBook.draft(req.brand.id, { modelRef: mr(req.body || {}) }))));
 
   // --- YouTube kapak stüdyosu: kapak fikirleri (kaydedilmez) ---
+  api.post('/brands/:brandId/youtube/cover', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await images.youtubeCover(req.brand.id, { shotIds: b.shotIds, refIds: b.refIds, text: b.text, composition: b.composition, emotion: b.emotion, modelRef: mr(b) })); }));
   api.post('/brands/:brandId/youtube/ideas', route(async (req, res) => {
     const b = req.body || {};
     res.json(await thumbnails.ideas(req.brand.id, { topic: b.topic, title: b.title, url: b.url, count: b.count, modelRef: mr(b) }));
@@ -814,8 +816,19 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // --- İçerik fikirleri ---
   api.get('/brands/:brandId/ideas', (req, res) => {
     const category = req.query.category ? oneOf(String(req.query.category), Object.keys(IDEA_CATEGORIES), 'Kategori') : null;
-    res.json({ ideas: ideas.list(req.brand.id, { category, favorite: req.query.favorite === '1' }) });
+    const format = req.query.format ? oneOf(String(req.query.format), Object.keys(IDEA_FORMATS), 'Fikir türü') : null;
+    const status = ['aktif', 'kullanilmamis', 'kullanildi', 'arsiv', 'hepsi'].includes(String(req.query.status)) ? String(req.query.status) : 'aktif';
+    res.json({ ideas: ideas.list(req.brand.id, { category, format, status, favorite: req.query.favorite === '1' }) });
   });
+  // 10.5–10.8 içerik havuzu işlemleri
+  api.post('/brands/:brandId/ideas/random', (req, res) => {
+    const b = req.body || {};
+    const format = b.format ? oneOf(String(b.format), Object.keys(IDEA_FORMATS), 'Fikir türü') : '';
+    res.json({ idea: ideas.random(req.brand.id, { format, exclude: b.exclude }) });
+  });
+  api.post('/brands/:brandId/ideas/bulk-used', (req, res) => res.json(ideas.bulkUsed(req.brand.id, String((req.body || {}).action || ''))));
+  api.post('/brands/:brandId/ideas/:ideaId/use', (req, res) => res.json(ideas.use(req.brand.id, req.params.ideaId, String((req.body || {}).place || 'elle'))));
+  api.post('/brands/:brandId/ideas/:ideaId/similar', route(async (req, res) => res.status(201).json(await ideas.similar(req.brand.id, req.params.ideaId, { count: (req.body || {}).count, modelRef: mr(req.body || {}) }))));
 
   api.post('/brands/:brandId/ideas', (req, res) => res.status(201).json({ idea: ideas.create(req.brand.id, req.body || {}) }));
 

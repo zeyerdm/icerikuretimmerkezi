@@ -106,7 +106,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
       ${embedded ? '' : pageHead({
         title: brand ? 'Takvim' : 'İçerik Takvimi',
         desc: brand ? esc(brand.name) + ' markasının planlanan ve yayınlanan içerikleri. Bir güne tıklayarak içerik planla.' : 'Bütün markaların planlanan gönderileri. Boş bir güne tıklayarak içerik planla.',
-        actions: `<button class="btn" data-week-plan>${icon('calendar')}Haftalık plan</button><button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
+        actions: `<a class="btn" href="${brand ? `/api/brands/${esc(brand.id)}/calendar.ics` : '/api/export/calendar.ics'}" download title="Google Takvim: Ayarlar → İçe aktar · Outlook: Dosya → Aç ve Dışarı Aktar → İçeri Aktar">${icon('download')}Takvime aktar (.ics)</a><button class="btn" data-week-plan>${icon('calendar')}Haftalık plan</button><button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
       })}
       <div class="card cal-card${embedded ? ' desk-cal-card' : ''}">
         <div class="cal-toolbar">

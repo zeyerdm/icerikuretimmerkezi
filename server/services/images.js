@@ -80,6 +80,42 @@ export function createImageService({ db, ai, brands, assets }) {
       return { asset, ai: { model: r.ref, modelLabel: r.label, cost: r.cost, ms: r.ms, usedRefs: r.usedRefs } };
     },
 
+    // 10.9 YouTube kapağı: kullanıcının kendi çekimleri (video kareleri, fotoğraflar) asıl konu olur; beğenilen kapaklar
+    // (ör. Pinterest) yalnız yazı stili, yazı yerleşimi, düzen ve renk işlenişi için referans alınır. Kapak yazısı görsele
+    // yazdırılır. Rastgele görselden kapak üretilmez: en az bir çekim gerekir.
+    async youtubeCover(brandId, { shotIds = [], refIds = [], text: coverText = '', composition = '', emotion = '', modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const shots = [...new Set((Array.isArray(shotIds) ? shotIds : []).map(String))].slice(0, 3);
+      const styleRefs = [...new Set((Array.isArray(refIds) ? refIds : []).map(String))].filter(id => !shots.includes(id)).slice(0, 2);
+      if (!shots.length) throw badRequest('Kapak kendi çekiminden üretilir: en az bir video karesi ya da fotoğraf seç.');
+      const words = text(coverText, { field: 'Kapak yazısı', max: 60 });
+      const ov = ai.imageOverview();
+      const chosen = ov.models.find(m => m.ref === (modelRef || ov.default));
+      if (chosen && !chosen.refs) throw badRequest('Kapak için görsel referansı alan bir model seç (ör. Gemini Flash Image / Nano Banana).');
+      const mine = new Set(assets.list(b.id).map(a => a.id));
+      if ([...shots, ...styleRefs].some(id => !mine.has(id))) throw badRequest('Görseller yalnız bu markanın kütüphanesinden seçilebilir.');
+      const refs = [...shots, ...styleRefs].map(id => { const f = assets.file(b.id, id); return { mime: f.mime, data: fs.readFileSync(f.path) }; }).filter(r => /^image\/(png|jpeg|webp)$/.test(r.mime));
+      if (refs.length < shots.length) throw badRequest('Çekimler PNG, JPEG ya da WEBP olmalı.');
+      const n = shots.length;
+      const c = b.colors || {};
+      const colors = [c.primary, ...(c.secondary || [])].filter(Boolean).slice(0, 3);
+      const prompt = [
+        'Create a YouTube thumbnail, 16:9, 1280x720.',
+        `Image${n > 1 ? `s 1-${n} are` : ' 1 is'} the creator's OWN footage/photos from this video. Use ${n > 1 ? 'them' : 'it'} as the real subject: keep every person's face and identity, the objects and the setting exactly as they are (you may crop, cut out, enlarge, relight, sharpen and simplify the background).`,
+        styleRefs.length ? `Image${styleRefs.length > 1 ? `s ${n + 1}-${n + styleRefs.length} are` : ` ${n + 1} is`} reference thumbnail${styleRefs.length > 1 ? 's' : ''} the creator likes. Copy ONLY the typography style (font weight and letterform style, outline/stroke, shadow), the text placement and size, the layout and the color treatment. Do NOT copy their people, logos, products or wording.` : '',
+        words ? `Write exactly this Turkish cover text, large, bold and readable at small size, with correct Turkish characters: "${words}". No other text.` : 'Do not add any text.',
+        composition ? `Composition: ${composition}.` : '', emotion ? `Facial expression of the main person: ${emotion} (keep it natural, do not change identity).` : '',
+        colors.length ? `Accent colors from the brand: ${colors.join(', ')}.` : '',
+        'High contrast, one clear focal point, clean background. No logos, no watermarks, no fake UI elements.'
+      ].filter(Boolean).join('\n');
+      const r = await ai.image({ brandId: b.id, prompt, modelRef: modelRef || null, aspect: '16:9', refs });
+      const asset = assets.create(b.id, { buffer: r.buffer, category: 'ai_image', label: `YouTube kapağı: ${(words || 'yazısız').slice(0, 60)}` });
+      db.prepare('INSERT INTO image_generations (id, brand_id, asset_id, prompt_id, prompt, model, aspect, used_refs, cost_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(newId(), b.id, asset.id, null, `YouTube kapağı: ${words || '(yazısız)'}`, r.ref, '16:9', 1, r.cost || 0, now());
+      brands.logActivity(b.id, 'image.youtube', `${r.label} ile YouTube kapağı üretildi`);
+      return { asset, ai: { model: r.ref, modelLabel: r.label, cost: r.cost, ms: r.ms, usedRefs: r.usedRefs } };
+    },
+
     // Alan düzenleme: asıl görsel + düzenlenecek alanların kırmızıyla işaretlendiği kopya modele gider;
     // yalnızca işaretli alan değişir, sonuç yeni "AI görseli" olarak kaydedilir (asıl görsel korunur)
     async editRegion(brandId, { assetId, marked, instruction, modelRef = null } = {}) {

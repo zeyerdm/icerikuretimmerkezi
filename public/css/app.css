@@ -1783,3 +1783,43 @@ body.editor-mode .radial-fab { display: none; }
 @media (max-width: 720px) { .setup-callout { flex-direction: column; align-items: flex-start; } .dossier-grid { grid-template-columns: 1fr; } .setup-steps .ss-label { display: none; } .setup-steps .current .ss-label { display: inline; } }
 .setup-card fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 .setup-card fieldset.field legend { padding: 0; margin-bottom: var(--s-2); }
+
+/* 10.2 Kütüphane: sade galeri */
+.lib-tabs { display: flex; flex-wrap: wrap; }
+.lib-tabs button .muted { font-weight: 600; margin-left: 4px; }
+.lib-head { display: flex; align-items: center; gap: var(--s-3); justify-content: space-between; margin-bottom: var(--s-3); flex-wrap: wrap; }
+.dropzone.dropzone-sm { display: flex; flex-direction: row; align-items: center; gap: var(--s-3); padding: var(--s-4); min-height: 0; text-align: left; flex-wrap: wrap; }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--s-4); margin-top: var(--s-4); }
+.lib-item { margin: 0; border: 1px solid var(--line); border-radius: var(--r-md, 14px); background: var(--surface); overflow: hidden; display: flex; flex-direction: column; }
+.lib-item .thumb { aspect-ratio: 1; background: var(--surface-3); display: grid; place-items: center; }
+.lib-item .thumb img { width: 100%; height: 100%; object-fit: contain; }
+.lib-item figcaption { display: flex; flex-direction: column; gap: 2px; padding: var(--s-2) var(--s-3) 0; min-width: 0; font-size: var(--t-sm); }
+.lib-actions { display: flex; align-items: center; gap: 2px; padding: var(--s-1) var(--s-2) var(--s-2); margin-top: auto; flex-wrap: wrap; }
+.lib-detail { display: grid; grid-template-columns: 180px 1fr; gap: var(--s-4); align-items: start; }
+.lib-detail > img { width: 100%; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface-3); }
+@media (max-width: 720px) { .lib-detail { grid-template-columns: 1fr; } .lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 10.4–10.6 İçerik havuzu */
+.idea-formats { display: flex; flex-wrap: wrap; }
+.idea-formats button .muted { font-weight: 600; margin-left: 4px; }
+.idea-card { position: relative; }
+.idea-card.is-used { opacity: .82; }
+.idea-card.is-archived { opacity: .65; }
+.tag.tag-soft { background: var(--surface-3); color: var(--ink-2); }
+.idea-menu { position: absolute; right: var(--s-3); bottom: 48px; z-index: 20; display: flex; flex-direction: column; min-width: 230px; padding: var(--s-1); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,.12)); }
+.idea-menu[hidden] { display: none; }
+.idea-menu > button, .idea-menu-row { display: flex; align-items: center; gap: var(--s-2); padding: 8px 10px; border: 0; background: none; border-radius: 8px; font: inherit; font-size: var(--t-sm); color: var(--ink); text-align: left; cursor: pointer; }
+.idea-menu > button:hover, .idea-menu-row:hover { background: var(--surface-3); }
+.idea-menu > button.danger { color: var(--danger, #c0392b); }
+.idea-menu-row select { margin-left: auto; width: auto; }
+.pool-pick { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+
+/* 10.9 YouTube kapağı: çekim ve referans seçimi */
+.yt-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--s-2); }
+.yt-pick { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 2px solid var(--line); border-radius: var(--r-sm); background: var(--surface); cursor: pointer; min-width: 0; }
+.yt-pick input { position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; accent-color: var(--brand); }
+.yt-pick img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: var(--surface-3); }
+.yt-pick.on { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+.yt-cover { margin: 0 0 var(--s-4); }
+.yt-cover img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.yt-cover figcaption { margin-top: var(--s-2); flex-wrap: wrap; }

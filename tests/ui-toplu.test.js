@@ -299,7 +299,7 @@ test('T.29 marka sayfaları: akordeon gruplar ve tercihin hatırlanması, açık
     await page.goto(srv.base + `/#/m/${a.id}/kutuphane`);
     await page.waitForFunction(() => document.querySelector('[data-nav-group="varlik"]').getAttribute('aria-expanded') === 'true');
     // Bütün modüllere menüden erişilir
-    for (const href of ['', '/kimlik', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane', '/disa-aktar', '/video']) {
+    for (const href of ['', '/kimlik', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane', '/video']) {
       assert.equal(await page.locator(`.sidebar a[href="#/m/${a.id}${href}"]`).count(), 1, `menüde ${href || 'ana sayfa'} yok`);
     }
 
@@ -444,55 +444,6 @@ test('T.28 Çalışma masası düzeni: 30 görev/not ile sayfa uzamaz, üç kart
     await page.waitForTimeout(400);
     const e = await edges();
     assert.ok(e[1][0] >= e[0][1] - 1 || e[0][0] >= e[1][1] - 1, `tablette alt alta ${JSON.stringify(e)}`);
-    assert.deepEqual(problems, []);
-  } finally { await browser.close(); await srv.stop(); }
-});
-
-test('T.23 dışa aktarma: kırpma ve boyut, JPEG\'de saydam zemin beyaz, ayar değişince yeniden işleme, PNG\'de kalite kapalı, ZIP geçerli ve aynı adlar numaralı', { skip }, async () => {
-  const fs = await import('node:fs');
-  const { readZip } = await import('../server/lib/zip.js');
-  const srv = await startServer();
-  const a = (await srv.request('POST', '/api/brands', { name: 'Dışa' })).data.brand;
-  const { browser, page, problems } = await open(srv);
-  try {
-    await page.goto(srv.base + `/#/m/${a.id}/disa-aktar`);
-    await page.getByRole('button', { name: 'Bilgisayardan' }).click();
-    // Tarayıcıda iki saydam PNG üret (300×200 ve 600×400, aynı ad)
-    const pngs = await page.evaluate(() => [[300, 200], [600, 400]].map(([w, h]) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = 'rgba(255,0,0,1)'; x.fillRect(0, 0, 10, 10); return c.toDataURL('image/png').split(',')[1]; }));
-    await page.locator('#exp-file').setInputFiles(pngs.map(b => ({ name: 'kapak.png', mimeType: 'image/png', buffer: Buffer.from(b, 'base64') })));
-    const rows = page.locator('.exp-row');
-    await page.waitForFunction(() => document.querySelectorAll('.exp-row [data-dl]').length === 2);
-    // Varsayılan: 4:5, en fazla 1080, JPEG
-    assert.match(await rows.nth(0).innerText(), /160×200/);
-    assert.match(await rows.nth(1).innerText(), /320×400/);
-    // JPEG'de saydam alan beyaz olur (sol üst kırmızı kare kırpılan bölgede değil; orta piksel)
-    const px = await page.evaluate(async () => {
-      const img = document.querySelector('.exp-row .exp-prev img');
-      await img.decode();
-      const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
-      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
-      return [...x.getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data];
-    });
-    assert.ok(px[0] > 245 && px[1] > 245 && px[2] > 245 && px[3] === 255, `saydam zemin beyaz olmalı: ${px}`);
-    // Ayar değişince yeniden işlenir: 16:9 ve en fazla 720
-    await page.locator('#ex-ratio').selectOption('16:9');
-    await page.waitForFunction(() => /300×169/.test(document.querySelector('.exp-row').innerText));
-    await page.locator('#ex-width').selectOption('720');
-    await page.locator('#ex-type').selectOption('image/png');
-    await page.waitForFunction(() => /600×338/.test(document.querySelectorAll('.exp-row')[1].innerText) && document.querySelectorAll('.exp-row [data-dl]').length === 2);
-    assert.ok(await page.locator('#ex-q').isDisabled(), 'PNG kayıpsız: kalite kapalı');
-    // ZIP: çıktılar güncel ayarla hazır değilse indirme başlamaz ("hâlâ hazırlanıyor"); hazır olana kadar yeniden dene
-    let download = null;
-    for (let k = 0; k < 20 && !download; k++) {
-      const wait = page.waitForEvent('download', { timeout: 1000 }).catch(() => null);
-      await page.locator('[data-zip]').click();
-      download = await wait;
-    }
-    assert.ok(download, 'ZIP indirilemedi');
-    const file = await download.path();
-    const entries = readZip(fs.readFileSync(file));
-    assert.deepEqual(entries.map(e => e.name).sort(), ['kapak_16x9.png', 'kapak_16x9_2.png']);
-    assert.ok(entries.every(e => Buffer.from(e.data).subarray(1, 4).toString() === 'PNG'), 'arşivdeki dosyalar PNG');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

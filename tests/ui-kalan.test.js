@@ -252,7 +252,7 @@ test('T.17 kalan: üretim geçmişinde varyasyon ve yan yana karşılaştırma',
   } finally { await browser.close(); await srv.stop(); }
 });
 
-test('T.21 kalan: AI bağlı değilken okuma düğmeleri yok; bağlıyken toplu okuma hepsini etiketler', { skip }, async () => {
+test('T.21 kalan: AI bağlı değilken okuma düğmeleri yok; bağlıyken Ayrıntı penceresinde okuyup etiketler', { skip }, async () => {
   const off = await startServer();
   const b0 = (await off.request('POST', '/api/brands', { name: 'AI yok' })).data.brand;
   await off.request('POST', `/api/brands/${b0.id}/assets?category=logo`, PNG_1PX, png);
@@ -269,12 +269,15 @@ test('T.21 kalan: AI bağlı değilken okuma düğmeleri yok; bağlıyken toplu 
   for (let i = 0; i < 2; i++) await srv.request('POST', `/api/brands/${b.id}/assets?category=logo`, PNG_1PX, png);
   const { browser, page, problems } = await open(srv);
   try {
+    // 10.2: okuma isteğe bağlı, görselin Ayrıntı penceresinde
     await page.goto(`${srv.base}/#/m/${b.id}/kutuphane`);
-    await page.locator('[data-ocr-bulk]', { hasText: '(2)' }).click();
-    await page.locator('.toast', { hasText: '2 görsel okundu ve etiketlendi' }).waitFor();
-    await page.waitForFunction(() => !document.querySelector('[data-ocr-bulk]'));
+    await page.locator('[data-detail]').first().click();
+    await page.locator('[data-ld-ocr]').click();
+    await page.waitForFunction(() => /kahve/.test(document.querySelector('#ld-tags').value));
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.toast', { hasText: 'Kaydedildi.' }).waitFor();
     const assets = (await srv.request('GET', `/api/brands/${b.id}/assets`)).data.assets;
-    assert.ok(assets.every(a => a.analyzedAt && a.ocrText === 'KAHVE %20' && a.tags.includes('kahve')));
+    assert.ok(assets.some(a => a.analyzedAt && a.ocrText === 'KAHVE %20' && a.tags.includes('kahve')));
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
@@ -325,40 +328,6 @@ test('T.18 kalan: ızgara önizlemesinde Reels hücresi film rozetiyle görünü
     assert.equal(await cell.locator('.ig-badge').count(), 1, 'film rozeti');
     await cell.click();
     await page.waitForURL(new RegExp(`/reels/${r.id}$`));
-    assert.deepEqual(problems, []);
-  } finally { await browser.close(); await srv.stop(); }
-});
-
-test('T.23 kalan: tasarımın bütün slaytları eklenir; EXIF\'li JPEG çıktısında meta veri kalmaz', { skip }, async () => {
-  const srv = await startServer();
-  const b = (await srv.request('POST', '/api/brands', { name: 'Dışa aktar 2' })).data.brand;
-  const p = (await srv.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'İki slayt', kind: 'carousel' })).data.post;
-  const slide = t => ({ bg: '#ffffff', layers: [{ type: 'text', role: 'title', text: t, x: 100, y: 100, w: 800, size: 60, color: '#000000', font: 'Inter' }] });
-  await srv.request('PUT', `/api/brands/${b.id}/posts/${p.id}`, { data: { format: '1:1', slides: [slide('Bir'), slide('İki')] } });
-  const { browser, page, problems } = await open(srv);
-  try {
-    await page.goto(`${srv.base}/#/m/${b.id}/disa-aktar`);
-    await page.getByRole('button', { name: 'Post tasarımları' }).click();
-    await page.locator(`[data-post="${p.id}"]`).click();
-    await page.waitForFunction(() => document.querySelectorAll('.exp-row').length === 2);
-    // EXIF'li JPEG: tarayıcıda JPEG üret, SOI'den sonra APP1 "Exif" bölümü ekle
-    const jpg = await page.evaluate(async () => {
-      const c = document.createElement('canvas'); c.width = 200; c.height = 200; c.getContext('2d').fillRect(0, 0, 50, 50);
-      const buf = new Uint8Array(await (await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
-      const exif = new TextEncoder().encode('Exif\0\0GPS konum Kamera modeli XYZ');
-      const len = exif.length + 2;
-      const app1 = new Uint8Array([0xff, 0xe1, len >> 8, len & 255, ...exif]);
-      return [...buf.slice(0, 2), ...app1, ...buf.slice(2)];
-    });
-    assert.ok(Buffer.from(jpg).includes('Exif'), 'kaynakta EXIF var');
-    await page.getByRole('button', { name: 'Bilgisayardan' }).click();
-    await page.locator('#exp-file').setInputFiles({ name: 'foto.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpg) });
-    await page.waitForFunction(() => document.querySelectorAll('.exp-row [data-dl]').length === 3);
-    // Çıktı indirilip baytlarına bakılır (CSP blob adresine fetch'e izin vermez)
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('.exp-row').last().locator('[data-dl]').click()]);
-    const s = (await (await import('node:fs')).promises.readFile(await dl.path())).toString('latin1');
-    assert.ok(s.charCodeAt(0) === 0xff && s.charCodeAt(1) === 0xd8, 'çıktı JPEG');
-    assert.ok(!s.includes('Exif') && !s.includes('GPS konum'), 'çıktıda EXIF yok');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

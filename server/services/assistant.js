@@ -4,7 +4,7 @@
 // sonuç listesinde hata olarak görünür (yapılmış gibi gösterilmez).
 import { newId, now, text, parseJson } from '../lib/http.js';
 import { transaction } from '../db.js';
-import { IDEA_CATEGORIES } from './ideas.js';
+import { IDEA_CATEGORIES, IDEA_FORMATS } from './ideas.js';
 import { CONTENT_TYPES } from './workspace.js';
 import { PROMPT_KINDS } from './prompts.js';
 import { upcomingText } from './specialDays.js';
@@ -49,7 +49,7 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       upcomingText(45) || '(yok)',
       '',
       'YAPABİLECEĞİN İŞLEMLER (actions listesine ekle; uygulama gerçekten yapar):',
-      `- save_ideas: {ideas: [{title, description, category}]} içerik fikirlerini fikir havuzuna kaydeder. Kategoriler: ${categories}. En fazla ${MAX_IDEAS_PER_ACTION}.`,
+      `- save_ideas: {ideas: [{title, description, category, format}]} içerik fikirlerini fikir havuzuna kaydeder. Kategoriler: ${categories}. Tür (format): ${Object.keys(IDEA_FORMATS).join(', ')} (istekte geçmiyorsa genel). En fazla ${MAX_IDEAS_PER_ACTION}.`,
       '- update_idea: {id, title, description} kayıtlı bir fikri değiştirir ("bu fikri daha eğlenceli yap" gibi).',
       `- add_reels_ideas: {ideas: [{text, category}]} Reels fikir havuzuna kısa Reels fikirleri ekler ("haftaya 5 Reels fikri üret"). En fazla ${MAX_IDEAS_PER_ACTION}.`,
       '- create_reels: {topic} konudan saniye saniye Reels senaryosu yazar (ayrı bir üretim; birkaç saniye sürer).',
@@ -96,7 +96,8 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
           let skipped = 0;
           for (const item of a.ideas.slice(0, MAX_IDEAS_PER_ACTION)) {
             const category = item && Object.prototype.hasOwnProperty.call(IDEA_CATEGORIES, item.category) ? item.category : 'bilgilendirici';
-            try { saved.push(ideas.create(brandId, { title: String(item.title || ''), description: String(item.description || ''), category }, 'assistant')); } catch { skipped++; }
+            const format = item && Object.prototype.hasOwnProperty.call(IDEA_FORMATS, item.format) ? item.format : 'genel';
+            try { saved.push(ideas.create(brandId, { title: String(item.title || ''), description: String(item.description || ''), category, format }, 'assistant')); } catch { skipped++; }
           }
           if (saved.length) {
             brands.logActivity(brandId, 'ideas.generated', `AI asistanı ${saved.length} içerik fikri kaydetti`);

@@ -1,11 +1,8 @@
-// Marka dijital kimliği: profil, görsel kimlik (renk, font, canlı önizleme) ve varlık kütüphanesi
+// Marka kimliğinin Profil ve Görsel kimlik sekmeleri (renk, font, canlı önizleme). Kütüphane: views/library.js
 import { api } from '../api.js';
-import { imageBox } from './imageGen.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
-import { esc, icon, toast, loadFonts, errorNotice, pageHead, emptyState, skeletonPage, busy, openModal } from '../ui.js';
+import { esc, icon, toast, loadFonts, pageHead, skeletonPage, openModal } from '../ui.js';
 import { state, refreshBrands, go } from '../app.js';
-import { INSPIRATION_NOTE, takeLibraryCategory } from '../inspiration.js';
-import { ensureThumbs } from '../thumbs.js';
 import { identityHead, bindIdentityActions } from './identity.js';
 
 const LONG_FIELDS = new Set(['description', 'audience', 'character', 'tone', 'goals', 'competitors']);
@@ -47,16 +44,13 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     // Profil ve Görsel kimlik, Marka kimliği sayfasının sekmeleri; Kütüphane kendi sayfası
     view.innerHTML = isNew
       ? `${pageHead({ title: 'Yeni marka', desc: 'Kimliği bir kez tanımla; bütün üretimler buna göre yapılsın.' })}<div id="tab-body"></div>`
-      : tab === 'varliklar'
-        ? `${pageHead({ title: 'Kütüphane', desc: `${esc(brand.name)} markasının logoları, maskot pozları, görselleri ve referansları.` })}<div id="tab-body"></div>`
-        : `${identityHead(brand, tab)}<div id="tab-body"></div>`;
-    if (!isNew && tab !== 'varliklar') bindIdentityActions(view, brand);
+      : `${identityHead(brand, tab)}<div id="tab-body"></div>`;
+    if (!isNew) bindIdentityActions(view, brand);
     renderTab();
   }
 
   function renderTab() {
     const body = view.querySelector('#tab-body');
-    if (tab === 'varliklar') return renderAssets(body, brand, driveOk);
     body.innerHTML = `
       <div class="editor">
         <div>
@@ -236,7 +230,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   view.onclick = async e => {
     // Profil ↔ Görsel kimlik aynı düzenleyicide: sekme değişince yazılanlar (kaydedilmemiş olsa da) kaybolmaz
     const link = e.target.closest('.id-tabs a');
-    const m = link && !isNew && tab !== 'varliklar' && link.getAttribute('href').match(/\/kimlik\/(profil|gorsel)$/);
+    const m = link && !isNew && link.getAttribute('href').match(/\/kimlik\/(profil|gorsel)$/);
     if (m) {
       e.preventDefault();
       if (m[1] === tab) return;
@@ -267,251 +261,4 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   };
 
   shell();
-}
-
-// İlham rafındaki link ve metinler ("İlham" kategorili marka notları)
-async function drawInspirationNotes(el, brand) {
-  if (!el) return;
-  try {
-    const { notes } = await api.notes({ brandId: brand.id, category: INSPIRATION_NOTE });
-    el.innerHTML = `<h3 class="mb-2">Link ve metinler <span class="muted small">${notes.length}</span></h3>` + (notes.length
-      ? `<div class="insp-list">${notes.map(n => {
-          const link = /^https?:\/\/\S+$/i.test(n.body.trim());
-          return `<div class="insp-item">${link ? `<a href="${esc(n.body.trim())}" target="_blank" rel="noopener noreferrer" class="strong">${esc(n.title || n.body)}</a><div class="xsmall muted">${esc(n.body.trim())}</div>` : `<div class="strong">${esc(n.title)}</div>${(n.body.startsWith(n.title) ? n.body.slice(n.title.length) : n.body).trim() ? `<div class="small pre-wrap">${esc((n.body.startsWith(n.title) ? n.body.slice(n.title.length) : n.body).trim().slice(0, 400))}</div>` : ''}`}
-            <button type="button" class="btn btn-sm btn-ghost icon-btn" data-insp-del="${esc(n.id)}" aria-label="Sil">${icon('trash')}</button></div>`;
-        }).join('')}</div>`
-      : '<div class="small muted">Henüz link ya da metin yok. Bir linki kopyalayıp bu sayfada Ctrl+V yapman yeterli.</div>');
-    el.onclick = async e => {
-      const d = e.target.closest('[data-insp-del]');
-      if (!d) return;
-      try { await api.deleteNote(d.dataset.inspDel); drawInspirationNotes(el, brand); } catch (err) { toast(err.message, 'error'); }
-    };
-  } catch (err) { el.innerHTML = errorNotice(err); }
-}
-
-// --- Varlık kütüphanesi: kategoriye göre yükleme, etiketleme, silme ---
-async function renderAssets(body, brand, driveOk) {
-  const canSend = driveOk && Boolean(brand.driveFolderId);
-  const cats = state.meta.assetCategories;
-  // Yazı okuma / etiketleme yalnızca AI bağlıysa gösterilir; bağlı değilse arama ipucunda nedeni yazar
-  const aiOn = Boolean(state.settings && state.settings.ai && state.settings.ai.configured);
-  let bulkIds = [];
-  let current = takeLibraryCategory() || 'logo';
-  if (!cats[current]) current = 'logo';
-  let packFilter = '';
-  let query = '';
-  // Kütüphane açıkken yapıştırılan ilham, İlham rafı görünüyorsa hemen listeye gelir
-  const onInspiration = () => {
-    if (!body.isConnected) return document.removeEventListener('ium:inspiration', onInspiration);
-    if (current === 'inspiration') draw();
-  };
-  document.addEventListener('ium:inspiration', onInspiration);
-
-  async function draw() {
-    body.innerHTML = `
-      <div class="card">
-        <div class="asset-cats">${Object.entries(cats).map(([id, label]) => `<button type="button" class="chip ${id === current ? 'active' : ''}" data-cat="${id}">${esc(label)}</button>`).join('')}</div>
-        ${current === 'ai_image' ? '<div class="card-section mb-4"><h3 class="mb-2">Hazır şablonlar</h3><div id="lib-tpl"></div></div><div class="card-section mb-4"><h3 class="mb-2">AI ile görsel üret</h3><div id="lib-image"></div></div>' : ''}
-        ${current === 'inspiration' ? '<div class="notice mb-4"><span>Bu markanın çalışma alanında herhangi bir yerde (yazı alanı dışında) <b>Ctrl+V</b> ile yapıştırdığın ekran görüntüleri buraya, link ve metinler aşağıdaki listeye düşer.</span></div><div id="insp-notes" class="mb-4"></div>' : ''}
-        <label class="dropzone" id="dropzone">
-          <input type="file" id="asset-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple class="sr-only">
-          <div>${icon('upload')}</div>
-          <div class="strong">${esc(cats[current])} yükle</div>
-          <div class="small">Sürükle bırak ya da tıkla · PNG, JPEG, WEBP, GIF · en fazla ${Math.round(state.meta.maxAssetBytes / 1048576)} MB${current === 'mascot' ? ' · Her poza bir ad ver (ör. Mutlu, Şaşkın)' : ''}</div>
-        </label>
-        <div class="row mt-4 lib-tools"><input class="input w-auto" type="search" id="asset-q" placeholder="Ad, etiket, paket ya da görseldeki yazı" aria-label="Kütüphanede ara" value="${esc(query)}" title="${aiOn ? 'Okunan görsel yazıları da aranır' : 'Görseldeki yazıları okumak ve otomatik etiketlemek için Yapay zekâ sayfasından bir sağlayıcı bağla'}">
-          <span class="spacer"></span><span id="ocr-bulk"></span><button type="button" class="btn btn-sm" data-pack-upload>${icon('upload')}Paket yükle (ZIP ya da çoklu)</button></div>
-        <div id="pack-row" class="chips mt-3"></div>
-        <div id="asset-grid"><div class="skeleton mt-4" style="height:160px"></div></div>
-      </div>`;
-    // Yükleme alanı liste beklenmeden hemen bağlanır; seçilen dosya kaybolmaz
-    wireUpload();
-    if (current === 'inspiration') drawInspirationNotes(body.querySelector('#insp-notes'), brand);
-    if (current === 'ai_image') { imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, historyAll: true }); templateBox(body.querySelector('#lib-tpl'), brand, () => imageBox(body.querySelector('#lib-image'), brand, { editablePrompt: true, historyAll: true })); }
-    const grid = body.querySelector('#asset-grid');
-    try {
-      const [{ assets: all }, { packs: allPacks }] = await Promise.all([api.assets(brand.id, current), api.assetPacks(brand.id)]);
-      const packs = allPacks.filter(p => p.category === current);
-      if (packFilter && !packs.some(p => p.name === packFilter)) packFilter = '';
-      body.querySelector('#pack-row').innerHTML = packs.length
-        ? `<button type="button" class="chip ${packFilter ? '' : 'active'}" data-pack="">Tüm paketler</button>${packs.map(p => `<button type="button" class="chip ${p.name === packFilter ? 'active' : ''}" data-pack="${esc(p.name)}">${esc(p.name)} <span class="muted">${p.count}</span></button>`).join('')}
-          ${packFilter ? `<button type="button" class="btn btn-sm btn-ghost" data-pack-delete="${esc(packFilter)}">${icon('trash')}Paketi sil</button>` : ''}`
-        : '';
-      const q = query.toLocaleLowerCase('tr-TR');
-      const assets = all.filter(a => (!packFilter || a.pack === packFilter) && (!q || [a.label, a.pack, a.ocrText, ...a.tags].join(' ').toLocaleLowerCase('tr-TR').includes(q)));
-      const pending = assets.filter(a => !a.analyzedAt);
-      body.querySelector('#ocr-bulk').innerHTML = aiOn && pending.length ? `<button type="button" class="btn btn-sm" data-ocr-bulk>${icon('sparkle')}Okunmamışları oku ve etiketle (${pending.length})</button>` : '';
-      bulkIds = pending.map(a => a.id);
-      // 8.10: büyük görsellerin küçük resmi arka planda üretilir; hazır olunca ızgaradaki görsel küçüğüyle değişir
-      ensureThumbs(brand.id, assets, a => { const img = grid.querySelector(`[data-asset-id="${CSS.escape(a.id)}"] img`); if (img) img.src = a.thumbUrl; });
-      grid.innerHTML = assets.length
-        ? `<div class="asset-grid">${assets.map(a => `
-            <div class="asset" data-asset-id="${esc(a.id)}">
-              <div class="thumb"><img src="${esc(a.thumbUrl || a.url)}" alt="${esc(a.label || a.categoryLabel)}" loading="lazy"></div>
-              <div class="meta"><input class="input" data-asset-label="${esc(a.id)}" value="${esc(a.label)}" placeholder="Etiket" maxlength="80" aria-label="Etiket">
-              <button class="btn btn-sm btn-ghost icon-btn" data-asset-delete="${esc(a.id)}" aria-label="Sil">${icon('trash')}</button></div>
-              <div class="meta"><select class="select input-sm" data-asset-role="${esc(a.id)}" aria-label="Referans rolü" title="Görsel üretiminde @${esc(a.mention)} ile anılınca nasıl kullanılacağı"><option value="">Referans: —</option>${[['kimlik', 'Kimlik'], ['nesne', 'Nesne'], ['stil', 'Stil']].map(([k, v]) => `<option value="${k}" ${a.refRole === k ? 'selected' : ''}>Referans: ${v}</option>`).join('')}</select><span class="xsmall muted" title="Görsel tarifinde bu adla an">@${esc(a.mention)}</span></div>
-              <div class="meta"><input class="input input-sm" data-asset-tags="${esc(a.id)}" value="${esc(a.tags.join(', '))}" placeholder="Etiketler (virgülle)" maxlength="300" aria-label="Etiketler">${a.pack ? `<span class="tag" title="Paket">${esc(a.pack)}</span>` : ''}</div>
-              ${a.ocrText ? `<div class="ocr-text xsmall" title="Görselde okunan yazı (aramaya dahil)">“${esc(a.ocrText.slice(0, 140))}${a.ocrText.length > 140 ? '…' : ''}”</div>` : a.analyzedAt ? '<div class="xsmall muted">Görselde yazı bulunmadı.</div>' : ''}
-              ${aiOn ? `<div class="meta"><button type="button" class="btn btn-sm btn-ghost" data-ocr="${esc(a.id)}" title="Görseldeki yazıyı okur, etiket ve ad önerir">${icon('sparkle')}${a.analyzedAt ? 'Yeniden oku' : 'Yazıyı oku ve etiketle'}</button></div>` : ''}
-              ${canSend || a.driveUrl ? `<div class="meta">${a.driveUrl ? `<a class="drive-link" href="${esc(a.driveUrl)}" target="_blank" rel="noopener">✓ Drive'da</a>` : ''}
-                ${canSend ? `<button class="btn btn-sm${a.driveUrl ? ' btn-ghost' : ''}" data-asset-drive="${esc(a.id)}">${a.driveUrl ? 'Tekrar gönder' : 'Drive\'a gönder'}</button>` : ''}</div>` : ''}
-            </div>`).join('')}</div>`
-        : emptyState({ icon: 'image', title: all.length ? 'Eşleşen dosya yok' : 'Bu kategoride dosya yok', text: `Yüklediğin dosyalar yalnızca ${esc(brand.name)} markasında görünür.`, compact: true });
-    } catch (err) { grid.innerHTML = errorNotice(err); }
-    wireGrid();
-  }
-
-  async function upload(files) {
-    const list = Array.from(files || []);
-    if (!list.length) return;
-    let ok = 0;
-    for (const file of list) {
-      if (file.size > state.meta.maxAssetBytes) { toast(`${file.name}: 10 MB'tan büyük.`, 'error'); continue; }
-      const label = file.name.replace(/\.[^.]+$/, '').slice(0, 80);
-      try { await api.uploadAsset(brand.id, file, current, label, packFilter); ok++; } catch (err) { toast(`${file.name}: ${err.message}`, 'error'); }
-    }
-    if (ok) { toast(`${ok} dosya yüklendi.`, 'success'); await refreshBrands(); }
-    draw();
-  }
-
-  function wireUpload() {
-    const dz = body.querySelector('#dropzone');
-    body.querySelector('#asset-file').addEventListener('change', e => upload(e.target.files));
-    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
-    dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
-    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); upload(e.dataTransfer.files); });
-    body.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => { current = b.dataset.cat; packFilter = ''; draw(); }));
-    let t = null;
-    body.querySelector('#asset-q').addEventListener('input', e => { clearTimeout(t); t = setTimeout(() => { query = e.target.value.trim(); draw().then(() => { const i = body.querySelector('#asset-q'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }); }, 300); });
-    body.querySelector('[data-pack-upload]').addEventListener('click', packModal);
-  }
-
-  // Paket yükleme: ZIP arşivi tek istekte; tek tek seçilen görseller aynı paket adıyla sırayla yüklenir
-  function packModal() {
-    openModal({
-      title: `${cats[current]} paketi yükle`, submitLabel: 'Yükle',
-      body: `<div class="form-grid">
-        <div class="field full"><label for="pk-name">Paket adı *</label><input class="input" id="pk-name" name="pack" required maxlength="60" placeholder="Ör. Kış sticker'ları"></div>
-        <div class="field full"><label for="pk-files">Dosyalar *</label><input class="input" id="pk-files" name="files" type="file" multiple accept=".zip,application/zip,image/png,image/jpeg,image/webp,image/gif" required>
-          <span class="hint">Bir ZIP arşivi (en fazla 200 görsel, 60 MB) ya da birden çok görsel seç. ZIP içindeki alt klasör adları etiket olur.</span></div>
-      </div>`,
-      onSubmit: async (fd, form) => {
-        const pack = String(fd.get('pack') || '').trim();
-        const files = Array.from(form.querySelector('#pk-files').files);
-        if (!pack || !files.length) throw new Error('Paket adı ve dosya gerekli.');
-        let added = 0;
-        let skipped = 0;
-        for (const f of files) {
-          if (/\.zip$/i.test(f.name) || f.type === 'application/zip') {
-            const r = await api.uploadAssetPack(brand.id, f, current, pack);
-            added += r.added.length; skipped += r.skipped;
-          } else {
-            try { await api.uploadAsset(brand.id, f, current, f.name.replace(/\.[^.]+$/, '').slice(0, 80), pack); added++; } catch { skipped++; }
-          }
-        }
-        toast(`${added} görsel "${pack}" paketine eklendi${skipped ? `, ${skipped} dosya atlandı` : ''}.`, added ? 'success' : 'error', 5000);
-        packFilter = pack;
-        await refreshBrands();
-        draw();
-      }
-    });
-  }
-
-  function wireGrid() {
-    body.querySelectorAll('[data-pack]').forEach(b => b.addEventListener('click', () => { packFilter = b.dataset.pack; draw(); }));
-    body.querySelectorAll('[data-pack-delete]').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm(`"${b.dataset.packDelete}" paketindeki bütün dosyalar çöp kutusuna taşınsın mı? 30 gün içinde geri alabilirsin.`)) return;
-      try { const r = await api.deleteAssetPack(brand.id, b.dataset.packDelete); toast(`${r.removed} dosya çöp kutusuna taşındı (Ayarlar → Çöp kutusu).`, 'success'); packFilter = ''; await refreshBrands(); draw(); } catch (err) { toast(err.message, 'error'); }
-    }));
-    body.querySelectorAll('[data-asset-role]').forEach(sel => sel.addEventListener('change', async () => {
-      try { await api.updateAsset(brand.id, sel.dataset.assetRole, { refRole: sel.value }); toast('Referans rolü kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
-    }));
-    body.querySelectorAll('[data-asset-tags]').forEach(inp => inp.addEventListener('change', async () => {
-      try { await api.updateAsset(brand.id, inp.dataset.assetTags, { tags: inp.value }); toast('Etiketler kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
-    }));
-    body.querySelectorAll('[data-asset-label]').forEach(inp => inp.addEventListener('change', async () => {
-      try { await api.updateAsset(brand.id, inp.dataset.assetLabel, { label: inp.value }); toast('Etiket kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
-    }));
-    body.querySelectorAll('[data-asset-drive]').forEach(btn => btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      btn.textContent = 'Gönderiliyor…';
-      try { await api.sendAssetToDrive(brand.id, btn.dataset.assetDrive); toast('Dosya Google Drive klasörüne gönderildi.', 'success'); draw(); }
-      catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Drive\'a gönder'; }
-    }));
-    body.querySelectorAll('[data-ocr]').forEach(btn => btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      btn.textContent = 'Okunuyor…';
-      try { const r = await api.analyzeAsset(brand.id, btn.dataset.ocr); toast(`${r.asset.tags.length} etiket · ${r.ai.modelLabel}`, 'success'); draw(); }
-      catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Yazıyı oku ve etiketle'; }
-    }));
-    const bulk = body.querySelector('[data-ocr-bulk]');
-    if (bulk) bulk.addEventListener('click', async () => {
-      const ids = bulkIds.slice();
-      bulk.disabled = true;
-      let ok = 0;
-      for (const [i, id] of ids.entries()) {
-        bulk.textContent = `Okunuyor… ${i + 1}/${ids.length}`;
-        try { await api.analyzeAsset(brand.id, id); ok++; } catch (err) { toast(err.message, 'error'); if (/bağlı|anahtar|yapılandır/i.test(err.message)) break; }
-      }
-      toast(`${ok} görsel okundu ve etiketlendi.`, ok ? 'success' : 'error');
-      draw();
-    });
-    body.querySelectorAll('[data-asset-delete]').forEach(btn => btn.addEventListener('click', async () => {
-      if (!confirm('Bu dosya çöp kutusuna taşınsın mı? 30 gün içinde geri alabilirsin.')) return;
-      try { await api.deleteAsset(brand.id, btn.dataset.assetDelete); await refreshBrands(); draw(); } catch (err) { toast(err.message, 'error'); }
-    }));
-  }
-
-  draw();
-}
-
-// 7.4 Hazır görsel şablonları: iki soru → markanın kemiği, prompt kimliği ve karakter kitabıyla prompt + görsel
-async function templateBox(box, brand, refresh) {
-  if (!box) return;
-  let ov;
-  try { ov = await api.imageOverview(); } catch { return; }
-  if (!ov.configured) { box.innerHTML = '<p class="small muted">Görsel üretimi bağlı değil; şablonlar görsel anahtarı eklenince çalışır.</p>'; return; }
-  const { templates } = await api.imageTemplates();
-  box.innerHTML = `<p class="small muted mb-2">İki soruya cevap ver: prompt markanın prompt kimliğine ve maskot kitabına göre yazılır, Prompt Studio'ya kaydedilir ve görsel üretilir.</p>
-    <div class="row">${Object.entries(templates).map(([k, t]) => `<button type="button" class="btn btn-sm" data-tpl="${k}">${esc(t.label)} <span class="xsmall muted">${esc(t.aspect)}</span></button>`).join('')}</div>`;
-  box.addEventListener('click', e => {
-    const b = e.target.closest('[data-tpl]');
-    if (!b) return;
-    const t = templates[b.dataset.tpl];
-    openModal({
-      title: t.label, submitLabel: 'Prompt yaz ve görsel üret',
-      body: `<div class="stack-sm">${t.questions.map((q, i) => `<div class="field"><label for="tq-${i}">${esc(q)}${i === 0 ? ' *' : ''}</label><input class="input" id="tq-${i}" name="a${i}" maxlength="300" ${i === 0 ? 'required' : ''} data-mic></div>`).join('')}
-        ${t.useMascot ? '<p class="xsmall muted">Maskot karakter kitabındaki pozlar referans olarak gider (Nano Banana gibi referans alan model gerekir).</p>' : ''}</div>`,
-      onSubmit: async (fd, form) => {
-        const r = await busyTimer(form.querySelector('[type=submit]'), () => api.imageFromTemplate(brand.id, { template: b.dataset.tpl, answers: [fd.get('a0'), fd.get('a1')] }), 'Üretiyor');
-        toast(`Görsel üretildi ve kütüphaneye kaydedildi (${r.ai.modelLabel}).`, 'success');
-        refresh();
-      }
-    });
-  });
-}
-
-// 8.8 Veri dışa aktarma: bütün kayıtlar (JSON), tür tür tablo (CSV, Excel'de açılır), takvim (.ics)
-export async function exportModal(brand) {
-  let types = {};
-  try { types = (await api.exportTypes()).types; } catch (err) { return toast(err.message, 'error'); }
-  const base = `/api/brands/${encodeURIComponent(brand.id)}`;
-  const m = openModal({
-    title: 'Dışa aktar', submitLabel: 'Kapat',
-    body: `<p class="small muted mb-3">${esc(brand.name)} markasının kayıtları bilgisayarına iner. Görsel dosyaları ve API anahtarları dosyalara girmez.</p>
-      <div class="stack-sm">
-        <div class="row"><a class="btn" id="ex-json" href="${base}/export.json" download>${icon('download')}Bütün kayıtlar (JSON)</a><span class="xsmall muted">Fikir, senaryo, takvim, not, görev, prompt, tasarım…</span></div>
-        <div class="row"><select class="select w-auto" id="ex-type" aria-label="Tablo türü">${Object.entries(types).map(([k, v]) => `<option value="${esc(k)}" ${k === 'contents' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
-          <a class="btn" id="ex-csv" download>${icon('download')}Tablo (CSV)</a><span class="xsmall muted">Excel ve Google E-Tablolar'da açılır</span></div>
-        <div class="row"><a class="btn" id="ex-ics" href="${base}/calendar.ics" download>${icon('calendar')}Takvim (.ics)</a><a class="btn btn-ghost" href="/api/export/calendar.ics" download>Bütün markaların takvimi</a></div>
-        <p class="xsmall muted">.ics dosyasını Google Takvim'de Ayarlar → İçe aktar, Outlook'ta Dosya → Aç ve Dışarı Aktar → İçeri Aktar ile ekleyebilirsin.</p>
-      </div>`,
-    onSubmit: () => {}
-  });
-  const sel = m.form.querySelector('#ex-type');
-  const link = m.form.querySelector('#ex-csv');
-  const upd = () => { link.href = `${base}/export/${encodeURIComponent(sel.value)}.csv`; };
-  sel.addEventListener('change', upd);
-  upd();
 }

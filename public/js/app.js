@@ -7,7 +7,6 @@ import { esc, icon, toast, brandAvatar, applyBrandTheme, errorBox, emptyState, s
 import { renderCenter } from './views/center.js';
 import { renderHome } from './views/home.js';
 import { renderBrands } from './views/brands.js';
-import { renderBrandEditor } from './views/brandEditor.js';
 import { renderSettings } from './views/settings.js';
 import { renderCalendar } from './views/calendar.js';
 import { renderTasks } from './views/tasks.js';
@@ -20,14 +19,15 @@ import { renderReels } from './views/reels.js';
 import { renderPosts } from './views/posts.js';
 import { renderPrompts } from './views/prompts.js';
 import { renderIdentity, renderNewBrandSetup } from './views/identity.js';
+import { renderLibrary } from './views/library.js';
 import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
 import { initPalette, openPalette } from './palette.js';
 import { initRadial } from './radial.js';
+import { initDrafts, draftsOnRoute } from './drafts.js';
 import { renderErrors, initClientErrors } from './views/errors.js';
 import { initInspiration } from './inspiration.js';
 import { renderTrash, initTrashUndo } from './views/trash.js';
-import { renderExporter } from './views/exporter.js';
 import { renderDesk } from './views/desk.js';
 import { renderVideo } from './views/video.js';
 import { renderCampaigns } from './views/campaigns.js';
@@ -96,23 +96,24 @@ export const CENTER_NAV = [
 export const BRAND_NAV = [
   { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home', group: 'yonetim' },
   { page: 'kimlik', path: '/kimlik', label: 'Marka kimliği', icon: 'identity', group: 'yonetim' },
+  // İçerik üretimi (kullanıcının sırası, 10.3b): Takvim, fikirler, Post, Prompt, Reels, … Kampanya kanvası, Arşiv (en sonda)
+  { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar', group: 'uretim' },
   { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea', group: 'uretim' },
-  { page: 'reels', path: '/reels', label: 'Reels', icon: 'film', group: 'uretim' },
   { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette', group: 'uretim' },
   { page: 'prompt', path: '/prompt', label: 'Prompt Studio', icon: 'wand', group: 'uretim' },
-  { page: 'takvim', path: '/takvim', label: 'Takvim', icon: 'calendar', group: 'uretim' },
-  { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive', group: 'uretim' },
-  { page: 'kampanya', path: '/kampanya', label: 'Kampanya kanvası', icon: 'grid', group: 'uretim' },
+  { page: 'reels', path: '/reels', label: 'Reels', icon: 'film', group: 'uretim' },
   { page: 'youtube', path: '/youtube', label: 'YouTube kapağı', icon: 'image', group: 'uretim' },
+  { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'uretim' },
+  { page: 'kampanya', path: '/kampanya', label: 'Kampanya kanvası', icon: 'grid', group: 'uretim' },
+  { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive', group: 'uretim' },
+  { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image', group: 'varlik' },
+  // Araştırma en sonda (Rakipler ve Analizler sonra ele alınacak)
   { page: 'rakipler', path: '/rakipler', label: 'Rakipler', icon: 'brands', group: 'arastirma' },
   { page: 'analiz', path: '/analiz', label: 'Analizler', icon: 'chart', group: 'arastirma' },
-  { page: 'rapor', path: '/rapor', label: 'Aylık rapor', icon: 'archive', group: 'arastirma' },
-  { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image', group: 'varlik' },
-  { page: 'disa', path: '/disa-aktar', label: 'Dışa aktar', icon: 'download', group: 'varlik' },
-  { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'varlik' }
+  { page: 'rapor', path: '/rapor', label: 'Aylık rapor', icon: 'archive', group: 'arastirma' }
 ];
 // U.6: marka menüsü grupları (açılıp kapanır; tercih hatırlanır, açık sayfanın grubu her zaman açık)
-const BRAND_GROUPS = [['yonetim', 'Marka yönetimi'], ['uretim', 'İçerik üretimi'], ['arastirma', 'Araştırma'], ['varlik', 'Varlıklar']];
+const BRAND_GROUPS = [['yonetim', 'Marka yönetimi'], ['uretim', 'İçerik üretimi'], ['varlik', 'Varlıklar'], ['arastirma', 'Araştırma']];
 const GROUP_KEY = 'ium.nav.closed';
 function closedGroups() { try { return JSON.parse(localStorage.getItem(GROUP_KEY) || '[]'); } catch { return []; } }
 
@@ -258,6 +259,7 @@ export async function route() {
   old.replaceWith(view);
   let r = parseRoute();
   if (r.redirect) { location.replace(r.redirect); return; }
+  draftsOnRoute();
   // Tam ekran düzenleyiciden çıkınca normal yerleşime dönülür
   document.body.classList.remove('editor-mode');
   // Sayfa değişince önceki sayfadan kalan pencereler kapanır
@@ -280,7 +282,7 @@ export async function route() {
       selectBrand(brand.id).catch(() => {});
       if (r.page === 'home') await renderHome(view, brand);
       else if (r.page === 'kimlik') await renderIdentity(view, brand, r.tab, r.step);
-      else if (r.page === 'kutuphane') await renderBrandEditor(view, brand.id, 'varliklar');
+      else if (r.page === 'kutuphane') await renderLibrary(view, brand);
       else if (r.page === 'fikirler') await renderIdeas(view, brand);
       else if (r.page === 'takvim') await renderCalendar(view, { brand });
       else if (r.page === 'arsiv') await renderArchive(view, brand);
@@ -289,7 +291,6 @@ export async function route() {
       else if (r.page === 'post') await renderPosts(view, brand, r.sub);
       else if (r.page === 'prompt') await renderPrompts(view, brand, r.sub);
       else if (r.page === 'rakipler') await renderCompetitors(view, brand);
-      else if (r.page === 'disa') await renderExporter(view, brand);
       else if (r.page === 'video') await renderVideo(view, brand);
       else if (r.page === 'kampanya') await renderCampaigns(view, brand, r.sub);
       else if (r.page === 'youtube') await renderYoutube(view, brand);
@@ -334,6 +335,7 @@ async function start() {
   initPalette();
   initClientErrors(); // 8.19 tarayıcı hataları hata günlüğüne
   initRadial(); // 8.20 dairesel hızlı menü
+  initDrafts(); // 9.1 yarım kalan yazının korunması (yalnız bellekte)
   initInspiration();
   initTrashUndo();
   initFx();
