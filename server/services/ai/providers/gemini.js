@@ -83,6 +83,33 @@ export function createGeminiProvider({ getApiKey, fetchImpl = fetch }) {
       return { buffer: Buffer.from(img.data, 'base64'), mime: img.mimeType || img.mime_type || 'image/png', model, usage: { input: u.promptTokenCount || 0, output: u.candidatesTokenCount || 0 } };
     },
 
+    // 8.14 Metinden video (Veo): uzun süren işlem başlatılır, adıyla sorgulanır, bitince video indirilir
+    async videoStart({ model, prompt, aspect = '9:16' }) {
+      const data = await request(encodeURIComponent(model) + ':predictLongRunning', { method: 'POST', body: JSON.stringify({ instances: [{ prompt }], parameters: { aspectRatio: aspect } }) });
+      if (!data || !data.name) throw aiError('AI_EMPTY', 'Veo üretimi başlatılamadı.', { retryable: false });
+      return { operation: data.name };
+    },
+    async videoPoll(operation) {
+      if (!/^[\w./-]+$/.test(operation)) throw aiError('AI_ERROR', 'Geçersiz işlem adı.');
+      const res = await fetchImpl('https://generativelanguage.googleapis.com/v1beta/' + operation, { headers: { 'x-goog-api-key': getApiKey() }, signal: requestSignal(null) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { const d = describeStatus(LABEL, res.status, data && data.error && data.error.message); throw aiError('AI_ERROR', d.msg, { retryable: d.retryable, transient: Boolean(d.transient) }); }
+      if (!data.done) return { done: false };
+      if (data.error) return { done: true, error: String(data.error.message || 'Veo üretimi başarısız oldu.') };
+      const r = data.response || {};
+      const s = (r.generateVideoResponse && r.generateVideoResponse.generatedSamples) || r.generatedVideos || [];
+      const uri = s[0] && s[0].video && s[0].video.uri;
+      if (!uri) return { done: true, error: 'Veo video döndürmedi (içerik filtresine takılmış olabilir; prompt\'u değiştirip tekrar dene).' };
+      return { done: true, uri };
+    },
+    async videoDownload(uri) {
+      const u = new URL(uri);
+      if (u.hostname !== 'generativelanguage.googleapis.com') throw aiError('AI_ERROR', 'Beklenmeyen video adresi.');
+      const res = await fetchImpl(u.toString(), { headers: { 'x-goog-api-key': getApiKey() }, signal: requestSignal(null) });
+      if (!res.ok) throw aiError('AI_ERROR', 'Video indirilemedi.', { retryable: true, transient: true });
+      return Buffer.from(await res.arrayBuffer());
+    },
+
     // 8.13 Seslendirme: yanıt 16 bit tek kanallı PCM (genelde 24 kHz); mime türünden örnekleme hızı okunur
     async speech({ model, text, voice = 'Kore' }) {
       const data = await request(encodeURIComponent(model) + ':generateContent', {

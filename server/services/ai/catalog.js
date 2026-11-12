@@ -78,6 +78,12 @@ export const TTS_MODELS = [
   { provider: 'gemini', id: 'gemini-2.5-flash-preview-tts', label: 'Gemini Flash TTS', price: { input: 0.5, output: 10 }, note: 'Hızlı ve ucuz' },
   { provider: 'gemini', id: 'gemini-2.5-pro-preview-tts', label: 'Gemini Pro TTS', price: { input: 1, output: 20 }, note: 'Daha doğal tonlama' }
 ];
+// 8.14 Metinden video (Gemini API üzerinden Veo). Fiyat saniye başına yaklaşık $; klip süresi 8 sn.
+export const VIDEO_MODELS = [
+  { provider: 'gemini', id: 'veo-3.0-fast-generate-001', label: 'Veo 3 Fast', perSecond: 0.15, seconds: 8, note: 'Hızlı ve daha ucuz; sesli' },
+  { provider: 'gemini', id: 'veo-3.0-generate-001', label: 'Veo 3', perSecond: 0.4, seconds: 8, note: 'En yüksek kalite; sesli' }
+];
+export const VIDEO_ASPECTS = { '9:16': 'Dikey 9:16 (Reels)', '16:9': 'Yatay 16:9' };
 // Hazır sesler (Türkçe dahil çok dilli). Ad → kısa tarif
 export const TTS_VOICES = { Kore: 'Kararlı (kadın)', Puck: 'Neşeli (erkek)', Zephyr: 'Parlak (kadın)', Charon: 'Bilgilendirici (erkek)', Fenrir: 'Heyecanlı (erkek)', Leda: 'Genç (kadın)', Aoede: 'Ferah (kadın)', Orus: 'Sağlam (erkek)', Achird: 'Samimi (erkek)', Sulafat: 'Sıcak (kadın)' };
 export const IMAGE_ASPECTS = { '1:1': 'Kare 1:1', '4:5': 'Dikey 4:5', '9:16': 'Story 9:16', '16:9': 'Yatay 16:9' };
