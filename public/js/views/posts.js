@@ -3,7 +3,7 @@
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
-import { aiModels, modelSelect, busyTimer, streamBusy, aiNote } from '../aiPicker.js';
+import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { drawSlide, resolveImages, slideBlob, hitTest } from '../postCanvas.js';
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
@@ -109,6 +109,7 @@ export async function renderPosts(view, brand, sub) {
           <div class="field"><label for="pc-format">Boyut</label><select class="select" id="pc-format" name="format">${Object.entries(meta.formats).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select></div>
           <div class="field" data-slides-field><label for="pc-slides">Slayt sayısı (carousel)</label><input class="input" id="pc-slides" name="slides" type="number" min="3" max="10" value="6"></div>
           <div class="field"><label for="pc-model">Model</label>${modelSelect(models, 'yazim', { id: 'pc-model' })}</div>
+          <p class="hint full cost-hint" data-cost></p>
         </div>`,
         onSubmit: async (fd, form) => {
           const res = await streamBusy(form.querySelector('[type=submit]'), st => api.createPost(brand.id, { topic: fd.get('topic'), kind: fd.get('kind'), format: fd.get('format'), slides: Number(fd.get('slides')), model: form.querySelector('#pc-model').value || null }, st));
@@ -116,6 +117,8 @@ export async function renderPosts(view, brand, sub) {
           go(base(brand) + '/' + res.post.id);
         }
       });
+      const pm = m.form.querySelector('#pc-model');
+      bindCostHint(m.form.querySelector('[data-cost]'), models, () => ({ task: 'yazim', ref: pm ? pm.value : '', job: 'post' }), [pm]);
       return wireKind(m);
     }
     if (e.target.closest('[data-blank]')) {

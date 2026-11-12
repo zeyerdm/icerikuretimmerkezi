@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { openRecipes } from '../recipes.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
-import { aiModels, modelSelect, busyTimer, streamBusy, aiNote } from '../aiPicker.js';
+import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { drawTitle, ensureTitleFonts, titleBlob, downloadBlob, safeName } from '../titlePng.js';
 import { reviewBox } from './review.js';
 
@@ -56,7 +56,7 @@ async function settingsModal(brand, meta) {
 async function scenarioModal(brand, models, meta, { poolItem = null, patternId = null } = {}) {
   let pats = [];
   try { pats = (await api.patterns(brand.id)).patterns; } catch { /* kalıp listesi gelmezse seçim gösterilmez */ }
-  openModal({
+  const m = openModal({
     title: poolItem ? 'Fikirden senaryo yaz' : 'Yeni senaryo',
     submitLabel: 'Senaryoyu yaz',
     body: `<div class="form-grid">
@@ -65,7 +65,8 @@ async function scenarioModal(brand, models, meta, { poolItem = null, patternId =
       <div class="field"><label for="sc-format">Format</label><select class="select" id="sc-format" name="format"><option value="">Otomatik (fikre en uygun)</option>${Object.entries(meta.formats).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></div>
       <div class="field"><label for="model-pick-modal">Model</label>${modelSelect(models, 'yazim', { id: 'model-pick-modal' })}</div>
       ${pats.length ? `<div class="field full"><label for="sc-pattern">Kalıp (isteğe bağlı)</label><select class="select" id="sc-pattern" name="patternId"><option value="">Seçme (favori kalıplar örnek olarak kullanılır)</option>${pats.map(p => `<option value="${esc(p.id)}" ${p.id === patternId ? 'selected' : ''}>${p.favorite ? '★ ' : ''}${esc(p.title)} · ${esc(p.hookTypeLabel)}</option>`).join('')}</select></div>` : ''}
-      <p class="hint full">Özenli modeller uzun senaryoyu 1-2 dakikada yazabilir; düğmede geçen süre görünür.</p>
+      <p class="hint full">Özenli modeller uzun senaryoyu 1-2 dakikada yazabilir; yazdıkça metin aşağıda görünür.</p>
+      <p class="hint full cost-hint" data-cost></p>
     </div>`,
     onSubmit: async (fd, form) => {
       const btn = form.querySelector('[type=submit]');
@@ -74,6 +75,9 @@ async function scenarioModal(brand, models, meta, { poolItem = null, patternId =
       go(base(brand) + '/' + res.reels.id);
     }
   });
+  // 8.5 tahmini tutar
+  const sel = m.form.querySelector('#model-pick-modal');
+  bindCostHint(m.form.querySelector('[data-cost]'), models, () => ({ task: 'yazim', ref: sel ? sel.value : '', job: 'reels' }), [sel]);
 }
 
 // ------------------------------------------------------------ Fikir havuzu

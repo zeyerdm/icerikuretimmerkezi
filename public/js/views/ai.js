@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, errorNotice } from '../ui.js';
 import { state, refreshBrands, renderChrome, go } from '../app.js';
 import { settingsTabs } from './settings.js';
+import { budgetNote } from '../aiPicker.js';
 
 const TABS = [['karsilastir', 'Karşılaştır', '#/ai'], ['modeller', 'Sağlayıcılar ve modeller', '#/ai/modeller'], ['harcama', 'Harcama', '#/ai/harcama']];
 const SOURCE_LABEL = { resmi: 'resmî fiyat', yaklasik: 'yaklaşık', canli: 'canlı (OpenRouter)', elle: 'elle girildi' };
@@ -106,7 +107,12 @@ async function renderCompare(body, ov, connected, view) {
     const refs = [...new Set([...available.map(m => m.ref), ...picked])];
     body.querySelector('#cmp-models').innerHTML = refs.map(ref => `<button type="button" class="chip ${picked.has(ref) ? 'active' : ''}" data-pick="${esc(ref)}" aria-pressed="${picked.has(ref)}">${picked.has(ref) ? '✓ ' : ''}${esc(labelOf(ref))}</button>`).join('');
     const est = [...picked].map(ref => priceOf(ref) ? `${labelOf(ref)} ≈ ${estimate(priceOf(ref))}` : `${labelOf(ref)}: fiyat bilinmiyor`).join(' · ');
-    body.querySelector('#cmp-est').textContent = picked.size ? `Tahmini tutar (bir Reels senaryosu kadar metin): ${est}` : '';
+    // 8.5: toplam ve bütçe uyarısı
+    const known = [...picked].map(ref => priceOf(ref)).filter(Boolean);
+    const total = known.reduce((t, p) => t + (EST.input * p.input + EST.output * p.output) / 1e6, 0);
+    const warn = budgetNote(ov.budget, known.length ? total : null);
+    body.querySelector('#cmp-est').textContent = picked.size ? `Tahmini tutar (bir Reels senaryosu kadar metin): ${est}${picked.size > 1 && known.length ? ` · toplam ${usd(total)}` : ''}${warn}` : '';
+    body.querySelector('#cmp-est').classList.toggle('cost-warn', Boolean(warn));
     body.querySelector('#cmp-kind-hint').textContent = kindHints[kind] || '';
     body.querySelector('#cmp-pkind').hidden = kind !== 'prompt';
   }

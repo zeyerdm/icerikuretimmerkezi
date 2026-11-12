@@ -3,7 +3,7 @@
 // gösterilmez, nasıl bağlanacağı yazılır (sahte görsel üretilmez).
 import { api } from '../api.js';
 import { esc, toast, openModal, busy } from '../ui.js';
-import { busyTimer } from '../aiPicker.js';
+import { busyTimer, aiModels, costText } from '../aiPicker.js';
 import { downloadBlob, safeName } from '../titlePng.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 
@@ -33,7 +33,7 @@ export async function imageBox(box, brand, opts = {}) {
       <label class="check"><input type="checkbox" id="${id}-r"> Maskotu referans al</label>
     </div>
     <div class="xsmall muted mt-1" id="${id}-note"></div>
-    <div class="row mt-3"><button class="btn btn-primary" type="button" id="${id}-go">Görsel üret</button><span class="xsmall muted" id="${id}-res"></span></div>
+    <div class="row mt-3"><button class="btn btn-primary" type="button" id="${id}-go">Görsel üret</button><span class="xsmall muted cost-hint" id="${id}-cost"></span><span class="xsmall muted" id="${id}-res"></span></div>
     <div class="gen-grid mt-3" id="${id}-list"></div>`;
   const $ = s => box.querySelector('#' + id + s);
   const note = () => {
@@ -45,6 +45,12 @@ export async function imageBox(box, brand, opts = {}) {
   };
   $('-m').addEventListener('change', note);
   note();
+  // 8.5 tahmini tutar ve bütçe uyarısı (görsel başına sabit ücret)
+  aiModels().then(models => {
+    const cost = () => { const m = ov.models.find(x => x.ref === $('-m').value); $('-cost').textContent = costText(models, m ? m.perImage : null); };
+    $('-m').addEventListener('change', cost);
+    cost();
+  }).catch(() => {});
   // @ ile anılabilecek kütüphane görselleri: rol verilmiş olanlar ve maskot pozları
   api.assets(brand.id).then(({ assets }) => {
     const refs = assets.filter(a => a.refRole || a.category === 'mascot').slice(0, 12);

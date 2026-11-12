@@ -34,6 +34,51 @@ export function modelSelect({ ov, openrouter }, task, { id = 'model-pick', label
     <option value="">${esc(t.primaryLabel || 'Atanmış model')} (${esc(t.label.toLocaleLowerCase('tr-TR'))})</option>${groups}</select>`;
 }
 
+// 8.5 Üretim öncesi tahmini tutar. Bir işin tipik token sayısı (istem: marka hafızası + kurallar; çıktı: iş türüne göre)
+// modelin fiyatıyla çarpılır. Fiyatı bilinmeyen modelde "tutar bilinmiyor" yazar; aylık bütçe yaklaşınca uyarır.
+export const JOB_TOKENS = { reels: { input: 3000, output: 2500 }, post: { input: 2500, output: 2000 }, prompt: { input: 2500, output: 700 }, serbest: { input: 1500, output: 1500 } };
+const fmtUsd = v => (v < 0.01 ? '< 0,01 $' : '~' + v.toLocaleString('tr-TR', { maximumFractionDigits: 3 }) + ' $');
+export function priceOfRef({ ov, openrouter = [] }, ref) {
+  const ok = p => (p && Number.isFinite(p.input) ? p : null);
+  const m = ov.models.find(x => x.ref === ref) || openrouter.find(x => x.ref === ref);
+  const t = ov.tasks.find(x => x.primary === ref);
+  return ok((ov.priceOverrides || {})[ref]) || ok(m && m.price) || ok(t && t.primaryPrice);
+}
+// Tahmini tutar (USD) ya da null (fiyat bilinmiyor). ref boşsa işe atanmış model kullanılır.
+export function estimateJob(models, { task, ref = '', job = 'serbest', times = 1 }) {
+  const t = models.ov.tasks.find(x => x.id === task);
+  const use = ref || (t && t.primary) || '';
+  const p = use && priceOfRef(models, use);
+  const k = JOB_TOKENS[job] || JOB_TOKENS.serbest;
+  return p ? ((k.input * p.input + k.output * p.output) / 1e6) * times : null;
+}
+// Bütçe notu: yaklaşınca uyarı, tahmini tutar kalan bütçeyi aşarsa açık uyarı
+export function budgetNote(budget, cost) {
+  if (!budget || !(budget.monthlyUsd > 0)) return '';
+  const left = Math.max(0, budget.monthlyUsd - budget.spent);
+  if (budget.blocked) return ' · Bu ayın bütçesi doldu';
+  if (cost != null && cost > left) return ` · Kalan bütçe (${fmtUsd(left).replace('~', '')}) bu işe yetmeyebilir`;
+  if (budget.warning) return ` · Bu ay bütçenin %${budget.percent}'i harcandı`;
+  return '';
+}
+export function costText(models, cost, { suffix = '' } = {}) {
+  const base = cost == null ? 'Tahmini tutar bilinmiyor (modelin fiyatı yok)' : `Tahmini tutar ${fmtUsd(cost)}${suffix}`;
+  return base + budgetNote(models.ov.budget, cost);
+}
+// Bir öğeye tahmin yazar ve seçili model değişince günceller. getArgs() → estimateJob argümanları
+export function bindCostHint(el, models, getArgs, watch = []) {
+  if (!el) return () => {};
+  const draw = () => {
+    const a = getArgs();
+    const cost = estimateJob(models, a);
+    el.textContent = costText(models, cost, { suffix: a.suffix || '' });
+    el.classList.toggle('cost-warn', Boolean(budgetNote(models.ov.budget, cost)));
+  };
+  watch.filter(Boolean).forEach(w => w.addEventListener('change', draw));
+  draw();
+  return draw;
+}
+
 // Uzun AI işlerinde düğmede geçen süre: "Yazıyor… 12 sn". İş bitince eski hâline döner.
 export async function busyTimer(btn, fn, verb = 'Yazıyor') {
   if (!btn) return fn();
