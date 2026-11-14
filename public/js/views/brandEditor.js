@@ -1,7 +1,7 @@
 // Marka kimliğinin Profil ve Görsel kimlik sekmeleri (renk, font, canlı önizleme). Kütüphane: views/library.js
 import { api } from '../api.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
-import { esc, icon, toast, loadFonts, pageHead, skeletonPage, openModal } from '../ui.js';
+import { esc, icon, toast, loadFonts, pageHead, skeletonPage, openModal, suggest } from '../ui.js';
 import { state, refreshBrands, go } from '../app.js';
 import { identityHead, bindIdentityActions } from './identity.js';
 
@@ -75,6 +75,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         ${LONG_FIELDS.has(key)
           ? `<textarea class="textarea" id="f-${key}" data-field="${key}" maxlength="${f.max}" placeholder="${esc(PLACEHOLDERS[key] || '')}">${esc(draft[key])}</textarea>`
           : `<input class="input" id="f-${key}" data-field="${key}" maxlength="${f.max}" value="${esc(draft[key])}" placeholder="${esc(PLACEHOLDERS[key] || '')}" ${f.required ? 'required' : ''}>`}
+        ${suggest('f-' + key, (state.meta.choices || {})[key])}
       </div>`).join('')}
       <div class="field full">
         <label for="f-drive">Google Drive klasörü</label>

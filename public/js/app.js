@@ -3,7 +3,7 @@
 //   Katman 2 — Marka çalışma alanı (#/m/<markaId>/...): markanın kendi renkleri, logosu, maskotu ve alt menüsü
 // Bir markanın teması yalnızca kendi çalışma alanında uygulanır; yönetim merkezine dönünce sabit renklere geçilir.
 import { api } from './api.js';
-import { esc, icon, toast, brandAvatar, applyBrandTheme, errorBox, emptyState, skeletonPage } from './ui.js';
+import { esc, icon, toast, brandAvatar, applyBrandTheme, errorBox, emptyState, skeletonPage, initSuggest } from './ui.js';
 import { renderCenter } from './views/center.js';
 import { renderHome } from './views/home.js';
 import { renderBrands } from './views/brands.js';
@@ -339,6 +339,7 @@ async function start() {
   initClientErrors(); // 8.19 tarayıcı hataları hata günlüğüne
   initRadial(); // 8.20 dairesel hızlı menü
   initDrafts(); // 9.1 yarım kalan yazının korunması (yalnız bellekte)
+  initSuggest(); // 11.6 hazır seçenek çipleri
   initInspiration();
   initTrashUndo();
   initFx();

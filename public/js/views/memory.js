@@ -3,6 +3,7 @@
 // ve bilgi kartları yönetilir. Hepsi her AI üretimine (asistan, Reels, post, prompt, denetçi) otomatik girer.
 import { api } from '../api.js';
 import { esc, icon, toast, emptyState, openModal } from '../ui.js';
+import { state } from '../app.js';
 import { identityHead, bindIdentityActions } from './identity.js';
 
 export async function renderMemory(view, brand) {
@@ -20,10 +21,12 @@ export async function renderMemory(view, brand) {
       <div class="grid-2 mb-5">
         <section class="card"><div class="card-head"><h3>Kullanılmaması gereken kelimeler</h3><span class="small muted">${memory.banned.length}</span></div>
           <p class="small muted mb-3">Üretimlerde kaçınılır; içerik denetçisi metinde geçerse "yüksek" uyarı verir.</p>
-          ${chips('banned', memory.banned, 'Ör. ucuz, kampanya fırsatı, abla')}</section>
+          ${chips('banned', memory.banned, 'Diğer: ör. ucuz, kampanya fırsatı')}
+          <div class="suggest mt-2" aria-label="Hazır seçenekler">${((state.meta.choices || {}).banned || []).filter(o => !memory.banned.includes(o)).map(o => `<button type="button" class="chip chip-sm" data-ban-add="${esc(o)}">+ ${esc(o)}</button>`).join('')}</div></section>
         <section class="card"><div class="card-head"><h3>Tercih edilen ifadeler</h3><span class="small muted">${memory.preferred.length}</span></div>
           <p class="small muted mb-3">Markanın imza cümleleri ve sevdiği kalıplar; uygun yerde kullanılır.</p>
-          ${chips('preferred', memory.preferred, 'Ör. Kahven hazır, sen hazır mısın?')}</section>
+          ${chips('preferred', memory.preferred, 'Ör. Kahven hazır, sen hazır mısın?')}
+          <p class="xsmall muted mt-2">Kullanılmaması gereken kelimeler yalnız burada tutulur; kurulum, Prompt Studio, Reels ve içerik denetçisi buradakini kullanır.</p></section>
       </div>
       <section class="card mb-5"><div class="card-head"><h3>Marka hakkında bilgiler</h3><button class="btn btn-sm btn-primary" data-fact-new>${icon('plus')}Bilgi ekle</button></div>
         <p class="small muted mb-3">Ürünler, fiyatlar, adres ve çalışma saatleri, kampanyalar, sık sorulanlar… Yapay zekâ bunları doğru kabul eder ve burada olmayan bilgileri uydurmaz. Asistana "bunu hatırla" diyerek de ekleyebilirsin.</p>
@@ -65,6 +68,8 @@ export async function renderMemory(view, brand) {
   view.onkeydown = e => { const k = e.target.dataset && e.target.dataset.chipInput; if (k && e.key === 'Enter') { e.preventDefault(); addChip(k); } };
   view.onclick = async e => {
     const t = e.target;
+    const ba = t.closest('[data-ban-add]');
+    if (ba) return saveLists({ banned: memory.banned.concat(ba.dataset.banAdd) }, 'Eklendi.');
     const add = t.closest('[data-chip-add]');
     if (add) return addChip(add.dataset.chipAdd);
     const del = t.closest('[data-chip-del]');

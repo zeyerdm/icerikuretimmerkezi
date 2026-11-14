@@ -5,7 +5,7 @@
 // - Ayrıntılı sekmeler: Profil, Görsel kimlik, Ses ve hafıza, Prompt kimliği, Maskot (var olan düzenleyiciler)
 // Cevaplar yeni bir yere değil, var olan kaynaklara yazılır (sunucu: services/brandSetup.js).
 import { api } from '../api.js';
-import { esc, icon, toast, pageHead, busy, skeletonPage, emptyState } from '../ui.js';
+import { esc, icon, toast, pageHead, busy, skeletonPage, emptyState, suggest } from '../ui.js';
 import { state, refreshBrands, go } from '../app.js';
 import { renderBrandEditor } from './brandEditor.js';
 import { renderMemory } from './memory.js';
@@ -157,11 +157,12 @@ const INTRO = {
 };
 
 function stepForm(id, d) {
+  const C = state.meta.choices || {};
   const b = d.brand; const idt = d.identity; const q = k => d.questions.find(x => x.key === k);
   const fact = title => (d.memory.facts.find(f => f.title === title) || {}).content || '';
   if (id === 'temel') return `<div class="form-grid">
       ${field('su-name', 'Marka adı *', inp('name', b.name, 'maxlength="80" required placeholder="Ör. Kahve Durağı"'))}
-      ${field('su-sector', 'Ne markası? (sektör)', inp('sector', b.sector, 'maxlength="120" placeholder="Ör. Kafe, diş kliniği, giyim markası, kişisel marka"'))}
+      ${field('su-sector', 'Ne markası? (sektör)', inp('sector', b.sector, 'maxlength="120" placeholder="Ör. Kafe, diş kliniği, giyim markası, kişisel marka"') + suggest('su-sector', C.sector))}
       <div class="full">${field('su-description', 'Marka ne yapar, neyi farklı yapar?', area('description', b.description, 'maxlength="1500"'))}</div>
       ${field('su-slogan', 'Sloganı var mı?', inp('slogan', b.slogan, 'maxlength="160" placeholder="Ör. Her yudum bir mola"'))}</div>`;
   if (id === 'yapi') return `<div class="stack">
@@ -170,15 +171,14 @@ function stepForm(id, d) {
       <fieldset class="field"><legend class="field-label">Markanın bir maskotu var mı?</legend>${yesNo('hasMascot', d.setup.hasMascot, 'Evet, maskot var', 'Hayır')}</fieldset>
       <fieldset class="field"><legend class="field-label">Müşterinin geldiği bir mekân var mı? (dükkân, kafe, klinik…)</legend>${yesNo('hasPlace', d.setup.hasPlace, 'Evet', 'Hayır, çevrim içi')}</fieldset></div>`;
   if (id === 'kitle') return `<div class="form-grid">
-      <div class="full">${field('su-audience', 'Hedef kitle', area('audience', b.audience, 'maxlength="1000" placeholder="Yaş, ilgi alanı, ihtiyaçlar…"'))}</div>
-      <div class="full">${field('su-goals', 'İçeriklerden ne bekliyoruz?', area('goals', b.goals, 'maxlength="1000" placeholder="Bilinirlik, satış, topluluk…"'))}</div>
+      <div class="full">${field('su-audience', 'Hedef kitle', area('audience', b.audience, 'maxlength="1000" placeholder="Yaş, ilgi alanı, ihtiyaçlar…"') + suggest('su-audience', C.audience))}</div>
+      <div class="full">${field('su-goals', 'İçeriklerden ne bekliyoruz?', area('goals', b.goals, 'maxlength="1000" placeholder="Bilinirlik, satış, topluluk…"') + suggest('su-goals', C.goals))}</div>
       <div class="full">${field('su-competitors', 'Rakipler ve ilham alınan markalar', area('competitors', b.competitors, 'maxlength="1000"'))}</div>
       ${field('su-monthlyGoal', 'Ayda kaç içerik?', inp('monthlyGoal', b.monthlyGoal || '', 'type="number" min="0" max="200" inputmode="numeric"'))}</div>`;
   if (id === 'ses') return `<div class="form-grid">
-      <div class="full">${field('su-character', 'Marka bir insan olsaydı nasıl biri olurdu?', area('character', b.character, 'maxlength="1000" placeholder="Ör. samimi, esprili, güven veren"'))}</div>
-      <div class="full">${field('su-tone', 'Nasıl konuşur?', area('tone', b.tone, 'maxlength="1000" placeholder="Sen/siz, emoji kullanımı, cümle uzunluğu…"'))}</div>
-      <div class="full">${field('su-banned', 'Kullanılmaması gereken kelimeler', inp('banned', d.memory.banned.join(', '), 'placeholder="Virgülle ayır: ucuz, kampanya fırsatı"'))}</div>
-      <div class="full">${field('su-preferred', 'Sevdiği ifadeler (her satıra bir)', area('preferred', d.memory.preferred.join('\n')))}</div></div>`;
+      <div class="full">${field('su-character', 'Marka bir insan olsaydı nasıl biri olurdu?', area('character', b.character, 'maxlength="1000" placeholder="Ör. samimi, esprili, güven veren"') + suggest('su-character', C.character))}</div>
+      <div class="full">${field('su-tone', 'Nasıl konuşur?', area('tone', b.tone, 'maxlength="1000" placeholder="Sen/siz, emoji kullanımı, cümle uzunluğu…"') + suggest('su-tone', C.tone))}</div>
+      <p class="small muted full">Kullanılmaması gereken kelimeler ve sevilen ifadeler tek yerde tutulur: <a href="#/m/${esc(b.id)}/kimlik/ses">Ses ve hafıza</a>${d.memory.banned.length ? ` (şu an: ${esc(d.memory.banned.slice(0, 6).join(', '))}${d.memory.banned.length > 6 ? '…' : ''})` : ''}.</p></div>`;
   if (id === 'gorsel') return `<div class="form-grid">
       <div class="field full"><span class="field-label">Logo</span><div class="row">${d.logo ? `<img class="ds-logo" src="${esc(d.logo.url)}" alt="Mevcut logo">` : '<span class="small muted">Henüz logo yok.</span>'}
         <label class="btn btn-sm">${icon('upload')}${d.logo ? 'Yeni logo yükle' : 'Logo yükle'}<input type="file" class="sr-only" data-upload="logo" accept="image/png,image/jpeg,image/webp,image/gif"></label></div></div>
@@ -188,7 +188,7 @@ function stepForm(id, d) {
       ${field('su-font_body', 'Gövde fontu', `<select class="select" id="su-font_body" name="font_body"><option value="">Seçilmedi</option>${state.meta.fonts.map(f => `<option ${b.fonts.body === f ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>`)}</div>`;
   if (id === 'maskot') return `<div class="form-grid">
       ${field('su-name', 'Maskotun adı', inp('name', idt.mascotName || d.book.name, 'maxlength="60"'))}
-      ${field('su-personality', 'Kişiliği', inp('personality', d.book.personality, 'maxlength="300" placeholder="Ör. meraklı, neşeli, biraz sakar"'))}
+      ${field('su-personality', 'Kişiliği', inp('personality', d.book.personality, 'maxlength="300" placeholder="Ör. meraklı, neşeli, biraz sakar"') + suggest('su-personality', C.mascotPersonality))}
       <div class="full">${field('su-look', 'Nasıl görünüyor?', area('look', idt.mascotLook, 'maxlength="300" placeholder="Ör. kahve çekirdeği şeklinde, turuncu, kocaman gözlü, kırmızı atkılı"'))}</div>
       ${field('su-voice', 'Nasıl konuşur?', inp('voice', idt.mascotVoice, 'maxlength="300" placeholder="Ör. kısa cümleler, esprili"'))}
       ${field('su-moves', 'Nasıl hareket eder?', inp('moves', idt.mascotMoves, 'maxlength="300" placeholder="Ör. zıplayarak yürür"'))}

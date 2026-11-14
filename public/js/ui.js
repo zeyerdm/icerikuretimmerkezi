@@ -328,3 +328,27 @@ export function donutChart(segments, { center = '', empty = 'Henüz veri yok.' }
 }
 
 export const SERIES_COLORS = ['#7d6bf0', '#ff8a65', '#12a48f', '#f6b93b', '#e5486b', '#4a90e2', '#9b7bd4', '#2bb3c0'];
+
+// 11.6 Hazır seçenekler: bir yazı alanının altında tıklanınca alana eklenen öneri çipleri (alan "Diğer" gibi serbest kalır)
+export function suggest(targetId, options = []) {
+  if (!options || !options.length) return '';
+  return `<div class="suggest" data-suggest-for="${esc(targetId)}" aria-label="Hazır seçenekler">${options.map(o => `<button type="button" class="chip chip-sm" data-suggest="${esc(o)}">+ ${esc(o)}</button>`).join('')}</div>`;
+}
+export function initSuggest() {
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-suggest]');
+    if (!b) return;
+    const box = b.closest('[data-suggest-for]');
+    const el = box && document.getElementById(box.dataset.suggestFor);
+    if (!el) return;
+    const v = b.dataset.suggest;
+    const sep = el.tagName === 'TEXTAREA' && /\n/.test(el.value) ? '\n' : ', ';
+    const parts = el.value.split(/[,\n]/).map(x => x.trim()).filter(Boolean);
+    if (parts.includes(v)) { b.classList.add('is-on'); return; }
+    el.value = el.value.trim() ? el.value.replace(/[\s,]+$/, '') + sep + v : v;
+    b.classList.add('is-on');
+    const ev = new Event('input', { bubbles: true });
+    ev.draftOk = true; // yarım kalan yazı koruması bunu da saklasın
+    el.dispatchEvent(ev);
+  });
+}
