@@ -75,8 +75,10 @@ export function icon(name) {
 
 export function brandAvatar(brand, logoUrl, size = '') {
   const initial = esc((brand.name || '?').trim().charAt(0).toLocaleUpperCase('tr-TR'));
+  // 11.7: logo varsa arkasına renk konmaz (şeffaf logo şeffaf görünür); yoksa baş harf marka renginde
+  if (logoUrl) return `<div class="avatar avatar-logo ${size}"><img src="${esc(logoUrl)}" alt=""></div>`;
   const bg = brand.colors && brand.colors.primary ? ` style="background:${esc(brand.colors.primary)}"` : '';
-  return `<div class="avatar ${size}"${bg}>${logoUrl ? `<img src="${esc(logoUrl)}" alt="">` : initial}</div>`;
+  return `<div class="avatar ${size}"${bg}>${initial}</div>`;
 }
 
 // WCAG göreli parlaklık: açık renklerde yazı koyu, koyu renklerde beyaz olur
