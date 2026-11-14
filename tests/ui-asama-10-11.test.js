@@ -256,3 +256,29 @@ test('10.3b menü sırası; 10.9 YouTube kapağı çekim seçimi (en çok 3); 11
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('Markayı sil: Markalar kartından, ad yazılarak; yanlış ad silmez; ana sayfa ve kurulumda da düğme var', { skip }, async () => {
+  const srv = await startServer();
+  const a = (await srv.request('POST', '/api/brands', { name: 'Silinecek' })).data.brand;
+  const b = (await srv.request('POST', '/api/brands', { name: 'Kalacak' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}`);
+    await page.locator('[data-del-brand]').waitFor();
+    await page.goto(`${srv.base}/#/m/${b.id}/kur`);
+    await page.locator('[data-del-brand]', { hasText: 'Vazgeç, markayı sil' }).waitFor();
+    await page.goto(`${srv.base}/#/markalar`);
+    await page.locator(`[data-del-brand="${a.id}"]`).waitFor();
+    page.once('dialog', d => d.accept('yanlış'));
+    await page.locator(`[data-del-brand="${a.id}"]`).click();
+    await page.locator('.toast', { hasText: 'Ad eşleşmedi' }).waitFor();
+    assert.equal((await srv.request('GET', '/api/brands')).data.brands.length, 2);
+    assert.match(page.url(), /#\/markalar$/, 'karttaki sil düğmesi markayı açmaz');
+    page.once('dialog', d => d.accept('silinecek'));
+    await page.locator(`[data-del-brand="${a.id}"]`).click();
+    await page.locator('.toast', { hasText: 'Silinecek silindi' }).waitFor();
+    await page.waitForFunction(id => !document.querySelector(`[data-del-brand="${id}"]`), a.id);
+    assert.deepEqual((await srv.request('GET', '/api/brands')).data.brands.map(x => x.name), ['Kalacak']);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

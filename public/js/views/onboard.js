@@ -8,6 +8,7 @@ import { api } from '../api.js';
 import { esc, icon, toast, pageHead, busy } from '../ui.js';
 import { refreshBrands, go } from '../app.js';
 import { busyTimer } from '../aiPicker.js';
+import { deleteBrandFlow } from './identity.js';
 
 const KINDS = { logo: 'Logo', maskot: 'Maskot', palet: 'Renk paleti', referans: 'Tasarım referansı', urun: 'Ürün fotoğrafı', gorsel: 'Marka görseli', diger: 'Diğer' };
 const guessKind = name => {
@@ -48,8 +49,11 @@ export async function dominantColors(file, { n = 5, skipWhite = false } = {}) {
 
 export async function renderOnboard(view, brand = null) {
   view.onclick = view.onkeydown = view.oninput = view.onchange = null;
-  view.innerHTML = `${pageHead({ title: brand ? `${esc(brand.name)}: marka kurulumu` : 'Yeni marka', desc: 'Markanı birlikte kuralım. Önce elindekileri at; doldurabildiğim her şeyi ben doldururum, yalnız eksikleri sorarım. Her adım kaydedilir.' })}
+  view.innerHTML = `${pageHead({ title: brand ? `${esc(brand.name)}: marka kurulumu` : 'Yeni marka', desc: 'Markanı birlikte kuralım. Önce elindekileri at; doldurabildiğim her şeyi ben doldururum, yalnız eksikleri sorarım. Her adım kaydedilir.',
+    actions: brand ? `<button type="button" class="btn btn-ghost danger-text" data-del-brand>${icon('trash')}Vazgeç, markayı sil</button>` : '' })}
     <div class="card ob-card"><div class="ob-chat" id="ob-chat" aria-live="polite"></div><div class="ob-input" id="ob-input"></div></div>`;
+  const delBtn = view.querySelector('[data-del-brand]');
+  if (delBtn) delBtn.addEventListener('click', () => deleteBrandFlow(brand));
   const chat = view.querySelector('#ob-chat');
   const input = view.querySelector('#ob-input');
   const bot = html => { chat.insertAdjacentHTML('beforeend', `<div class="ob-msg ob-bot"><span class="ob-av">${icon('sparkle')}</span><div class="ob-bubble">${html}</div></div>`); chat.scrollTop = chat.scrollHeight; };

@@ -1,4 +1,5 @@
 // Ana ekran: AI asistanı merkezde; yanında marka kimliği, son fikirler ve son çalışmalar
+import { deleteBrandFlow } from './identity.js';
 import { api } from '../api.js';
 import { esc, icon, toast, timeAgo, errorNotice, ring, bucketByDay, emptyState, busy } from '../ui.js';
 import { state } from '../app.js';
@@ -137,6 +138,7 @@ function identityCard(brand, overview) {
         </div>
       </div>
       <a class="btn btn-sm w-full mt-4" href="#/m/${esc(brand.id)}/kimlik">${c.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
+      <button type="button" class="btn btn-sm btn-ghost w-full mt-2 danger-text" data-del-brand>${icon('trash')}Markayı sil</button>
     </section>`;
 }
 
@@ -213,6 +215,7 @@ function wire(view, brand) {
     } catch (err) { toast(err.message, 'error'); }
   });
   view.onclick = async e => {
+    if (e.target.closest('[data-del-brand]')) return deleteBrandFlow(brand);
     if (e.target.closest('[data-demo-try]')) return askAssistant('Sınav haftasında öğrencilere yönelik 3 içerik fikri üret ve kaydet: biri eğlenceli, biri eğitici, biri satış odaklı olsun.');
     const quick = e.target.closest('[data-quick]');
     if (quick) return askAssistant(QUICK[Number(quick.dataset.quick)].prompt);

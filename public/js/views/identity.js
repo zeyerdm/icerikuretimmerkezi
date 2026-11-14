@@ -29,14 +29,23 @@ export function bindIdentityActions(view, brand) {
   head.addEventListener('click', async e => {
     const t = e.target.closest('[data-id-action]');
     if (!t) return;
-    if (!confirm(`"${brand.name}" markası; fikirleri, dosyaları, takvim içerikleri, görevleri, notları ve sohbet geçmişiyle birlikte kalıcı olarak silinsin mi?`)) return;
-    try {
-      await api.deleteBrand(brand.id);
-      await refreshBrands();
-      toast('Marka silindi.', 'success');
-      go('#/markalar');
-    } catch (err) { toast(err.message, 'error'); }
+    deleteBrandFlow(brand);
   });
+}
+
+// Markayı sil: Marka kimliği başlığı, Markalar kartı, marka ana sayfası ve kurulum sohbetinden aynı akış.
+// Kalıcıdır; kazayla silinmesin diye markanın adını yazmak istenir.
+export async function deleteBrandFlow(brand, { after = '#/markalar' } = {}) {
+  const typed = prompt(`"${brand.name}" markası; fikirleri, dosyaları, takvim içerikleri, görevleri, notları ve sohbet geçmişiyle birlikte kalıcı olarak silinecek. Bu geri alınamaz.\n\nOnaylamak için markanın adını yaz: ${brand.name}`, '');
+  if (typed === null) return false;
+  if (typed.trim().toLocaleLowerCase('tr-TR') !== String(brand.name).trim().toLocaleLowerCase('tr-TR')) { toast('Ad eşleşmedi; marka silinmedi.', 'info'); return false; }
+  try {
+    await api.deleteBrand(brand.id);
+    await refreshBrands();
+    toast(`${brand.name} silindi.`, 'success');
+    go(after);
+    return true;
+  } catch (err) { toast(err.message, 'error'); return false; }
 }
 
 export async function renderIdentity(view, brand, tab = 'ozet', step = null) {

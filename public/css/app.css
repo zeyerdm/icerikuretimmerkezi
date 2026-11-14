@@ -1851,3 +1851,10 @@ body.editor-mode .radial-fab { display: none; }
 .suggest .chip.is-on { background: var(--brand-soft); color: var(--brand-ink); border-color: transparent; }
 
 .idea-menu svg { width: 16px; height: 16px; flex: none; }
+
+/* Markayı sil (kart, ana sayfa, kurulum) */
+.danger-text { color: var(--danger, #c0392b); }
+.danger-text:hover { background: var(--danger-soft, #fdecea); }
+.b-foot { align-items: center; }
+.b-foot .b-del { margin-left: auto; color: var(--muted); }
+.b-foot .b-del:hover { color: var(--danger, #c0392b); }
