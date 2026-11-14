@@ -64,7 +64,7 @@ export function createCharacterBookService({ db, ai, brands, assets }) {
       const book = read(b.id);
       const pics = (book.poseAssetIds && book.poseAssetIds.length ? book.poseAssetIds.map(id => assets.list(b.id).find(a => a.id === id)).filter(Boolean) : assets.list(b.id, 'mascot')).slice(0, 3);
       if (!pics.length) throw badRequest('Önce Kütüphane\'ye maskot pozu yükle (kategori: Maskot pozu).');
-      const images = pics.map(a => { const f = assets.file(b.id, a.id); return { mime: f.mime, data: fs.readFileSync(f.path) }; }).filter(i => /^image\/(png|jpeg|webp)$/.test(i.mime));
+      const images = pics.map(a => { const f = assets.visionFile(b.id, a.id); return { mime: f.mime, data: fs.readFileSync(f.path) }; }).filter(i => /^image\/(png|jpeg|webp)$/.test(i.mime));
       const prompt = [
         'MASKOT KARAKTER KİTABI TASLAĞI',
         `Ekteki görseller '${b.name}' markasının maskotunun pozları. Görsel üretim modellerinin maskotu her seferinde aynı çizmesi için karakter kitabı taslağı çıkar.`,

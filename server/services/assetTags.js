@@ -18,7 +18,7 @@ export function createAssetTagService({ ai, brands, assets }) {
   return {
     async analyze(brandId, assetId, { modelRef = null } = {}) {
       const b = brands.get(brandId);
-      const f = assets.file(b.id, String(assetId));
+      const f = assets.visionFile(b.id, String(assetId));
       if (!/^image\/(png|jpeg|webp|gif)$/.test(f.mime)) throw badRequest('Bu dosya türü okunamıyor.');
       const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: ocrPrompt(b.name), json: true, modelRef, temperature: 0.1, images: [{ mime: f.mime, data: fs.readFileSync(f.path) }] });
       const o = r.output || {};

@@ -77,7 +77,7 @@ export function createDesignRefService({ db, ai, brands, assets }) {
     async analyze(brandId, { assetId, modelRef = null, name = '' } = {}) {
       const b = brands.get(brandId);
       if (!assetId) throw badRequest('Önce bir referans görsel seç.');
-      const f = assets.file(b.id, String(assetId));
+      const f = assets.visionFile(b.id, String(assetId));
       if (!/^image\/(png|jpeg|webp|gif)$/.test(f.mime)) throw badRequest('Bu dosya türü okunamıyor.');
       const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: analysisPrompt(b), json: true, modelRef, temperature: 0.3, images: [{ mime: f.mime, data: fs.readFileSync(f.path) }] });
       const o = r.output || {};

@@ -9,6 +9,7 @@ import { esc, icon, toast, pageHead, busy } from '../ui.js';
 import { refreshBrands, go } from '../app.js';
 import { busyTimer } from '../aiPicker.js';
 import { deleteBrandFlow } from './identity.js';
+import { makeThumb } from '../thumbs.js';
 
 const KINDS = { logo: 'Logo', maskot: 'Maskot', palet: 'Renk paleti', referans: 'Tasarım referansı', urun: 'Ürün fotoğrafı', gorsel: 'Marka görseli', diger: 'Diğer' };
 const guessKind = name => {
@@ -110,16 +111,27 @@ export async function renderOnboard(view, brand = null) {
       me(files.length || text || ideaText ? [files.length ? `${files.length} görsel (${[...new Set(files.map(f => KINDS[f.kind]))].join(', ')})` : '', text ? 'marka metni' : '', ideaText ? `${ideaText.split('\n').filter(Boolean).length} fikir` : ''].filter(Boolean).join(' · ') : 'Hiçbir şey yok, sorularla devam edelim.');
       try {
         const r = await busyTimer(btn, async () => {
-          const up = [];
           const colors = { logo: [], palette: [] };
+          // Görseller üçer üçer yüklenir; her birinin küçük resmi (≤400 px) da kaydedilir: yapay zekâ büyük dosya yerine
+          // bunu okur (hızlı ve ucuz), kütüphane de hızlı açılır
+          const up = new Array(files.length);
+          let next = 0;
+          const worker = async () => {
+            while (next < files.length) {
+              const i = next++;
+              const f = files[i];
+              const { asset } = await api.uploadAsset(brand.id, f.file, 'other', f.file.name.replace(/\.[^.]+$/, '').slice(0, 80));
+              up[i] = { id: asset.id, kind: f.kind };
+              if (/^image\/(png|jpeg|webp)$/.test(f.file.type)) await makeThumb(f.url).then(t => api.saveThumb(brand.id, asset.id, t)).catch(() => {});
+            }
+          };
+          await Promise.all([worker(), worker(), worker()]);
           for (const f of files) {
-            const { asset } = await api.uploadAsset(brand.id, f.file, 'other', f.file.name.replace(/\.[^.]+$/, '').slice(0, 80));
-            up.push({ id: asset.id, kind: f.kind });
             if (f.kind === 'palet') colors.palette.push(...await dominantColors(f.file, { n: 6 }).catch(() => []));
             if (f.kind === 'logo' && !colors.logo.length) colors.logo.push(...await dominantColors(f.file, { n: 4, skipWhite: true }).catch(() => []));
           }
           return api.onboardAbsorb(brand.id, { files: up, colors, text, ideas: ideaText });
-        }, 'İnceliyorum');
+        }, files.length ? 'Yüklüyorum ve inceliyorum' : 'İnceliyorum');
         st = r;
         bot(r.found.length ? `Şunları aldım ve yerlerine koydum:<ul class="ob-list">${r.found.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>${r.notes.length ? `<p class="small muted">${r.notes.map(esc).join('<br>')}</p>` : ''}${r.questions.length ? 'Şimdi yalnız eksik kalanları soracağım.' : ''}` : `Tamam, sorularla devam edelim.${r.notes.length ? `<p class="small muted">${r.notes.map(esc).join('<br>')}</p>` : ''}`);
         if (!r.aiReady && (text || files.some(f => f.kind === 'maskot'))) bot('<span class="small">Not: Yapay zekâ bağlı olmadığı için metni ve maskot görsellerini okuyamadım; bunları sorularla tamamlayacağız.</span>');

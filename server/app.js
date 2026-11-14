@@ -115,7 +115,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -161,7 +161,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const thumbnails = createThumbnailService({ ai, brands, identity: promptIdentity });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
-  const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef });
+  const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, readMs: onboardReadMs || 90000 });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
   const app = express();

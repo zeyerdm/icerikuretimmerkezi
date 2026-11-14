@@ -149,6 +149,13 @@ export function createAssetService(db, uploadDir) {
       return { path: p, mime: kind ? kind.mime : 'image/webp', fallback: false };
     },
 
+    // Yapay zekâya gönderilecek görsel: küçük resmi (≤400 px) varsa o; büyük dosya yerine hızlı ve ucuz okuma
+    visionFile(brandId, assetId) {
+      const t = this.thumb(brandId, assetId);
+      if (!t.fallback && /^image\/(png|jpeg|webp)$/.test(t.mime)) return { path: t.path, mime: t.mime };
+      return this.file(brandId, assetId);
+    },
+
     file(brandId, assetId) {
       const row = getRow(brandId, assetId);
       return { path: filePath(row), mime: row.mime, label: row.label, category: row.category, ext: path.extname(row.file_name) };

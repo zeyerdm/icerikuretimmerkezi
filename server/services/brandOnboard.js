@@ -18,7 +18,7 @@ const DROP_LABELS = { logo: 'Logo', maskot: 'Maskot', palet: 'Renk paleti', refe
 const guessFormat = t => (/reels|video|kısa video|tiktok/i.test(t) ? 'reels' : /youtube/i.test(t) ? 'youtube' : /story|hikâye|hikaye/i.test(t) ? 'story' : /post|carousel|gönderi/i.test(t) ? 'post' : 'genel');
 const list = v => (Array.isArray(v) ? v : String(v || '').split(/[,\n]+/)).map(x => String(x).trim()).filter(Boolean);
 
-export function createBrandOnboardService({ db, ai, brands, assets, memory, identity, characterBook, ideas, setup, identityDraft, designRef }) {
+export function createBrandOnboardService({ db, ai, brands, assets, memory, identity, characterBook, ideas, setup, identityDraft, designRef, readMs = 90000 }) {
   const readState = id => Object.assign({ absorbed: false, skipped: [], answered: [], finished: false, references: [] },
     (parseJson((db.prepare('SELECT setup FROM brands WHERE id = ?').get(id) || {}).setup, {}) || {}).onboard || {});
   const writeState = (id, st) => {
@@ -141,31 +141,32 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
         brands.update(b.id, { colors: Object.assign({}, cur.colors, { primary: pick[0], secondary: pick.slice(1, 6) }) });
         found.push(`Renk paleti (${pick.slice(0, 6).join(', ')})`);
       }
-      // Yapıştırılan metinden profil (AI): yalnız boş alanlar
+      // Yapay zekâ okumaları (metin → profil, maskot görselleri → karakter kitabı) aynı anda yapılır ve her biri en çok
+      // READ_MS bekler; süreyi aşan okuma kurulumu bekletmez (sonradan Marka kimliğinden tamamlanabilir)
       const t = String(text || '').trim();
+      const withLimit = (p, label) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error(`${label} ${Math.round(readMs / 1000)} sn içinde bitmedi; sonra Marka kimliğinden tamamlayabilirsin`)), readMs).unref?.())]);
+      const jobs = [];
       if (t.length >= 40 && aiOn()) {
-        try {
-          const r = await identityDraft({ text: t, modelRef, brandId: b.id });
+        jobs.push(withLimit(identityDraft({ text: t, modelRef, brandId: b.id }), 'Metin okuması').then(r => {
           const now = brands.get(b.id);
           const patch = Object.fromEntries(Object.entries(r.profile || {}).filter(([k, v]) => v && !now[k] && k !== 'name'));
           if (r.fonts && (r.fonts.heading || r.fonts.body) && !(now.fonts.heading && now.fonts.body)) patch.fonts = Object.assign({}, now.fonts, r.fonts);
           if (r.colors && r.colors.primary && !now.colors.primary) patch.colors = Object.assign({}, now.colors, r.colors);
           if (Object.keys(patch).length) { brands.update(b.id, patch); found.push(`Metinden marka bilgileri (${Object.keys(patch).length} alan)`); }
-        } catch (err) { notes.push(`Metin okunamadı: ${err.message}`); }
+        }).catch(err => notes.push(`Metin okunamadı: ${err.message}`)));
       } else if (t && !brands.get(b.id).description) {
         brands.update(b.id, { description: t.slice(0, 1500) });
         found.push('Marka açıklaması (yapıştırdığın metin)');
       }
-      // Maskot görsellerinden karakter kitabı (AI)
       if (mascotCount && aiOn()) {
-        try {
-          const r = await characterBook.draft(b.id, { modelRef });
+        jobs.push(withLimit(characterBook.draft(b.id, { modelRef }), 'Maskot okuması').then(r => {
           const prev = characterBook.get(b.id);
           characterBook.set(b.id, Object.assign({}, r.draft, prev, { lookEn: prev.lookEn || r.draft.lookEn }));
           if (r.draft.name && !identity.get(b.id).mascotName) mergeIdentity(b.id, { mascotName: r.draft.name });
           found.push('Maskotun görünüşü ve renkleri (karakter kitabı)');
-        } catch (err) { notes.push(`Maskot okunamadı: ${err.message}`); }
+        }).catch(err => notes.push(`Maskot okunamadı: ${err.message}`)));
       }
+      await Promise.all(jobs);
       // Fikirler
       const lines = String(ideaText || '').split('\n').map(x => x.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean).slice(0, 30);
       let added = 0;
