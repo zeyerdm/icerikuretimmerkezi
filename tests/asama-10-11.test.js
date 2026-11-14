@@ -286,3 +286,43 @@ test('10.1 marka geneli dışa aktarma kaldırıldı; takvim aktarımı duruyor'
     assert.match(String(ics.data), /BEGIN:VCALENDAR/);
   } finally { await s.stop(); }
 });
+
+test('11.1 hız: metin ve maskot okumaları paralel; süreyi aşan okuma kurulumu bekletmez; yapay zekâya küçük resim gider', async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const seen = [];
+  const provider = {
+    id: 'fake', label: 'Yavaş', calls: [],
+    async generate(prompt, opts) {
+      seen.push({ prompt: prompt.slice(0, 40), images: (opts && opts.images || []).map(i => i.data.length) });
+      if (/MASKOT KARAKTER KİTABI/.test(prompt)) { await sleep(700); return { name: 'Ayıcık', lookEn: 'A blue bear', colors: [], personality: 'Meraklı', speech: [], never: [] }; }
+      if (/MARKA KİMLİĞİ/.test(prompt)) { await sleep(700); return { profile: { sector: 'Teknoloji', audience: 'Gençler' }, colors: {}, fonts: {}, notes: '' }; }
+      return { reply: 'x' };
+    },
+    async test() { return { ok: true, modelCount: 1, modelAvailable: true }; }
+  };
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Hızlı' })).data.brand;
+    const big = Buffer.concat([PNG_1PX, Buffer.alloc(300000)]); // büyük dosya gibi
+    const m = (await s.request('POST', `/api/brands/${b.id}/assets?category=other&label=m`, big, png)).data.asset;
+    await s.request('PUT', `/api/brands/${b.id}/assets/${m.id}/thumb`, PNG_1PX, png); // tarayıcının ürettiği küçük resim
+    const t0 = Date.now();
+    const r = (await s.request('POST', `/api/brands/${b.id}/onboard/absorb`, { files: [{ id: m.id, kind: 'maskot' }], text: 'Hızlı, gençlere teknoloji anlatan bir içerik markası. Her gün kısa videolar ve postlar paylaşıyoruz.' })).data;
+    const ms = Date.now() - t0;
+    assert.ok(ms < 1300, `iki okuma paralel (${ms} ms)`);
+    assert.ok(r.found.some(f => /karakter kitabı/.test(f)) && r.found.some(f => /Metinden/.test(f)), JSON.stringify(r.found));
+    const mascotCall = seen.find(c => /MASKOT/.test(c.prompt));
+    assert.equal(mascotCall.images[0], PNG_1PX.length, 'büyük dosya değil küçük resim gönderildi');
+  } finally { await s.stop(); }
+  // Süre sınırı
+  const slow = { id: 'fake', label: 'Çok yavaş', async generate() { await sleep(1500); return { profile: {}, colors: {}, fonts: {} }; }, async test() { return { ok: true, modelCount: 1, modelAvailable: true }; } };
+  const s2 = await startServer({ aiProvider: slow, onboardReadMs: 200 });
+  try {
+    const b = (await s2.request('POST', '/api/brands', { name: 'Sınır' })).data.brand;
+    const t0 = Date.now();
+    const r = (await s2.request('POST', `/api/brands/${b.id}/onboard/absorb`, { text: 'Uzun bir tanıtım metni; markamız çocuklara kodlama öğreten bir eğitim kurumudur ve her hafta atölye yapar.' })).data;
+    assert.ok(Date.now() - t0 < 1200, 'sınırda kesildi');
+    assert.match(r.notes.join(' '), /bitmedi/);
+    assert.equal(r.state.absorbed, true, 'kurulum devam eder');
+  } finally { await s2.stop(); }
+});
