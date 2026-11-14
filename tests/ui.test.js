@@ -46,9 +46,9 @@ test('ilk açılış: yönetim merkezi → marka oluştur → kimlik → kütüp
     await page.getByLabel('Sektör').fill('Kafe');
     await page.getByRole('button', { name: 'Oluştur' }).click();
 
-    // Yeni marka kurulum sihirbazıyla açılır (ilk adım: adı ve sektörü dolu); kimlik Marka kimliği sayfasında
-    await page.waitForURL(/#\/m\/[^/]+\/kimlik\/kurulum\/temel$/);
-    assert.equal(await page.getByLabel('Marka adı *').inputValue(), 'Kahve Durağı');
+    // 11.3: yeni marka karşılama sohbetiyle açılır; kimlik Marka kimliği sayfasında
+    await page.waitForURL(/#\/m\/[^/]+\/kur$/);
+    await page.locator('#ob-send').waitFor();
     assert.ok(await page.getByRole('link', { name: 'Yönetim Merkezine dön' }).isVisible());
     await page.getByRole('link', { name: 'Marka kimliği' }).first().click();
     await page.getByRole('link', { name: 'Profil', exact: true }).click();
