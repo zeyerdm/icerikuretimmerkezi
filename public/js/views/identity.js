@@ -81,7 +81,7 @@ async function renderDossier(view, brand) {
   const allNeeds = d.steps.reduce((n, s) => n + s.needs.length, 0);
   const skipped = d.steps.filter(s => !s.done);
   const head = !d.started
-    ? `<div class="card setup-callout mb-5"><div><h2>Markayı adım adım kuralım</h2><p class="small muted">Birkaç soruyla başlıyoruz: ne markası, maskotu var mı, hangi kanallarda ne paylaşıyor. Cevaplarına göre sonraki sorular gelir ve neler gerektiği (logo, renkler, maskot pozları…) istenir. Her adım kaydedilir; yarıda bırakırsan kaldığın yerden devam edersin.</p></div><a class="btn btn-primary" href="${base}/kurulum">${icon('wand')}Kuruluma başla</a></div>`
+    ? `<div class="card setup-callout mb-5"><div><h2>Markayı adım adım kuralım</h2><p class="small muted">Birkaç soruyla başlıyoruz: ne markası, maskotu var mı, hangi kanallarda ne paylaşıyor. Cevaplarına göre sonraki sorular gelir ve neler gerektiği (logo, renkler, maskot pozları…) istenir. Her adım kaydedilir; yarıda bırakırsan kaldığın yerden devam edersin.</p></div><a class="btn btn-primary" href="#/m/${esc(brand.id)}/kur">${icon('sparkle')}Kuruluma başla</a></div>`
     : (skipped.length || allNeeds)
       ? `<div class="card setup-callout mb-5"><div><h2>Kurulum %${d.percent}</h2><p class="small muted">${skipped.length ? `${skipped.length} adım atlandı (${esc(skipped.map(s => s.label).join(', '))}). ` : ''}${allNeeds ? `${allNeeds} eksik bilgi var.` : ''} Eksikler aşağıda bölüm bölüm yazıyor.</p></div><a class="btn btn-primary" href="${base}/kurulum/${esc(d.next)}">${icon('check')}Eksikleri tamamla</a></div>`
       : '<div class="notice notice-ok mb-5"><div><strong>Marka kimliği tamam.</strong> Bir bölümü değiştirmek için o bölümün Düzenle düğmesine bas.</div></div>';
@@ -296,35 +296,6 @@ async function renderSetup(view, brand, stepId, edit) {
       if (after) return go(`${base}/kurulum/${after.id}`);
       toast(res.complete ? 'Kurulum tamamlandı. Marka kimliği tek yerde hazır.' : 'Kaydedildi. Atladığın adımlar Marka dosyasında görünür.', 'success', 5000);
       go(base);
-    } catch (err) { toast(err.message, 'error'); }
-  });
-}
-
-// Yeni marka: kurulumun ilk adımı (marka henüz yokken). Oluşturunca kurulum ikinci adımdan sürer.
-export async function renderNewBrandSetup(view) {
-  view.onclick = view.onkeydown = view.oninput = view.onchange = null;
-  const empty = { name: '', sector: '', description: '', slogan: '', colors: { secondary: [] }, fonts: {} };
-  view.innerHTML = `${pageHead({ title: 'Yeni marka', desc: 'Markayı tek akışta kuruyoruz: önce temel bilgiler, sonra cevaplarına göre kanallar, ses, görseller, maskot ve bilgiler. Her adım kaydedilir.' })}
-    <form class="card setup-card" id="su-form" novalidate>
-      <h2>Bu ne markası?</h2>
-      <p class="small muted mb-4">${INTRO.temel}</p>
-      ${stepForm('temel', { brand: empty, identity: {}, questions: [], memory: { facts: [] }, setup: {}, book: {}, mascots: [] })}
-      <div class="setup-foot"><a class="btn" href="#/markalar">Vazgeç</a><span class="spacer"></span><button class="btn btn-primary" type="submit">${icon('check')}Markayı oluştur ve devam et</button></div>
-    </form>`;
-  const form = view.querySelector('#su-form');
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
-    const body = readStep('temel', form);
-    if (!String(body.name || '').trim()) { form.querySelector('[name="name"]').focus(); return toast('Marka adını yaz.', 'error'); }
-    try {
-      const { brand } = await busy(e.submitter, async () => {
-        const r = await api.createBrand(body);
-        await api.saveSetupStep(r.brand.id, 'temel', body);
-        return r;
-      });
-      await refreshBrands();
-      toast('Marka oluşturuldu. Şimdi kanalları ve içerikleri soralım.', 'success');
-      go(`#/m/${brand.id}/kimlik/kurulum/yapi`);
     } catch (err) { toast(err.message, 'error'); }
   });
 }

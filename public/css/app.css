@@ -1823,3 +1823,23 @@ body.editor-mode .radial-fab { display: none; }
 .yt-cover { margin: 0 0 var(--s-4); }
 .yt-cover img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); }
 .yt-cover figcaption { margin-top: var(--s-2); flex-wrap: wrap; }
+
+/* 11.3 Karşılama sohbeti */
+.ob-card { max-width: 860px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.ob-chat { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-5); max-height: 60vh; overflow-y: auto; }
+.ob-msg { display: flex; gap: var(--s-2); align-items: flex-start; max-width: 88%; }
+.ob-bot { align-self: flex-start; }
+.ob-me { align-self: flex-end; }
+.ob-av { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-ink); }
+.ob-av svg { width: 16px; height: 16px; }
+.ob-bubble { padding: var(--s-3) var(--s-4); border-radius: 16px; background: var(--surface-3); font-size: var(--t-sm); line-height: 1.5; }
+.ob-me .ob-bubble { background: var(--brand); color: var(--on-brand, #fff); border-bottom-right-radius: 4px; }
+.ob-bot .ob-bubble { border-top-left-radius: 4px; }
+.ob-list { margin: var(--s-2) 0; padding-left: 1.2em; }
+.ob-input { border-top: 1px solid var(--line); padding: var(--s-4) var(--s-5); background: var(--surface); }
+.ob-row { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.ob-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s-2); }
+.ob-file { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); position: relative; }
+.ob-file img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 6px; background: repeating-conic-gradient(#e9e9ee 0 25%, #fff 0 50%) 0 0 / 14px 14px; }
+.ob-file .icon-btn { position: absolute; top: 4px; right: 4px; background: var(--surface); }
+.ob-links { justify-content: flex-start; }

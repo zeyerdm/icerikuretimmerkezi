@@ -156,7 +156,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         const { brand: created } = await api.createBrand(payload);
         await refreshBrands();
         toast('Marka oluşturuldu.', 'success');
-        go('#/m/' + created.id + '/kimlik/kurulum');
+        go('#/m/' + created.id + '/kur');
         return;
       }
       const { brand: saved } = await api.updateBrand(brand.id, payload);
