@@ -75,11 +75,11 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
     } else if (key === 'hasMascot') {
       const yes = value === true || value === 'true';
       mergeIdentity(b.id, { hasMascot: yes });
-      setup.save(b.id, 'yapi', { channels: s.channels, contentKinds: s.contentKinds, hasMascot: yes, hasPlace: Boolean(s.hasPlace) });
+      setup.save(b.id, 'yapi', { channels: s.channels, contentKinds: s.contentKinds, hasMascot: yes, hasPlace: s.hasPlace });
     } else if (key === 'hasPlace') {
-      setup.save(b.id, 'yapi', { channels: s.channels, contentKinds: s.contentKinds, hasMascot: Boolean(s.hasMascot), hasPlace: value === true || value === 'true' });
+      setup.save(b.id, 'yapi', { channels: s.channels, contentKinds: s.contentKinds, hasMascot: s.hasMascot, hasPlace: value === true || value === 'true' });
     } else if (key === 'channels' || key === 'contentKinds') {
-      setup.save(b.id, 'yapi', Object.assign({ channels: s.channels, contentKinds: s.contentKinds, hasMascot: Boolean(s.hasMascot), hasPlace: Boolean(s.hasPlace) }, { [key]: list(value) }));
+      setup.save(b.id, 'yapi', Object.assign({ channels: s.channels, contentKinds: s.contentKinds, hasMascot: s.hasMascot, hasPlace: s.hasPlace }, { [key]: list(value) }));
     } else if (key === 'mascotName') {
       const name = String(value || '').trim().slice(0, 60);
       mergeIdentity(b.id, { hasMascot: true, mascotName: name });
@@ -128,7 +128,7 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
         found.push(`Maskot görselleri (${mascotCount})`);
         mergeIdentity(b.id, { hasMascot: true });
         const s = setup.status(b.id).setup;
-        setup.save(b.id, 'yapi', { channels: s.channels, contentKinds: s.contentKinds, hasMascot: true, hasPlace: Boolean(s.hasPlace) });
+        setup.save(b.id, 'yapi', { channels: s.channels, contentKinds: s.contentKinds, hasMascot: true, hasPlace: s.hasPlace });
       }
       if (byKind('referans')) found.push(`Tasarım referansı (${byKind('referans')})`);
       if (byKind('urun') + byKind('gorsel')) found.push(`Marka ve ürün görselleri (${byKind('urun') + byKind('gorsel')})`);

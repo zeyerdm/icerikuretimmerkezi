@@ -104,12 +104,11 @@ test('kurulum arayüzü: yeni marka → adım adım (dallanma, yükleme) → Mar
   page.on('pageerror', e => problems.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/fonts\.(googleapis|gstatic)|status of (400|404|409)/.test(m.text())) problems.push('console: ' + m.text()); });
   try {
-    await page.goto(srv.base + '/#/marka/yeni');
-    await page.getByLabel('Marka adı *').fill('Akış Kafe');
-    await page.getByLabel('Ne markası? (sektör)').fill('Kafe');
-    await page.getByRole('button', { name: 'Markayı oluştur ve devam et' }).click();
-    await page.waitForURL(/\/kimlik\/kurulum\/yapi$/);
-    const brandId = page.url().match(/#\/m\/([^/]+)\//)[1];
+    // 11.3: yeni marka karşılama sohbetiyle açılır (ayrı testte); burada ayrıntılı sihirbaz sınanır
+    const created = (await srv.request('POST', '/api/brands', { name: 'Akış Kafe', sector: 'Kafe' })).data.brand;
+    await srv.request('PUT', `/api/brands/${created.id}/setup/temel`, { name: 'Akış Kafe', sector: 'Kafe' });
+    await page.goto(srv.base + `/#/m/${created.id}/kimlik/kurulum/yapi`);
+    const brandId = created.id;
     await page.locator('#su-form').waitFor();
     assert.equal(await page.locator('.setup-steps li').count(), 6, 'cevap yokken 6 adım');
     assert.ok(await page.locator('.setup-steps li.done').first().isVisible(), 'ilk adım tamamlandı işaretli');
@@ -152,7 +151,9 @@ test('kurulum arayüzü: yeni marka → adım adım (dallanma, yükleme) → Mar
     // Atlanan adım var: bitirince atlanan adıma (ses) döner
     await page.waitForURL(/\/kurulum\/ses$/);
     await page.getByLabel('Marka bir insan olsaydı nasıl biri olurdu?').fill('Samimi');
-    await page.getByLabel('Kullanılmaması gereken kelimeler').fill('ucuz');
+    // 11.5: yasaklı kelimeler sihirbazda sorulmaz; tek yer Ses ve hafıza (bağlantı gösterilir)
+    assert.ok(await page.getByRole('link', { name: 'Ses ve hafıza' }).first().isVisible());
+    await srv.request('PUT', `/api/brands/${brandId}/memory`, { banned: ['ucuz'] });
     await page.getByRole('button', { name: 'Kaydet ve devam et' }).click(); // ileride tamamlanmamış adım yok → Marka dosyası
     await page.waitForURL(new RegExp(`#/m/${brandId}/kimlik$`));
     await page.locator('.toast', { hasText: 'Kurulum tamamlandı' }).waitFor();

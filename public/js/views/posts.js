@@ -458,7 +458,7 @@ async function renderEditor(view, brand, id, models) {
     c.style.height = `${Math.max(120, Math.round(F.h * k))}px`;
   }
 
-  async function redraw() {
+  async function redraw({ keepProps = false } = {}) {
     const s = slide();
     await resolveImages(s);
     const c = $('#stage');
@@ -466,7 +466,8 @@ async function renderEditor(view, brand, id, models) {
     drawSlide(c, s, format(), { selectedId: selected });
     fit();
     drawList();
-    drawProps();
+    // Panelden çıkarken (change) panel yeniden çizilmez: aynı anda basılan düğmenin tıklaması kaybolmasın
+    if (!keepProps) drawProps();
   }
   const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: selected }); };
 
@@ -779,7 +780,7 @@ async function renderEditor(view, brand, id, models) {
     markDirty();
     quick();
   };
-  view.onchange = e => { if (e.target.dataset.prop || e.target.id === 'slide-bg') redraw(); };
+  view.onchange = e => { if (e.target.dataset.prop || e.target.id === 'slide-bg') redraw({ keepProps: Boolean(e.target.dataset.prop) }); };
 
   view.onclick = async e => {
     const t = e.target;

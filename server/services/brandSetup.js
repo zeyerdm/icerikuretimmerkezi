@@ -121,8 +121,9 @@ export function createBrandSetupService({ db, brands, memory, identity, characte
         if (stepId === 'yapi') {
           setup.channels = pickKeys(body.channels, CHANNELS);
           setup.contentKinds = pickKeys(body.contentKinds, CONTENT_KINDS);
-          setup.hasMascot = bool(body.hasMascot);
-          setup.hasPlace = bool(body.hasPlace);
+          // Gönderilmeyen (null) cevap önceki hâlinde kalır: bir soruyu cevaplamak öbürünü cevaplamış saymaz
+          if (body.hasMascot != null) setup.hasMascot = bool(body.hasMascot);
+          if (body.hasPlace != null) setup.hasPlace = bool(body.hasPlace);
           // Maskot cevabı prompt kimliğiyle aynı kalsın (tek doğru)
           if (Boolean(identity.get(b.id).hasMascot) !== setup.hasMascot) mergeIdentity(b.id, { hasMascot: setup.hasMascot });
           // Artık geçerli olmayan adımlar tamamlanmış sayılmaz

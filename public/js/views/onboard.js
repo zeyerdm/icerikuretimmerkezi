@@ -197,11 +197,10 @@ export async function renderOnboard(view, brand = null) {
 
   function next() {
     if (!st.state.absorbed) return dropPhase();
+    if (st.state.finished) { bot('Bu markanın kurulumu tamamlanmış. Eksik kalanlar Marka dosyasında işaretli; oradan tamamlayabilirsin.'); return donePhase(); }
     if (st.questions.length) return askPhase(st.questions[0]);
-    if (!st.state.finished) return finishPhase();
-    bot('Bu markanın kurulumu tamamlanmış. Ayrıntılar için Marka dosyasına bakabilirsin.');
-    return donePhase();
+    return finishPhase();
   }
-  if (st.state.absorbed && (st.questions.length || !st.state.finished)) bot(`Kaldığımız yerden devam ediyoruz: <b>${esc(brand.name)}</b>.`);
+  if (st.state.absorbed && !st.state.finished) bot(`Kaldığımız yerden devam ediyoruz: <b>${esc(brand.name)}</b>.`);
   next();
 }

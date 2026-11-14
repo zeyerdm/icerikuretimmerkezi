@@ -1807,7 +1807,7 @@ body.editor-mode .radial-fab { display: none; }
 .idea-card.is-used { opacity: .82; }
 .idea-card.is-archived { opacity: .65; }
 .tag.tag-soft { background: var(--surface-3); color: var(--ink-2); }
-.idea-menu { position: absolute; right: var(--s-3); bottom: 48px; z-index: 20; display: flex; flex-direction: column; min-width: 230px; padding: var(--s-1); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,.12)); }
+.idea-menu { position: absolute; right: var(--s-3); top: calc(100% - 14px); z-index: 30; display: flex; flex-direction: column; min-width: 230px; padding: var(--s-1); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,.12)); }
 .idea-menu[hidden] { display: none; }
 .idea-menu > button, .idea-menu-row { display: flex; align-items: center; gap: var(--s-2); padding: 8px 10px; border: 0; background: none; border-radius: 8px; font: inherit; font-size: var(--t-sm); color: var(--ink); text-align: left; cursor: pointer; }
 .idea-menu > button:hover, .idea-menu-row:hover { background: var(--surface-3); }
@@ -1849,3 +1849,5 @@ body.editor-mode .radial-fab { display: none; }
 .suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .chip.chip-sm { height: 26px; padding: 0 10px; font-size: var(--t-xs); }
 .suggest .chip.is-on { background: var(--brand-soft); color: var(--brand-ink); border-color: transparent; }
+
+.idea-menu svg { width: 16px; height: 16px; flex: none; }
