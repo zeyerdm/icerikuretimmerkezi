@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { esc, icon, toast, brandAvatar, timeAgo, pageHead, skeletonPage, busy } from '../ui.js';
 import { go, openDemoBrand } from '../app.js';
+import { deleteBrandFlow } from './identity.js';
 
 // Marka kartı: logo, ad, kategori, kısa açıklama, renkler, son çalışma ve içerik üretim durumu
 export function brandCard(b) {
@@ -21,7 +22,7 @@ export function brandCard(b) {
         <div class="row-between"><span class="small muted">İçerik üretimi</span><span class="small"><b>${b.contentPending}</b> bekleyen · <b>${b.contentDone}</b> tamamlandı</span></div>
         <div class="progress mt-2"><span style="width:${pct}%"></span></div>
       </div>
-      <div class="b-foot"><span class="small muted">Son çalışma: ${b.lastWorkedAt ? timeAgo(b.lastWorkedAt) : '—'}</span><span class="small muted">${b.ideaCount} fikir · kimlik %${b.completeness.percent}</span></div>
+      <div class="b-foot"><span class="small muted">Son çalışma: ${b.lastWorkedAt ? timeAgo(b.lastWorkedAt) : '—'}</span><span class="small muted">${b.ideaCount} fikir · kimlik %${b.completeness.percent}</span><button type="button" class="btn btn-sm btn-ghost icon-btn b-del" data-del-brand="${esc(b.id)}" aria-label="${esc(b.name)} markasını sil" title="Markayı sil">${icon('trash')}</button></div>
     </article>`;
 }
 
@@ -41,6 +42,8 @@ export async function renderBrands(view) {
 
   const open = id => go('#/m/' + id);
   view.onclick = async e => {
+    const del = e.target.closest('[data-del-brand]');
+    if (del) { e.stopPropagation(); const b = d.brands.find(x => x.id === del.dataset.delBrand); if (b && await deleteBrandFlow(b, { after: '#/markalar' })) renderBrands(view); return; }
     const demo = e.target.closest('[data-demo]');
     if (demo) return busy(demo, openDemoBrand).catch(err => toast(err.message, 'error'));
     const card = e.target.closest('[data-open]');
@@ -48,6 +51,7 @@ export async function renderBrands(view) {
   };
   view.onkeydown = e => {
     const card = e.target.closest && e.target.closest('[data-open]');
+    if (e.target.closest && e.target.closest('[data-del-brand]')) return;
     if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(card.dataset.open); }
   };
 }
