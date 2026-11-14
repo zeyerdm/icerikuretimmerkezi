@@ -293,14 +293,20 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ✅ **9.0 Kimliklerin birleşmesi:** Dijital kimlik, Hafıza, Prompt kimliği ve Maskot artık ayrı sayfalar değil. Tek bir **Marka kimliği** sayfası var; menüde de tek kalem. Sekmeleri: Marka dosyası, Profil, Görsel kimlik, Ses ve hafıza, Prompt kimliği, Maskot. Maskot soruları ve karakter kitabı Maskot sekmesinde toplandı. Eski adresler (/hafiza, /prompt-kimligi) yeni sekmelere yönlenir. Profil ile Görsel kimlik arasında geçişte kaydedilmemiş yazı kaybolmaz.
 - ✅ **9.3 Marka kurulum sihirbazı (tek yer, adım adım):** Her adım ayrı sayfa. Adım çubuğu, Geri, "Şimdilik atla" ve "Kaydet ve devam et" var. Yeni marka doğrudan sihirbazla açılır.
 - ✅ **9.4 İlk sorular:** Ne markası (ad, sektör, açıklama, slogan)? Hangi kanallar? Hangi içerik türleri? Maskotu var mı? Müşterinin geldiği bir mekân var mı?
-- 🟡 **9.5 Cevaba göre dallanan sorular:** Yapılanlar:
+- ✅ **9.5 Cevaba göre dallanan sorular:** Tamamlandı. Kalan kısımlar da yapıldı:
+  - Video adımında seslendirme sesi ve konuşma tarzı soruluyor; Reels ayarlarına yazılıyor.
+  - YouTube kanalı seçilince ayrı bir YouTube adımı açılıyor ve kapak tarzı soruluyor; kapak fikirleri bu tarza göre öneriliyor.
+  - Görsel dil adımında ürün fotoğrafı tarzı soruluyor; prompt kimliğine ve görsel istemine giriyor.
+  - Temel adımda "Metinden doldur (AI)" düğmesi var; ayrıca karşılama sohbeti metin okuyor.
+  
+  Önceki not: Yapılanlar:
   - Maskot varsa Maskot adımı açılır: adı, görünüşü, kişiliği, konuşması, hareketi, yapmadıkları ve pozlar.
   - Görsel içerik varsa Görsel dil adımı açılır: stil, ışık, renk kullanımı, his, insanlar, kaçınılanlar.
   - Reels, video, TikTok ya da YouTube varsa Video adımı açılır: kamera dili ve mekânlar.
   - Mekân varsa adres ve çalışma saatleri sorulur.
   - Maskot "yok" olunca maskot adımı kapanır.
   - **Kalan:** seslendirme sesi, YouTube kapak tarzı, ürün fotoğrafı tercihleri ve sihirbaz içinden metinden AI ile ön doldurma. Bu ön doldurma şimdilik Profil sekmesinde.
-- 🟡 **9.6 İhtiyaçların istenmesi:** Logo ve maskot pozları adımın içinde yüklenir ve kütüphaneye doğru kategoriyle gider. Yükleme yazılanları silmez. Her adımın eksikleri (logo, ana renk, fontlar, pozlar…) kayıtlı veriden hesaplanır. **Kalan:** örnek görseller ve beğenilen içerik örnekleri.
+- ✅ **9.6 İhtiyaçların istenmesi:** Tamamlandı. Görsel dil adımında beğenilen görsel ve içerik örnekleri yükleniyor (Referanslar). Karşılama sohbetinde de bütün dosyalar baştan isteniyor. Önceki not: Logo ve maskot pozları adımın içinde yüklenir ve kütüphaneye doğru kategoriyle gider. Yükleme yazılanları silmez. Her adımın eksikleri (logo, ana renk, fontlar, pozlar…) kayıtlı veriden hesaplanır. **Kalan:** örnek görseller ve beğenilen içerik örnekleri.
 - ✅ **9.7 Kaldığı yerden devam:** Her adım kaydedilir. "Kurulum sihirbazı" ilk tamamlanmamış adımdan açılır. Cevaplar markanın asıl kayıtlarına yazılır; tek kaynak bunlar: profil, hafıza, prompt kimliği, karakter kitabı. Maskot cevabının tek doğrusu prompt kimliği.
 - ✅ **9.8 Marka dosyası:** Bütün kimlik tek sayfada, bölüm bölüm durur. Her bölümde "Tamam" ya da "N eksik" işareti, bir "Düzenle" düğmesi (sihirbazın aynı sayfası; kaydedince geri döner) ve bir "Ayrıntılı" sekme bağlantısı var.
 - ✅ **9.9 Eksikleri tamamla:** Marka dosyasındaki düğme önce atlanan, sonra eksiği olan adımı açar.

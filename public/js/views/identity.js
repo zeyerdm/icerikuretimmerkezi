@@ -5,7 +5,7 @@
 // - Ayrıntılı sekmeler: Profil, Görsel kimlik, Ses ve hafıza, Prompt kimliği, Maskot (var olan düzenleyiciler)
 // Cevaplar yeni bir yere değil, var olan kaynaklara yazılır (sunucu: services/brandSetup.js).
 import { api } from '../api.js';
-import { esc, icon, toast, pageHead, busy, skeletonPage, emptyState, suggest } from '../ui.js';
+import { esc, icon, toast, pageHead, busy, skeletonPage, emptyState, suggest, openModal } from '../ui.js';
 import { state, refreshBrands, go } from '../app.js';
 import { renderBrandEditor } from './brandEditor.js';
 import { renderMemory } from './memory.js';
@@ -102,8 +102,9 @@ async function renderDossier(view, brand) {
       ['Adı', val(idt.mascotName || d.book.name)], ['Görünüş', val(idt.mascotLook)], ['Kişilik', val(d.book.personality)], ['Karakter kitabı', d.book.lookEn ? 'İngilizce tarif hazır' : '<span class="muted">İngilizce tarif yok</span>']],
       extra: d.mascots.length ? `<div class="ds-poses">${d.mascots.map(a => `<img src="${esc(a.url)}" alt="${esc(a.label || 'Maskot pozu')}" title="${esc(a.label)}">`).join('')}</div>` : '' }) : '',
     has('gorseldil') ? section({ brand, id: 'gorseldil', title: 'Görsel dil', step: 'gorseldil', tab: 'prompt', needs: need('gorseldil'), rows: [
-      ['Stil', val(optLabel(q, 'visualStyle', idt.visualStyle))], ['Işık', val(optLabel(q, 'lighting', idt.lighting))], ['His', val(optLabel(q, 'mood', idt.mood))], ['İnsanlar', val(idt.people)], ['Asla olmasın', val(idt.avoid || [])]] }) : '',
+      ['Stil', val(optLabel(q, 'visualStyle', idt.visualStyle))], ['Işık', val(optLabel(q, 'lighting', idt.lighting))], ['His', val(optLabel(q, 'mood', idt.mood))], ['İnsanlar', val(idt.people)], ['Asla olmasın', val(idt.avoid || [])], ['Ürün fotoğrafı', val(optLabel(q, 'productStyle', idt.productStyle))]] }) : '',
     has('video') ? section({ brand, id: 'video', title: 'Video', step: 'video', tab: 'prompt', needs: need('video'), rows: [['Kamera dili', val(optLabel(q, 'camera', idt.camera))], ['Mekânlar', val(idt.places || [])]] }) : '',
+    has('youtube') ? section({ brand, id: 'youtube', title: 'YouTube', step: 'youtube', tab: 'prompt', needs: need('youtube'), rows: [['Kapak tarzı', val(optLabel(q, 'thumbStyle', idt.thumbStyle))]] }) : '',
     section({ brand, id: 'bilgiler', title: 'Bilgiler', step: 'bilgiler', tab: 'ses', needs: need('bilgiler'), rows: d.memory.facts.length
       ? d.memory.facts.slice(0, 6).map(f => [f.categoryLabel, `<b>${esc(f.title)}</b> · ${esc(f.content.length > 90 ? f.content.slice(0, 90) + '…' : f.content)}`]).concat(d.memory.facts.length > 6 ? [['', `<span class="muted">+${d.memory.facts.length - 6} bilgi daha</span>`]] : [])
       : [['Bilgi kartı', dash]] })
@@ -152,7 +153,8 @@ const INTRO = {
   gorsel: 'Logo, renkler ve fontlar; post stüdyosu ve görsel üretimi bunları kullanır.',
   maskot: 'Maskotun her üretimde aynı görünmesi için: adı, görünüşü, konuşması ve referans pozları.',
   gorseldil: 'Görseller nasıl görünsün? Prompt Studio ve görsel üretimi bu tercihlerle yazar.',
-  video: 'Reels ve videolar için kamera dili ve sık kullanılan mekânlar.',
+  video: 'Reels ve videolar için kamera dili, sık kullanılan mekânlar ve seslendirme sesi.',
+  youtube: 'YouTube kapakların hangi tarzda olsun?',
   bilgiler: 'Yapay zekânın doğru kabul edeceği bilgiler. Burada olmayan fiyat, adres gibi bilgileri uydurmaz.'
 };
 
@@ -164,7 +166,8 @@ function stepForm(id, d) {
       ${field('su-name', 'Marka adı *', inp('name', b.name, 'maxlength="80" required placeholder="Ör. Kahve Durağı"'))}
       ${field('su-sector', 'Ne markası? (sektör)', inp('sector', b.sector, 'maxlength="120" placeholder="Ör. Kafe, diş kliniği, giyim markası, kişisel marka"') + suggest('su-sector', C.sector))}
       <div class="full">${field('su-description', 'Marka ne yapar, neyi farklı yapar?', area('description', b.description, 'maxlength="1500"'))}</div>
-      ${field('su-slogan', 'Sloganı var mı?', inp('slogan', b.slogan, 'maxlength="160" placeholder="Ör. Her yudum bir mola"'))}</div>`;
+      ${field('su-slogan', 'Sloganı var mı?', inp('slogan', b.slogan, 'maxlength="160" placeholder="Ör. Her yudum bir mola"'))}
+      ${b.id && state.settings && state.settings.ai && state.settings.ai.configured ? `<div class="full"><button type="button" class="btn btn-sm" data-ai-prefill>${icon('sparkle')}Web sitesi ya da biyografi metninden doldur (AI)</button><span class="xsmall muted"> Yalnız boş alanlar doldurulur; kitle, karakter ve ton gibi sonraki adımların boş alanları da.</span></div>` : ''}</div>`;
   if (id === 'yapi') return `<div class="stack">
       <fieldset class="field"><legend class="field-label">Hangi kanallarda paylaşıyor?</legend>${checks('channels', d.options.channels, d.setup.channels)}</fieldset>
       <fieldset class="field"><legend class="field-label">Ne tür içerikler üretiyor?</legend>${checks('contentKinds', d.options.contentKinds, d.setup.contentKinds)}</fieldset>
@@ -197,8 +200,13 @@ function stepForm(id, d) {
       <div class="field full"><span class="field-label">Referans pozlar</span>${d.mascots.length ? `<div class="ds-poses">${d.mascots.map(a => `<img src="${esc(a.url)}" alt="${esc(a.label || 'Maskot pozu')}">`).join('')}</div>` : '<span class="small muted">Henüz poz yok. Maskotun farklı pozlarını yükle (ör. mutlu, şaşkın, el sallıyor).</span>'}
         <label class="btn btn-sm mt-2">${icon('upload')}Poz yükle<input type="file" class="sr-only" data-upload="mascot" multiple accept="image/png,image/jpeg,image/webp,image/gif"></label>
         <span class="hint">Pozlardan İngilizce görünüş tarifini Maskot sekmesindeki karakter kitabında AI ile çıkarabilirsin.</span></div></div>`;
-  if (id === 'gorseldil') return `<div class="stack">${['visualStyle', 'lighting', 'colors', 'mood', 'people', 'avoid'].map(k => question(q(k), idt[k])).join('')}</div>`;
-  if (id === 'video') return `<div class="stack">${['camera', 'places'].map(k => question(q(k), idt[k])).join('')}</div>`;
+  if (id === 'gorseldil') return `<div class="stack">${['visualStyle', 'lighting', 'colors', 'mood', 'people', 'avoid', 'productStyle'].map(k => question(q(k), idt[k])).join('')}
+      <div class="field"><span class="field-label">Beğendiğin görsel ve içerik örnekleri (isteğe bağlı)</span><span class="small muted">${d.assetCounts.reference || 0} örnek yüklü. Kütüphanede Referanslar bölümünde durur; referanstan şablon ve görsel üretiminde kullanılır.</span>
+        <label class="btn btn-sm mt-2">${icon('upload')}Örnek yükle<input type="file" class="sr-only" data-upload="reference" multiple accept="image/png,image/jpeg,image/webp,image/gif"></label></div></div>`;
+  if (id === 'video') return `<div class="stack">${['camera', 'places'].map(k => question(q(k), idt[k])).join('')}
+      ${d.voice ? `<div class="form-grid"><div class="field"><label for="su-voice-pick">Seslendirme sesi (Reels)</label><select class="select" id="su-voice-pick" name="voice">${Object.entries(d.voices).map(([k, v]) => `<option value="${esc(k)}" ${d.voice.voice === k ? 'selected' : ''}>${esc(k)} · ${esc(v)}</option>`).join('')}</select></div>
+        <div class="field"><label for="su-voiceStyle">Konuşma tarzı</label><input class="input" id="su-voiceStyle" name="voiceStyle" maxlength="120" value="${esc(d.voice.voiceStyle || '')}" placeholder="Ör. samimi, hızlı, gülümseyerek">${suggest('su-voiceStyle', ['Samimi', 'Enerjik', 'Sakin', 'Hızlı', 'Gülümseyerek', 'Ciddi ve güven veren'])}</div></div>` : ''}</div>`;
+  if (id === 'youtube') return `<div class="stack">${question(q('thumbStyle'), idt.thumbStyle)}<p class="small muted">Kapak fikirleri bu tarza göre önerilir. Kapağın kendisi YouTube kapağı sayfasında kendi çekimlerinden üretilir.</p></div>`;
   if (id === 'bilgiler') return `<div class="form-grid">
       <div class="full">${field('su-urunler', 'Ürün ve hizmetler (fiyatlarla)', area('urunler', fact('Ürün ve hizmetler'), 'maxlength="2000" placeholder="Ör. Filtre kahve 85 TL, latte 110 TL"'))}</div>
       <div class="full">${field('su-hikaye', 'Marka hikâyesi', area('hikaye', fact('Marka hikâyesi'), 'maxlength="2000"'))}</div>
@@ -221,6 +229,7 @@ function readStep(id, form) {
     return out;
   }
   if (id === 'gorseldil') { out.mood = all('mood'); }
+  if (id === 'youtube') return { thumbStyle: one('thumbStyle') || '' };
   for (const [k, v] of fd.entries()) if (!(k in out) && typeof v === 'string') out[k] = v;
   if (id === 'kitle') out.monthlyGoal = Number(out.monthlyGoal || 0);
   return out;
@@ -280,6 +289,26 @@ async function renderSetup(view, brand, stepId, edit) {
     fresh.innerHTML = stepForm(st.id, d);
     const same = [...fresh.querySelectorAll('.field')].find(f => f.querySelector(`[data-upload="${cat}"]`));
     if (wrap && same) wrap.replaceWith(same);
+  });
+  // 9.5: metinden AI ile ön doldurma (yalnız boş alanlar; kullanıcı Kaydet'e basarak onaylar)
+  form.addEventListener('click', e => {
+    if (!e.target.closest('[data-ai-prefill]')) return;
+    openModal({
+      title: 'Metinden doldur', submitLabel: 'Taslağı çıkar',
+      body: `<div class="field"><label for="ap-text">Web sitesi "Hakkımızda" yazısı, Instagram biyografisi ya da tanıtım metni *</label><textarea class="textarea" id="ap-text" name="text" rows="8" maxlength="20000" required></textarea></div><p class="xsmall muted mt-2">Metinde olmayan bilgi uydurulmaz; o alanlar boş kalır.</p>`,
+      onSubmit: async (fd, mf) => {
+        const r = await busy(mf.querySelector('[type=submit]'), () => api.identityDraft({ text: fd.get('text'), brandId: brand.id }));
+        const filled = [];
+        for (const k of ['sector', 'description', 'slogan']) {
+          const el = form.querySelector(`[name="${k}"]`);
+          if (el && !el.value.trim() && r.profile[k]) { el.value = r.profile[k]; el.classList.add('ai-filled'); el.dispatchEvent(new Event('input', { bubbles: true })); filled.push(k); }
+        }
+        // Sonraki adımların boş alanları doğrudan kaydedilir
+        const later = Object.fromEntries(['audience', 'goals', 'character', 'tone', 'competitors'].filter(k => r.profile[k] && !d.brand[k]).map(k => [k, r.profile[k]]));
+        if (Object.keys(later).length) { await api.updateBrand(brand.id, later); Object.assign(d.brand, later); }
+        toast(filled.length || Object.keys(later).length ? `${filled.length} alan bu sayfada dolduruldu (kontrol edip kaydet)${Object.keys(later).length ? `, ${Object.keys(later).length} alan sonraki adımlara kaydedildi` : ''}.` : `Doldurulacak yeni bilgi bulunamadı.${r.notes ? ' ' + r.notes : ''}`, 'success', 7000);
+      }
+    });
   });
   form.addEventListener('submit', async e => {
     e.preventDefault();

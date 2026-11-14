@@ -9,7 +9,7 @@ export const YOUTUBE_URL = /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|sho
 const HEX = /^#[0-9a-f]{6}$/i;
 const MAX_WORDS = 4;
 
-export function createThumbnailService({ ai, brands }) {
+export function createThumbnailService({ ai, brands, identity = null }) {
   return {
     async ideas(brandId, { topic = '', title = '', url = '', count = 4, modelRef = null } = {}) {
       const b = brands.get(brandId);
@@ -23,6 +23,8 @@ export function createThumbnailService({ ai, brands }) {
         'YOUTUBE KAPAK FİKİRLERİ',
         `Sen '${b.name}' markasının YouTube kanalı için kapak (thumbnail) tasarımcısısın. Amaç: küçük önizlemede bile okunan, tıklamayı artıran ama yanıltmayan kapaklar.`,
         '', 'MARKA HAFIZASI:', brands.memory(b.id), '',
+        // 9.5: markanın kapak tarzı tercihi
+        identity && identity.get(b.id).thumbStyle ? `KANALIN KAPAK TARZI (fikirlerin çoğu buna uysun): ${({ yuz: 'yakın yüz ve büyük yazı', minimal: 'minimal, tek nesne', karsilastirma: 'karşılaştırma (önce/sonra)', kesik: 'renkli zemin üstünde kesilmiş figür', metin: 'yazı ağırlıklı' })[identity.get(b.id).thumbStyle]}` : '',
         link ? 'Ekteki YouTube videosunu izle: videonun asıl vaadini, en çarpıcı anlarını ve öne çıkan kişileri/nesneleri çıkar; fikirleri bu içeriğe dayandır, videoda olmayan bir şey vaat etme.' : '',
         vt ? `VİDEO BAŞLIĞI: ${vt}` : '', t ? `VİDEO KONUSU: ${t}` : '', '',
         `GÖREV: Birbirinden belirgin biçimde farklı ${n} kapak fikri öner. Her fikirde:`,

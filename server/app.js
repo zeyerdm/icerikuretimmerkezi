@@ -141,7 +141,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
-  const brandSetup = createBrandSetupService({ db, brands, memory, identity: promptIdentity, characterBook, assets });
+  const brandSetup = createBrandSetupService({ db, brands, memory, identity: promptIdentity, characterBook, assets, reels });
   const dataExport = createDataExportService({ db, brands });
   const igImport = createIgImportService({ db, brands, workspace });
   const captionSets = createCaptionSetService({ db, brands });
@@ -158,7 +158,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const imageTemplates = createImageTemplateService({ prompts, images });
   const designRef = createDesignRefService({ db, ai, brands, assets });
   const assetTags = createAssetTagService({ ai, brands, assets });
-  const thumbnails = createThumbnailService({ ai, brands });
+  const thumbnails = createThumbnailService({ ai, brands, identity: promptIdentity });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
   const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef });
