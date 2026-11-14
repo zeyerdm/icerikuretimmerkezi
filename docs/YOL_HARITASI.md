@@ -372,14 +372,26 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ✅ **11.7 Şeffaf logo şeffaf kalsın:** Logonun arkasındaki beyaz ve marka rengi zemin kaldırıldı: kenar menüsündeki marka simgesi, post önizlemesi, Marka dosyası. Kütüphanede ve ayrıntıda saydamlık dama deseniyle gösteriliyor. Küçük resimler WebP olarak üretiliyor; WebP olmayan tarayıcıda saydam görsel artık JPEG değil PNG kaydediliyor, beyaza dönmüyor. Önceki tanım: Şeffaf zeminli (PNG) logo beyaz zeminle gösterilmez. Kütüphane, Marka dosyası, önizlemeler, post tasarımı ve kapaklarda logonun arkasına renk konmaz.
 
 **B. Post stüdyosu**
-- ⬜ **11.8 "Tüm sayfalara uygula":** Bir slaytta yapılan değişiklik (ör. logo değişimi, konumu, rengi, fontu) tek tuşla carousel'in bütün slaytlarına uygulanabilir. Örnek: 6 sayfalık postta logo değişince öbür 5 sayfada da değişsin.
-- ⬜ **11.9 Klavye kısayolları kesin çalışsın:** Düzenleyicide Ctrl+C, Ctrl+V, Ctrl+X ve Ctrl+Z çalışır. Ekrandan kırpılıp panoya alınan görsel Ctrl+V ile doğrudan posta yapışır (marka genelindeki ilham rafına değil, açık tasarıma).
-- ⬜ **11.10 Referans görselden AI ile post, adlandırılmış şablonlar:**
+- ✅ **11.8 "Tüm sayfalara uygula":** Seçili katmanın panelinde düğme var.
+  - Yazıda aynı roldeki yazıların stili değişir (font, boyut, renk, hizalama, konum); metinleri değişmez.
+  - Görselde aynı kaynaklı görseller değişir; görsel değiştirildiyse eski kaynaklılar da bulunur. Görsel bir slaytta hiç yoksa o slayta eklenir (ör. logo).
+  - Şekil ve QR'da aynı türdeki ve yakın konumdaki katmanlar değişir.
+  - İşlem Ctrl+Z ile geri alınır.
+  
+  Önceki tanım: Bir slaytta yapılan değişiklik (ör. logo değişimi, konumu, rengi, fontu) tek tuşla carousel'in bütün slaytlarına uygulanabilir. Örnek: 6 sayfalık postta logo değişince öbür 5 sayfada da değişsin.
+- ✅ **11.9 Klavye kısayolları:** Düzenleyicide yazı alanı dışında şu kısayollar çalışıyor:
+  - Ctrl+C / Ctrl+X: katmanı kopyalar / keser.
+  - Ctrl+V: panoda görsel varsa (ör. ekrandan kırpılan) görseli tasarıma ekler ve kütüphanede saklar; yoksa kopyalanan katmanı yapıştırır. Bu sırada marka genelindeki ilham rafı devreye girmez.
+  - Ctrl+Z geri alır (son 100 adım); Ctrl+Y ya da Ctrl+Shift+Z yineler.
+  - Ctrl+D çoğaltır; Delete siler.
+  
+  Önceki tanım: Düzenleyicide Ctrl+C, Ctrl+V, Ctrl+X ve Ctrl+Z çalışır. Ekrandan kırpılıp panoya alınan görsel Ctrl+V ile doğrudan posta yapışır (marka genelindeki ilham rafına değil, açık tasarıma).
+- ✅ **11.10 Referanstan şablon, adlandırılmış şablonlar:** "Referanstan şablon" zaten vardı (AI tasarımı okuyup şablona çevirir). Ad verilmezse şablonlar "Şablon 1, Şablon 2…" diye adlanıyor. "Konudan üret"te ve "Havuzdan fikir çek"te şablon seçilebiliyor; metin seçilen şablonun yerleşimine yazılıyor. Önceki tanım:
   - Post üretiminde referans görsel atılıp yapay zekânın ona göre oluşturması beklenebilir.
   - Beğenilen post şablon olarak kaydedilir ve adlandırılır (Şablon 1, Şablon 2…).
   - "Fikirden post üret"te hangi şablonla üretileceği seçilir (10.8 ile birlikte gözden geçirilir).
-- ⬜ **11.11 Slaytı Drive'a gönder:** "Bu slaytı indir" ile birlikte "Bu slaytı Drive'a gönder" ve "Bütün slaytları Drive'a gönder" her yerde bulunur. Eksik olduğu yer varsa eklenir.
-- ⬜ **11.12 Sabit açılış ve kapanış tasarımları:** Bir kez tasarlanan açılış (kapak) ve kapanış slaytı "tüm üretimlerde kullan" ile her yeni carousel'e kendiliğinden eklenir. Prompt ile küçük değişiklikler istenebilir, örneğin "bunun başlığını değiştir". Böylece markanın standart tasarımları oluşur.
+- ✅ **11.11 Slaytı Drive'a gönder:** Paylaş menüsünde "Bu slaytı Drive'a gönder" ve "Bütün slaytları Drive'a gönder" artık her zaman görünüyor. Drive bağlı değilse ya da markanın klasörü yoksa ne yapılacağını söylüyor. Görsel, prompt, kapak ve kütüphanede de Drive düğmesi var. Önceki tanım: "Bu slaytı indir" ile birlikte "Bu slaytı Drive'a gönder" ve "Bütün slaytları Drive'a gönder" her yerde bulunur. Eksik olduğu yer varsa eklenir.
+- ✅ **11.12 Sabit açılış ve kapanış:** Bir şablon "Eşleştir / açılış-kapanış" penceresinden açılış ya da kapanış slaytı yapılıyor. Bundan sonra üretilen her carousel'in başına ve sonuna bu slaytlar kendiliğinden ekleniyor; konudan üretimde, fikirden üretimde ve şablonla üretimde aynı. "Başlık her postta konuya göre değişsin" seçilirse açılışta post başlığı, kapanışta harekete çağrı yazılıyor. Bir markada tek açılış ve tek kapanış olur. Önceki tanım: Bir kez tasarlanan açılış (kapak) ve kapanış slaytı "tüm üretimlerde kullan" ile her yeni carousel'e kendiliğinden eklenir. Prompt ile küçük değişiklikler istenebilir, örneğin "bunun başlığını değiştir". Böylece markanın standart tasarımları oluşur.
 
 ## Aşama 6 — İleride
 

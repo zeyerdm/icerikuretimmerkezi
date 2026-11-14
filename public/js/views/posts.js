@@ -39,8 +39,8 @@ export async function renderPosts(view, brand, sub) {
       <div class="post-grid">${templates.map(t => `<div class="post-card tpl-card">
         <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
         <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)}</div>
-        <div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
-        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Fikirlerle eşleştir</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
+        ${t.match.frame ? `<span class="tag mt-1">${t.match.frame === 'acilis' ? 'Sabit açılış slaytı' : 'Sabit kapanış slaytı'}</span>` : ''}<div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
+        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
       </div>`).join('')}</div></section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
@@ -86,8 +86,12 @@ export async function renderPosts(view, brand, sub) {
         title: `"${t.name}" şablonu hangi fikirlerle kullanılsın?`, submitLabel: 'Kaydet',
         body: `<p class="small muted mb-3">"Havuzdan fikir çek" bu türdeki ya da kategorideki bir fikri seçtiğinde tasarım bu şablonla hazırlanır. Ör. "Haftalık bilgi" şablonu → Post + Bilgilendirici.</p>
           <fieldset class="field"><legend class="field-label">Fikir türleri</legend>${box('formats', state.meta.ideaFormats, t.match.formats)}</fieldset>
-          <fieldset class="field mt-3"><legend class="field-label">Kategoriler</legend>${box('categories', state.meta.ideaCategories, t.match.categories)}</fieldset>`,
-        onSubmit: async fd => { await api.setTemplateMatch(brand.id, t.id, { formats: fd.getAll('formats'), categories: fd.getAll('categories') }); toast('Eşleşme kaydedildi.', 'success'); renderPosts(view, brand, null); }
+          <fieldset class="field mt-3"><legend class="field-label">Kategoriler</legend>${box('categories', state.meta.ideaCategories, t.match.categories)}</fieldset>
+          <fieldset class="field mt-3"><legend class="field-label">Sabit açılış / kapanış (11.12)</legend>
+            <div class="chip-row">${[['', 'Normal şablon'], ['acilis', 'Açılış slaytı (her carousel\'in başına)'], ['kapanis', 'Kapanış slaytı (her carousel\'in sonuna)']].map(([k, v]) => `<label class="chip-check"><input type="radio" name="frame" value="${k}" ${t.match.frame === k ? 'checked' : ''}><span>${v}</span></label>`).join('')}</div>
+            <label class="check mt-2"><input type="checkbox" name="autoTitle" ${t.match.autoTitle ? 'checked' : ''}> Başlık her postta konuya göre değişsin (açılışta post başlığı, kapanışta harekete çağrı)</label>
+            <p class="xsmall muted mt-1">Şablonun ilk slaytı kullanılır. Bir markada tek açılış ve tek kapanış olur; yenisini seçince eskisi normal şablona döner.</p></fieldset>`,
+        onSubmit: async fd => { await api.setTemplateMatch(brand.id, t.id, { formats: fd.getAll('formats'), categories: fd.getAll('categories'), frame: fd.get('frame') || '', autoTitle: fd.get('autoTitle') === 'on' }); toast('Kaydedildi.', 'success'); renderPosts(view, brand, null); }
       });
       return;
     }
@@ -124,11 +128,12 @@ export async function renderPosts(view, brand, sub) {
           <div class="field"><label for="pc-kind">Tür</label><select class="select" id="pc-kind" name="kind">${Object.entries(meta.kinds).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></div>
           <div class="field"><label for="pc-format">Boyut</label><select class="select" id="pc-format" name="format">${Object.entries(meta.formats).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select></div>
           <div class="field" data-slides-field><label for="pc-slides">Slayt sayısı (carousel)</label><input class="input" id="pc-slides" name="slides" type="number" min="3" max="10" value="6"></div>
+          ${templates.length ? `<div class="field full"><label for="pc-tpl">Şablon (isteğe bağlı)</label><select class="select" id="pc-tpl" name="templateId"><option value="">Şablonsuz (marka yerleşimi)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select><span class="hint">Seçersen metin bu şablonun yerleşimine, renklerine ve görsellerine yazılır.</span></div>` : ''}
           <div class="field"><label for="pc-model">Model</label>${modelSelect(models, 'yazim', { id: 'pc-model' })}</div>
           <p class="hint full cost-hint" data-cost></p>
         </div>`,
         onSubmit: async (fd, form) => {
-          const res = await streamBusy(form.querySelector('[type=submit]'), st => api.createPost(brand.id, { topic: fd.get('topic'), kind: fd.get('kind'), format: fd.get('format'), slides: Number(fd.get('slides')), model: form.querySelector('#pc-model').value || null }, st));
+          const res = await streamBusy(form.querySelector('[type=submit]'), st => api.createPost(brand.id, { topic: fd.get('topic'), kind: fd.get('kind'), format: fd.get('format'), slides: Number(fd.get('slides')), templateId: fd.get('templateId') || null, model: form.querySelector('#pc-model').value || null }, st));
           toast(aiNote(res.post.ai), 'success', 5000);
           go(base(brand) + '/' + res.post.id);
         }
@@ -163,7 +168,7 @@ async function fromIdeaFlow(brand, models, templates) {
     title: 'Havuzdan fikir çek', submitLabel: 'Tasarımı üret',
     body: `<div class="form-grid">
       <div class="field"><label for="fi-format">Fikir türü</label><select class="select" id="fi-format" name="format">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-      <div class="field"><label for="fi-tpl">Şablon</label><select class="select" id="fi-tpl" name="templateId"><option value="">Eşleşen şablon (otomatik)</option>${templates.map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
+      <div class="field"><label for="fi-tpl">Şablon</label><select class="select" id="fi-tpl" name="templateId"><option value="">Eşleşen şablon (otomatik)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
       <div class="field full"><span class="field-label">Seçilen fikir</span><div class="pool-pick" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></div>
       <div class="field"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
     </div>`,
@@ -381,7 +386,7 @@ async function renderEditor(view, brand, id, models) {
                 ${post.kind === 'youtube' ? `<button type="button" data-act="yt-preview">${icon('eye')}<span>YouTube önizlemesi</span></button>` : ''}
                 <button type="button" data-png="one">${icon('download')}<span>Bu slaytı PNG indir</span></button>
                 ${data.slides.length > 1 ? `<button type="button" data-png="all">${icon('download')}<span>Bütün slaytları indir</span></button>` : ''}
-                ${driveReady ? `<button type="button" data-drive="one">${icon('upload')}<span>Bu slaytı Drive'a gönder</span></button>${data.slides.length > 1 ? `<button type="button" data-drive="all">${icon('upload')}<span>Bütün slaytları Drive'a gönder</span></button>` : ''}` : ''}
+                <button type="button" data-drive="one">${icon('upload')}<span>Bu slaytı Drive'a gönder</span></button>${data.slides.length > 1 ? `<button type="button" data-drive="all">${icon('upload')}<span>Bütün slaytları Drive'a gönder</span></button>` : ''}
                 ${post.content ? '' : `<button type="button" data-act="schedule">${icon('calendar')}<span>Takvime ekle</span></button>`}
                 <button type="button" data-act="template">${icon('grid')}<span>Marka şablonu</span></button>
                 <button type="button" data-act="share-template">${icon('grid')}<span>Ortak kütüphane</span></button>
@@ -416,7 +421,27 @@ async function renderEditor(view, brand, id, models) {
     redraw();
   }
 
-  function markDirty() {
+  // 11.9 Geri al / yinele: her değişiklikten önceki hâl saklanır (en çok 100 adım, yalnız bu oturumda)
+  const undoStack = [];
+  const redoStack = [];
+  let lastSnap = JSON.stringify(data);
+  function restoreSnap(json) {
+    data = JSON.parse(json);
+    lastSnap = json;
+    current = Math.min(current, data.slides.length - 1);
+    if (selected && !slide().layers.some(l => l.id === selected)) selected = null;
+    dirty = true;
+    shell();
+    markDirty(true);
+  }
+  function undo() { if (!undoStack.length) return toast('Geri alınacak değişiklik yok.', 'info', 1800); redoStack.push(JSON.stringify(data)); restoreSnap(undoStack.pop()); }
+  function redo() { if (!redoStack.length) return toast('Yinelenecek değişiklik yok.', 'info', 1800); undoStack.push(JSON.stringify(data)); restoreSnap(redoStack.pop()); }
+
+  function markDirty(fromHistory = false) {
+    if (!fromHistory) {
+      const now = JSON.stringify(data);
+      if (now !== lastSnap) { undoStack.push(lastSnap); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; lastSnap = now; }
+    }
     dirty = true;
     const b = $('.ed-save'); if (b) b.textContent = 'Kaydet •';
     const st = $('#ed-save-state'); if (st) st.textContent = 'Kaydedilmemiş değişiklik';
@@ -463,7 +488,7 @@ async function renderEditor(view, brand, id, models) {
     const l = layer();
     if (!l) { p.innerHTML = ''; return; }
     const swatches = (key, value) => `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === value ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" data-prop="${key}" value="${esc(value)}" aria-label="Özel renk"></div>`;
-    p.innerHTML = `<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
+    p.innerHTML = `${data.slides.length > 1 ? `<button type="button" class="btn btn-sm w-full mb-3" data-apply-all title="${l.type === 'text' ? 'Yazı stili (font, boyut, renk, hizalama, konum) aynı roldeki yazılara uygulanır; yazının kendisi değişmez' : 'Aynı görsel/şekil öbür slaytlarda da bu hâle gelir; olmayan slayta eklenir'}">${icon('grid')}Tüm slaytlara uygula</button>` : ''}<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
       <div class="row"><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-dup aria-label="Çoğalt" title="Çoğalt">${icon('plus')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil" title="Sil">${icon('trash')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-deselect aria-label="Kapat" title="Kapat">${icon('x')}</button></div></div>
       <div class="stack-sm">
       ${l.type === 'text' ? `
@@ -654,6 +679,83 @@ async function renderEditor(view, brand, id, models) {
 
   const closeMenus = () => view.querySelectorAll('[data-drop]').forEach(d => { d.hidden = true; });
   const addLayer = l => { slide().layers.push(l); setSelected(l.id); markDirty(); redraw(); };
+
+  // 11.8 Tüm slaytlara uygula: seçili katmanın karşılığı öbür slaytlarda bulunur ve aynı hâle getirilir.
+  // Yazı: aynı roldeki yazının stili (metni değil). Görsel: aynı kaynaklı (değiştirildiyse eski kaynaklı) ya da aynı yerdeki
+  // görsel; hiç yoksa slayta eklenir (ör. logo). Şekil/QR: aynı türde ve yakın yerdeki katman.
+  function applyAll() {
+    const src = layer();
+    const near = (a, b) => Math.abs(a.x - b.x) < 60 && Math.abs(a.y - b.y) < 60;
+    const STYLE = ['font', 'weight', 'size', 'color', 'align', 'w', 'x', 'y', 'opacity'];
+    let changed = 0; let added = 0;
+    data.slides.forEach((sl, i) => {
+      if (i === current) return;
+      let match = null;
+      if (src.type === 'text') match = sl.layers.find(l => l.type === 'text' && l.role && l.role === src.role) || sl.layers.find(l => l.type === 'text' && near(l, src));
+      else if (src.type === 'image') match = sl.layers.find(l => l.type === 'image' && (l.src === src.src || (src.prevSrc && l.src === src.prevSrc) || (src.prevAssetId && l.assetId === src.prevAssetId) || (src.assetId && l.assetId === src.assetId))) || sl.layers.find(l => l.type === 'image' && near(l, src) && Math.abs(l.w - src.w) < 80);
+      else match = sl.layers.find(l => l.type === src.type && (l.shape || '') === (src.shape || '') && near(l, src));
+      if (match) {
+        if (src.type === 'text') STYLE.forEach(k => { if (src[k] !== undefined) match[k] = src[k]; });
+        else Object.assign(match, JSON.parse(JSON.stringify(Object.assign({}, src, { id: match.id }))));
+        changed++;
+      } else if (src.type !== 'text') {
+        sl.layers.push(JSON.parse(JSON.stringify(Object.assign({}, src, { id: Math.random().toString(36).slice(2, 10) }))));
+        added++;
+      }
+    });
+    if (!changed && !added) return toast('Öbür slaytlarda bu katmanın karşılığı bulunamadı.', 'info');
+    markDirty();
+    redraw();
+    toast(`${changed} slaytta güncellendi${added ? `, ${added} slayta eklendi` : ''}. Geri almak için Ctrl+Z.`, 'success', 4500);
+  }
+
+  // 11.9 Klavye kısayolları (yazı alanındayken tarayıcının kendi kısayolları çalışır):
+  // Ctrl+C / Ctrl+X katmanı kopyalar / keser, Ctrl+V yapıştırır; panoda görsel varsa (ör. ekrandan kırpılan) tasarıma
+  // görsel olarak eklenir. Ctrl+Z geri al, Ctrl+Y ya da Ctrl+Shift+Z yinele, Ctrl+D çoğalt, Delete sil.
+  let clip = null;
+  const typing = el => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  const alive = () => view.isConnected && $('#stage');
+  const pasteLayer = l => { const c = JSON.parse(JSON.stringify(l)); c.id = Math.random().toString(36).slice(2, 10); c.x += 24; c.y += 24; addLayer(c); };
+  async function pasteImage(file) {
+    try {
+      toast('Görsel ekleniyor…', 'info', 1500);
+      const { asset } = await api.uploadAsset(brand.id, file, 'brand_image', (file.name || 'Yapıştırılan görsel').replace(/\.[^.]+$/, '').slice(0, 80) || 'Yapıştırılan görsel');
+      assetCache = null;
+      const F = format();
+      const img = new Image(); img.src = asset.url; await img.decode().catch(() => {});
+      const k = Math.min(1, (F.w * 0.6) / (img.naturalWidth || F.w), (F.h * 0.6) / (img.naturalHeight || F.h));
+      const w = Math.round((img.naturalWidth || F.w * 0.5) * k); const h = Math.round((img.naturalHeight || F.h * 0.5) * k);
+      addLayer({ id: Math.random().toString(36).slice(2, 10), type: 'image', assetId: asset.id, src: asset.url, x: Math.round((F.w - w) / 2), y: Math.round((F.h - h) / 2), w, h });
+      toast('Görsel tasarıma eklendi (kütüphanede de saklandı).', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+  }
+  const onKey = e => {
+    if (!alive()) return document.removeEventListener('keydown', onKey, true);
+    if (document.querySelector('.modal-backdrop') || typing(document.activeElement)) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const k = e.key.toLowerCase();
+    if (mod && k === 'z' && !e.shiftKey) { e.preventDefault(); return undo(); }
+    if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); return redo(); }
+    if (mod && (k === 'c' || k === 'x') && layer()) {
+      e.preventDefault();
+      clip = JSON.parse(JSON.stringify(layer()));
+      if (k === 'x') { slide().layers = slide().layers.filter(x => x.id !== selected); setSelected(null); markDirty(); redraw(); toast('Katman kesildi; Ctrl+V ile yapıştır.', 'info', 1800); }
+      else toast('Katman kopyalandı; Ctrl+V ile istediğin slayta yapıştır.', 'info', 1800);
+      return;
+    }
+    if (mod && k === 'd' && layer()) { e.preventDefault(); return pasteLayer(layer()); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && layer() && document.activeElement !== $('#stage')) { e.preventDefault(); slide().layers = slide().layers.filter(x => x.id !== selected); setSelected(null); markDirty(); redraw(); }
+  };
+  // Yapıştırma: önce panodaki görsel, yoksa kopyalanan katman. İlham rafı (marka geneli Ctrl+V) düzenleyicide devreye girmez.
+  const onPaste = e => {
+    if (!alive()) return document.removeEventListener('paste', onPaste, true);
+    if (document.querySelector('.modal-backdrop') || typing(e.target) || typing(document.activeElement)) return;
+    const file = [...(e.clipboardData ? e.clipboardData.files : [])].find(f => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
+    if (file) { e.preventDefault(); e.stopImmediatePropagation(); return pasteImage(file); }
+    if (clip) { e.preventDefault(); e.stopImmediatePropagation(); return pasteLayer(clip); }
+  };
+  document.addEventListener('keydown', onKey, true);
+  document.addEventListener('paste', onPaste, true);
   const addAssetLayer = a => { const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
   async function save(btn) {
     post = (await busy(btn, () => api.savePost(brand.id, post.id, { data }))).post;
@@ -741,7 +843,8 @@ async function renderEditor(view, brand, id, models) {
     if (t.closest('[data-layer-dup]') && layer()) { const c = Object.assign(JSON.parse(JSON.stringify(layer())), { id: uid() }); c.x += 30; c.y += 30; return addLayer(c); }
     if (t.closest('[data-layer-del]')) { slide().layers = slide().layers.filter(x => x.id !== selected); setSelected(null); markDirty(); return redraw(); }
     if (t.closest('[data-deselect]')) { setSelected(null); return redraw(); }
-    if (t.closest('[data-replace-image]') && layer()) return pickAsset(a => { Object.assign(layer(), { src: a.url, assetId: a.id }); markDirty(); redraw(); });
+    if (t.closest('[data-replace-image]') && layer()) return pickAsset(a => { const l = layer(); Object.assign(l, { prevSrc: l.prevSrc || l.src, prevAssetId: l.prevAssetId || l.assetId, src: a.url, assetId: a.id }); markDirty(); redraw(); });
+    if (t.closest('[data-apply-all]') && layer()) return applyAll();
     if (t.closest('[data-bg-image]')) return pickAsset(a => { slide().bgImage = Object.assign({ fit: 'cover', dim: 0 }, slide().bgImage || {}, { src: a.url }); markDirty(); drawPanelBody(); redraw(); });
     if (t.closest('[data-bg-remove]')) { delete slide().bgImage; markDirty(); drawPanelBody(); return redraw(); }
     const fit2 = t.closest('[data-bg-fit]');
@@ -763,10 +866,10 @@ async function renderEditor(view, brand, id, models) {
           return youtubePreview(brand, URL.createObjectURL(blob), { title: post.title, logoUrl: logo ? logo.url : null });
         }
         if (a === 'template') {
-          const name = prompt('Şablon adı', post.title);
+          const name = prompt('Şablon adı (boş bırakırsan "Şablon N" olur)', '');
           if (name === null) return;
           if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
-          await api.saveTemplate(brand.id, post.id, name.trim() || post.title);
+          await api.saveTemplate(brand.id, post.id, name.trim());
           toast('Marka şablonu olarak kaydedildi.', 'success');
           if (panel === 'sablonlar') drawPanelBody();
           return;
@@ -803,6 +906,7 @@ async function renderEditor(view, brand, id, models) {
     const png = t.closest('[data-png]');
     if (png) { closeMenus(); return busy(png, () => exportSlides(png.dataset.png, 'download')).catch(err => toast(err.message, 'error')); }
     const dr = t.closest('[data-drive]');
+    if (dr && !driveReady) { closeMenus(); return toast(state.settings && state.settings.drive && state.settings.drive.configured ? 'Bu markanın Drive klasörü yok: Marka kimliği → Profil\'de klasör linkini ekle.' : 'Drive bağlı değil: Ayarlar → Google Drive bölümünden bağla, sonra markanın klasör linkini ekle.', 'info', 6000); }
     if (dr) { closeMenus(); try { await busy(dr, () => exportSlides(dr.dataset.drive, 'drive')); toast('Google Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); } }
   };
   // Kaydedilmemiş değişiklik varken sayfadan ayrılma uyarısı

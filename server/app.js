@@ -653,7 +653,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/posts', (req, res) => res.json({ posts: posts.list(req.brand.id) }));
   api.post('/brands/:brandId/posts', route(async (req, res) => {
     const b = req.body || {};
-    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b) });
+    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b), templateId: b.templateId || null });
     res.status(201).json({ post });
   }));
   api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
