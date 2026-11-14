@@ -46,6 +46,8 @@ import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
 import { createMemoryService } from './services/memory.js';
 import { createBrandSetupService } from './services/brandSetup.js';
+import { createBrandOnboardService } from './services/brandOnboard.js';
+import { CHOICES } from './services/choices.js';
 import { createSharedTemplateService } from './services/sharedTemplates.js';
 import { createPatternService } from './services/patterns.js';
 import { createCompetitorService } from './services/competitors.js';
@@ -139,7 +141,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
   const characterBook = createCharacterBookService({ db, ai, brands, assets });
-  const brandSetup = createBrandSetupService({ db, brands, memory, identity: promptIdentity, characterBook, assets });
+  const brandSetup = createBrandSetupService({ db, brands, memory, identity: promptIdentity, characterBook, assets, reels });
   const dataExport = createDataExportService({ db, brands });
   const igImport = createIgImportService({ db, brands, workspace });
   const captionSets = createCaptionSetService({ db, brands });
@@ -156,9 +158,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const imageTemplates = createImageTemplateService({ prompts, images });
   const designRef = createDesignRefService({ db, ai, brands, assets });
   const assetTags = createAssetTagService({ ai, brands, assets });
-  const thumbnails = createThumbnailService({ ai, brands });
+  const thumbnails = createThumbnailService({ ai, brands, identity: promptIdentity });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
+  const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
   const app = express();
@@ -177,6 +180,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     assetCategories: ASSET_CATEGORIES,
     ideaCategories: IDEA_CATEGORIES,
     ideaFormats: IDEA_FORMATS,
+    choices: CHOICES,
     ideaPlaces: USE_PLACES,
     contentTypes: CONTENT_TYPES,
     contentStatuses: CONTENT_STATUSES,
@@ -649,7 +653,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/posts', (req, res) => res.json({ posts: posts.list(req.brand.id) }));
   api.post('/brands/:brandId/posts', route(async (req, res) => {
     const b = req.body || {};
-    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b) });
+    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b), templateId: b.templateId || null });
     res.status(201).json({ post });
   }));
   api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
@@ -711,6 +715,11 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
 
   // --- 9.3–9.9 Tek akışta marka kurulumu ve Marka dosyası ---
   api.get('/brands/:brandId/setup', (req, res) => res.json(brandSetup.dossier(req.brand.id)));
+  // 11.1–11.4 karşılama sohbeti
+  api.get('/brands/:brandId/onboard', (req, res) => res.json(onboard.state(req.brand.id)));
+  api.post('/brands/:brandId/onboard/absorb', route(async (req, res) => res.json(await onboard.absorb(req.brand.id, Object.assign({}, req.body || {}, { modelRef: mr(req.body || {}) })))));
+  api.put('/brands/:brandId/onboard/answer/:key', (req, res) => res.json(onboard.answer(req.brand.id, req.params.key, req.body || {})));
+  api.post('/brands/:brandId/onboard/finish', route(async (req, res) => res.json(await onboard.finish(req.brand.id, { modelRef: mr(req.body || {}) }))));
   api.put('/brands/:brandId/setup/:step', (req, res) => res.json(brandSetup.save(req.brand.id, req.params.step, req.body || {})));
 
   // --- 7.2 Marka prompt kimliği ---

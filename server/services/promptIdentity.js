@@ -12,6 +12,9 @@ export const IDENTITY_QUESTIONS = [
   { key: 'places', group: 'His', label: 'Sık kullanılan mekânlar', type: 'list', hint: 'Virgülle ayır: ör. kafe içi, kampüs bahçesi, mutfak' },
   { key: 'people', group: 'His', label: 'Görsellerde insanlar kimler olsun?', type: 'text', hint: 'Ör. 20\'li yaşlarda üniversite öğrencileri, gündelik giyim' },
   { key: 'avoid', group: 'His', label: 'Görsellerde asla olmasın', type: 'list', hint: 'Ör. alkol, karanlık mekân, kalabalık' },
+  // 9.5: ürün satan ve YouTube'da yayın yapan markalar için
+  { key: 'productStyle', group: 'Ürün fotoğrafı', label: 'Ürün fotoğrafları nasıl olsun?', type: 'one', options: { studyo: 'Beyaz / düz zemin, stüdyo', ortam: 'Doğal ortamında, kullanılırken', elde: 'Elde tutulan', flatlay: 'Üstten (flat lay) düzenleme', detay: 'Yakın detay çekimi' }, en: { studyo: 'clean studio product shot on a plain seamless background', ortam: 'lifestyle product shot in its natural setting, in use', elde: 'product held in a hand', flatlay: 'top-down flat lay arrangement', detay: 'macro close-up detail shot' } },
+  { key: 'thumbStyle', group: 'YouTube kapağı', label: 'YouTube kapakların nasıl olsun?', type: 'one', options: { yuz: 'Yakın yüz + büyük yazı', minimal: 'Minimal, tek nesne', karsilastirma: 'Karşılaştırma (önce / sonra)', kesik: 'Renkli zemin + kesilmiş figür', metin: 'Yazı ağırlıklı' } },
   { key: 'hasMascot', group: 'Maskot', label: 'Markanın bir maskotu var mı?', type: 'bool' },
   { key: 'mascotName', group: 'Maskot', label: 'Maskotun adı', type: 'text', when: 'hasMascot' },
   { key: 'mascotLook', group: 'Maskot', label: 'Maskot nasıl görünüyor?', type: 'text', when: 'hasMascot', hint: 'Ör. kahve çekirdeği şeklinde, turuncu, kocaman gözlü, kırmızı atkılı' },
@@ -53,6 +56,7 @@ export function identityBlock(idt, kind = 'gorsel') {
   if (idt.colors) lines.push(`Marka renkleri: ${Q.colors.options[idt.colors]}`);
   if (idt.mood) lines.push(`His: ${idt.mood.map(m => en('mood', m)).join(', ')}`);
   if (idt.places) lines.push(`Tercih edilen mekânlar: ${idt.places.join(', ')}`);
+  if (idt.productStyle) lines.push(`Ürün fotoğrafı tarzı: ${en('productStyle', idt.productStyle)}`);
   if (idt.people) lines.push(`İnsanlar: ${idt.people}`);
   if (idt.avoid) lines.push(`Görselde asla olmasın: ${idt.avoid.join(', ')}`);
   if (idt.hasMascot && ['maskot', 'video', 'reels', 'gorsel', 'post', 'reklam'].includes(kind)) {
@@ -80,6 +84,7 @@ export function identityImageLine(idt) {
   if (idt.lighting) l.push(`Lighting: ${en('lighting', idt.lighting)}.`);
   if (idt.camera) l.push(`Framing: ${en('camera', idt.camera)}.`);
   if (idt.mood && idt.mood.length) l.push(`Mood: ${idt.mood.map(m => en('mood', m)).join(', ')}.`);
+  if (idt.productStyle) l.push(`Product photos: ${en('productStyle', idt.productStyle)}.`);
   if (idt.colors === 'yok') l.push('Use natural colors, do not force brand colors.');
   if (idt.avoid && idt.avoid.length) l.push(`Avoid: ${idt.avoid.join(', ')}.`);
   if (idt.noRealPeople) l.push('No real or famous people; all people are fictional and unidentifiable.');

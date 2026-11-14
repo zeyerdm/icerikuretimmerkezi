@@ -5,6 +5,7 @@
 // kitabı); böylece kurulumdan sonra her şey Marka kimliği sayfasında tek yerde görünür ve oradan düzenlenir.
 import { badRequest, notFound, parseJson, HEX } from '../lib/http.js';
 import { transaction } from '../db.js';
+import { TTS_VOICES } from './ai/catalog.js';
 
 export const CHANNELS = { instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', linkedin: 'LinkedIn', facebook: 'Facebook', x: 'X (Twitter)', blog: 'Web sitesi / blog' };
 export const CONTENT_KINDS = { post: 'Tek görselli post', carousel: 'Kaydırmalı post (carousel)', story: 'Hikâye (story)', reels: 'Reels / kısa video', video: 'Uzun video', yazi: 'Yazı / blog' };
@@ -29,6 +30,7 @@ export const STEPS = [
   { id: 'maskot', label: 'Maskot', title: 'Maskotu tanıyalım', applies: s => s.hasMascot === true },
   { id: 'gorseldil', label: 'Görsel dil', title: 'Görseller nasıl olsun?', applies: s => (s.contentKinds || []).some(k => VISUAL.includes(k)) },
   { id: 'video', label: 'Video', title: 'Videolar nasıl çekilsin?', applies: hasVideo },
+  { id: 'youtube', label: 'YouTube', title: 'YouTube kapakların nasıl olsun?', applies: s => (s.channels || []).includes('youtube') },
   { id: 'bilgiler', label: 'Bilgiler', title: 'Yapay zekâ neleri bilmeli?', applies: () => true }
 ];
 const STEP = Object.fromEntries(STEPS.map(s => [s.id, s]));
@@ -37,7 +39,7 @@ const pickKeys = (v, dict) => [...new Set((Array.isArray(v) ? v : []).map(String
 const bool = v => v === true || v === 'true' || v === 'on' || v === 1;
 const lines = v => (Array.isArray(v) ? v : String(v || '').split('\n')).map(x => String(x).trim()).filter(Boolean);
 
-export function createBrandSetupService({ db, brands, memory, identity, characterBook, assets }) {
+export function createBrandSetupService({ db, brands, memory, identity, characterBook, assets, reels = null }) {
   // Maskot cevabının tek doğrusu prompt kimliğidir (Maskot sekmesinden kapatılırsa kurulum da "yok" görür)
   const read = id => {
     const s = Object.assign({ channels: [], contentKinds: [], hasMascot: null, hasPlace: null, done: [] },
@@ -61,6 +63,7 @@ export function createBrandSetupService({ db, brands, memory, identity, characte
     if (stepId === 'maskot') { want(idt.mascotName || book.name, 'Maskotun adı'); want(counts.mascot, 'Maskot pozları'); want(idt.mascotLook || book.lookEn, 'Maskotun görünüşü'); }
     if (stepId === 'gorseldil') { want(idt.visualStyle, 'Görsel stil'); want((idt.mood || []).length, 'His'); }
     if (stepId === 'video') want(idt.camera, 'Kamera dili');
+    if (stepId === 'youtube') want(idt.thumbStyle, 'Kapak tarzı');
     if (stepId === 'bilgiler') want(mem.facts.length, 'En az bir bilgi kartı');
     return n;
   }
@@ -101,6 +104,8 @@ export function createBrandSetupService({ db, brands, memory, identity, characte
         logo: logo ? { id: logo.id, url: logo.url } : null,
         mascots: mascots.slice(0, 12).map(a => ({ id: a.id, url: a.thumbUrl || a.url, label: a.label })),
         questions: identity.questions,
+        voice: reels ? reels.settings(b.id) : null,
+        voices: reels ? TTS_VOICES : {},
         options: { channels: CHANNELS, contentKinds: CONTENT_KINDS }
       });
     },
@@ -116,8 +121,9 @@ export function createBrandSetupService({ db, brands, memory, identity, characte
         if (stepId === 'yapi') {
           setup.channels = pickKeys(body.channels, CHANNELS);
           setup.contentKinds = pickKeys(body.contentKinds, CONTENT_KINDS);
-          setup.hasMascot = bool(body.hasMascot);
-          setup.hasPlace = bool(body.hasPlace);
+          // Gönderilmeyen (null) cevap önceki hâlinde kalır: bir soruyu cevaplamak öbürünü cevaplamış saymaz
+          if (body.hasMascot != null) setup.hasMascot = bool(body.hasMascot);
+          if (body.hasPlace != null) setup.hasPlace = bool(body.hasPlace);
           // Maskot cevabı prompt kimliğiyle aynı kalsın (tek doğru)
           if (Boolean(identity.get(b.id).hasMascot) !== setup.hasMascot) mergeIdentity(b.id, { hasMascot: setup.hasMascot });
           // Artık geçerli olmayan adımlar tamamlanmış sayılmaz
@@ -142,8 +148,13 @@ export function createBrandSetupService({ db, brands, memory, identity, characte
           mergeIdentity(b.id, { hasMascot: true, mascotName: name, mascotLook: body.look || '', mascotVoice: body.voice || '', mascotMoves: body.moves || '', mascotNever: never.join('; ') });
           characterBook.set(b.id, Object.assign({}, characterBook.get(b.id), { name, personality: body.personality || '', speech: lines(body.speech), never }));
         }
-        if (stepId === 'gorseldil') mergeIdentity(b.id, Object.fromEntries(['visualStyle', 'lighting', 'colors', 'mood', 'people', 'avoid'].filter(has).map(k => [k, body[k]])));
-        if (stepId === 'video') mergeIdentity(b.id, Object.fromEntries(['camera', 'places'].filter(has).map(k => [k, body[k]])));
+        if (stepId === 'gorseldil') mergeIdentity(b.id, Object.fromEntries(['visualStyle', 'lighting', 'colors', 'mood', 'people', 'avoid', 'productStyle'].filter(has).map(k => [k, body[k]])));
+        if (stepId === 'video') {
+          mergeIdentity(b.id, Object.fromEntries(['camera', 'places'].filter(has).map(k => [k, body[k]])));
+          // 9.5: Reels seslendirme sesi ve konuşma tarzı
+          if (reels && (has('voice') || has('voiceStyle'))) reels.setSettings(b.id, Object.fromEntries(['voice', 'voiceStyle'].filter(has).map(k => [k, body[k]])));
+        }
+        if (stepId === 'youtube') mergeIdentity(b.id, Object.fromEntries(['thumbStyle'].filter(has).map(k => [k, body[k]])));
         if (stepId === 'bilgiler') {
           const facts = memory.get(b.id).facts;
           for (const [key, slot] of Object.entries(FACT_SLOTS)) {

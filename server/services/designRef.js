@@ -91,7 +91,8 @@ export function createDesignRefService({ db, ai, brands, assets }) {
       delete data.fonts;
       // Şablon olarak kaydedilir; Post stüdyosunda "Bu şablonla başla" ile düzenlenir
       const tplId = newId();
-      const tplName = polish(name).slice(0, 80) || `Referans: ${analysis.mood || 'tasarım'} (${new Date().toLocaleDateString('tr-TR')})`;
+      // 11.10: ad verilmezse sıradaki "Şablon N"
+      const tplName = polish(name).slice(0, 80) || `Şablon ${db.prepare('SELECT COUNT(*) AS n FROM post_templates WHERE brand_id = ?').get(b.id).n + 1}`;
       const kind = data.format === '9:16' ? 'story' : 'post';
       db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(tplId, b.id, tplName, kind, JSON.stringify(Object.assign({ reference: { assetId: String(assetId), analysis } }, data)), now());
       brands.logActivity(b.id, 'design.analyzed', `Tasarım referansı şablona çevrildi: ${tplName}`);

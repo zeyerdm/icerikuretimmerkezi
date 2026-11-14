@@ -3,7 +3,7 @@
 //   Katman 2 — Marka çalışma alanı (#/m/<markaId>/...): markanın kendi renkleri, logosu, maskotu ve alt menüsü
 // Bir markanın teması yalnızca kendi çalışma alanında uygulanır; yönetim merkezine dönünce sabit renklere geçilir.
 import { api } from './api.js';
-import { esc, icon, toast, brandAvatar, applyBrandTheme, errorBox, emptyState, skeletonPage } from './ui.js';
+import { esc, icon, toast, brandAvatar, applyBrandTheme, errorBox, emptyState, skeletonPage, initSuggest } from './ui.js';
 import { renderCenter } from './views/center.js';
 import { renderHome } from './views/home.js';
 import { renderBrands } from './views/brands.js';
@@ -18,7 +18,8 @@ import { renderAi } from './views/ai.js';
 import { renderReels } from './views/reels.js';
 import { renderPosts } from './views/posts.js';
 import { renderPrompts } from './views/prompts.js';
-import { renderIdentity, renderNewBrandSetup } from './views/identity.js';
+import { renderIdentity } from './views/identity.js';
+import { renderOnboard } from './views/onboard.js';
 import { renderLibrary } from './views/library.js';
 import { renderCompetitors } from './views/competitors.js';
 import { bellHtml, openSummary, showDailyOnce, startNotifier } from './reminders.js';
@@ -129,6 +130,7 @@ export function parseRoute(hash = location.hash || '#/') {
     let km;
     if ((km = rest.match(/^\/kimlik(?:\/(profil|gorsel|ses|prompt|maskot)|\/(kurulum|duzenle)(?:\/([a-z]+))?)?$/))) return { layer: 'brand', page: 'kimlik', brandId: id, tab: km[1] || km[2] || 'ozet', step: km[3] || null };
     // Eski adresler: Hafıza ve Prompt kimliği artık Marka kimliğinin sekmeleri
+    if (rest === '/kur') return { layer: 'brand', page: 'kur', brandId: id };
     if (rest === '/hafiza') return { redirect: `#/m/${m[1]}/kimlik/ses` };
     if (rest === '/prompt-kimligi') return { redirect: `#/m/${m[1]}/kimlik/prompt` };
     // Reels: /reels (fikir havuzu), /reels/liste (senaryolar), /reels/<id> (senaryo); Post: /post, /post/<id>
@@ -282,6 +284,7 @@ export async function route() {
       selectBrand(brand.id).catch(() => {});
       if (r.page === 'home') await renderHome(view, brand);
       else if (r.page === 'kimlik') await renderIdentity(view, brand, r.tab, r.step);
+      else if (r.page === 'kur') await renderOnboard(view, brand);
       else if (r.page === 'kutuphane') await renderLibrary(view, brand);
       else if (r.page === 'fikirler') await renderIdeas(view, brand);
       else if (r.page === 'takvim') await renderCalendar(view, { brand });
@@ -300,7 +303,7 @@ export async function route() {
     }
     if (r.page === 'center') { await renderCenter(view); maybeStartTour(); }
     else if (r.page === 'brands') await renderBrands(view);
-    else if (r.page === 'newBrand') await renderNewBrandSetup(view);
+    else if (r.page === 'newBrand') await renderOnboard(view);
     else if (r.page === 'calendar') await renderCalendar(view, {});
     else if (r.page === 'tasks') await renderTasks(view);
     else if (r.page === 'notes') await renderNotes(view);
@@ -336,6 +339,7 @@ async function start() {
   initClientErrors(); // 8.19 tarayıcı hataları hata günlüğüne
   initRadial(); // 8.20 dairesel hızlı menü
   initDrafts(); // 9.1 yarım kalan yazının korunması (yalnız bellekte)
+  initSuggest(); // 11.6 hazır seçenek çipleri
   initInspiration();
   initTrashUndo();
   initFx();

@@ -72,11 +72,11 @@ export function draftsOnRoute() { restored = new Set(); told = false; }
 export const draftCount = () => drafts.size;
 
 export function initDrafts() {
-  document.addEventListener('input', e => { if (eligible(e.target) && e.isTrusted) save(e.target); }, true);
+  document.addEventListener('input', e => { if (eligible(e.target) && (e.isTrusted || e.draftOk)) save(e.target); }, true);
   // Kaydet / Vazgeç / Ekle gibi bir düğme: o bölümün taslakları silinir (kayıt başarısızsa yazı zaten ekranda durur)
   document.addEventListener('click', e => {
     const b = e.target.closest('button, [role="button"]');
-    if (!b || b.closest('.id-tabs, .tabs, .seg, .chip-row')) return;
+    if (!b || b.closest('.id-tabs, .tabs, .seg, .chip-row, .suggest')) return;
     if (b.matches('[data-close]')) return clearIn(b.closest('.modal'));
     // Kaydet düğmesi formun dışında olabilir (ör. alttaki kayıt çubuğu): o sayfanın bütün taslakları silinir
     if (!b.closest('.modal, .ai-panel') && (b.matches('[type="submit"], [data-action="save"]') || /^\s*Kaydet/.test(b.textContent))) {

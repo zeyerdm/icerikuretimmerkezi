@@ -14,10 +14,15 @@ export async function makeThumb(src, max = THUMB_PX) {
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(img.naturalWidth * k));
   c.height = Math.max(1, Math.round(img.naturalHeight * k));
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, c.width, c.height);
   const blob = await new Promise(r => c.toBlob(r, 'image/webp', 0.82));
-  // WebP desteklemeyen tarayıcıda JPEG
-  return blob && blob.type === 'image/webp' ? blob : new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+  if (blob && blob.type === 'image/webp') return blob; // WebP saydamlığı korur
+  // WebP desteklemeyen tarayıcıda: saydam görsel (ör. şeffaf logo) PNG kalır, beyaza dönmez (11.7); diğerleri JPEG
+  const px = ctx.getImageData(0, 0, c.width, c.height).data;
+  let alpha = false;
+  for (let i = 3; i < px.length; i += 4) if (px[i] < 250) { alpha = true; break; }
+  return new Promise(r => c.toBlob(r, alpha ? 'image/png' : 'image/jpeg', 0.85));
 }
 
 // Küçük resmi olmayan büyük görseller için arka planda üretir; bitince onThumb(asset) çağrılır

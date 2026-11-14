@@ -293,14 +293,20 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 - ✅ **9.0 Kimliklerin birleşmesi:** Dijital kimlik, Hafıza, Prompt kimliği ve Maskot artık ayrı sayfalar değil. Tek bir **Marka kimliği** sayfası var; menüde de tek kalem. Sekmeleri: Marka dosyası, Profil, Görsel kimlik, Ses ve hafıza, Prompt kimliği, Maskot. Maskot soruları ve karakter kitabı Maskot sekmesinde toplandı. Eski adresler (/hafiza, /prompt-kimligi) yeni sekmelere yönlenir. Profil ile Görsel kimlik arasında geçişte kaydedilmemiş yazı kaybolmaz.
 - ✅ **9.3 Marka kurulum sihirbazı (tek yer, adım adım):** Her adım ayrı sayfa. Adım çubuğu, Geri, "Şimdilik atla" ve "Kaydet ve devam et" var. Yeni marka doğrudan sihirbazla açılır.
 - ✅ **9.4 İlk sorular:** Ne markası (ad, sektör, açıklama, slogan)? Hangi kanallar? Hangi içerik türleri? Maskotu var mı? Müşterinin geldiği bir mekân var mı?
-- 🟡 **9.5 Cevaba göre dallanan sorular:** Yapılanlar:
+- ✅ **9.5 Cevaba göre dallanan sorular:** Tamamlandı. Kalan kısımlar da yapıldı:
+  - Video adımında seslendirme sesi ve konuşma tarzı soruluyor; Reels ayarlarına yazılıyor.
+  - YouTube kanalı seçilince ayrı bir YouTube adımı açılıyor ve kapak tarzı soruluyor; kapak fikirleri bu tarza göre öneriliyor.
+  - Görsel dil adımında ürün fotoğrafı tarzı soruluyor; prompt kimliğine ve görsel istemine giriyor.
+  - Temel adımda "Metinden doldur (AI)" düğmesi var; ayrıca karşılama sohbeti metin okuyor.
+  
+  Önceki not: Yapılanlar:
   - Maskot varsa Maskot adımı açılır: adı, görünüşü, kişiliği, konuşması, hareketi, yapmadıkları ve pozlar.
   - Görsel içerik varsa Görsel dil adımı açılır: stil, ışık, renk kullanımı, his, insanlar, kaçınılanlar.
   - Reels, video, TikTok ya da YouTube varsa Video adımı açılır: kamera dili ve mekânlar.
   - Mekân varsa adres ve çalışma saatleri sorulur.
   - Maskot "yok" olunca maskot adımı kapanır.
   - **Kalan:** seslendirme sesi, YouTube kapak tarzı, ürün fotoğrafı tercihleri ve sihirbaz içinden metinden AI ile ön doldurma. Bu ön doldurma şimdilik Profil sekmesinde.
-- 🟡 **9.6 İhtiyaçların istenmesi:** Logo ve maskot pozları adımın içinde yüklenir ve kütüphaneye doğru kategoriyle gider. Yükleme yazılanları silmez. Her adımın eksikleri (logo, ana renk, fontlar, pozlar…) kayıtlı veriden hesaplanır. **Kalan:** örnek görseller ve beğenilen içerik örnekleri.
+- ✅ **9.6 İhtiyaçların istenmesi:** Tamamlandı. Görsel dil adımında beğenilen görsel ve içerik örnekleri yükleniyor (Referanslar). Karşılama sohbetinde de bütün dosyalar baştan isteniyor. Önceki not: Logo ve maskot pozları adımın içinde yüklenir ve kütüphaneye doğru kategoriyle gider. Yükleme yazılanları silmez. Her adımın eksikleri (logo, ana renk, fontlar, pozlar…) kayıtlı veriden hesaplanır. **Kalan:** örnek görseller ve beğenilen içerik örnekleri.
 - ✅ **9.7 Kaldığı yerden devam:** Her adım kaydedilir. "Kurulum sihirbazı" ilk tamamlanmamış adımdan açılır. Cevaplar markanın asıl kayıtlarına yazılır; tek kaynak bunlar: profil, hafıza, prompt kimliği, karakter kitabı. Maskot cevabının tek doğrusu prompt kimliği.
 - ✅ **9.8 Marka dosyası:** Bütün kimlik tek sayfada, bölüm bölüm durur. Her bölümde "Tamam" ya da "N eksik" işareti, bir "Düzenle" düğmesi (sihirbazın aynı sayfası; kaydedince geri döner) ve bir "Ayrıntılı" sekme bağlantısı var.
 - ✅ **9.9 Eksikleri tamamla:** Marka dosyasındaki düğme önce atlanan, sonra eksiği olan adımı açar.
@@ -360,26 +366,38 @@ Amaç: Prompt'un model ne olursa olsun aynı kalan sabit bir **kemiği** olsun. 
 ## Aşama 11 — Kullanıcının yeni istekleri (4. tur, sırayla)
 
 **A. Önce elindekileri at, AI doldursun, yalnız eksikleri sorsun**
-- ⬜ **11.1 Toplu yükleme ile başlangıç:** Marka kurulurken ilk adım soru değil, bir yükleme alanıdır. Buraya elde ne varsa atılır: logo, maskot görselleri, renk paleti ya da marka kılavuzu, tasarım referansları, içerik fikirleri listesi, web sitesi ya da biyografi metni. Yapay zekâ bunlardan doldurabileceği her şeyi kendisi doldurur: maskotun görünüşü ve renkleri, renk paleti, fontlar (görülebiliyorsa), sektör, ton, kitle. Kullanıcı sonra kontrol eder.
-- ⬜ **11.2 Kalıp sorular değil, yalnız eksikler:** Sihirbaz sabit bir soru listesi göstermez; yalnız eksik kalanı sorar. Maskot görseli atıldıysa "maskotun var mı?" sorulmaz. Renk paleti belliyse renk, logo atıldıysa logo istenmez. Boş alan doldurtmak yerine bulunanı gösterip onay istenir.
-- ⬜ **11.3 Marka kurarken yapay zekâ ile karşılama sohbeti:** Yönetim merkezinde "Marka kur" seçilince ilk karşılayan şey bir sohbettir. Bu yalnız marka ilk kurulurken olur, siteye her girişte değil. Sohbet adım adım şunları ister: markanın adı, logosu, maskotu (varsa), renk paleti, nasıl içerik üretileceği (kanallar, türler), varsa içerik fikirleri. Cevaplar ve dosyalar doğrudan Marka kimliğine yazılır. Önce marka konumlandırması düzgünce yapılır; sosyal medya yöneticisinin ayrıntıları sonra gelir.
-- ⬜ **11.4 Boş karşılamasın:** Kurulum bitince kullanıcı boş sayfalarla karşılaşmaz.
+- ✅ **11.1 Toplu yükleme ile başlangıç:** (views/onboard.js, services/brandOnboard.js) Görseller türü tahmin edilerek alınır (dosya adından; yanlışsa seçilir) ve kütüphanede doğru yere gider. Renkler tarayıcıda logodan ya da paletten çıkarılır. AI bağlıysa yapıştırılan metinden boş profil alanları, maskot görsellerinden karakter kitabı doldurulur. Fikirler türü tahmin edilerek havuza girer. Önceki tanım: Marka kurulurken ilk adım soru değil, bir yükleme alanıdır. Buraya elde ne varsa atılır: logo, maskot görselleri, renk paleti ya da marka kılavuzu, tasarım referansları, içerik fikirleri listesi, web sitesi ya da biyografi metni. Yapay zekâ bunlardan doldurabileceği her şeyi kendisi doldurur: maskotun görünüşü ve renkleri, renk paleti, fontlar (görülebiliyorsa), sektör, ton, kitle. Kullanıcı sonra kontrol eder.
+- ✅ **11.2 Kalıp sorular değil, yalnız eksikler:** Sohbet yalnız boş kalan bilgileri sorar. Cevaplanan ya da geçilen soru tekrar sorulmaz. Önceki tanım: Sihirbaz sabit bir soru listesi göstermez; yalnız eksik kalanı sorar. Maskot görseli atıldıysa "maskotun var mı?" sorulmaz. Renk paleti belliyse renk, logo atıldıysa logo istenmez. Boş alan doldurtmak yerine bulunanı gösterip onay istenir.
+- ✅ **11.3 Karşılama sohbeti:** "Yeni marka" ve ilk açılış artık sohbetle başlıyor. Yarıda bırakılırsa #/m/<id>/kur adresiyle kaldığı yerden devam eder. Önceki tanım: Yönetim merkezinde "Marka kur" seçilince ilk karşılayan şey bir sohbettir. Bu yalnız marka ilk kurulurken olur, siteye her girişte değil. Sohbet adım adım şunları ister: markanın adı, logosu, maskotu (varsa), renk paleti, nasıl içerik üretileceği (kanallar, türler), varsa içerik fikirleri. Cevaplar ve dosyalar doğrudan Marka kimliğine yazılır. Önce marka konumlandırması düzgünce yapılır; sosyal medya yöneticisinin ayrıntıları sonra gelir.
+- ✅ **11.4 Boş karşılamasın:** "Kurulumu bitir" fikir havuzunu yaklaşık 9 fikre kadar benzerleriyle doldurur ve ilk tasarım referansından örnek şablon çıkarır (AI gerekir; yoksa açıkça söyler). Önceki tanım: Kurulum bitince kullanıcı boş sayfalarla karşılaşmaz.
   - Girilen içerik fikirlerinden (ör. 3 tane) yapay zekâ benzerlerini üretir ve içerik havuzu dolu gelir.
   - Tasarım referansı atıldıysa o referansa göre örnek bir tasarım (şablon) üretilir.
   - Kullanıcı ilk girdiğinde örnek fikirler ve örnek tasarımla karşılaşır, üzerinde iyileştirme yapar.
-- ⬜ **11.5 Bir yerde sor, tekrar sorma:** Aynı bilgi birden fazla yerde istenmez. Örnek: "kullanılmaması gereken kelimeler" şu an üç yerde soruluyor (kurulum Ses adımı, Ses ve hafıza, Prompt kimliği kontrol kuralları). Bütün formlar taranır; tekrar eden alanlar tek bir alana bağlanır ve her yerde aynı değeri gösterir. Sorulmuş bir şey yeniden sorulmaz.
-- ⬜ **11.6 Hazır seçenekler + "Diğer":** Kullanıcı fazla düşünmesin diye serbest metin yerine her soruda hazır seçenekler bulunur, özel durum için de bir "Diğer" alanı olur. Kullanılmaması gereken kelimeler için örnek seçenekler: ünlü ve gerçek kişi adları, rakip marka adları, argo ve küfür, abartılı fiyat ya da indirim vaadi, siyasi ve dini ifadeler, sağlık vaadi. Bu düzen bütün kurulum ve kimlik sorularına uygulanır: ton, kitle, hedef, maskot kişiliği vb.
-- ⬜ **11.7 Şeffaf logo şeffaf kalsın:** Şeffaf zeminli (PNG) logo beyaz zeminle gösterilmez. Kütüphane, Marka dosyası, önizlemeler, post tasarımı ve kapaklarda logonun arkasına renk konmaz.
+- ✅ **11.5 Bir yerde sor, tekrar sorma:** Yasaklı kelimeler ve sevilen ifadeler yalnız Ses ve hafızada tutuluyor. Kurulum sihirbazının Ses adımı ve Prompt kimliği artık bunları sormuyor; o sayfaya bağlantı veriyor. Prompt kimliğindeki "şu isimler geçmesin" kaldırıldı, eski değerler etkin kalıyor. Karşılama sohbeti sorulmuş bir şeyi tekrar sormuyor. Önceki tanım: Aynı bilgi birden fazla yerde istenmez. Örnek: "kullanılmaması gereken kelimeler" şu an üç yerde soruluyor (kurulum Ses adımı, Ses ve hafıza, Prompt kimliği kontrol kuralları). Bütün formlar taranır; tekrar eden alanlar tek bir alana bağlanır ve her yerde aynı değeri gösterir. Sorulmuş bir şey yeniden sorulmaz.
+- ✅ **11.6 Hazır seçenekler + "Diğer":** Sihirbazda, Profil sekmesinde ve karşılama sohbetinde sektör, kitle, hedef, karakter, ton ve maskot kişiliği soruları için tıklanınca alana eklenen öneri çipleri var. Ses ve hafızada yasaklı kelime seçenekleri var. Alanın kendisi "Diğer" olarak serbest. Seçenekler server/services/choices.js içinde. Önceki tanım: Kullanıcı fazla düşünmesin diye serbest metin yerine her soruda hazır seçenekler bulunur, özel durum için de bir "Diğer" alanı olur. Kullanılmaması gereken kelimeler için örnek seçenekler: ünlü ve gerçek kişi adları, rakip marka adları, argo ve küfür, abartılı fiyat ya da indirim vaadi, siyasi ve dini ifadeler, sağlık vaadi. Bu düzen bütün kurulum ve kimlik sorularına uygulanır: ton, kitle, hedef, maskot kişiliği vb.
+- ✅ **11.7 Şeffaf logo şeffaf kalsın:** Logonun arkasındaki beyaz ve marka rengi zemin kaldırıldı: kenar menüsündeki marka simgesi, post önizlemesi, Marka dosyası. Kütüphanede ve ayrıntıda saydamlık dama deseniyle gösteriliyor. Küçük resimler WebP olarak üretiliyor; WebP olmayan tarayıcıda saydam görsel artık JPEG değil PNG kaydediliyor, beyaza dönmüyor. Önceki tanım: Şeffaf zeminli (PNG) logo beyaz zeminle gösterilmez. Kütüphane, Marka dosyası, önizlemeler, post tasarımı ve kapaklarda logonun arkasına renk konmaz.
 
 **B. Post stüdyosu**
-- ⬜ **11.8 "Tüm sayfalara uygula":** Bir slaytta yapılan değişiklik (ör. logo değişimi, konumu, rengi, fontu) tek tuşla carousel'in bütün slaytlarına uygulanabilir. Örnek: 6 sayfalık postta logo değişince öbür 5 sayfada da değişsin.
-- ⬜ **11.9 Klavye kısayolları kesin çalışsın:** Düzenleyicide Ctrl+C, Ctrl+V, Ctrl+X ve Ctrl+Z çalışır. Ekrandan kırpılıp panoya alınan görsel Ctrl+V ile doğrudan posta yapışır (marka genelindeki ilham rafına değil, açık tasarıma).
-- ⬜ **11.10 Referans görselden AI ile post, adlandırılmış şablonlar:**
+- ✅ **11.8 "Tüm sayfalara uygula":** Seçili katmanın panelinde düğme var.
+  - Yazıda aynı roldeki yazıların stili değişir (font, boyut, renk, hizalama, konum); metinleri değişmez.
+  - Görselde aynı kaynaklı görseller değişir; görsel değiştirildiyse eski kaynaklılar da bulunur. Görsel bir slaytta hiç yoksa o slayta eklenir (ör. logo).
+  - Şekil ve QR'da aynı türdeki ve yakın konumdaki katmanlar değişir.
+  - İşlem Ctrl+Z ile geri alınır.
+  
+  Önceki tanım: Bir slaytta yapılan değişiklik (ör. logo değişimi, konumu, rengi, fontu) tek tuşla carousel'in bütün slaytlarına uygulanabilir. Örnek: 6 sayfalık postta logo değişince öbür 5 sayfada da değişsin.
+- ✅ **11.9 Klavye kısayolları:** Düzenleyicide yazı alanı dışında şu kısayollar çalışıyor:
+  - Ctrl+C / Ctrl+X: katmanı kopyalar / keser.
+  - Ctrl+V: panoda görsel varsa (ör. ekrandan kırpılan) görseli tasarıma ekler ve kütüphanede saklar; yoksa kopyalanan katmanı yapıştırır. Bu sırada marka genelindeki ilham rafı devreye girmez.
+  - Ctrl+Z geri alır (son 100 adım); Ctrl+Y ya da Ctrl+Shift+Z yineler.
+  - Ctrl+D çoğaltır; Delete siler.
+  
+  Önceki tanım: Düzenleyicide Ctrl+C, Ctrl+V, Ctrl+X ve Ctrl+Z çalışır. Ekrandan kırpılıp panoya alınan görsel Ctrl+V ile doğrudan posta yapışır (marka genelindeki ilham rafına değil, açık tasarıma).
+- ✅ **11.10 Referanstan şablon, adlandırılmış şablonlar:** "Referanstan şablon" zaten vardı (AI tasarımı okuyup şablona çevirir). Ad verilmezse şablonlar "Şablon 1, Şablon 2…" diye adlanıyor. "Konudan üret"te ve "Havuzdan fikir çek"te şablon seçilebiliyor; metin seçilen şablonun yerleşimine yazılıyor. Önceki tanım:
   - Post üretiminde referans görsel atılıp yapay zekânın ona göre oluşturması beklenebilir.
   - Beğenilen post şablon olarak kaydedilir ve adlandırılır (Şablon 1, Şablon 2…).
   - "Fikirden post üret"te hangi şablonla üretileceği seçilir (10.8 ile birlikte gözden geçirilir).
-- ⬜ **11.11 Slaytı Drive'a gönder:** "Bu slaytı indir" ile birlikte "Bu slaytı Drive'a gönder" ve "Bütün slaytları Drive'a gönder" her yerde bulunur. Eksik olduğu yer varsa eklenir.
-- ⬜ **11.12 Sabit açılış ve kapanış tasarımları:** Bir kez tasarlanan açılış (kapak) ve kapanış slaytı "tüm üretimlerde kullan" ile her yeni carousel'e kendiliğinden eklenir. Prompt ile küçük değişiklikler istenebilir, örneğin "bunun başlığını değiştir". Böylece markanın standart tasarımları oluşur.
+- ✅ **11.11 Slaytı Drive'a gönder:** Paylaş menüsünde "Bu slaytı Drive'a gönder" ve "Bütün slaytları Drive'a gönder" artık her zaman görünüyor. Drive bağlı değilse ya da markanın klasörü yoksa ne yapılacağını söylüyor. Görsel, prompt, kapak ve kütüphanede de Drive düğmesi var. Önceki tanım: "Bu slaytı indir" ile birlikte "Bu slaytı Drive'a gönder" ve "Bütün slaytları Drive'a gönder" her yerde bulunur. Eksik olduğu yer varsa eklenir.
+- ✅ **11.12 Sabit açılış ve kapanış:** Bir şablon "Eşleştir / açılış-kapanış" penceresinden açılış ya da kapanış slaytı yapılıyor. Bundan sonra üretilen her carousel'in başına ve sonuna bu slaytlar kendiliğinden ekleniyor; konudan üretimde, fikirden üretimde ve şablonla üretimde aynı. "Başlık her postta konuya göre değişsin" seçilirse açılışta post başlığı, kapanışta harekete çağrı yazılıyor. Bir markada tek açılış ve tek kapanış olur. Önceki tanım: Bir kez tasarlanan açılış (kapak) ve kapanış slaytı "tüm üretimlerde kullan" ile her yeni carousel'e kendiliğinden eklenir. Prompt ile küçük değişiklikler istenebilir, örneğin "bunun başlığını değiştir". Böylece markanın standart tasarımları oluşur.
 
 ## Aşama 6 — İleride
 

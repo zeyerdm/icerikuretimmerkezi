@@ -9,7 +9,8 @@ import { openRecipes } from '../recipes.js';
 export async function renderPromptIdentity(view, brand) {
   const { identity, questions: all } = await api.promptIdentity(brand.id);
   // Maskot soruları Marka kimliği → Maskot sekmesinde; burada kaydederken onlar korunur (birleştirilerek yazılır)
-  const questions = all.filter(q => q.group !== 'Maskot');
+  // 11.5: "şu isimler geçmesin" Ses ve hafızadaki yasaklı kelimelerle aynı şey; orada tek yerde sorulur
+  const questions = all.filter(q => q.group !== 'Maskot' && q.key !== 'forbidNames');
   let idt = Object.assign({}, identity);
   const groups = [...new Set(questions.map(q => q.group))];
 
@@ -31,6 +32,7 @@ export async function renderPromptIdentity(view, brand) {
   view.innerHTML = `
     ${identityHead(brand, 'prompt', `${esc(brand.name)} için görsel dil, his ve kontrol kuralları. Prompt Studio'daki her üretim bu tercihlere göre yazılır; model değişse de yapı aynı kalır.`)}
     <div class="row mb-4"><button type="button" class="btn" data-pi-recipes>${icon('star')}Tariflerden başlat</button><button type="button" class="btn" data-pi-save-recipe>${icon('pin')}Tarif olarak kaydet</button></div>
+    <p class="small muted mb-3">Metinlerde kullanılmaması gereken kelime ve isimler tek yerde: <a href="#/m/${esc(brand.id)}/kimlik/ses">Ses ve hafıza</a>. Maskot soruları Maskot sekmesinde.</p>
     <form id="pi-form" class="stack">
       ${groups.map(g => `<section class="card"><div class="card-head"><h3>${esc(g)}</h3></div><div class="stack-sm">${questions.filter(q => q.group === g).map(field).join('')}</div></section>`).join('')}
       <div class="save-bar card"><span class="small muted">Boş bıraktığın sorular üretimi etkilemez.</span><button class="btn btn-primary" type="submit">${icon('check')}Kaydet</button></div>
