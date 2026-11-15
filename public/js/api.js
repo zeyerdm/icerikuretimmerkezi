@@ -252,6 +252,7 @@ export const api = {
   onboardAbsorb: (id, body) => request('POST', b(id) + '/onboard/absorb', body),
   onboardAnswer: (id, key, body) => request('PUT', `${b(id)}/onboard/answer/${encodeURIComponent(key)}`, body),
   onboardFinish: (id, body = {}) => request('POST', b(id) + '/onboard/finish', body),
+  onboardEnrich: id => request('POST', b(id) + '/onboard/enrich', {}),
   saveSetupStep: (id, step, body) => request('PUT', `${b(id)}/setup/${step}`, body),
   draftCharacterBook: id => request('POST', b(id) + '/character-book/draft', {}),
   deletePost: (id, pid) => request('DELETE', `${b(id)}/posts/${pid}`),
