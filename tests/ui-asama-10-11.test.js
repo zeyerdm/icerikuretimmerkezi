@@ -399,3 +399,21 @@ test('Havuzdan fikir: beğenmedim → havuzdan sil (yenisi gelir), beğendim →
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('İçerik fikirleri: her kartta görünür sil düğmesi; onaydan sonra fikir çöp kutusuna gider', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Sil Fikir' })).data.brand;
+  const idea = (await srv.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Silinecek fikir', category: 'egitici' })).data.idea;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/fikirler`);
+    const btn = page.locator(`.ic-foot [data-del="${idea.id}"]`);
+    await btn.waitFor();
+    assert.ok(await btn.isVisible(), 'menü açmadan görünür');
+    page.once('dialog', d => d.accept());
+    await btn.click();
+    await page.waitForFunction(() => !document.querySelector('.idea-card'));
+    assert.equal((await srv.request('GET', `/api/brands/${b.id}/ideas?status=hepsi`)).data.ideas.length, 0);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
