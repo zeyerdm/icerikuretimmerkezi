@@ -580,6 +580,14 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(r.id, b.id, n, p.kind, JSON.stringify(data), r.created_at);
       return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(r.id));
     },
+    // Şablona özel ad (ör. "Haftalık ipucu", "Bayram tasarımı")
+    renameTemplate(brandId, templateId, { name } = {}) {
+      const b = brands.get(brandId);
+      const n = text(name, { field: 'Şablon adı', max: 80, required: true });
+      const r = db.prepare('UPDATE post_templates SET name = ? WHERE id = ? AND brand_id = ?').run(n, String(templateId), b.id);
+      if (!r.changes) throw notFound('Şablon bulunamadı.');
+      return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(String(templateId)));
+    },
     removeTemplate(brandId, templateId) {
       const b = brands.get(brandId);
       const r = db.prepare('DELETE FROM post_templates WHERE id = ? AND brand_id = ?').run(String(templateId), b.id);

@@ -130,9 +130,11 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
           try { const r = await withLimit(ideas.similar(brandId, seed.id, { count: 3, modelRef }), 'Fikir üretimi'); if (r.ideas.length) push('found', `"${seed.title}" fikrinin ${r.ideas.length} benzeri havuza eklendi`); } catch (err) { push('notes', `Fikir üretilemedi: ${err.message}`); break; }
         }
       })());
-      const ref = (st0.references || []).find(id => assets.list(brandId).some(a => a.id === id));
+      // Bütün referanslar birlikte incelenir: kapak, ara ve kapanış slaytlı tek şablon
+      const refs = (st0.references || []).filter(id => assets.list(brandId).some(a => a.id === id)).slice(0, 6);
+      const ref = refs[0];
       if (ref) {
-        jobs.push(withLimit(designRef.analyze(brandId, { assetId: ref, modelRef, name: 'Örnek tasarım (referanstan)' }), 'Örnek tasarım').then(r => {
+        jobs.push(withLimit(designRef.analyze(brandId, { assetId: ref, assetIds: refs, modelRef, name: 'Örnek tasarım (referanstan)' }), 'Örnek tasarım').then(r => {
           push('found', `Referansından "${r.template.name}" şablonu hazırlandı (Post stüdyosu)`);
         }).catch(err => push('notes', `Örnek tasarım hazırlanamadı: ${err.message}`)));
       }

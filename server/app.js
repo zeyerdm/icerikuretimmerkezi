@@ -666,6 +666,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.delete('/shared-templates/:tid', (req, res) => { shared.remove(req.params.tid); res.status(204).end(); });
   api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
+  api.put('/brands/:brandId/post-templates/:tid', (req, res) => res.json({ template: posts.renameTemplate(req.brand.id, req.params.tid, req.body || {}) }));
   api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
   api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, slides: b.slides || null, modelRef: mr(b) })); }));
   api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
@@ -746,7 +747,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // --- Tasarım referansı analizi ---
   api.post('/brands/:brandId/design-ref', route(async (req, res) => {
     const b = req.body || {};
-    res.status(201).json(await designRef.analyze(req.brand.id, { assetId: b.assetId, modelRef: mr(b), name: b.name }));
+    res.status(201).json(await designRef.analyze(req.brand.id, { assetId: b.assetId, assetIds: b.assetIds, modelRef: mr(b), name: b.name }));
   }));
 
   // --- Prompt Studio ---
