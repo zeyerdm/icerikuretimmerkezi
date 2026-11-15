@@ -229,6 +229,12 @@ function cleanLayer(l) {
   const num = (v, min, max, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : d; };
   const out = { id: String(l.id || newId().slice(0, 8)).slice(0, 16), type: l.type, x: num(l.x, -2000, 4000, 0), y: num(l.y, -2000, 4000, 0) };
   if (l.opacity != null && Number(l.opacity) < 100) out.opacity = num(l.opacity, 0, 100, 100);
+  // Katmanlar paneli: gizli, kilitli, özel ad
+  if (l.hidden) out.hidden = true;
+  if (l.locked) out.locked = true;
+  if (polish(l.name)) out.name = polish(l.name).slice(0, 40);
+  const fx = (k, min, max) => { if (l[k] != null && l[k] !== '' && Number.isFinite(Number(l[k]))) out[k] = Math.min(max, Math.max(min, Math.round(Number(l[k]) * 100) / 100)); };
+  const col = k => { if (HEX.test(l[k] || '')) out[k] = l[k]; };
   if (l.type === 'text') {
     Object.assign(out, { role: String(l.role || 'text').slice(0, 12), text: String(l.text || '').slice(0, 1000), w: num(l.w, 40, 2000, 800), size: num(l.size, 10, 300, 40),
       color: HEX.test(l.color || '') ? l.color : '#1b1f3b', font: polish(l.font).slice(0, 40) || 'Inter', weight: [400, 500, 600, 700, 800, 900].includes(Number(l.weight)) ? Number(l.weight) : 700,
@@ -236,12 +242,23 @@ function cleanLayer(l) {
     if (HEX.test(l.highlight || '')) out.highlight = l.highlight; // *vurgulu* kelimelerin rengi
     // Şablon kutusu yüksekliği: uzun metin bu yüksekliğe sığana kadar küçültülür
     if (Number(l.maxH) > 0) out.maxH = num(l.maxH, 20, 4000, 200);
+    // Yazı efektleri: satır/harf aralığı, büyük harf, gölge, dış çizgi, arka kutu
+    fx('lineHeight', 0.7, 3); fx('letterSpacing', -10, 60);
+    if (l.upper) out.upper = true;
+    fx('shadow', 0, 80); col('shadowColor'); fx('shadowX', -60, 60); fx('shadowY', -60, 60);
+    fx('strokeW', 0, 40); col('strokeColor');
+    col('bgColor'); fx('bgPad', 0, 120); fx('bgRadius', 0, 200);
   } else if (l.type === 'image') {
     // Yalnızca bu uygulamadaki varlık dosyaları (dış adresten görsel çekilmez)
     if (!ASSET_SRC.test(String(l.src || ''))) throw badRequest('Görsel katmanı kütüphanedeki bir dosya olmalı.');
     Object.assign(out, { src: l.src, assetId: l.assetId ? String(l.assetId).slice(0, 40) : null, w: num(l.w, 10, 4000, 300), h: num(l.h, 10, 4000, 300) });
     if (l.align === 'left' || l.align === 'right') out.align = l.align; // kutu içinde sola/sağa yaslı (logo)
     if (['logo', 'mascot'].includes(l.role)) out.role = l.role; // şablonda "maskot yeri": her postta poza göre değişir
+    // Görsel ayarları: kutuyu doldur (taşanı kırp), köşe, daire, ayna, filtreler, gölge
+    if (l.fit === 'cover') out.fit = 'cover';
+    fx('radius', 0, 2000); if (l.circle) out.circle = true; if (l.flipX) out.flipX = true;
+    fx('brightness', 0, 200); fx('contrast', 0, 200); fx('saturate', 0, 200); fx('grayscale', 0, 100); fx('blur', 0, 30);
+    fx('shadow', 0, 80); col('shadowColor');
   } else if (l.type === 'qr') {
     // QR kod: metin/link kare olarak çizilir (beyaz sessiz bölge her zaman eklenir, okunabilirlik için)
     const text = String(l.text || '').trim().slice(0, 200);
