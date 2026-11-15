@@ -351,6 +351,8 @@ async function renderGrid(view, brand) {
 // ------------------------------------------------------------ Tasarım referansı → şablon
 // Örnek tasarım (kütüphanedeki "Tasarım referansı" görselleri ya da yeni yüklenen) görseli okuyabilen modelle incelenir;
 // renk paleti, font önerisi ve yerleşim çıkarılıp düzenlenebilir şablon olarak kaydedilir.
+const refCard = (a, on) => `<div class="asset-wrap"><button type="button" class="asset asset-pick ${on ? 'is-picked' : ''}" data-ref-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.thumbUrl || a.url)}" alt=""></div><div class="meta small">${esc(a.label || 'Referans')}</div></button>
+  <button type="button" class="asset-del" data-ref-del="${esc(a.id)}" aria-label="${esc(a.label || 'Referans')} referansını sil" title="Sil">${icon('trash')}</button></div>`;
 async function referenceFlow(brand, models, refresh) {
   let refs;
   try { refs = (await api.assets(brand.id, 'reference')).assets; } catch (err) { return toast(err.message, 'error'); }
@@ -358,7 +360,8 @@ async function referenceFlow(brand, models, refresh) {
   const m = openModal({
     title: 'Referanstan şablon', submitLabel: 'İncele ve şablona çevir',
     body: `<p class="small muted mb-3">Beğendiğin bir tasarımın ekran görüntüsünü seç ya da yükle. Model renk paletini, font benzerlerini ve yerleşimi çıkarır; metinler kopyalanmaz, görsel alanlarına markanın kendi logo ve maskotu konur.</p>
-      <div class="asset-grid" id="ref-grid">${refs.map(a => `<button type="button" class="asset asset-pick ${a.id === picked ? 'is-picked' : ''}" data-ref-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.thumbUrl || a.url)}" alt=""></div><div class="meta small">${esc(a.label || 'Referans')}</div></button>`).join('')}</div>
+      <div class="asset-grid" id="ref-grid">${refs.map(a => refCard(a, a.id === picked)).join('')}</div>
+      <p class="xsmall muted mt-1" id="ref-empty" ${refs.length ? 'hidden' : ''}>Henüz referans yok; aşağıdan yükle.</p>
       <label class="btn btn-sm mt-3">${icon('upload')}Yeni referans yükle<input type="file" id="ref-file" accept="image/png,image/jpeg,image/webp" class="sr-only"></label>
       <div class="form-grid mt-3">
         <div class="field"><label for="ref-name">Şablon adı</label><input class="input" id="ref-name" name="name" maxlength="80" placeholder="Ör. Minimal duyuru"></div>
@@ -371,7 +374,20 @@ async function referenceFlow(brand, models, refresh) {
       showResult(res);
     }
   });
-  m.form.addEventListener('click', e => {
+  m.form.addEventListener('click', async e => {
+    const del = e.target.closest('[data-ref-del]');
+    if (del) {
+      e.preventDefault();
+      const card = del.closest('.asset-wrap');
+      if (!confirm(`"${card.querySelector('.meta').textContent}" referansı silinsin mi? Çöp kutusuna gider, Ctrl+Z ile geri alabilirsin.`)) return;
+      try {
+        await api.deleteAsset(brand.id, del.dataset.refDel);
+        card.remove();
+        if (picked === del.dataset.refDel) { const first = m.form.querySelector('[data-ref-pick]'); picked = first ? first.dataset.refPick : null; if (first) first.classList.add('is-picked'); }
+        m.form.querySelector('#ref-empty').hidden = Boolean(m.form.querySelector('[data-ref-pick]'));
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const b = e.target.closest('[data-ref-pick]');
     if (!b) return;
     picked = b.dataset.refPick;
@@ -384,7 +400,8 @@ async function referenceFlow(brand, models, refresh) {
       const { asset } = await api.uploadAsset(brand.id, file, 'reference', file.name.replace(/\.[^.]+$/, '').slice(0, 80));
       picked = asset.id;
       m.form.querySelectorAll('[data-ref-pick]').forEach(x => x.classList.remove('is-picked'));
-      m.form.querySelector('#ref-grid').insertAdjacentHTML('afterbegin', `<button type="button" class="asset asset-pick is-picked" data-ref-pick="${esc(asset.id)}"><div class="thumb"><img src="${esc(asset.url)}" alt=""></div><div class="meta small">${esc(asset.label || 'Referans')}</div></button>`);
+      m.form.querySelector('#ref-grid').insertAdjacentHTML('afterbegin', refCard(asset, true));
+      m.form.querySelector('#ref-empty').hidden = true;
     } catch (err) { toast(err.message, 'error'); }
   });
 
@@ -426,6 +443,7 @@ async function renderEditor(view, brand, id, models) {
   let data = JSON.parse(JSON.stringify(post.data));
   let current = 0;
   let selected = null;
+  let multi = null; // Ctrl+A: slayttaki bütün katmanlar seçili (kopyala, kes, sil, taşı)
   let dirty = false;
   let panel = 'metin';
   let zoom = 100;
@@ -540,13 +558,13 @@ async function renderEditor(view, brand, id, models) {
     await resolveImages(s);
     const c = $('#stage');
     if (!c) return;
-    drawSlide(c, s, format(), { selectedId: selected });
+    drawSlide(c, s, format(), { selectedId: multi || selected });
     fit();
     drawList();
     // Panelden çıkarken (change) panel yeniden çizilmez: aynı anda basılan düğmenin tıklaması kaybolmasın
     if (!keepProps) drawProps();
   }
-  const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: selected }); };
+  const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: multi || selected }); };
 
   function drawList() {
     const list = $('#slide-list');
@@ -557,6 +575,7 @@ async function renderEditor(view, brand, id, models) {
   // Seçim değişince sağ panel açılır/kapanır (yerleşim değişir, tasarım alanı yeniden sığdırılır)
   function setSelected(id) {
     selected = id;
+    if (id) multi = null;
     $('.ed-body').classList.toggle('has-props', Boolean(id));
     $('#layer-panel').hidden = !id;
   }
@@ -709,6 +728,12 @@ async function renderEditor(view, brand, id, models) {
     c.addEventListener('pointerdown', e => {
       const p = point(e);
       const hit = hitTest(c, slide(), p.x, p.y);
+      // Çoklu seçimdeki bir katmandan tutulursa hepsi birlikte taşınır
+      if (multi && hit && multi.includes(hit.id)) {
+        drag = { group: slide().layers.filter(l => multi.includes(l.id)).map(l => ({ l, x: l.x, y: l.y })), sx: p.x, sy: p.y, moved: false };
+        c.setPointerCapture(e.pointerId); c.focus(); return;
+      }
+      multi = null;
       setSelected(hit ? hit.id : null);
       if (hit) { drag = { id: hit.id, dx: p.x - hit.x, dy: p.y - hit.y, moved: false }; c.setPointerCapture(e.pointerId); }
       c.focus();
@@ -717,6 +742,7 @@ async function renderEditor(view, brand, id, models) {
     c.addEventListener('pointermove', e => {
       if (!drag) return;
       const p = point(e);
+      if (drag.group) { drag.group.forEach(g => { g.l.x = Math.round(g.x + p.x - drag.sx); g.l.y = Math.round(g.y + p.y - drag.sy); }); drag.moved = true; return quick(); }
       const l = slide().layers.find(x => x.id === drag.id);
       l.x = Math.round(p.x - drag.dx); l.y = Math.round(p.y - drag.dy);
       drag.moved = true;
@@ -727,6 +753,7 @@ async function renderEditor(view, brand, id, models) {
     c.addEventListener('pointercancel', end);
     c.addEventListener('dblclick', () => { const t = $('#lp-text'); if (t) t.focus(); });
     c.addEventListener('keydown', e => {
+      if (multi) return; // çoklu seçim tuşları belge düzeyinde
       const l = layer();
       if (!l) return;
       const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
@@ -824,7 +851,16 @@ async function renderEditor(view, brand, id, models) {
   let clip = null;
   const typing = el => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
   const alive = () => view.isConnected && $('#stage');
-  const pasteLayer = l => { const c = JSON.parse(JSON.stringify(l)); c.id = Math.random().toString(36).slice(2, 10); c.x += 24; c.y += 24; addLayer(c); };
+  const pasteLayer = l => {
+    // Çoklu kopya: hepsi birlikte yapıştırılır ve seçili kalır
+    if (Array.isArray(l)) {
+      const copies = l.map(x => Object.assign(JSON.parse(JSON.stringify(x)), { id: Math.random().toString(36).slice(2, 10) }));
+      const same = copies.every(c => slide().layers.some(o => o.x === c.x && o.y === c.y));
+      copies.forEach(c => { if (same) { c.x += 24; c.y += 24; } slide().layers.push(c); });
+      setSelected(null); multi = copies.map(c => c.id); markDirty(); return redraw();
+    }
+    const c = JSON.parse(JSON.stringify(l)); c.id = Math.random().toString(36).slice(2, 10); c.x += 24; c.y += 24; addLayer(c);
+  };
   async function pasteImage(file) {
     try {
       toast('Görsel ekleniyor…', 'info', 1500);
@@ -845,6 +881,26 @@ async function renderEditor(view, brand, id, models) {
     const k = e.key.toLowerCase();
     if (mod && k === 'z' && !e.shiftKey) { e.preventDefault(); return undo(); }
     if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); return redo(); }
+    // Ctrl+A: slayttaki bütün katmanları seç
+    if (mod && k === 'a') {
+      e.preventDefault();
+      if (!slide().layers.length) return;
+      setSelected(null); multi = slide().layers.map(l => l.id); quick();
+      return toast(`${multi.length} katman seçildi: Ctrl+C / Ctrl+X, Delete, oklar ya da sürükle. Esc ile bırak.`, 'info', 2500);
+    }
+    if (multi) {
+      const group = slide().layers.filter(l => multi.includes(l.id));
+      const mv = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (mv) { e.preventDefault(); const st = e.shiftKey ? 10 : 1; group.forEach(l => { l.x += mv[0] * st; l.y += mv[1] * st; }); markDirty(); return quick(); }
+      if (e.key === 'Escape') { multi = null; return quick(); }
+      if (mod && (k === 'c' || k === 'x')) {
+        e.preventDefault();
+        clip = JSON.parse(JSON.stringify(group));
+        if (k === 'x') { slide().layers = slide().layers.filter(l => !multi.includes(l.id)); multi = null; markDirty(); redraw(); }
+        return toast(`${clip.length} katman ${k === 'x' ? 'kesildi' : 'kopyalandı'}; Ctrl+V ile yapıştır.`, 'info', 1800);
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); slide().layers = slide().layers.filter(l => !multi.includes(l.id)); multi = null; markDirty(); return redraw(); }
+    }
     if (mod && (k === 'c' || k === 'x') && layer()) {
       e.preventDefault();
       clip = JSON.parse(JSON.stringify(layer()));

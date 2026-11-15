@@ -134,3 +134,71 @@ test('Tema arayüzü: kutuya rol verilir (yükseklik otomatik), uzun yazı küç
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
 });
+
+test('Kısayollar: referans silinir; fikirlerde Ctrl+A seç, Delete sil, Ctrl+Z geri al; düzenleyicide Ctrl+A ile tüm katmanlar kopyalanır/kesilir', { skip: !chromium && 'Playwright yok' }, async () => {
+  const s = await startServer({ aiProvider: fakeProvider([{}]) });
+  const b = (await s.request('POST', '/api/brands', { name: 'Kısayol' })).data.brand;
+  const ref = await upload(s, b.id, 'reference', 'Eski referans');
+  for (const t of ['Bir', 'İki', 'Üç']) await s.request('POST', `/api/brands/${b.id}/ideas`, { title: `Fikir ${t}`, category: 'egitici', format: 'post' });
+  const post = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'K', kind: 'post' })).data.post;
+  const T = (text, y) => ({ type: 'text', role: 'text', text, x: 100, y, w: 600, size: 60, color: '#111111', font: 'Inter', weight: 700, align: 'left' });
+  await s.request('PUT', `/api/brands/${b.id}/posts/${post.id}`, { data: { format: '4:5', slides: [{ bg: '#ffffff', layers: [T('A', 200), T('B', 500)] }, { bg: '#eeeeee', layers: [] }] } });
+  const browser = await chromium.launch();
+  const page = await (await browser.newContext({ viewport: { width: 1400, height: 950 } })).newPage();
+  const problems = [];
+  page.on('pageerror', e => problems.push(e.message));
+  page.on('dialog', d => d.accept());
+  try {
+    // Referans silme
+    await page.goto(`${s.base}/#/m/${b.id}/post`);
+    await page.locator('[data-ref]').first().click();
+    await page.locator(`[data-ref-del="${ref.id}"]`).click();
+    await page.waitForFunction(() => !document.querySelector('[data-ref-pick]'));
+    assert.equal((await s.request('GET', `/api/brands/${b.id}/assets?category=reference`)).data.assets.length, 0);
+    await page.keyboard.press('Escape');
+
+    // Fikirler: Ctrl+A, Delete, Ctrl+Z
+    await page.goto(`${s.base}/#/m/${b.id}/fikirler`);
+    await page.locator('.idea-card').nth(2).waitFor();
+    await page.locator('h1, .page-head').first().click();
+    await page.keyboard.press('Control+a');
+    await page.locator('#idea-selbar', { hasText: '3 fikir seçili' }).waitFor();
+    await page.keyboard.press('Delete');
+    await page.waitForFunction(() => !document.querySelector('.idea-card'));
+    assert.equal((await s.request('GET', `/api/brands/${b.id}/ideas`)).data.ideas.length, 0);
+    await page.locator('h1, .page-head').first().click();
+    await page.keyboard.press('Control+z');
+    await page.locator('.toast', { hasText: '3 kayıt geri alındı' }).waitFor();
+    await page.locator('.idea-card').nth(2).waitFor();
+    assert.equal((await s.request('GET', `/api/brands/${b.id}/ideas`)).data.ideas.length, 3);
+    // Tek seçim: kutucuk
+    await page.locator('.idea-sel').first().check();
+    await page.locator('#idea-selbar', { hasText: '1 fikir seçili' }).waitFor();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelector('#idea-selbar').hidden);
+
+    // Düzenleyici: Ctrl+A, Ctrl+C, 2. slayta Ctrl+V; Ctrl+A + Ctrl+X boşaltır
+    await page.goto(`${s.base}/#/m/${b.id}/post/${post.id}`);
+    await page.locator('#stage').waitFor();
+    await page.locator('#stage').click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('Control+a');
+    await page.locator('.toast', { hasText: '2 katman seçildi' }).waitFor();
+    await page.keyboard.press('Control+c');
+    await page.locator('.slide-thumb').nth(1).click();
+    await page.keyboard.press('Control+v');
+    await page.keyboard.press('Control+s').catch(() => {});
+    await page.locator('.ed-save').click();
+    await page.locator('.toast', { hasText: 'kaydedildi' }).waitFor();
+    let saved = (await s.request('GET', `/api/brands/${b.id}/posts/${post.id}`)).data.post;
+    assert.deepEqual(saved.data.slides[1].layers.map(l => l.text), ['A', 'B'], 'iki katman ikinci slayta yapıştı');
+    await page.locator('.slide-thumb').nth(0).click();
+    await page.locator('#stage').click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Control+x');
+    await page.locator('.ed-save').click();
+    await page.locator('.toast', { hasText: 'kaydedildi' }).last().waitFor();
+    saved = (await s.request('GET', `/api/brands/${b.id}/posts/${post.id}`)).data.post;
+    assert.equal(saved.data.slides[0].layers.length, 0, 'Ctrl+X hepsini kesti');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await s.stop(); }
+});

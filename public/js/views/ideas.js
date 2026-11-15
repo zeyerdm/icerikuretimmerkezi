@@ -1,7 +1,7 @@
 // Marka çalışma alanı: içerik havuzu (10.4–10.6). Fikirler türe (Reels, Post, YouTube, Hikâye, Genel) ve kategoriye ayrılır.
 // Fikir işlemleri: benzerlerini üret (adetli), favori, kullanıldı, arşivle, sil; kullanılanları toplu arşivle ya da sil.
 // Kullanılan fikir işaretli durur ve stüdyoların "rastgele fikir çek"ine girmez; çok benzer fikir eklenince uyarı çıkar.
-import { api } from '../api.js';
+import { api, trashBatch } from '../api.js';
 import { esc, icon, toast, timeAgo, pageHead, emptyState, busy, openModal } from '../ui.js';
 import { state } from '../app.js';
 import { contentModal } from './forms.js';
@@ -20,6 +20,9 @@ export async function renderIdeas(view, brand) {
   let status = 'aktif';
   let favOnly = false;
   let ideas = [];
+  let visible = [];
+  // Çoklu seçim: kutucuklar ya da Ctrl+A; Delete siler (Ctrl+Z geri alır), Esc bırakır
+  const sel = new Set();
   const aiReady = Boolean(state.settings && state.settings.ai && state.settings.ai.configured);
 
   async function draw() {
@@ -29,6 +32,8 @@ export async function renderIdeas(view, brand) {
     if (!view.isConnected) return;
     const byFormat = format ? ideas.filter(i => i.format === format) : ideas;
     const list = category ? byFormat.filter(i => i.category === category) : byFormat;
+    visible = list;
+    [...sel].forEach(id => { if (!list.some(i => i.id === id)) sel.delete(id); });
     view.querySelector('#idea-formats').innerHTML = `<button type="button" class="${!format ? 'active' : ''}" data-format="">Tümü <span class="muted">${ideas.length}</span></button>` +
       Object.entries(formats).map(([k, v]) => `<button type="button" class="${format === k ? 'active' : ''}" data-format="${k}">${esc(v)} <span class="muted">${ideas.filter(i => i.format === k).length}</span></button>`).join('');
     view.querySelector('#idea-filters').innerHTML =
@@ -38,8 +43,8 @@ export async function renderIdeas(view, brand) {
       `<label class="check ml-auto"><input type="checkbox" id="fav-only" ${favOnly ? 'checked' : ''}> Yalnızca favoriler</label>` +
       (status === 'kullanildi' && list.length ? `<span class="row"><button type="button" class="btn btn-sm" data-bulk="arsivle">${icon('archive')}Kullanılanları arşivle</button><button type="button" class="btn btn-sm btn-ghost" data-bulk="sil">${icon('trash')}Kullanılanları sil</button></span>` : '');
     view.querySelector('#idea-results').innerHTML = list.length ? `<div class="idea-grid">${list.map(i => `
-      <article class="idea-card${i.used ? ' is-used' : ''}${i.archived ? ' is-archived' : ''}">
-        <div class="ic-head"><span class="row"><label class="tag-pick" title="Hangi havuza ait (tür)"><span class="sr-only">Tür</span><select data-set-format="${esc(i.id)}" aria-label="${esc(i.title)} türü">${Object.entries(formats).map(([k, v]) => `<option value="${k}" ${i.format === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label><label class="tag-pick tag-pick-soft" title="Kategori"><span class="sr-only">Kategori</span><select data-set-category="${esc(i.id)}" aria-label="${esc(i.title)} kategorisi">${Object.entries(cats).map(([k, v]) => `<option value="${k}" ${i.category === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>${i.used ? `<span class="pill pill-ok" title="${esc(i.usedInLabels.join(', '))}"><span class="dot"></span>Kullanıldı</span>` : ''}</span>
+      <article class="idea-card${i.used ? ' is-used' : ''}${i.archived ? ' is-archived' : ''}${sel.has(i.id) ? ' is-selected' : ''}">
+        <div class="ic-head"><span class="row"><input type="checkbox" class="idea-sel" data-sel="${esc(i.id)}" ${sel.has(i.id) ? 'checked' : ''} aria-label="${esc(i.title)} fikrini seç"><label class="tag-pick" title="Hangi havuza ait (tür)"><span class="sr-only">Tür</span><select data-set-format="${esc(i.id)}" aria-label="${esc(i.title)} türü">${Object.entries(formats).map(([k, v]) => `<option value="${k}" ${i.format === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label><label class="tag-pick tag-pick-soft" title="Kategori"><span class="sr-only">Kategori</span><select data-set-category="${esc(i.id)}" aria-label="${esc(i.title)} kategorisi">${Object.entries(cats).map(([k, v]) => `<option value="${k}" ${i.category === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>${i.used ? `<span class="pill pill-ok" title="${esc(i.usedInLabels.join(', '))}"><span class="dot"></span>Kullanıldı</span>` : ''}</span>
           <button class="star ${i.favorite ? 'on' : ''}" data-fav="${esc(i.id)}" aria-pressed="${i.favorite}" aria-label="${i.favorite ? 'Favoriden çıkar' : 'Favorilere ekle'}">★</button></div>
         <h4>${esc(i.title)}</h4>
         ${i.description ? `<p class="small muted">${esc(i.description)}</p>` : ''}
@@ -60,7 +65,46 @@ export async function renderIdeas(view, brand) {
       </article>`).join('')}</div>`
       : emptyState({ icon: 'idea', title: ideas.length ? 'Bu filtrede fikir yok' : (status === 'arsiv' ? 'Arşiv boş' : 'İçerik havuzu boş'), text: ideas.length ? 'Başka bir tür, durum ya da kategori seç.' : `Yukarıdan fikir ekle ya da <a class="link" href="#/m/${esc(brand.id)}">asistandan fikir iste</a>.`, card: true });
     view.querySelector('#fav-only').addEventListener('change', e => { favOnly = e.target.checked; draw(); });
+    drawSelBar();
   }
+  function drawSelBar() {
+    const bar = view.querySelector('#idea-selbar');
+    view.querySelectorAll('.idea-card').forEach(c => { const cb = c.querySelector('[data-sel]'); c.classList.toggle('is-selected', sel.has(cb.dataset.sel)); cb.checked = sel.has(cb.dataset.sel); });
+    bar.hidden = !sel.size;
+    if (sel.size) bar.innerHTML = `<strong>${sel.size} fikir seçili</strong>
+      <button type="button" class="btn btn-sm" data-sel-act="used">${icon('check')}Kullanıldı</button>
+      <button type="button" class="btn btn-sm" data-sel-act="archive">${icon('archive')}${status === 'arsiv' ? 'Arşivden çıkar' : 'Arşivle'}</button>
+      <button type="button" class="btn btn-sm btn-danger" data-sel-act="delete">${icon('trash')}Sil</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-sel-act="clear">Seçimi kaldır</button>
+      <span class="xsmall muted">Ctrl+A hepsini seçer · Delete siler · Ctrl+Z geri alır · Esc bırakır</span>`;
+  }
+  async function selAction(act) {
+    const ids = [...sel];
+    if (act === 'clear') { sel.clear(); return drawSelBar(); }
+    if (act === 'delete' && !confirm(`${ids.length} fikir silinsin mi? Çöp kutusuna gider; Ctrl+Z ile geri alabilirsin.`)) return;
+    try {
+      if (act === 'delete') await trashBatch(async () => { for (const id of ids) await api.deleteIdea(brand.id, id); });
+      else for (const id of ids) {
+        if (act === 'archive') await api.updateIdea(brand.id, id, { archived: status !== 'arsiv' });
+        else if (act === 'used') await api.updateIdea(brand.id, id, { used: true });
+      }
+      if (act !== 'delete') toast(`${ids.length} fikir güncellendi.`, 'success');
+    } catch (err) { toast(err.message, 'error'); }
+    sel.clear();
+    draw();
+  }
+  const token = {};
+  view._ideasKeys = token; // sayfa yeniden açılınca eski dinleyici kendini kaldırır
+  const onKey = e => {
+    if (view._ideasKeys !== token || !view.querySelector('#idea-results')) return document.removeEventListener('keydown', onKey);
+    const a = document.activeElement;
+    if (e.defaultPrevented || document.querySelector('.modal-backdrop') || (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'checkbox'))) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'a' && visible.length) { e.preventDefault(); visible.forEach(i => sel.add(i.id)); return drawSelBar(); }
+    if (e.key === 'Escape' && sel.size) { sel.clear(); return drawSelBar(); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && sel.size) { e.preventDefault(); return selAction('delete'); }
+  };
+  document.addEventListener('keydown', onKey);
 
   view.innerHTML = `
     ${pageHead({
@@ -78,6 +122,7 @@ export async function renderIdeas(view, brand) {
       <button class="btn btn-ghost" type="button" data-bulk-add title="Madde madde çok sayıda fikir ekle">${icon('notes')}Toplu ekle</button>
     </form>
     <div class="filter-row" id="idea-filters"></div>
+    <div class="idea-selbar" id="idea-selbar" role="region" aria-label="Seçili fikirler" hidden></div>
     <div id="idea-results"></div>`;
 
   const quick = view.querySelector('#quick-idea');
@@ -141,6 +186,8 @@ export async function renderIdeas(view, brand) {
   }
 
   view.onchange = e => {
+    const sb = e.target.closest('[data-sel]');
+    if (sb) { if (sb.checked) sel.add(sb.dataset.sel); else sel.delete(sb.dataset.sel); return drawSelBar(); }
     const f = e.target.closest('[data-set-format]');
     if (f) { closeMenus(); return patch(f.dataset.setFormat, { format: f.value }, `${formats[f.value]} havuzuna taşındı.`); }
     const c = e.target.closest('[data-set-category]');
@@ -148,6 +195,8 @@ export async function renderIdeas(view, brand) {
   };
   view.onclick = async e => {
     if (e.target.closest('[data-bulk-add]')) return bulkModal();
+    const sa = e.target.closest('[data-sel-act]');
+    if (sa) return selAction(sa.dataset.selAct);
     const fm = e.target.closest('[data-format]');
     if (fm) { format = fm.dataset.format; category = ''; try { sessionStorage.setItem(PREF, format); } catch { /* yok */ } syncQuickFormat(); return draw(); }
     const st = e.target.closest('[data-status]');

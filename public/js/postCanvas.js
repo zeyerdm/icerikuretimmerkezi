@@ -106,6 +106,7 @@ export function layerBox(ctx, l) {
 }
 
 export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
+  const selSet = new Set([].concat(selectedId || [])); // tek katman ya da Ctrl+A ile çoklu seçim
   canvas.width = format.w;
   canvas.height = format.h;
   const ctx = canvas.getContext('2d');
@@ -158,7 +159,7 @@ export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
       ctx.textAlign = 'left';
     }
     ctx.globalAlpha = 1;
-    if (l.id === selectedId) {
+    if (selSet.has(l.id)) {
       const b = layerBox(ctx, l);
       ctx.save();
       ctx.strokeStyle = '#5b55e6';

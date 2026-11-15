@@ -9,6 +9,9 @@ export class ApiError extends Error {
 
 // "Durdur" için: busyTimer çalışırken başlatılan isteklere iptal sinyali bağlanır
 let pendingSignal = null;
+// Toplu silme: içindeki bütün silmeler tek "Geri al" (Ctrl+Z) adımı olur
+let trashGroup = null;
+export async function trashBatch(fn) { trashGroup = Math.random().toString(36).slice(2); try { return await fn(); } finally { trashGroup = null; } }
 export function withSignal(signal, fn) { const prev = pendingSignal; pendingSignal = signal; try { return fn(); } finally { pendingSignal = prev; } }
 
 async function request(method, url, body, headers = {}) {
@@ -26,7 +29,7 @@ async function request(method, url, body, headers = {}) {
   if (res.status === 204) {
     // Çöpe atılan kayıt: arayüz "Geri al" bildirimi gösterir (views/trash.js)
     const tid = res.headers.get('X-Trash-Id');
-    if (tid) document.dispatchEvent(new CustomEvent('ium:trashed', { detail: { id: tid } }));
+    if (tid) document.dispatchEvent(new CustomEvent('ium:trashed', { detail: { id: tid, group: trashGroup } }));
     return null;
   }
   const data = await res.json().catch(() => null);
