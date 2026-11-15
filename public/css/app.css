@@ -1880,3 +1880,11 @@ body.editor-mode .radial-fab { display: none; }
 #chat-stop { margin-left: 6px; padding: 2px 8px; }
 .text-warn { color: var(--danger, #c0392b); }
 .quick-post .select { max-width: 100%; }
+.idea-selbar { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; padding: var(--s-2) var(--s-3); margin-bottom: var(--s-3); background: var(--surface, #fff); border: 1px solid var(--line, #e5e7eb); border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+.idea-card.is-selected { outline: 2px solid var(--brand, #5b55e6); outline-offset: 2px; }
+.idea-sel { width: 18px; height: 18px; margin: 0 4px 0 0; accent-color: var(--brand, #5b55e6); cursor: pointer; }
+.asset-wrap { position: relative; }
+.asset-del { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.95); border: 1px solid var(--line, #e5e7eb); color: var(--rose-ink, #b42318); cursor: pointer; }
+.asset-del:hover { background: #fff; }
+.asset-del svg { width: 15px; height: 15px; }
+.asset-wrap > .asset { width: 100%; height: 100%; }
