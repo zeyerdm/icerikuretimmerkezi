@@ -104,6 +104,7 @@ export function createBrandSetupService({ db, brands, memory, identity, characte
         logo: logo ? { id: logo.id, url: logo.url } : null,
         mascots: mascots.slice(0, 12).map(a => ({ id: a.id, url: a.thumbUrl || a.url, label: a.label })),
         questions: identity.questions,
+        onboardAi: (read(b.id).onboard || {}).ai || null,
         voice: reels ? reels.settings(b.id) : null,
         voices: reels ? TTS_VOICES : {},
         options: { channels: CHANNELS, contentKinds: CONTENT_KINDS }

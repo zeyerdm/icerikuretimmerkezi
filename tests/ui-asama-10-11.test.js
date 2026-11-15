@@ -282,3 +282,33 @@ test('Markayı sil: Markalar kartından, ad yazılarak; yanlış ad silmez; ana 
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('11.3 sohbet: yapay zekâ en sonda ve arka planda; kurulum beklemeden biter, durum canlı görünür, Marka dosyasına düşer', { skip }, async () => {
+  const { fakeProvider } = await import('./helpers.js');
+  const slow = fakeProvider([async p => { await new Promise(r => setTimeout(r, 600)); return p.startsWith('BENZER İÇERİK') ? { ideas: [{ title: 'Kahve atölyesi duyurusu', description: '' }] } : { reply: 'x' }; }]);
+  const srv = await startServer({ aiProvider: slow });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Arka Plan' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/kur`);
+    await page.locator('#ob-ideas').fill('Barista ipucu');
+    await page.locator('#ob-send').click();
+    await page.locator('.ob-bot', { hasText: 'Şunları aldım' }).waitFor();
+    for (let i = 0; i < 30; i++) {
+      if (await page.locator('#ob-finish').count()) break;
+      await page.locator('#ob-q [data-skip]').click();
+      await page.waitForTimeout(100);
+    }
+    assert.ok(await page.locator('#ob-use-ai').isChecked());
+    const t0 = Date.now();
+    await page.locator('#ob-finish').click();
+    await page.locator('.ob-links').waitFor();
+    assert.ok(Date.now() - t0 < 2000, 'kurulum beklemeden biter');
+    await page.locator('#ob-ai', { hasText: 'arka planda çalışıyor' }).waitFor();
+    await page.locator('#ob-ai', { hasText: 'Yapay zekâ bitirdi' }).waitFor({ timeout: 15000 });
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
+    await page.locator('#ds-ai').waitFor();
+    assert.ok(await page.locator('[data-ai-enrich]').count(), 'Marka dosyasından yeniden başlatılabilir');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

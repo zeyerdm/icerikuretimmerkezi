@@ -131,10 +131,10 @@ export async function renderOnboard(view, brand = null) {
             if (f.kind === 'logo' && !colors.logo.length) colors.logo.push(...await dominantColors(f.file, { n: 4, skipWhite: true }).catch(() => []));
           }
           return api.onboardAbsorb(brand.id, { files: up, colors, text, ideas: ideaText });
-        }, files.length ? 'Yüklüyorum ve inceliyorum' : 'İnceliyorum');
+        }, files.length ? 'Yüklüyorum' : 'Kaydediyorum');
         st = r;
         bot(r.found.length ? `Şunları aldım ve yerlerine koydum:<ul class="ob-list">${r.found.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>${r.notes.length ? `<p class="small muted">${r.notes.map(esc).join('<br>')}</p>` : ''}${r.questions.length ? 'Şimdi yalnız eksik kalanları soracağım.' : ''}` : `Tamam, sorularla devam edelim.${r.notes.length ? `<p class="small muted">${r.notes.map(esc).join('<br>')}</p>` : ''}`);
-        if (!r.aiReady && (text || files.some(f => f.kind === 'maskot'))) bot('<span class="small">Not: Yapay zekâ bağlı olmadığı için metni ve maskot görsellerini okuyamadım; bunları sorularla tamamlayacağız.</span>');
+        if (text || files.some(f => f.kind === 'maskot')) bot(`<span class="small">${r.aiReady ? 'Metni ve maskot görsellerini yapay zekâya en sonda, arka planda okutacağım; şimdi seni bekletmeyelim.' : 'Yapay zekâ bağlı olmadığı için metni ve maskot görsellerini okuyamıyorum; eksikleri sorularla tamamlayacağız.'}</span>`);
         next();
       } catch (err) { toast(err.message, 'error'); }
     };
@@ -194,20 +194,47 @@ export async function renderOnboard(view, brand = null) {
     });
   }
 
-  // 4) Bitiş
+  // 4) Bitiş: anında. Yapay zekâ istenirse arka planda boş kalanları doldurur; kullanıcı beklemez.
   function finishPhase() {
-    bot(`Temel bilgiler tamam. Son olarak ${st.aiReady ? 'fikir havuzunu benzer fikirlerle dolduracağım ve tasarım referansın varsa ondan örnek bir şablon hazırlayacağım' : 'kurulumu kapatıyorum (yapay zekâ bağlı olmadığı için fikir ve örnek tasarım üretemiyorum)'}.`);
-    input.innerHTML = `<div class="ob-row"><span class="spacer"></span><button type="button" class="btn btn-primary" id="ob-finish">${icon('check')}Kurulumu bitir</button></div>`;
+    bot(`Temel bilgiler tamam.${st.aiReady ? ' İstersen yapay zekâ <b>arka planda</b> boş kalan alanları, maskotun tarifini, benzer fikirleri ve referansından örnek tasarımı doldursun; sen bu sırada uygulamayı kullanmaya devam edersin.' : ''}`);
+    input.innerHTML = `<div class="ob-row">${st.aiReady ? '<label class="check"><input type="checkbox" id="ob-use-ai" checked> Yapay zekâ arka planda tamamlasın</label>' : ''}<span class="spacer"></span><button type="button" class="btn btn-primary" id="ob-finish">${icon('check')}Kurulumu bitir</button></div>`;
     input.querySelector('#ob-finish').addEventListener('click', async e => {
+      const cb = input.querySelector('#ob-use-ai');
+      const useAi = cb ? cb.checked : true; // AI bağlı değilse sunucu nedenini not eder
       try {
-        const r = await busyTimer(e.currentTarget, () => api.onboardFinish(brand.id), 'Hazırlıyorum');
+        const r = await busy(e.currentTarget, () => api.onboardFinish(brand.id, { useAi }));
         st = r;
-        bot(`${r.done.length ? `<ul class="ob-list">${r.done.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>` : ''}${r.notes.length ? `<p class="small muted">${r.notes.map(esc).join('<br>')}</p>` : ''}Hazırız! Ayrıntıları istediğin zaman Marka kimliğinden düzenleyebilirsin.`);
+        bot(`Hazırız!${r.notes.length ? `<p class="small muted">${r.notes.map(esc).join('<br>')}</p>` : ''} Ayrıntıları istediğin zaman Marka kimliğinden düzenleyebilirsin.`);
         donePhase();
       } catch (err) { toast(err.message, 'error'); }
     });
   }
+  // Arka plandaki yapay zekâ işinin durumu (sayfa açıkken birkaç saniyede bir bakılır)
+  function aiStatus() {
+    const ai = st.state.ai;
+    if (!ai) return;
+    const box = document.createElement('div');
+    box.className = 'ob-msg ob-bot';
+    box.innerHTML = `<span class="ob-av">${icon('sparkle')}</span><div class="ob-bubble" id="ob-ai"></div>`;
+    chat.appendChild(box);
+    const el = box.querySelector('#ob-ai');
+    const draw = a => {
+      el.innerHTML = a.status === 'calisiyor'
+        ? `<span class="ob-spin" aria-hidden="true"></span> Yapay zekâ arka planda çalışıyor… ${a.found.length ? `<ul class="ob-list">${a.found.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>` : ''}<span class="xsmall muted">Beklemen gerekmiyor; bittiğinde Marka dosyasında görünür.</span>`
+        : `${a.status === 'bitti' ? 'Yapay zekâ bitirdi:' : 'Yapay zekâ işi yarıda kaldı:'}${a.found.length ? `<ul class="ob-list">${a.found.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>` : ' doldurulacak yeni bir şey bulamadı.'}${a.notes.length ? `<p class="small muted">${a.notes.map(esc).join('<br>')}</p>` : ''}`;
+      chat.scrollTop = chat.scrollHeight;
+    };
+    draw(ai);
+    if (ai.status !== 'calisiyor') return;
+    const tick = async () => {
+      if (!el.isConnected) return;
+      try { const r = await api.onboard(brand.id); if (r.state.ai) { draw(r.state.ai); if (r.state.ai.status !== 'calisiyor') return; } } catch { /* bir dahaki sefere */ }
+      setTimeout(tick, 4000);
+    };
+    setTimeout(tick, 3000);
+  }
   function donePhase() {
+    aiStatus();
     input.innerHTML = `<div class="ob-row ob-links"><a class="btn btn-primary" href="${base}">Marka ana sayfası</a><a class="btn" href="${base}/kimlik">Marka dosyası</a><a class="btn" href="${base}/fikirler">İçerik fikirleri</a><a class="btn" href="${base}/post">Post stüdyosu</a></div>`;
   }
 

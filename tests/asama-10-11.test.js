@@ -9,6 +9,16 @@ const png = { 'Content-Type': 'image/png' };
 const B64 = PNG_1PX.toString('base64');
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const upload = async (s, brandId, category, label = 'x') => (await s.request('POST', `/api/brands/${brandId}/assets?category=${category}&label=${encodeURIComponent(label)}`, PNG_1PX, png)).data.asset;
+// Arka plandaki yapay zekâ işinin bitmesini bekler
+async function waitAi(s, brandId, ms = 5000) {
+  const t0 = Date.now();
+  for (;;) {
+    const st = (await s.request('GET', `/api/brands/${brandId}/onboard`)).data.state;
+    if (st.ai && st.ai.status !== 'calisiyor') return st.ai;
+    if (Date.now() - t0 > ms) throw new Error('yapay zekâ işi bitmedi');
+    await new Promise(r => setTimeout(r, 50));
+  }
+}
 const postTexts = (n = 1) => ({ title: 'Başlık', caption: 'Açıklama', hashtags: ['#kahve'], slides: Array.from({ length: n }, (_, i) => ({ title: `Slayt ${i + 1} başlık`, body: `Gövde ${i + 1}`, items: [], cta: i === n - 1 ? 'Hemen gel' : '' })) });
 
 test('10.4–10.6 içerik havuzu: tür, durum filtreleri, kullanıldı, arşiv, toplu işlem, rastgele seçim ve tekrar uyarısı', async () => {
@@ -230,6 +240,7 @@ test('11.1–11.4 karşılama sohbeti: atılanlar yerine konur, yalnız eksikler
     assert.equal(fin.state.finished, true);
     assert.equal(fin.done.length, 0);
     assert.match(fin.notes.join(' '), /Yapay zekâ bağlı olmadığı için/);
+    assert.equal(fin.state.ai, undefined, 'AI yokken arka plan işi başlamaz');
   } finally { await s.stop(); }
 });
 
@@ -248,8 +259,13 @@ test('11.4 bitiş (AI var): fikir havuzu benzerleriyle dolar, referanstan örnek
     await s.request('POST', `${url}/absorb`, { files: [{ id: ref.id, kind: 'referans' }], ideas: 'Kahve molası\nSınav haftası' });
     const fin = await s.request('POST', `${url}/finish`, {});
     assert.equal(fin.status, 200, JSON.stringify(fin.data));
+    assert.equal(fin.data.state.finished, true, 'bitiş anında');
+    assert.equal(fin.data.state.ai.status, 'calisiyor', 'yapay zekâ arka planda');
+    const ai = await waitAi(s, b.id);
+    assert.equal(ai.status, 'bitti');
     assert.ok((await s.request('GET', `/api/brands/${b.id}/ideas`)).data.ideas.length >= 8, 'havuz dolu');
-    assert.ok(fin.data.done.some(d => /şablonu hazırlandı/.test(d)), JSON.stringify(fin.data));
+    assert.ok(ai.found.some(d => /şablonu hazırlandı/.test(d)), JSON.stringify(ai));
+    assert.ok((await s.request('GET', `/api/brands/${b.id}/setup`)).data.onboardAi.found.length, 'Marka dosyası durumu görür');
     assert.equal((await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates[0].name, 'Örnek tasarım (referanstan)');
   } finally { await s.stop(); }
 });
@@ -287,7 +303,7 @@ test('10.1 marka geneli dışa aktarma kaldırıldı; takvim aktarımı duruyor'
   } finally { await s.stop(); }
 });
 
-test('11.1 hız: metin ve maskot okumaları paralel; süreyi aşan okuma kurulumu bekletmez; yapay zekâya küçük resim gider', async () => {
+test('11.1 hız: atma adımı yapay zekâ beklemez; okumalar bitişte arka planda ve paralel; süre sınırı; küçük resim gider', async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const seen = [];
   const provider = {
@@ -306,11 +322,20 @@ test('11.1 hız: metin ve maskot okumaları paralel; süreyi aşan okuma kurulum
     const big = Buffer.concat([PNG_1PX, Buffer.alloc(300000)]); // büyük dosya gibi
     const m = (await s.request('POST', `/api/brands/${b.id}/assets?category=other&label=m`, big, png)).data.asset;
     await s.request('PUT', `/api/brands/${b.id}/assets/${m.id}/thumb`, PNG_1PX, png); // tarayıcının ürettiği küçük resim
-    const t0 = Date.now();
-    const r = (await s.request('POST', `/api/brands/${b.id}/onboard/absorb`, { files: [{ id: m.id, kind: 'maskot' }], text: 'Hızlı, gençlere teknoloji anlatan bir içerik markası. Her gün kısa videolar ve postlar paylaşıyoruz.' })).data;
+    let t0 = Date.now();
+    await s.request('POST', `/api/brands/${b.id}/onboard/absorb`, { files: [{ id: m.id, kind: 'maskot' }], text: 'Hızlı, gençlere teknoloji anlatan bir içerik markası. Her gün kısa videolar ve postlar paylaşıyoruz.' });
+    assert.ok(Date.now() - t0 < 500, 'atma adımı yapay zekâ beklemez');
+    assert.equal(seen.length, 0, 'atma adımında yapay zekâ çağrılmaz');
+    t0 = Date.now();
+    const fin = (await s.request('POST', `/api/brands/${b.id}/onboard/finish`, {})).data;
+    assert.ok(Date.now() - t0 < 500, 'bitiş anında');
+    assert.equal(fin.state.ai.status, 'calisiyor');
+    const ai = await waitAi(s, b.id);
     const ms = Date.now() - t0;
     assert.ok(ms < 1300, `iki okuma paralel (${ms} ms)`);
-    assert.ok(r.found.some(f => /karakter kitabı/.test(f)) && r.found.some(f => /Metinden/.test(f)), JSON.stringify(r.found));
+    assert.ok(ai.found.some(f => /karakter kitabı/.test(f)) && ai.found.some(f => /Metinden/.test(f)), JSON.stringify(ai));
+    const br = (await s.request('GET', `/api/brands/${b.id}`)).data.brand;
+    assert.equal(br.audience, 'Gençler', 'boş alan dolduruldu');
     const mascotCall = seen.find(c => /MASKOT/.test(c.prompt));
     assert.equal(mascotCall.images[0], PNG_1PX.length, 'büyük dosya değil küçük resim gönderildi');
   } finally { await s.stop(); }
@@ -319,10 +344,11 @@ test('11.1 hız: metin ve maskot okumaları paralel; süreyi aşan okuma kurulum
   const s2 = await startServer({ aiProvider: slow, onboardReadMs: 200 });
   try {
     const b = (await s2.request('POST', '/api/brands', { name: 'Sınır' })).data.brand;
+    await s2.request('POST', `/api/brands/${b.id}/onboard/absorb`, { text: 'Uzun bir tanıtım metni; markamız çocuklara kodlama öğreten bir eğitim kurumudur ve her hafta atölye yapar.' });
     const t0 = Date.now();
-    const r = (await s2.request('POST', `/api/brands/${b.id}/onboard/absorb`, { text: 'Uzun bir tanıtım metni; markamız çocuklara kodlama öğreten bir eğitim kurumudur ve her hafta atölye yapar.' })).data;
+    await s2.request('POST', `/api/brands/${b.id}/onboard/finish`, {});
+    const ai = await waitAi(s2, b.id);
     assert.ok(Date.now() - t0 < 1200, 'sınırda kesildi');
-    assert.match(r.notes.join(' '), /bitmedi/);
-    assert.equal(r.state.absorbed, true, 'kurulum devam eder');
+    assert.match(ai.notes.join(' '), /bitmedi/);
   } finally { await s2.stop(); }
 });

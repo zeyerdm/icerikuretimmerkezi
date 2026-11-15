@@ -118,7 +118,26 @@ async function renderDossier(view, brand) {
       ? d.memory.facts.slice(0, 6).map(f => [f.categoryLabel, `<b>${esc(f.title)}</b> · ${esc(f.content.length > 90 ? f.content.slice(0, 90) + '…' : f.content)}`]).concat(d.memory.facts.length > 6 ? [['', `<span class="muted">+${d.memory.facts.length - 6} bilgi daha</span>`]] : [])
       : [['Bilgi kartı', dash]] })
   ];
-  view.innerHTML = identityHead(brand, 'ozet') + head + `<div class="dossier-grid">${cards.join('')}</div>`;
+  // Arka plandaki yapay zekâ işi (kurulum sonu) ya da elle başlatma
+  const ai = d.onboardAi;
+  const aiOn = Boolean(state.settings && state.settings.ai && state.settings.ai.configured);
+  const aiBox = ai && ai.status === 'calisiyor'
+    ? `<div class="notice mb-5" id="ds-ai"><div><span class="ob-spin" aria-hidden="true"></span> <strong>Yapay zekâ arka planda markanı dolduruyor.</strong> ${ai.found.length ? esc(ai.found.join(' · ')) : 'Bittiğinde bu sayfa kendiliğinden yenilenir.'}</div></div>`
+    : ai && (ai.found.length || ai.notes.length)
+      ? `<details class="disclosure mb-5" id="ds-ai"><summary>Yapay zekânın doldurdukları (${new Date(ai.finishedAt || ai.startedAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})</summary><ul class="ob-list">${ai.found.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>${ai.notes.length ? `<p class="small muted">${ai.notes.map(esc).join('<br>')}</p>` : ''}</details>`
+      : '';
+  const aiBtn = aiOn && !(ai && ai.status === 'calisiyor') ? `<button type="button" class="btn btn-sm" data-ai-enrich title="Boş kalan alanlar, maskot tarifi, benzer fikirler ve referanstan örnek tasarım; arka planda, beklemeden">${icon('sparkle')}Yapay zekâ ile tamamla</button>` : '';
+  view.innerHTML = identityHead(brand, 'ozet') + head + aiBox + (aiBtn ? `<div class="row mb-4">${aiBtn}<span class="xsmall muted">Arka planda çalışır; beklemen gerekmez. Yalnız boş alanlara yazar.</span></div>` : '') + `<div class="dossier-grid">${cards.join('')}</div>`;
+  const eb = view.querySelector('[data-ai-enrich]');
+  if (eb) eb.addEventListener('click', async () => { try { await busy(eb, () => api.onboardEnrich(brand.id)); toast('Yapay zekâ arka planda başladı.', 'success'); renderDossier(view, brand); } catch (err) { toast(err.message, 'error'); } });
+  if (ai && ai.status === 'calisiyor') {
+    const poll = async () => {
+      if (!view.isConnected || !view.querySelector('#ds-ai')) return;
+      try { const r = await api.onboard(brand.id); if (r.state.ai && r.state.ai.status !== 'calisiyor') return renderDossier(view, brand); } catch { /* sonra */ }
+      setTimeout(poll, 5000);
+    };
+    setTimeout(poll, 5000);
+  }
   bindIdentityActions(view, brand);
 }
 

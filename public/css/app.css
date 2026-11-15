@@ -1858,3 +1858,6 @@ body.editor-mode .radial-fab { display: none; }
 .b-foot { align-items: center; }
 .b-foot .b-del { margin-left: auto; color: var(--muted); }
 .b-foot .b-del:hover { color: var(--danger, #c0392b); }
+.ob-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--brand); border-right-color: transparent; border-radius: 50%; animation: ob-spin .8s linear infinite; vertical-align: -1px; margin-right: 4px; }
+@keyframes ob-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ob-spin { animation: none; } }

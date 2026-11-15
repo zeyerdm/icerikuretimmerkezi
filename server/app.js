@@ -719,7 +719,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/onboard', (req, res) => res.json(onboard.state(req.brand.id)));
   api.post('/brands/:brandId/onboard/absorb', route(async (req, res) => res.json(await onboard.absorb(req.brand.id, Object.assign({}, req.body || {}, { modelRef: mr(req.body || {}) })))));
   api.put('/brands/:brandId/onboard/answer/:key', (req, res) => res.json(onboard.answer(req.brand.id, req.params.key, req.body || {})));
-  api.post('/brands/:brandId/onboard/finish', route(async (req, res) => res.json(await onboard.finish(req.brand.id, { modelRef: mr(req.body || {}) }))));
+  api.post('/brands/:brandId/onboard/finish', (req, res) => res.json(onboard.finish(req.brand.id, { modelRef: mr(req.body || {}), useAi: (req.body || {}).useAi !== false })));
+  api.post('/brands/:brandId/onboard/enrich', (req, res) => res.json(onboard.enrichNow(req.brand.id, { modelRef: mr(req.body || {}) })));
   api.put('/brands/:brandId/setup/:step', (req, res) => res.json(brandSetup.save(req.brand.id, req.params.step, req.body || {})));
 
   // --- 7.2 Marka prompt kimliği ---
