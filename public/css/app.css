@@ -1861,3 +1861,6 @@ body.editor-mode .radial-fab { display: none; }
 .ob-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--brand); border-right-color: transparent; border-radius: 50%; animation: ob-spin .8s linear infinite; vertical-align: -1px; margin-right: 4px; }
 @keyframes ob-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ob-spin { animation: none; } }
+.fi-status { margin: 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--brand-soft); color: var(--brand-ink); font-size: var(--t-sm); }
+.fi-status[hidden] { display: none; }
+.ed-topic { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); }
