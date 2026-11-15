@@ -41,12 +41,49 @@ export function wrapLines(ctx, text, width) {
 }
 
 const fontOf = l => `${l.weight || 700} ${l.size}px "${l.font}", system-ui, sans-serif`;
+// *vurgulu* kelimeler: yıldızlar basılmaz, vurgu rengi verildiyse o renkte çizilir
+const plain = t => String(t || '').replace(/\*/g, '');
+
+// Vurgulu metni satırlara böler ve çizer: her kelime kendi rengini taşır
+function drawRich(ctx, l, x0) {
+  const words = [];
+  let on = false;
+  String(l.text || '').split('\n').forEach((par, pi) => {
+    if (pi) words.push({ br: true });
+    par.split(/(\s+)/).forEach(tok => {
+      if (!tok || /^\s+$/.test(tok)) return;
+      // Kelimenin içindeki yıldızlar vurguyu açıp kapatır
+      let out = ''; const segs = [];
+      for (const ch of tok) { if (ch === '*') { if (out) segs.push({ t: out, hl: on }); out = ''; on = !on; } else out += ch; }
+      if (out) segs.push({ t: out, hl: on });
+      if (segs.length) words.push({ segs });
+    });
+  });
+  const space = ctx.measureText(' ').width;
+  const lines = [[]];
+  let w = 0;
+  for (const wd of words) {
+    if (wd.br) { lines.push([]); w = 0; continue; }
+    const ww = wd.segs.reduce((a, sg) => a + ctx.measureText(sg.t).width, 0);
+    if (w && w + space + ww > l.w) { lines.push([]); w = 0; }
+    w += (w ? space : 0) + ww;
+    lines[lines.length - 1].push(wd);
+  }
+  lines.forEach((line, i) => {
+    const lw = line.reduce((a, wd, j) => a + (j ? space : 0) + wd.segs.reduce((b, sg) => b + ctx.measureText(sg.t).width, 0), 0);
+    let x = l.align === 'center' ? x0 - lw / 2 : l.align === 'right' ? x0 - lw : x0;
+    line.forEach((wd, j) => {
+      if (j) x += space;
+      wd.segs.forEach(sg => { ctx.fillStyle = sg.hl ? l.highlight : l.color; ctx.fillText(sg.t, x, l.y + i * l.size * 1.2); x += ctx.measureText(sg.t).width; });
+    });
+  });
+}
 
 // Katmanın kapladığı alan (seçim ve sürükleme için)
 export function layerBox(ctx, l) {
   if (l.type === 'text') {
     ctx.font = fontOf(l);
-    const lines = wrapLines(ctx, l.text, l.w);
+    const lines = wrapLines(ctx, plain(l.text), l.w);
     return { x: l.x, y: l.y, w: l.w, h: Math.max(l.size, lines.length * l.size * 1.2) };
   }
   if (l.type === 'qr') return { x: l.x, y: l.y, w: l.w, h: l.w };
@@ -91,7 +128,8 @@ export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
         const k = Math.min(l.w / img.naturalWidth, l.h / img.naturalHeight);
         const w = img.naturalWidth * k;
         const h = img.naturalHeight * k;
-        ctx.drawImage(img, l.x + (l.w - w) / 2, l.y + (l.h - h) / 2, w, h);
+        const ix = l.align === 'left' ? l.x : l.align === 'right' ? l.x + l.w - w : l.x + (l.w - w) / 2;
+        ctx.drawImage(img, ix, l.y + (l.h - h) / 2, w, h);
       }
     } else if (l.type === 'text') {
       ctx.font = fontOf(l);
@@ -99,7 +137,8 @@ export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
       ctx.textBaseline = 'top';
       ctx.textAlign = l.align || 'left';
       const x = l.align === 'center' ? l.x + l.w / 2 : l.align === 'right' ? l.x + l.w : l.x;
-      wrapLines(ctx, l.text, l.w).forEach((line, i) => ctx.fillText(line, x, l.y + i * l.size * 1.2));
+      if (l.highlight && String(l.text || '').includes('*')) { ctx.textAlign = 'left'; drawRich(ctx, l, x); }
+      else wrapLines(ctx, plain(l.text), l.w).forEach((line, i) => ctx.fillText(line, x, l.y + i * l.size * 1.2));
       ctx.textAlign = 'left';
     }
     ctx.globalAlpha = 1;

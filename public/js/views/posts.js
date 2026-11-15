@@ -23,8 +23,14 @@ export async function renderPosts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
-      actions: `<a class="btn btn-ghost" href="${base(brand)}/izgara">${icon('grid')}Izgara önizlemesi</a><button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn" data-ref>${icon('image')}Referanstan şablon</button><button class="btn" data-new>${icon('sparkle')}Konudan üret</button><button class="btn btn-primary" data-from-idea>${icon('idea')}Havuzdan fikir çek</button>` : ''}`
+      actions: `<a class="btn btn-ghost" href="${base(brand)}/izgara">${icon('grid')}Izgara önizlemesi</a><button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn" data-ref>${icon('image')}Referanstan şablon</button><button class="btn" data-new>${icon('sparkle')}Konudan üret</button>` : ''}`
     })}
+    ${aiReady ? `<form class="card quick-post mb-4" id="quick-post">
+      <input class="input grow" name="topic" maxlength="1000" required placeholder="Konuyu yaz, carousel hazırlansın. Ör. Sınav haftasında kahve nasıl içilir?" aria-label="Post konusu">
+      <select class="select w-auto" name="slides" aria-label="Slayt sayısı">${[4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 6 ? 'selected' : ''}>${n} slayt</option>`).join('')}</select>
+      <button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button>
+      <button class="btn" type="button" data-from-idea title="İçerik havuzundan kullanılmamış bir fikir seç">${icon('idea')}Havuzdan</button>
+    </form>` : ''}
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     ${posts.length ? `<div class="post-grid">${posts.map(p => `
       <a class="card post-card" href="${base(brand)}/${esc(p.id)}">
@@ -76,6 +82,20 @@ export async function renderPosts(view, brand, sub) {
     k.addEventListener('change', sync);
     sync();
   };
+  // Hızlı üret (eski sistemdeki gibi tek satır): kart düzeninde carousel, varsayılan model; metin akarak gelir
+  const qp = view.querySelector('#quick-post');
+  if (qp) qp.addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(qp);
+    const topic = String(fd.get('topic') || '').trim();
+    if (!topic) return;
+    try {
+      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')) }, st));
+      if (!res) return;
+      toast(aiNote(res.post.ai), 'success', 5000);
+      go(base(brand) + '/' + res.post.id);
+    } catch (err) { toast(err.message, 'error'); }
+  });
   view.onclick = async e => {
     // 10.8: şablonu fikir türü ve kategorileriyle eşleştir
     const mt = e.target.closest('[data-match-tpl]');
@@ -518,7 +538,8 @@ async function renderEditor(view, brand, id, models) {
           <div class="field"><label for="lp-w">Genişlik</label><input class="input" id="lp-w" type="number" min="40" max="2000" data-prop="w" value="${l.w}"></div>
         </div>
         <div class="field"><span class="field-label">Hizalama</span><div class="seg">${[['left', 'Sol'], ['center', 'Orta'], ['right', 'Sağ']].map(([k, v]) => `<button type="button" data-align="${k}" class="${l.align === k ? 'active' : ''}">${v}</button>`).join('')}</div></div>
-        <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>`
+        <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>
+        <div class="field"><span class="field-label">Vurgu rengi <span class="xsmall muted">(kelimeyi *yıldız* içine al)</span></span>${swatches('highlight', l.highlight || brand.colors.primary || '#5b55e6')}</div>`
       : l.type === 'qr' ? `
         <div class="field"><label for="lp-qr">Link ya da metin</label><textarea class="textarea" id="lp-qr" data-prop="text" rows="2" maxlength="200">${esc(l.text)}</textarea></div>
         <div class="field"><label for="lp-qw">Boyut</label><input class="input" id="lp-qw" type="number" min="80" max="2000" data-prop="w" value="${l.w}"></div>

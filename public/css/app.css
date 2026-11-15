@@ -1864,3 +1864,5 @@ body.editor-mode .radial-fab { display: none; }
 .fi-status { margin: 0; padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--brand-soft); color: var(--brand-ink); font-size: var(--t-sm); }
 .fi-status[hidden] { display: none; }
 .ed-topic { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); }
+.quick-post { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; padding: var(--s-3); }
+.quick-post .input { min-width: 260px; }

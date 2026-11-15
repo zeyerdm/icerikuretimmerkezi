@@ -119,7 +119,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   // Tek modelle çalıştırır; harcamayı kaydeder
-  async function runOne(ref, { task, brandId, prompt, json, temperature, images = [], videoUrl = null }) {
+  async function runOne(ref, { task, brandId, prompt, json, temperature, images = [], videoUrl = null, effort = null }) {
     const p = parseRef(ref);
     if (!p || !providers[p.provider]) throw badRequest('Geçersiz model seçimi.');
     // YouTube videosunu okuyabilen tek sağlayıcı Gemini (video bağlantısını doğrudan girdi olarak alır)
@@ -130,7 +130,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       // 8.4: akışlı istekte metin parçaları istemciye gider; iptal sinyali sağlayıcı isteğini keser
       const sc = currentStream();
       if (sc.signal && sc.signal.aborted) throw cancelled();
-      const r = await providers[p.provider].generate(Object.assign({ model: p.id, prompt, json, temperature, effort: EFFORT[task] || 'medium', images, onDelta: sc.onDelta || null, signal: sc.signal || null }, videoUrl ? { videoUrl } : {}));
+      const r = await providers[p.provider].generate(Object.assign({ model: p.id, prompt, json, temperature, effort: effort || EFFORT[task] || 'medium', images, onDelta: sc.onDelta || null, signal: sc.signal || null }, videoUrl ? { videoUrl } : {}));
       const servedRef = modelRef(p.provider, r.model || p.id);
       const cost = typeof r.cost === 'number' ? r.cost : costOf(servedRef, r.usage || {}) || costOf(ref, r.usage || {});
       record({ ref: servedRef, task, brandId, usage: r.usage, cost });
@@ -144,7 +144,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   // İş için atanan modelle (ya da o an seçilen modelle) çalıştırır; geçici bir hata olursa işin yedek modeline geçer
-  async function run({ task = 'fikir', brandId = null, prompt, json = false, temperature = 0.8, modelRef = null, images = [], videoUrl = null }) {
+  async function run({ task = 'fikir', brandId = null, prompt, json = false, temperature = 0.8, modelRef = null, images = [], videoUrl = null, effort = null }) {
     checkBudget();
     const a = assignment(task);
     let primary = a.primary;
@@ -164,7 +164,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     }
     // Video girdisinde yedek model de Gemini olmalı; değilse yedeğe geçilmez
     const fallback = fb && (!videoUrl || (parseRef(fb) || {}).provider === 'gemini') ? fb : null;
-    const args = { task, brandId, prompt, json, temperature, images, videoUrl };
+    const args = { task, brandId, prompt, json, temperature, images, videoUrl, effort };
     // Geçici hatada aynı modelle kısa bekleyip en çok iki kez daha dener
     const sc = currentStream();
     const attempt = async ref => {

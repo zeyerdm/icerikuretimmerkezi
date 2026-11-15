@@ -352,3 +352,38 @@ test('11.1 hız: atma adımı yapay zekâ beklemez; okumalar bitişte arka pland
     assert.match(ai.notes.join(' '), /bitmedi/);
   } finally { await s2.stop(); }
 });
+
+test('Post kart düzeni (eski sistem tarzı): vurgulu başlık, slayta uygun maskot pozu ve balon, rozet, kapak büyük harf; hızlı (düşük çaba) istek', async () => {
+  const calls = [];
+  const provider = { id: 'fake', label: 'Hızlı', async generate(prompt, opts) { calls.push({ prompt, opts }); return { title: 'Kahve rehberi', caption: 'x', hashtags: [], slides: [
+    { title: 'Sınavda *kahve* nasıl içilir?', body: 'Kısa açıklama', speech: 'Kaydırarak incele', pose: 'Mutlu' },
+    { title: 'Önce *su* iç', body: 'Bir bardak su', speech: 'Önce su!', pose: 'Şaşkın' },
+    { title: 'Kaydet', body: 'Son', speech: '', pose: 'yok-boyle-poz' }] }; }, async test() { return { ok: true, modelCount: 1, modelAvailable: true }; } };
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Kart', colors: { primary: '#c2410c' } })).data.brand;
+    const mutlu = await upload(s, b.id, 'mascot', 'Mutlu');
+    const saskin = await upload(s, b.id, 'mascot', 'Şaşkın');
+    await upload(s, b.id, 'logo', 'Logo');
+    const r = await s.request('POST', `/api/brands/${b.id}/posts`, { topic: 'Kahve rehberi', kind: 'carousel', slides: 3 });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.match(calls[0].prompt, /\*yıldız\*/);
+    assert.match(calls[0].prompt, /Mutlu, Şaşkın/, 'pozlar isteme girer');
+    const sl = r.data.post.data.slides;
+    const L = (i, role) => sl[i].layers.find(l => l.role === role);
+    assert.equal(L(0, 'title').text, 'SINAVDA *KAHVE* NASIL IÇILIR?'.replace('IÇILIR', 'İÇİLİR'), 'kapak büyük harf, vurgu korunur');
+    assert.equal(L(0, 'title').highlight, '#c2410c');
+    assert.equal(L(0, 'num'), undefined, 'kapakta rozet yok');
+    assert.equal(L(1, 'num').text, '02'); assert.equal(L(1, 'page').text, '/ 03');
+    const img = i => sl[i].layers.filter(l => l.type === 'image').map(l => l.assetId);
+    assert.ok(img(0).includes(mutlu.id), 'kapakta Mutlu pozu');
+    assert.ok(img(1).includes(saskin.id), '2. slaytta Şaşkın pozu');
+    assert.equal(L(1, 'speech').text, 'Önce su!');
+    assert.equal(L(2, 'speech').text, 'Kaydet, lazım olur! 🚀', 'son slaytta varsayılan kapanış balonu');
+    assert.ok(sl.every(x => x.bg === sl[0].bg), 'bütün slaytlar aynı koyu zemin');
+    // Kaydedilip yeniden açılınca vurgu rengi ve logo hizası korunur
+    const saved = (await s.request('PUT', `/api/brands/${b.id}/posts/${r.data.post.id}`, { data: r.data.post.data })).data.post;
+    assert.equal(saved.data.slides[0].layers.find(l => l.role === 'title').highlight, '#c2410c');
+    assert.ok(saved.data.slides[0].layers.some(l => l.type === 'image' && l.align === 'left'), 'logo sola yaslı');
+  } finally { await s.stop(); }
+});
