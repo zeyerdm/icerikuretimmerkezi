@@ -47,6 +47,7 @@ export async function renderIdeas(view, brand) {
         <div class="ic-foot"><span class="small muted">${esc(SOURCE[i.source] || i.source)} · ${timeAgo(i.createdAt)}</span>
           <span class="row">
             ${i.archived ? '' : `<button class="btn btn-sm" data-plan="${esc(i.id)}">${icon('calendar')}Takvime ekle</button>`}
+            <button class="btn btn-sm btn-ghost icon-btn" data-del="${esc(i.id)}" aria-label="${esc(i.title)} fikrini sil" title="Sil (çöp kutusuna)">${icon('trash')}</button>
             <button class="btn btn-sm btn-ghost icon-btn" data-more="${esc(i.id)}" aria-label="Diğer işlemler" aria-haspopup="menu" title="Diğer işlemler">⋯</button>
           </span></div>
         <div class="idea-menu" data-menu="${esc(i.id)}" role="menu" hidden>
