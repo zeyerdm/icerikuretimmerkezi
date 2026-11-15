@@ -171,11 +171,28 @@ async function fromIdeaFlow(brand, models, templates) {
       <div class="field"><label for="fi-tpl">Şablon</label><select class="select" id="fi-tpl" name="templateId"><option value="">Eşleşen şablon (otomatik)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
       <div class="field full"><span class="field-label">Seçilen fikir</span><div class="pool-pick" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></div>
       <div class="field"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
+      <p class="full fi-status" id="fi-status" role="status" hidden></p>
     </div>`,
     onSubmit: async (fd, form) => {
       if (!idea) throw new Error('Önce bir fikir çek.');
-      const r = await busyTimer(form.querySelector('[type=submit]'), () => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, model: form.querySelector('#fi-model').value || null }), 'Hazırlıyor');
-      toast(`${r.template ? `"${r.template.name}" şablonuyla` : 'Marka yerleşimiyle'} hazırlandı; fikir kullanıldı olarak işaretlendi.`, 'success', 5000);
+      // Hangi fikrin yazıldığı ve geçen süre açıkça görünür; metin model yazdıkça akar (İptal edilebilir)
+      const status = form.querySelector('#fi-status');
+      const started = Date.now();
+      status.hidden = false;
+      const tick = () => { status.innerHTML = `<span class="ob-spin" aria-hidden="true"></span> <b>"${esc(idea.title)}"</b> fikrinden post yazılıyor · ${Math.round((Date.now() - started) / 1000)} sn`; };
+      tick();
+      const timer = setInterval(tick, 1000);
+      form.querySelectorAll('[data-fi-again], #fi-format').forEach(el => { el.disabled = true; });
+      let r;
+      try {
+        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
+      } finally {
+        clearInterval(timer);
+        status.hidden = true;
+        form.querySelectorAll('[data-fi-again], #fi-format').forEach(el => { el.disabled = false; });
+      }
+      if (!r) return;
+      toast(`"${idea.title}" fikrinden ${r.template ? `"${r.template.name}" şablonuyla` : 'marka yerleşimiyle'} hazırlandı (${aiNote(r.post.ai)}). Fikir kullanıldı olarak işaretlendi.`, 'success', 7000);
       if (r.warning) toast(r.warning, 'info', 6000);
       go(base(brand) + '/' + r.post.id);
     }
@@ -377,7 +394,7 @@ async function renderEditor(view, brand, id, models) {
           <div class="ed-menu"><button type="button" class="ed-top-btn" data-menu="boyut" aria-haspopup="true">Yeniden boyutlandır</button>
             <div class="ed-drop" data-drop="boyut" hidden>${Object.entries(meta.formats).map(([k, v]) => `<button type="button" data-format="${k}" class="${k === data.format ? 'on' : ''}">${esc(v.label)} <span class="ed-hint">${v.w}×${v.h}</span></button>`).join('')}</div></div>
           <span class="spacer"></span>
-          <h1 class="ed-title" title="${esc(post.title)}">${esc(post.title)}</h1>
+          <h1 class="ed-title" title="${esc(post.title)}${data.topic ? ` · Konu: ${esc(data.topic)}` : ''}">${esc(post.title)}</h1>${data.topic ? `<span class="ed-topic xsmall" title="${esc(data.topic)}">${esc(data.topic.length > 48 ? data.topic.slice(0, 48) + '…' : data.topic)}</span>` : ''}
           <button type="button" class="ed-top-btn ed-save" data-act="save">${dirty ? 'Kaydet •' : 'Kaydet'}</button>
           <div class="ed-menu"><button type="button" class="ed-share" data-menu="paylas" aria-haspopup="true">Paylaş</button>
             <div class="ed-drop right" data-drop="paylas" hidden>

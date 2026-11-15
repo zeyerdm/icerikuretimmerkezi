@@ -312,3 +312,24 @@ test('11.3 sohbet: yapay zekâ en sonda ve arka planda; kurulum beklemeden biter
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('10.8 havuzdan post: hangi fikrin yazıldığı ve geçen süre görünür, metin akar; editörde konu görünür', { skip }, async () => {
+  const { fakeProvider } = await import('./helpers.js');
+  const provider = fakeProvider([async () => { await new Promise(r => setTimeout(r, 1500)); return { title: 'Menü günü', caption: 'x', hashtags: [], slides: [{ title: 'Yeni menü', body: 'Gövde', items: [], cta: '' }] }; }]);
+  const srv = await startServer({ aiProvider: provider });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Akış Post' })).data.brand;
+  await srv.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Haftanın menüsü', category: 'bilgilendirici', format: 'post' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/post`);
+    await page.locator('[data-from-idea]').click();
+    await page.locator('#fi-idea', { hasText: 'Haftanın menüsü' }).waitFor();
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('#fi-status', { hasText: '"Haftanın menüsü" fikrinden post yazılıyor' }).waitFor();
+    await page.locator('#fi-status', { hasText: /[1-9]\d* sn/ }).waitFor();
+    await page.waitForURL(/\/post\/[A-Za-z0-9-]{8,}$/);
+    await page.locator('.toast', { hasText: '"Haftanın menüsü" fikrinden' }).waitFor();
+    await page.locator('.ed-topic', { hasText: 'Haftanın menüsü' }).waitFor();
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
