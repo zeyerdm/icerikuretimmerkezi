@@ -4,9 +4,21 @@ import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
-import { drawSlide, resolveImages, slideBlob, hitTest } from '../postCanvas.js';
+import { drawSlide, resolveImages, slideBlob, hitTest, layerBox } from '../postCanvas.js';
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
+
+// Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
+const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Başlık'], ['body', 'Açıklama'], ['item', 'Madde (bilgi grafiği)'], ['cta', 'Buton yazısı'], ['speech', 'Maskot konuşması'], ['topic', 'Konu etiketi'], ['num', 'Slayt numarası'], ['page', 'Slayt sayısı (/ 06)']];
+const FILL_ROLES = ['title', 'body', 'item', 'cta', 'speech'];
+const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri (poz her postta konuya göre seçilir)'], ['logo', 'Logo']];
+// Şablonun hangi alanları her postta doluyor (kartta gösterilir)
+const ROLE_NAMES = { title: 'Başlık', body: 'Açıklama', item: 'Madde', cta: 'Buton', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri' };
+function tplFields(t) {
+  const set = new Set();
+  (t.data.slides || []).forEach(s => (s.layers || []).forEach(l => { if (ROLE_NAMES[l.role] && (l.type === 'text' || l.role === 'mascot')) set.add(ROLE_NAMES[l.role]); }));
+  return [...set];
+}
 import { youtubePreview } from './youtube.js';
 
 const base = brand => `#/m/${encodeURIComponent(brand.id)}/post`;
@@ -20,6 +32,11 @@ export async function renderPosts(view, brand, sub) {
   const aiReady = models.ov.providers.some(p => p.configured);
   const [{ posts }, { templates }, { templates: sharedTpls }] = await Promise.all([api.posts(brand.id), api.postTemplates(brand.id), api.sharedTemplates(brand.id)]);
   const meta = state.meta.posts;
+  // Son seçilen tasarım hatırlanır (her post için yeniden seçmek gerekmesin)
+  const tplKey = `ium.lastTpl.${brand.id}`;
+  let lastTpl = '';
+  try { lastTpl = localStorage.getItem(tplKey) || ''; } catch { /* gizli pencere */ }
+  if (!templates.some(t => t.id === lastTpl && !t.match.frame)) lastTpl = '';
   view.innerHTML = `
     ${pageHead({
       title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
@@ -27,6 +44,7 @@ export async function renderPosts(view, brand, sub) {
     })}
     ${aiReady ? `<form class="card quick-post mb-4" id="quick-post">
       <input class="input grow" name="topic" maxlength="1000" required placeholder="Konuyu yaz, carousel hazırlansın. Ör. Sınav haftasında kahve nasıl içilir?" aria-label="Post konusu">
+      <select class="select w-auto" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Tasarım: otomatik (marka yerleşimi)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>Tasarım: ${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select>
       <select class="select w-auto" name="slides" aria-label="Slayt sayısı">${[4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 6 ? 'selected' : ''}>${n} slayt</option>`).join('')}</select>
       <button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button>
       <button class="btn" type="button" data-from-idea title="İçerik havuzundan kullanılmamış bir fikir seç">${icon('idea')}Havuzdan</button>
@@ -41,10 +59,12 @@ export async function renderPosts(view, brand, sub) {
       : emptyState({ icon: 'palette', title: 'Henüz tasarım yok', text: 'Bir konu yaz; carousel slaytları marka renkleri, fontları, logosu ve maskotuyla hazırlansın. Sonra her şeyi düzenleyebilirsin.', action: aiReady ? `<button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : '', card: true })}`;
 
   if (templates.length) {
-    view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Şablonlar</h3><span class="small muted">${templates.length}</span></div>
+    view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Şablonlar (tasarımların)</h3><span class="small muted">${templates.length}</span></div>
+      <p class="small muted mb-3">Tasarımı bir kez hazırla: düzenleyicide yazı kutularını <b>Başlık / Açıklama / Maskot konuşması</b> diye, maskot görselini <b>Maskot yeri</b> diye işaretle ve "Marka şablonu olarak kaydet". Post üretirken yukarıdan tasarımı seç; yapay zekâ yalnızca metni yazar ve maskotun pozunu seçer, yerleşim değişmez. Özel gün tasarımları da böyle eklenir.</p>
       <div class="post-grid">${templates.map(t => `<div class="post-card tpl-card">
         <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
-        <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)}</div>
+        <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt</div>
+        <div class="xsmall ${tplFields(t).length ? '' : 'text-warn'} mt-1">${tplFields(t).length ? `Dolan alanlar: ${esc(tplFields(t).join(', '))}` : 'İşaretli alan yok: düzenleyicide kutulara rol ver'}</div>
         ${t.match.frame ? `<span class="tag mt-1">${t.match.frame === 'acilis' ? 'Sabit açılış slaytı' : 'Sabit kapanış slaytı'}</span>` : ''}<div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
         <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
       </div>`).join('')}</div></section>`);
@@ -90,7 +110,9 @@ export async function renderPosts(view, brand, sub) {
     const topic = String(fd.get('topic') || '').trim();
     if (!topic) return;
     try {
-      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')) }, st));
+      const templateId = fd.get('templateId') || null;
+      try { localStorage.setItem(tplKey, templateId || ''); } catch { /* gizli pencere */ }
+      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId }, st));
       if (!res) return;
       toast(aiNote(res.post.ai), 'success', 5000);
       go(base(brand) + '/' + res.post.id);
@@ -189,6 +211,7 @@ async function fromIdeaFlow(brand, models, templates) {
     body: `<div class="form-grid">
       <div class="field"><label for="fi-format">Fikir türü</label><select class="select" id="fi-format" name="format">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
       <div class="field"><label for="fi-tpl">Şablon</label><select class="select" id="fi-tpl" name="templateId"><option value="">Eşleşen şablon (otomatik)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
+      <div class="field"><label for="fi-slides">Slayt (carousel şablonunda)</label><select class="select" id="fi-slides" name="slides"><option value="">Şablondaki kadar</option>${[3, 4, 5, 6, 7, 8].map(n => `<option>${n}</option>`).join('')}</select></div>
       <div class="field full"><span class="field-label">Seçilen fikir</span><div class="pool-pick" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></div>
       <div class="field"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
       <p class="full fi-status" id="fi-status" role="status" hidden></p>
@@ -205,7 +228,7 @@ async function fromIdeaFlow(brand, models, templates) {
       form.querySelectorAll('[data-fi-again], #fi-format').forEach(el => { el.disabled = true; });
       let r;
       try {
-        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
+        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, slides: Number(fd.get('slides')) || null, model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
       } finally {
         clearInterval(timer);
         status.hidden = true;
@@ -548,6 +571,11 @@ async function renderEditor(view, brand, id, models) {
       <div class="stack-sm">
       ${l.type === 'text' ? `
         <div class="field"><label for="lp-text">Yazı</label><textarea class="textarea" id="lp-text" data-prop="text" rows="3" maxlength="1000">${esc(l.text)}</textarea></div>
+        <div class="form-grid tpl-field">
+          <div class="field"><label for="lp-role">Şablonda bu kutuya</label><select class="select" id="lp-role" data-prop="role">${TEXT_ROLES.map(([k, v]) => `<option value="${k}" ${(l.role || 'text') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+          <div class="field"><label for="lp-maxh">Kutu yüksekliği</label><input class="input" id="lp-maxh" type="number" min="0" max="4000" data-prop="maxH" value="${l.maxH || 0}" title="0 = sınırsız. Doluysa uzun yazı bu yüksekliğe sığana kadar küçülür."></div>
+        </div>
+        <p class="xsmall muted">Bu tasarımı şablon olarak kaydedince, post üretirken yalnızca işaretli kutular yeni metinle dolar; yerleşim ve görseller aynen kalır.</p>
         <div class="form-grid">
           <div class="field"><label for="lp-font">Font</label><select class="select" id="lp-font" data-prop="font">${fontList.map(f => `<option ${f === l.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
           <div class="field"><label for="lp-weight">Kalınlık</label><select class="select" id="lp-weight" data-prop="weight">${[400, 500, 600, 700, 800, 900].map(w => `<option value="${w}" ${w === l.weight ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
@@ -565,10 +593,12 @@ async function renderEditor(view, brand, id, models) {
       : l.type === 'image' ? `
         <div class="form-grid"><div class="field"><label for="lp-iw">Genişlik</label><input class="input" id="lp-iw" type="number" min="10" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-ih">Yükseklik</label><input class="input" id="lp-ih" type="number" min="10" max="4000" data-prop="h" value="${l.h}"></div></div>
+        <div class="field"><label for="lp-irole">Şablonda bu görsel</label><select class="select" id="lp-irole" data-prop="role">${IMAGE_ROLES.map(([k, v]) => `<option value="${k}" ${(l.role || '') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
         <button type="button" class="btn btn-sm" data-replace-image>Görseli değiştir</button>`
       : `<div class="form-grid"><div class="field"><label for="lp-sw">Genişlik</label><input class="input" id="lp-sw" type="number" min="1" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-sh">Yükseklik</label><input class="input" id="lp-sh" type="number" min="1" max="4000" data-prop="h" value="${l.h}"></div>
           ${l.shape === 'circle' ? '' : `<div class="field"><label for="lp-r">Köşe</label><input class="input" id="lp-r" type="number" min="0" max="1000" data-prop="radius" value="${l.radius || 0}"></div>`}</div>
+        <label class="chip-check"><input type="checkbox" data-bubble ${l.role === 'bubble' ? 'checked' : ''}><span>Maskotun konuşma balonu (konuşma yoksa gizlenir)</span></label>
         <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>`}
       <div class="field"><label for="lp-op">Saydamlık: ${l.opacity != null ? l.opacity : 100}%</label><input type="range" id="lp-op" min="10" max="100" step="5" data-prop="opacity" value="${l.opacity != null ? l.opacity : 100}"></div>
       <div class="form-grid"><div class="field"><label for="lp-x">X</label><input class="input" id="lp-x" type="number" data-prop="x" value="${l.x}"></div><div class="field"><label for="lp-y">Y</label><input class="input" id="lp-y" type="number" data-prop="y" value="${l.y}"></div></div>
@@ -835,7 +865,7 @@ async function renderEditor(view, brand, id, models) {
   };
   document.addEventListener('keydown', onKey, true);
   document.addEventListener('paste', onPaste, true);
-  const addAssetLayer = a => { const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
+  const addAssetLayer = a => { const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, ...(a.category === 'mascot' ? { role: 'mascot' } : a.category === 'logo' ? { role: 'logo' } : {}), x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
   async function save(btn) {
     post = (await busy(btn, () => api.savePost(brand.id, post.id, { data }))).post;
     data = JSON.parse(JSON.stringify(post.data)); dirty = false;
@@ -850,10 +880,18 @@ async function renderEditor(view, brand, id, models) {
     if (t.id === 'slide-bg') { slide().bg = t.value; markDirty(); quick(); return; }
     if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(); quick(); return; }
     if (t.id === 'ed-zoom') { zoom = Number(t.value); $('#ed-zoom-val').textContent = `%${zoom}`; fit(); return; }
+    if (t.matches('[data-bubble]') && layer()) { const lb = layer(); if (t.checked) lb.role = 'bubble'; else delete lb.role; markDirty(); return; }
     const prop = t.dataset.prop;
     const l = layer();
     if (!prop || !l) return;
-    l[prop] = ['text', 'font', 'color'].includes(prop) ? t.value : Number(t.value);
+    l[prop] = ['text', 'font', 'color', 'role'].includes(prop) ? t.value : Number(t.value);
+    if (prop === 'maxH' && !(l.maxH > 0)) delete l.maxH;
+    // Doldurulacak bir kutu seçilince yüksekliği şimdiki hâlinden alınır: uzun metin buna sığdırılır
+    if (prop === 'role' && l.type === 'text' && FILL_ROLES.includes(l.role) && !l.maxH) {
+      const ctx = document.createElement('canvas').getContext('2d');
+      l.maxH = Math.round(Math.max(layerBox(ctx, l).h, l.size * 2.4));
+      const mh = $('#lp-maxh'); if (mh) mh.value = l.maxH;
+    }
     if (l.type === 'qr' && prop === 'w') l.h = l.w;
     markDirty();
     quick();
@@ -883,7 +921,7 @@ async function renderEditor(view, brand, id, models) {
       const pr = add.dataset.preset;
       if (add.dataset.add === 'text') {
         const spec = pr === 'title' ? { text: 'Başlık', size: 96, weight: 800, font: brand.fonts.heading } : pr === 'sub' ? { text: 'Alt başlık', size: 56, weight: 700, font: brand.fonts.heading } : { text: 'Yeni metin', size: 40, weight: 500, font: brand.fonts.body };
-        return addLayer(Object.assign({ id: uid(), type: 'text', role: 'text', x: 90, y: Math.round(F.h / 2), w: 800, color: brand.colors.heading || '#1b1f3b', align: 'left' }, spec, { font: spec.font || 'Poppins' }));
+        return addLayer(Object.assign({ id: uid(), type: 'text', role: pr === 'title' ? 'title' : pr === 'body' ? 'body' : 'text', x: 90, y: Math.round(F.h / 2), w: 800, color: brand.colors.heading || '#1b1f3b', align: 'left' }, spec, { font: spec.font || 'Poppins' }));
       }
       if (add.dataset.add === 'qr') {
         const text = ($('#ed-qr-text') || {}).value || '';

@@ -1878,3 +1878,5 @@ body.editor-mode .radial-fab { display: none; }
 .tag-pick select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .busy-stop { margin-left: 6px; }
 #chat-stop { margin-left: 6px; padding: 2px 8px; }
+.text-warn { color: var(--danger, #c0392b); }
+.quick-post .select { max-width: 100%; }

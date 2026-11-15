@@ -79,8 +79,23 @@ function drawRich(ctx, l, x0) {
   });
 }
 
+// Şablon kutusu (maxH): uzun metin kutuya sığana kadar yazı küçültülür (en fazla %45'ine kadar)
+export function fitText(ctx, l) {
+  if (l.type !== 'text' || !(l.maxH > 0)) return l;
+  let size = l.size;
+  const min = Math.max(12, Math.round(l.size * 0.45));
+  for (;;) {
+    ctx.font = fontOf(Object.assign({}, l, { size }));
+    const n = wrapLines(ctx, plain(l.text), l.w).length;
+    if (n * size * 1.2 <= l.maxH || size <= min) break;
+    size = Math.max(min, size - 2);
+  }
+  return size === l.size ? l : Object.assign({}, l, { size });
+}
+
 // Katmanın kapladığı alan (seçim ve sürükleme için)
 export function layerBox(ctx, l) {
+  if (l.type === 'text' && l.maxH > 0) { ctx.font = fontOf(fitText(ctx, l)); return { x: l.x, y: l.y, w: l.w, h: l.maxH }; }
   if (l.type === 'text') {
     ctx.font = fontOf(l);
     const lines = wrapLines(ctx, plain(l.text), l.w);
@@ -108,7 +123,8 @@ export function drawSlide(canvas, slide, format, { selectedId = null } = {}) {
     }
     if (slide.bgImage.dim) { ctx.fillStyle = `rgba(0,0,0,${slide.bgImage.dim / 100})`; ctx.fillRect(0, 0, format.w, format.h); }
   }
-  for (const l of slide.layers) {
+  for (const l0 of slide.layers) {
+    const l = fitText(ctx, l0);
     ctx.globalAlpha = l.opacity != null ? Math.max(0, Math.min(1, l.opacity / 100)) : 1;
     if (l.type === 'shape') {
       ctx.fillStyle = l.color;
