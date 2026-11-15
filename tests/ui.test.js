@@ -663,7 +663,7 @@ test('Post stüdyosu: konudan carousel üret, katman seç ve düzenle, slayt ekl
     const k = box.width / 1080;
     await page.mouse.click(box.x + 200 * k, box.y + (1350 * 0.22 + 40) * k);
     await page.locator('#lp-text').waitFor();
-    assert.equal(await page.locator('#lp-text').inputValue(), 'Sınav haftası');
+    assert.equal(await page.locator('#lp-text').inputValue(), 'SINAV HAFTASI', 'kart düzeninde kapak başlığı büyük harf');
     await page.locator('#lp-text').fill('Sınav haftası rehberi');
     // Sürükle: katman yer değiştirir
     await page.mouse.move(box.x + 200 * k, box.y + (1350 * 0.22 + 40) * k);

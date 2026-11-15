@@ -333,3 +333,29 @@ test('10.8 havuzdan post: hangi fikrin yazıldığı ve geçen süre görünür,
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('Post stüdyosu hızlı üret: tek satır konu → kart düzeninde carousel; vurgulu kelimeler marka renginde çizilir', { skip }, async () => {
+  const { fakeProvider } = await import('./helpers.js');
+  const provider = fakeProvider([{ title: 'Kahve rehberi', caption: 'x', hashtags: [], slides: [{ title: 'Sınavda *kahve*', body: 'Kapak' }, { title: 'Önce *su* iç', body: 'Bir bardak' }, { title: 'Kaydet', body: 'Son' }] }]);
+  const srv = await startServer({ aiProvider: provider });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Hızlı Post', colors: { primary: '#e11d48' } })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/post`);
+    await page.locator('#quick-post [name="topic"]').fill('Sınav haftasında kahve');
+    await page.locator('#quick-post [name="slides"]').selectOption('4');
+    await page.locator('#quick-post [type=submit]').click();
+    await page.waitForURL(/\/post\/[A-Za-z0-9-]{8,}$/);
+    await page.locator('#stage').waitFor();
+    await page.waitForTimeout(400);
+    // Kapak başlığındaki vurgulu kelime (KAHVE) marka renginde çizildi mi: tuvalde marka rengi pikseli var
+    const hasAccent = await page.evaluate(() => {
+      const c = document.querySelector('#stage'); const d = c.getContext('2d').getImageData(0, 0, c.width, Math.round(c.height * 0.6)).data;
+      for (let i = 0; i < d.length; i += 16) if (Math.abs(d[i] - 0xe1) < 18 && Math.abs(d[i + 1] - 0x1d) < 18 && Math.abs(d[i + 2] - 0x48) < 18) return true;
+      return false;
+    });
+    assert.ok(hasAccent, 'vurgu rengi çizildi');
+    assert.match(provider.calls[0].prompt, /4 slaytlık/);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

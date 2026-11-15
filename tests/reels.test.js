@@ -78,16 +78,18 @@ test('kurallar: Flow prompt\'unda başlık yalnızca ilk sahnede; temiz video pr
   assert.match(scriptText(d, opts), /SAHNE 2 – \[00:06–00:12\]/);
 });
 
-test('post şablonu: kapak marka renginde, logo ve maskot katmanları; doğrulama başka markanın görselini reddeder', () => {
+test('post şablonu (kart düzeni): koyu marka zemini, vurgu rengi, rozet, logo ve maskot; doğrulama başka markanın görselini reddeder', () => {
   const brand = { colors: { primary: '#c2410c', backgrounds: ['#fff7ed'], heading: '', body: '' }, fonts: { heading: 'Poppins', body: 'Inter' } };
   const slides = layoutSlides({ texts: [{ title: 'Kapak', body: 'Alt' }, { title: 'İki', body: 'Metin' }, { title: 'Üç', body: '' }], brand, logoUrl: '/api/brands/b1/assets/l1/file', mascotUrl: '/api/brands/b1/assets/m1/file' });
   assert.equal(slides.length, 3);
-  assert.equal(slides[0].bg, '#c2410c');
-  assert.equal(slides[1].bg, '#fff7ed');
+  assert.ok(slides.every(x => x.bg === slides[0].bg), 'bütün slaytlar aynı zeminde');
+  assert.notEqual(slides[0].bg, '#fff7ed', 'açık zemin yerine koyu marka tonu');
   assert.ok(slides[0].layers.some(l => l.type === 'image' && l.src.includes('/m1/')), 'kapakta maskot yok');
   assert.ok(slides.every(s => s.layers.some(l => l.type === 'image' && l.src.includes('/l1/'))), 'logo her slaytta olmalı');
   assert.equal(slides[0].layers.find(l => l.role === 'title').color, '#ffffff', 'koyu zeminde yazı beyaz olmalı');
-  assert.equal(slides[2].layers.find(l => l.role === 'page').text, '3/3');
+  assert.equal(slides[0].layers.find(l => l.role === 'title').text, 'KAPAK', 'kapak başlığı büyük harf');
+  assert.equal(slides[2].layers.find(l => l.role === 'num').text, '03');
+  assert.equal(slides[2].layers.find(l => l.role === 'page').text, '/ 03');
   const data = cleanData({ format: '4:5', slides }, 'b1');
   assert.equal(data.slides.length, 3);
   assert.throws(() => cleanData({ format: '4:5', slides }, 'baska'), /bu markanın/);
@@ -232,7 +234,7 @@ test('post stüdyosu: konudan carousel, düzenleme, başka markanın görseli re
     assert.equal(c.status, 201, JSON.stringify(c.data));
     const post = c.data.post;
     assert.equal(post.data.slides.length, 3);
-    assert.equal(post.data.slides[0].bg, '#c2410c');
+    assert.ok(post.data.slides[0].layers.find(l => l.role === 'title').highlight === '#c2410c', 'vurgu marka renginde');
     assert.ok(post.data.slides[0].layers.some(l => l.src === logo.url), 'logo eklenmedi');
     assert.equal(post.data.caption, 'Açıklama');
 

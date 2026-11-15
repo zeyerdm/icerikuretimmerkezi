@@ -23,9 +23,87 @@ function readableOn(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#1b1f3b' : '#ffffff';
 }
 
+// Renk yardımcıları (kart düzeni)
+const hexRgb = h => { const n = parseInt(String(h).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const rgbHex = a => '#' + a.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const mix = (a, b, t) => { const x = hexRgb(a); const y = hexRgb(b); return rgbHex(x.map((v, i) => v + (y[i] - v) * t)); };
+const lum = h => { const [r, g, b] = hexRgb(h).map(v => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const contrastOf = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const foldTr = v => String(v || '').toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/\p{M}/gu, '').replace(/ı/g, 'i');
+
+// Kart düzeni (carousel varsayılanı): koyu marka zemini; üstte logo ve konu, "01 / 06" rozeti, *vurgulu* kelimeleri marka
+// renginde iri başlık, alt metin; köşede slayta uygun maskot pozu ve konuşma balonu. Kapakta büyük harfli dev başlık.
+// Her parça ayrı katman: düzenleyicide taşınır, değiştirilir, "tüm slaytlara uygula" ile eşlenir.
+function cardLayout({ texts, brand, F, fonts, logoUrl, logoId, mascots, topic }) {
+  const c = brand.colors || {};
+  const primary = HEX.test(c.primary || '') ? c.primary : '#5b55e6';
+  const given = HEX.test((c.backgrounds || [])[0] || '') ? c.backgrounds[0] : '';
+  // Zemin: markanın koyu zemini varsa o, yoksa ana rengin çok koyu tonu
+  const bg = given && lum(given) < 0.2 ? given : mix(primary, '#05070d', 0.86);
+  const ink = readableOn(bg);
+  const muted = mix(ink, bg, 0.3);
+  // Vurgu rengi zeminde okunmuyorsa açılır
+  let accent = primary;
+  for (let i = 0; i < 6 && contrastOf(accent, bg) < 3; i++) accent = mix(accent, '#ffffff', 0.2);
+  const id = () => newId().slice(0, 8);
+  const total = texts.length;
+  const P = 72;
+  const est = (t, size, w) => { let n = 1; let cur = 0; String(t || '').replace(/\*/g, '').split(/\s+/).filter(Boolean).forEach(word => { const ww = word.length * size * 0.62; const add = cur ? size * 0.28 + ww : ww; if (cur && cur + add > w) { n++; cur = ww; } else cur += add; }); return n; };
+  const pickMascot = pose => {
+    if (!mascots.length) return null;
+    const p = foldTr(pose);
+    return (p && mascots.find(m => foldTr(m.label) === p || (p.length > 2 && foldTr(m.label).includes(p)) || (foldTr(m.label).length > 2 && p.includes(foldTr(m.label))))) || null;
+  };
+  return texts.map((t, i) => {
+    const cover = i === 0;
+    const last = i === total - 1 && total > 1;
+    const layers = [];
+    if (logoUrl) layers.push({ id: id(), type: 'image', role: 'logo', assetId: logoId, src: logoUrl, x: P, y: 56, w: 300, h: 110, align: 'left' });
+    if (!cover && topic) layers.push({ id: id(), type: 'text', role: 'topic', text: String(topic).slice(0, 60), x: F.w - P - 420, y: 74, w: 420, size: 28, color: muted, font: fonts.body, weight: 600, align: 'right' });
+    let y = cover ? Math.round(F.h * 0.2) : 230;
+    if (!cover && total > 1) {
+      // "03 / 06" rozeti
+      layers.push({ id: id(), type: 'shape', shape: 'rect', x: P, y, w: 214, h: 64, color: mix(bg, ink, 0.1), radius: 32 });
+      layers.push({ id: id(), type: 'shape', shape: 'rect', x: P + 7, y: y + 7, w: 86, h: 50, color: accent, radius: 25 });
+      layers.push({ id: id(), type: 'text', role: 'num', text: String(i + 1).padStart(2, '0'), x: P + 7, y: y + 13, w: 86, size: 32, color: readableOn(accent), font: fonts.heading, weight: 800, align: 'center' });
+      layers.push({ id: id(), type: 'text', role: 'page', text: `/ ${String(total).padStart(2, '0')}`, x: P + 108, y: y + 13, w: 100, size: 32, color: muted, font: fonts.body, weight: 700, align: 'left' });
+      y += 120;
+    }
+    const tSize = cover ? (String(t.title).length > 40 ? 92 : 108) : (String(t.title).length > 48 ? 66 : 76);
+    const titleText = cover ? String(t.title).toLocaleUpperCase('tr-TR') : t.title;
+    layers.push({ id: id(), type: 'text', role: 'title', text: titleText, x: P, y, w: F.w - P * 2, size: tSize, color: ink, highlight: accent, font: fonts.heading, weight: 900, align: 'left' });
+    y += Math.round(est(titleText, tSize, F.w - P * 2) * tSize * 1.2) + (cover ? 44 : 36);
+    // Kapakta alt metin maskotun yerine taşmasın
+    const bodyW = cover ? (mascots.length ? 620 : F.w - P * 2 - 120) : F.w - P * 2;
+    const bodySize = cover ? 44 : 40;
+    if (t.body) { layers.push({ id: id(), type: 'text', role: 'body', text: t.body, x: P, y, w: bodyW, size: bodySize, color: muted, font: fonts.body, weight: 500, align: 'left' }); y += Math.round(est(t.body, bodySize * 0.82, bodyW) * bodySize * 1.2); }
+    // Maskot ve konuşma balonu (sağ alt); maskot yoksa balon da yok
+    const m = pickMascot(t.pose) || mascots[i % Math.max(1, mascots.length)] || null;
+    if (m) {
+      layers.push({ id: id(), type: 'image', role: 'mascot', assetId: m.id, src: m.url, x: F.w - 470, y: F.h - 540, w: 450, h: 520 });
+      const speech = t.speech || (cover ? 'Kaydırarak incele 👀' : last ? 'Kaydet, lazım olur! 🚀' : '');
+      if (speech) {
+        const sw = Math.min(460, Math.max(240, speech.length * 17 + 64));
+        const sl = Math.ceil((speech.length * 17) / (sw - 56));
+        const sh = 40 + sl * 40;
+        // Balon maskotun sol üstünde; metnin bittiği yerin altında kalır (yazının üstüne binmez)
+        const bx = F.w - 470 - sw + 70;
+        const by = Math.min(F.h - sh - 40, Math.max(y + 40, F.h - 440 - sh));
+        layers.push({ id: id(), type: 'shape', shape: 'rect', role: 'bubble', x: bx, y: by, w: sw, h: sh, color: '#ffffff', radius: 34 });
+        layers.push({ id: id(), type: 'text', role: 'speech', text: speech, x: bx + 28, y: by + 22, w: sw - 56, size: 32, color: '#0b132b', font: fonts.heading, weight: 800, align: 'left' });
+      }
+    }
+    return { bg, layers };
+  });
+}
+
 // Metinlerden marka şablonuyla slaytlar: kapak marka renginde, iç slaytlar marka zemininde; logo köşede, maskot kapakta
-export function layoutSlides({ texts, brand, format = '4:5', kind = 'carousel', logoUrl = null, mascotUrl = null, logoId = null, mascotId = null }) {
+export function layoutSlides({ texts, brand, format = '4:5', kind = 'carousel', logoUrl = null, mascotUrl = null, logoId = null, mascotId = null, mascots = null, topic = '' }) {
   const F = POST_FORMATS[format] || POST_FORMATS['4:5'];
+  if (kind === 'carousel' && texts.length > 1) {
+    const fonts0 = { heading: (brand.fonts && brand.fonts.heading) || 'Poppins', body: (brand.fonts && brand.fonts.body) || 'Inter' };
+    return cardLayout({ texts, brand, F, fonts: fonts0, logoUrl, logoId, mascots: mascots || (mascotUrl ? [{ id: mascotId, url: mascotUrl, label: '' }] : []), topic });
+  }
   const c = brand.colors || {};
   const primary = HEX.test(c.primary || '') ? c.primary : '#5b55e6';
   const bg = HEX.test((c.backgrounds || [])[0] || '') ? c.backgrounds[0] : '#ffffff';
@@ -152,10 +230,12 @@ function cleanLayer(l) {
     Object.assign(out, { role: String(l.role || 'text').slice(0, 12), text: String(l.text || '').slice(0, 1000), w: num(l.w, 40, 2000, 800), size: num(l.size, 10, 300, 40),
       color: HEX.test(l.color || '') ? l.color : '#1b1f3b', font: polish(l.font).slice(0, 40) || 'Inter', weight: [400, 500, 600, 700, 800, 900].includes(Number(l.weight)) ? Number(l.weight) : 700,
       align: ['left', 'center', 'right'].includes(l.align) ? l.align : 'left' });
+    if (HEX.test(l.highlight || '')) out.highlight = l.highlight; // *vurgulu* kelimelerin rengi
   } else if (l.type === 'image') {
     // Yalnızca bu uygulamadaki varlık dosyaları (dış adresten görsel çekilmez)
     if (!ASSET_SRC.test(String(l.src || ''))) throw badRequest('Görsel katmanı kütüphanedeki bir dosya olmalı.');
     Object.assign(out, { src: l.src, assetId: l.assetId ? String(l.assetId).slice(0, 40) : null, w: num(l.w, 10, 4000, 300), h: num(l.h, 10, 4000, 300) });
+    if (l.align === 'left' || l.align === 'right') out.align = l.align; // kutu içinde sola/sağa yaslı (logo)
   } else if (l.type === 'qr') {
     // QR kod: metin/link kare olarak çizilir (beyaz sessiz bölge her zaman eklenir, okunabilirlik için)
     const text = String(l.text || '').trim().slice(0, 200);
@@ -205,7 +285,7 @@ const KIND_TASK = {
   grafik: 'GÖREV: Tek görsellik bir bilgi grafiği metni yaz: başlık (en fazla 6 kelime) ve "items" alanında 4-6 kısa madde (her biri en fazla 70 karakter, somut bilgi).'
 };
 
-function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf }) {
+function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, poses = [] }) {
   return [
     kind === 'youtube' ? `Sen '${brandName}' markasının YouTube kapak ve içerik yazarısın.` : `Sen '${brandName}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI (dil ve kitle buna uysun):', memory, '',
     `KONU: ${topic}`, '',
@@ -213,11 +293,17 @@ function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf }) {
       ? `GÖREV: ${slideCount} slaytlık bir Instagram carousel metni yaz. 1. slayt kapak: merak uyandıran kısa başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt başlık. Diğer slaytlar: her birinde kısa başlık (en fazla 6 kelime) ve 1-3 kısa cümlelik açıklama (en fazla 220 karakter). Son slayt akılda kalan bir özet ya da sonuç olsun. Slaytlar birbirini tekrar etmesin.`
       : 'GÖREV: Tek görsellik bir Instagram postu metni yaz: kısa, vurucu başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt metin.',
     rewriteOf ? `\nÖNCEKİ METİN (farklı ve daha iyi yaz, kopyalama):\n${rewriteOf}` : '',
+    // Kart düzeni (carousel): başlıkta *vurgu*, maskotun konuşma balonu ve slayta uygun poz
+    kind === 'carousel' ? [
+      'BAŞLIKLAR: Her başlıkta en önemli 1-2 kelimeyi *yıldız* içine al (ör. "En sık yapılan *3 hata*"); bunlar marka renginde basılır. Kapak başlığı vurucu olsun.',
+      'Metin kuralları: günlük dil, kısa ve tam cümleler, alt metin 1-2 cümle. Gereksiz tırnak ve noktalı virgül kullanma.',
+      poses.length ? `MASKOT: Her slayta "speech" (maskotun en çok 6 kelimelik kısa tepkisi, ör. "Kaydırarak incele 👀"; son slaytta kaydet/paylaş çağrısı) ve "pose" yaz. "pose" şu pozlardan slayta en uygun olanı olsun: ${poses.join(', ')}.` : ''
+    ].filter(Boolean).join('\n') : '',
     kind === 'youtube'
       ? "Kapak yazısı kalın ve iri basılacak; kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına YouTube video açıklaması (ilk iki satır videonun vaadini anlatsın, 400-1500 karakter), 'hashtags' alanına en fazla 3 hashtag yaz."
       : "Görsel üzerindeki metinler kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına Instagram açıklaması (400-1000 karakter, merak uyandıran ilk satır, yorum sorusu), 'hashtags' alanına en fazla 5 hashtag yaz.",
     '', 'Sadece şu JSON biçiminde yanıt ver:',
-    JSON.stringify({ title: 'İçeriğin kısa adı', slides: [Object.assign({ title: 'Slayt başlığı', body: 'Kısa açıklama' }, kind === 'grafik' ? { items: ['Madde 1', 'Madde 2'] } : {}, kind === 'reklam' ? { cta: 'Hemen dene' } : {})], caption: 'Açıklama', hashtags: ['#ornek'] })
+    JSON.stringify({ title: 'İçeriğin kısa adı', slides: [Object.assign({ title: 'Slayt başlığı', body: 'Kısa açıklama' }, kind === 'grafik' ? { items: ['Madde 1', 'Madde 2'] } : {}, kind === 'reklam' ? { cta: 'Hemen dene' } : {}, kind === 'carousel' && poses.length ? { speech: 'Kısa tepki', pose: poses[0] } : {})], caption: 'Açıklama', hashtags: ['#ornek'] })
   ].filter(Boolean).join('\n');
 }
 
@@ -235,15 +321,19 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
   const brandAssets = b => {
     const logo = assets.list(b.id, 'logo')[0];
     const mascot = assets.list(b.id, 'mascot')[0];
-    return { logoUrl: logo ? logo.url : null, logoId: logo ? logo.id : null, mascotUrl: mascot ? mascot.url : null, mascotId: mascot ? mascot.id : null };
+    return { logoUrl: logo ? logo.url : null, logoId: logo ? logo.id : null, mascotUrl: mascot ? mascot.url : null, mascotId: mascot ? mascot.id : null,
+      mascots: assets.list(b.id, 'mascot').map(a => ({ id: a.id, url: a.url, label: a.label })) };
   };
 
   async function writeTexts(b, { topic, kind, slides, modelRef, rewriteOf }) {
     const count = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || 6)) : 1;
-    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: postPrompt({ brandName: b.name, memory: brands.memory(b.id), topic, kind, slideCount: count, rewriteOf }), json: true, modelRef: modelRef || null });
+    // Post metni kısa ve kalıplı: modelin uzun düşünmesine gerek yok (düşük çaba = hızlı yanıt)
+    const poses = assets.list(b.id, 'mascot').map(a => polish(a.label)).filter(Boolean).slice(0, 12);
+    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: postPrompt({ brandName: b.name, memory: brands.memory(b.id), topic, kind, slideCount: count, rewriteOf, poses }), json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.7 });
     const out = r.output || {};
     const texts = (Array.isArray(out.slides) ? out.slides : []).map(s => ({ title: polish(s && s.title).slice(0, 160), body: polish(s && s.body).slice(0, 500),
-      items: (Array.isArray(s && s.items) ? s.items : []).map(x => polish(x).slice(0, 120)).filter(Boolean).slice(0, 6), cta: polish(s && s.cta).slice(0, 40) })).filter(s => s.title).slice(0, count);
+      items: (Array.isArray(s && s.items) ? s.items : []).map(x => polish(x).slice(0, 120)).filter(Boolean).slice(0, 6), cta: polish(s && s.cta).slice(0, 40),
+      speech: polish(s && s.speech).replace(/["“”]/g, '').slice(0, 60), pose: polish(s && s.pose).slice(0, 60) })).filter(s => s.title).slice(0, count);
     if (!texts.length) throw new HttpError(502, 'AI_BAD_POST', 'Model kullanılabilir bir metin döndürmedi. Tekrar dene ya da başka bir model seç.');
     return { texts, title: polish(out.title).slice(0, 120) || texts[0].title, caption: String(out.caption || '').trim().slice(0, 3000),
       hashtags: (Array.isArray(out.hashtags) ? out.hashtags : []).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 8), r };
@@ -346,7 +436,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       if (!POST_FORMATS[format]) throw badRequest('Geçersiz boyut.');
       const t = text(topic, { field: 'Konu', max: 1000, required: true });
       const w = await writeTexts(b, { topic: t, kind, slides, modelRef });
-      const data = withFrames(b.id, { format, slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format, kind }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags, topic: t }, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta });
+      const data = withFrames(b.id, { format, slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format, kind, topic: String(t).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags, topic: t }, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta });
       const r = { id: newId(), brand_id: b.id, title: w.title, kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
       db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
       brands.logActivity(b.id, 'post.created', `${POST_KINDS[kind]} hazırlandı: ${w.title}`);
@@ -373,7 +463,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       const data = parseJson(p.data, {});
       const prev = (data.slides || []).map(s => (s.layers || []).filter(l => l.type === 'text' && (l.role === 'title' || l.role === 'body')).map(l => l.text).join(' — ')).join('\n');
       const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: (data.slides || []).length, modelRef, rewriteOf: prev });
-      const next = Object.assign({}, data, { slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format: data.format, kind: p.kind }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags });
+      const next = Object.assign({}, data, { slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format: data.format, kind: p.kind, topic: String(data.topic || p.title).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags });
       db.prepare('UPDATE posts SET title = ?, data = ?, model = ?, updated_at = ? WHERE id = ?').run(w.title, JSON.stringify(next), w.r.servedRef || w.r.ref, now(), p.id);
       return Object.assign(toPost(row(b.id, p.id)), { ai: meta(w.r) });
     },
