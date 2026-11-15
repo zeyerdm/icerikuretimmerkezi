@@ -78,6 +78,35 @@ test('8.4 iptal: istemci bağlantıyı kapatınca sağlayıcıya giden sinyal ke
   } finally { await s.stop(); }
 });
 
+test('Durdur: akışsız istekte de bağlantı kapanınca sağlayıcı iptali görür, kayıt olmaz (prompt ve asistan)', async () => {
+  let seen = null;
+  let calls = 0;
+  const slow = { label: 'Yavaş', async generate(prompt, opts) {
+    calls++;
+    seen = opts.signal;
+    await new Promise((resolve, reject) => { const t = setTimeout(resolve, 5000); opts.signal.addEventListener('abort', () => { clearTimeout(t); reject(Object.assign(new Error('aborted'), { transient: true, retryable: true })); }); });
+    return { title: 'x', prompt: TR_OK, reply: 'merhaba', actions: [] };
+  }, async test() { return { ok: true, modelCount: 1, modelAvailable: true }; } };
+  const s = await startServer({ aiProvider: slow });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Durdur' })).data.brand;
+    for (const [url, body] of [[`/api/brands/${b.id}/prompts`, { kind: 'gorsel', brief: 'Latte' }], [`/api/brands/${b.id}/chat`, { message: 'Fikir ver' }]]) {
+      seen = null; calls = 0;
+      const ac = new AbortController();
+      const p = fetch(`${s.base}${url}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ac.signal }).catch(e => e);
+      for (let i = 0; i < 50 && !seen; i++) await new Promise(r => setTimeout(r, 20));
+      ac.abort();
+      assert.equal((await p).name, 'AbortError');
+      for (let i = 0; i < 50 && !seen.aborted; i++) await new Promise(r => setTimeout(r, 20));
+      assert.equal(seen.aborted, true, `${url}: sağlayıcı iptali gördü`);
+      await new Promise(r => setTimeout(r, 100));
+      assert.equal(calls, 1, 'iptalden sonra yeniden denenmez');
+    }
+    assert.equal((await s.request('GET', `/api/brands/${b.id}/prompts`)).data.prompts.length, 0, 'yarım prompt kaydedilmez');
+    assert.equal((await s.request('GET', `/api/brands/${b.id}/chat`)).data.messages.length, 0, 'durdurulan sohbet kaydedilmez');
+  } finally { await s.stop(); }
+});
+
 test('8.4 sağlayıcı akışları: Gemini, OpenAI uyumlu ve Anthropic parçaları sırayla verir, kullanımı toplar', async () => {
   // Gemini: streamGenerateContent?alt=sse, düşünce parçaları atlanır
   let gUrl = '';
