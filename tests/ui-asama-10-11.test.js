@@ -359,3 +359,43 @@ test('Post stüdyosu hızlı üret: tek satır konu → kart düzeninde carousel
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('Havuzdan fikir: beğenmedim → havuzdan sil (yenisi gelir), beğendim → benzerlerini üret; dışa aktarınca "fikri havuzdan sil" önerisi', { skip }, async () => {
+  const { fakeProvider } = await import('./helpers.js');
+  const provider = fakeProvider([p => p.startsWith('BENZER İÇERİK')
+    ? { ideas: [{ title: 'Klavye kısayolları rehberi', description: '' }] }
+    : { title: 'Ipucu', caption: 'x', hashtags: [], slides: [{ title: 'Kapak *ipucu*', body: 'a' }, { title: 'İki', body: 'b' }, { title: 'Üç', body: 'c' }] }]);
+  const srv = await startServer({ aiProvider: provider });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Seçici' })).data.brand;
+  const u = `/api/brands/${b.id}/ideas`;
+  await srv.request('POST', u, { title: 'Birinci fikir', category: 'egitici', format: 'post' });
+  await srv.request('POST', u, { title: 'İkinci fikir', category: 'egitici', format: 'post' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/post`);
+    await page.locator('#quick-post [data-from-idea]').click();
+    await page.locator('#fi-idea b').waitFor();
+    const first = await page.locator('#fi-idea b').innerText();
+    await page.locator('[data-fi-del]').click();
+    await page.locator('.toast', { hasText: 'havuzdan silindi' }).waitFor();
+    await page.waitForFunction(f => { const el = document.querySelector('#fi-idea b'); return el && el.textContent !== f; }, first);
+    assert.ok(!(await srv.request('GET', `${u}?status=hepsi`)).data.ideas.some(i => i.title === first), 'beğenilmeyen fikir silindi');
+    await page.locator('[data-fi-similar]').click();
+    await page.locator('.toast', { hasText: 'benzer fikir havuza eklendi' }).waitFor();
+    assert.ok((await srv.request('GET', u)).data.ideas.some(i => i.title === 'Klavye kısayolları rehberi'));
+    // Üret → editör → PNG indir → silme önerisi
+    const chosen = await page.locator('#fi-idea b').innerText();
+    await page.locator('.modal [type=submit]').click();
+    await page.waitForURL(/\/post\/[A-Za-z0-9-]{8,}$/);
+    await page.locator('#stage').waitFor();
+    await page.locator('[data-menu="paylas"], [data-menu="disa"], [data-menu]', { hasText: /Paylaş|Dışa/ }).first().click();
+    await Promise.all([page.waitForEvent('download'), page.locator('[data-png="one"]').click()]);
+    const offer = page.locator('.idea-del-toast');
+    await offer.waitFor();
+    assert.match(await offer.innerText(), new RegExp(chosen));
+    await offer.locator('[data-yes]').click();
+    await page.locator('.toast', { hasText: 'Fikir havuzdan silindi' }).waitFor();
+    assert.ok(!(await srv.request('GET', `${u}?status=hepsi`)).data.ideas.some(i => i.title === chosen));
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

@@ -224,10 +224,27 @@ async function fromIdeaFlow(brand, models, templates) {
       idea = r.idea;
       if (!idea) { box.innerHTML = `<span class="small muted">Bu türde kullanılmamış fikir kalmadı. <a class="link" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerine</a> fikir ekle.</span>`; return; }
       seen.push(idea.id);
-      box.innerHTML = `<div class="grow"><b>${esc(idea.title)}</b> <span class="tag">${esc(idea.formatLabel)}</span> <span class="tag tag-soft">${esc(idea.categoryLabel)}</span>${idea.description ? `<div class="small muted">${esc(idea.description)}</div>` : ''}</div><button type="button" class="btn btn-sm" data-fi-again>Başka fikir</button>`;
+      box.innerHTML = `<div class="grow"><b>${esc(idea.title)}</b> <span class="tag">${esc(idea.formatLabel)}</span> <span class="tag tag-soft">${esc(idea.categoryLabel)}</span>${idea.description ? `<div class="small muted">${esc(idea.description)}</div>` : ''}
+        <div class="row mt-2 fi-acts"><button type="button" class="btn btn-sm btn-ghost danger-text" data-fi-del title="Fikir havuzdan silinir (çöp kutusundan geri alınabilir), yenisi gelir">${icon('trash')}Beğenmedim, havuzdan sil</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-fi-similar title="Bu fikre benzeyen yeni fikirler havuza eklenir">${icon('sparkle')}Beğendim, benzerlerini üret</button></div></div>
+        <button type="button" class="btn btn-sm" data-fi-again>Başka fikir</button>`;
     } catch (err) { box.innerHTML = `<span class="small">${esc(err.message)}</span>`; }
   };
-  m.form.addEventListener('click', e => { if (e.target.closest('[data-fi-again]')) pull(); });
+  m.form.addEventListener('click', async e => {
+    if (e.target.closest('[data-fi-again]')) return pull();
+    const del = e.target.closest('[data-fi-del]');
+    if (del && idea) {
+      try { await busy(del, () => api.deleteIdea(brand.id, idea.id)); toast(`"${idea.title}" havuzdan silindi (çöp kutusundan geri alınabilir).`, 'success'); pull(); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const sim = e.target.closest('[data-fi-similar]');
+    if (sim && idea) {
+      try {
+        const r = await busyTimer(sim, () => api.similarIdeas(brand.id, idea.id, { count: 3 }), 'Üretiyor');
+        toast(`${r.ideas.length} benzer fikir havuza eklendi${r.skipped ? `, ${r.skipped} çok benzeri atlandı` : ''}. Seçili fikir duruyor; istersen bununla üret.`, 'success', 6000);
+      } catch (err) { toast(err.message, 'error'); }
+    }
+  });
   m.form.querySelector('#fi-format').addEventListener('change', () => { seen.length = 0; pull(); });
   pull();
 }
@@ -714,6 +731,29 @@ async function renderEditor(view, brand, id, models) {
       if (to === 'drive') await api.driveUpload(brand.id, blob, name, 'image/png');
       else downloadBlob(blob, `${safeName(name)}.png`);
     }
+    offerIdeaDelete();
+  }
+  // Post bir fikirden üretildiyse: dışa aktarınca tekrara düşmemek için fikri havuzdan silme önerisi (oturumda bir kez)
+  let ideaAsked = false;
+  function offerIdeaDelete() {
+    if (ideaAsked || !data.idea || !data.idea.id) return;
+    ideaAsked = true;
+    const host = document.getElementById('toasts');
+    if (!host) return;
+    const el = document.createElement('div');
+    el.className = 'toast toast-info idea-del-toast';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<span>Bu post <b>"${esc(data.idea.title)}"</b> fikrinden. Tekrara düşmemek için fikri havuzdan silelim mi?</span>
+      <span class="row"><button type="button" class="btn btn-sm btn-primary" data-yes>Havuzdan sil</button><button type="button" class="btn btn-sm" data-no>Kalsın</button></span>`;
+    host.appendChild(el);
+    const close = () => el.remove();
+    const timer = setTimeout(close, 20000);
+    el.querySelector('[data-no]').addEventListener('click', () => { clearTimeout(timer); close(); });
+    el.querySelector('[data-yes]').addEventListener('click', async () => {
+      clearTimeout(timer);
+      try { await api.deleteIdea(brand.id, data.idea.id); toast('Fikir havuzdan silindi (çöp kutusundan geri alınabilir).', 'success'); } catch (err) { toast(/bulunamad/i.test(err.message) ? 'Fikir zaten havuzda yok.' : err.message, 'info'); }
+      close();
+    });
   }
 
   const closeMenus = () => view.querySelectorAll('[data-drop]').forEach(d => { d.hidden = true; });
