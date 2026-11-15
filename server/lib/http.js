@@ -22,7 +22,10 @@ export const now = () => new Date().toISOString();
 // denemeye geçildi), sonunda "done" ({ status, body }) ya da "error" ({ status, error }). Bağlantı kapanırsa üretim iptal edilir.
 export const route = fn => (req, res, next) => {
   if (req.query && req.query.stream === '1') return streamRoute(fn, req, res);
-  return Promise.resolve(fn(req, res, next)).catch(next);
+  // Akışsız istekte de kullanıcı "Durdur" derse (bağlantı kapanır) modele giden istek kesilir; yarım iş kaydedilmez
+  const ac = new AbortController();
+  res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+  return Promise.resolve(streamCtx.run({ signal: ac.signal }, () => fn(req, res, next))).catch(err => { if (ac.signal.aborted) return; next(err); });
 };
 
 function errorBody(err) {

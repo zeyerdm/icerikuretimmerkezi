@@ -107,10 +107,12 @@ async function send(text) {
   sending = true; btn.disabled = true; input.value = '';
   if (body.querySelector('.msg-assistant:only-child')) body.innerHTML = '';
   body.insertAdjacentHTML('beforeend', messageHtml({ role: 'user', content: message }, b));
-  body.insertAdjacentHTML('beforeend', '<div class="msg msg-assistant msg-typing" id="typing">Düşünüyorum…</div>');
+  body.insertAdjacentHTML('beforeend', '<div class="msg msg-assistant msg-typing" id="typing">Düşünüyorum… <button type="button" class="btn btn-sm btn-ghost" id="chat-stop" title="Asistanı durdur">Durdur</button></div>');
   body.scrollTop = body.scrollHeight;
+  const ac = new AbortController();
+  body.querySelector('#chat-stop').addEventListener('click', () => ac.abort());
   try {
-    const res = await api.sendChat(b.id, message);
+    const res = await api.sendChat(b.id, message, ac.signal);
     body.querySelector('#typing').remove();
     body.insertAdjacentHTML('beforeend', messageHtml(res.assistantMessage, b));
     body.scrollTop = body.scrollHeight;
@@ -121,7 +123,8 @@ async function send(text) {
     const t = body.querySelector('#typing'); if (t) t.remove();
     if (body.lastElementChild) body.lastElementChild.remove(); // gönderilemeyen mesaj geri alınır, metin kutuya döner
     input.value = message;
-    body.insertAdjacentHTML('beforeend', `<div class="msg msg-assistant">${errorNotice(err)}</div>`);
+    if (err.code === 'AI_CANCELLED') body.insertAdjacentHTML('beforeend', '<div class="msg msg-assistant msg-typing">Durduruldu. Mesajın kutuda, istersen düzenleyip yeniden gönder.</div>');
+    else body.insertAdjacentHTML('beforeend', `<div class="msg msg-assistant">${errorNotice(err)}</div>`);
     if (err.code === 'AI_NOT_CONFIGURED') toast('AI bağlı değil: Yapay zekâ sayfasından bir sağlayıcı bağla.', 'error');
   } finally {
     sending = false; btn.disabled = false; input.focus();

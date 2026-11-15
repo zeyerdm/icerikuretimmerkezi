@@ -1876,3 +1876,5 @@ body.editor-mode .radial-fab { display: none; }
 .tag-pick select { appearance: none; -webkit-appearance: none; border: 0; height: 24px; padding: 0 22px 0 9px; border-radius: 6px; font: inherit; font-size: var(--t-xs); font-weight: 700; background: var(--brand-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 7px center; color: var(--brand-ink); cursor: pointer; }
 .tag-pick-soft select { background-color: var(--surface-3); color: var(--ink-2); }
 .tag-pick select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.busy-stop { margin-left: 6px; }
+#chat-stop { margin-left: 6px; padding: 2px 8px; }

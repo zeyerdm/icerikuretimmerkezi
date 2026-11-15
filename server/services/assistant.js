@@ -7,6 +7,8 @@ import { transaction } from '../db.js';
 import { IDEA_CATEGORIES, IDEA_FORMATS } from './ideas.js';
 import { CONTENT_TYPES } from './workspace.js';
 import { PROMPT_KINDS } from './prompts.js';
+import { streamCtx } from '../lib/streamCtx.js';
+import { cancelled } from './ai/providers/common.js';
 import { upcomingText } from './specialDays.js';
 
 const HISTORY_LIMIT = 12;
@@ -178,6 +180,9 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       const reply = typeof (response && response.reply) === 'string' && response.reply.trim()
         ? response.reply.trim()
         : 'Yanıt oluşturulamadı, mesajını biraz farklı yazıp tekrar dener misin?';
+      // Kullanıcı "Durdur" dediyse yanıt geldikten sonra bile işlem uygulanmaz, mesaj kaydedilmez
+      const sc = streamCtx.getStore();
+      if (sc && sc.signal && sc.signal.aborted) throw cancelled();
       // İşlemler uygulanır (AI çağıranlar dahil), sonra mesaj ve sonuçları birlikte kaydedilir
       const actions = await applyActions(brand.id, response && response.actions);
       return transaction(db, () => {

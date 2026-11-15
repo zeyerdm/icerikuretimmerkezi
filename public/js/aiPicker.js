@@ -1,6 +1,6 @@
 // Üretim ekranlarındaki model seçici: varsayılan olarak işe atanmış model, istenirse o an bağlı herhangi bir model.
 // Seçim kalıcı atamayı değiştirmez; yalnızca o üretim için gönderilir.
-import { api } from './api.js';
+import { api, withSignal } from './api.js';
 import { esc } from './ui.js';
 
 let cache = null;
@@ -80,7 +80,8 @@ export function bindCostHint(el, models, getArgs, watch = []) {
 }
 
 // Uzun AI işlerinde düğmede geçen süre: "Yazıyor… 12 sn". İş bitince eski hâline döner.
-export async function busyTimer(btn, fn, verb = 'Yazıyor') {
+// Yapay zekâ işi sürerken düğmenin yanında "Durdur": istek kesilir, sunucu da modele giden isteği iptal eder
+export async function busyTimer(btn, fn, verb = 'Yazıyor', { stop = true } = {}) {
   if (!btn) return fn();
   if (btn.dataset.busy) return undefined;
   const html = btn.innerHTML;
@@ -92,8 +93,20 @@ export async function busyTimer(btn, fn, verb = 'Yazıyor') {
   const tick = () => { btn.textContent = `${verb}… ${Math.floor((Date.now() - started) / 1000)} sn`; };
   tick();
   const timer = setInterval(tick, 1000);
-  try { return await fn(); } finally {
+  const ac = new AbortController();
+  let stopBtn = null;
+  if (stop) {
+    stopBtn = document.createElement('button');
+    stopBtn.type = 'button';
+    stopBtn.className = 'btn btn-sm btn-ghost busy-stop';
+    stopBtn.textContent = 'Durdur';
+    stopBtn.title = 'Yapay zekâ işini durdur';
+    stopBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); ac.abort(); stopBtn.disabled = true; stopBtn.textContent = 'Durduruluyor…'; });
+    btn.insertAdjacentElement('afterend', stopBtn);
+  }
+  try { return await withSignal(ac.signal, fn); } finally {
     clearInterval(timer);
+    if (stopBtn) stopBtn.remove();
     if (btn.isConnected) { btn.innerHTML = html; btn.disabled = false; delete btn.dataset.busy; btn.removeAttribute('aria-busy'); btn.classList.remove('is-timing'); }
   }
 }
@@ -125,7 +138,7 @@ export async function streamBusy(btn, fn, verb = 'Yazıyor') {
     onDelta: t => { raw += t; out.textContent = readableStream(raw); out.scrollTop = out.scrollHeight; },
     onReset: () => { raw = ''; out.textContent = ''; box.querySelector('.stream-state').textContent = 'Yeniden deneniyor…'; }
   };
-  try { return await busyTimer(btn, () => fn(stream), verb); } finally { box.remove(); }
+  try { return await busyTimer(btn, () => fn(stream), verb, { stop: false }); } finally { box.remove(); }
 }
 
 // Üretim sonucu notu: "Claude Opus 5.5 ile yazıldı · 14 sn · 0,04 $"

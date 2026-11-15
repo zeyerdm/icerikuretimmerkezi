@@ -443,3 +443,42 @@ test('İçerik fikirleri: toplu ekle penceresi; kartta tür (havuz) ve kategori 
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('Durdur: yapay zekâ işi (benzer fikir) ve asistan sohbeti yarıda durdurulur; kayıt olmaz, mesaj kutuya döner', { skip }, async () => {
+  let aborted = 0;
+  const slow = { id: 'fake', label: 'Yavaş', async generate(prompt, opts) {
+    await new Promise((resolve, reject) => { const t = setTimeout(resolve, 20000); opts.signal.addEventListener('abort', () => { clearTimeout(t); aborted++; reject(Object.assign(new Error('aborted'), { transient: true })); }); });
+    return { reply: 'x', actions: [], ideas: [] };
+  }, async test() { return { ok: true, modelCount: 1, modelAvailable: true }; } };
+  const srv = await startServer({ aiProvider: slow });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Durdur' })).data.brand;
+  await srv.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Kahve fikri', category: 'egitici', format: 'post' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/fikirler`);
+    await page.locator('.idea-card [data-more]').first().click();
+    await page.getByRole('menuitem', { name: /Benzerlerini üret/ }).click();
+    await page.locator('.modal [type=submit]').click();
+    const stop = page.locator('.busy-stop');
+    await stop.waitFor();
+    await stop.click();
+    await page.waitForFunction(() => !document.querySelector('.busy-stop'));
+    await page.locator('.modal', { hasText: 'Durduruldu' }).or(page.locator('.toast', { hasText: 'Durduruldu' })).first().waitFor();
+    for (let i = 0; i < 50 && aborted < 1; i++) await page.waitForTimeout(20);
+    assert.equal(aborted, 1, 'sunucu modele giden isteği kesti');
+    assert.equal((await srv.request('GET', `/api/brands/${b.id}/ideas`)).data.ideas.length, 1, 'yeni fikir eklenmedi');
+    await page.keyboard.press('Escape');
+    // Asistan
+    await page.goto(`${srv.base}/#/m/${b.id}`);
+    await page.locator('.ai-widget.is-open #chat-input').waitFor();
+    await page.locator('#chat-input').fill('Fikir ver');
+    await page.locator('#composer [type=submit]').click();
+    await page.locator('#chat-stop').click();
+    await page.locator('.msg', { hasText: 'Durduruldu' }).waitFor();
+    assert.equal(await page.locator('#chat-input').inputValue(), 'Fikir ver');
+    for (let i = 0; i < 50 && aborted < 2; i++) await page.waitForTimeout(20);
+    assert.equal(aborted, 2);
+    assert.equal((await srv.request('GET', `/api/brands/${b.id}/chat`)).data.messages.length, 0);
+    assert.deepEqual(problems.filter(p => !/aborted|AbortError/i.test(p)), []);
+  } finally { await browser.close(); await srv.stop(); }
+});

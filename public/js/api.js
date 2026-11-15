@@ -7,14 +7,20 @@ export class ApiError extends Error {
   }
 }
 
+// "Durdur" için: busyTimer çalışırken başlatılan isteklere iptal sinyali bağlanır
+let pendingSignal = null;
+export function withSignal(signal, fn) { const prev = pendingSignal; pendingSignal = signal; try { return fn(); } finally { pendingSignal = prev; } }
+
 async function request(method, url, body, headers = {}) {
   const init = { method, headers: Object.assign({}, headers) };
+  if (pendingSignal) init.signal = pendingSignal;
   if (body instanceof Blob) init.body = body;
   else if (body !== undefined) { init.body = JSON.stringify(body); init.headers['Content-Type'] = 'application/json'; }
   let res;
   try {
     res = await fetch(url, init);
-  } catch {
+  } catch (err) {
+    if (init.signal && init.signal.aborted) throw new ApiError(0, 'AI_CANCELLED', 'Durduruldu.');
     throw new ApiError(0, 'NETWORK', 'Sunucuya ulaşılamadı. Uygulama çalışıyor mu? (npm start)');
   }
   if (res.status === 204) {
@@ -292,6 +298,6 @@ export const api = {
   restorePrompt: (id, pid, versionId) => request('POST', `${b(id)}/prompts/${pid}/restore`, { versionId }),
   driveUpload: (id, blob, name, mime) => request('POST', `${b(id)}/drive/upload?name=${encodeURIComponent(name)}&mime=${encodeURIComponent(mime)}`, blob, { 'Content-Type': 'application/octet-stream' }),
   chat: id => request('GET', b(id) + '/chat'),
-  sendChat: (id, message) => request('POST', b(id) + '/chat', { message }),
+  sendChat: (id, message, signal) => (signal ? withSignal(signal, () => request('POST', b(id) + '/chat', { message })) : request('POST', b(id) + '/chat', { message })),
   clearChat: id => request('DELETE', b(id) + '/chat')
 };
