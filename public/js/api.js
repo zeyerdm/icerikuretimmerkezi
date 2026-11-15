@@ -274,6 +274,7 @@ export const api = {
   deleteSharedTemplate: tid => request('DELETE', `/api/shared-templates/${tid}`),
   postTemplates: id => request('GET', b(id) + '/post-templates'),
   saveTemplate: (id, pid, name) => request('POST', `${b(id)}/posts/${pid}/template`, { name }),
+  renameTemplate: (id, tid, name) => request('PUT', `${b(id)}/post-templates/${tid}`, { name }),
   deleteTemplate: (id, tid) => request('DELETE', `${b(id)}/post-templates/${tid}`),
   setTemplateMatch: (id, tid, body) => request('PUT', `${b(id)}/post-templates/${tid}/match`, body),
   postFromIdea: (id, body, stream) => (stream ? streamRequest('POST', b(id) + '/posts/from-idea', body, stream) : request('POST', b(id) + '/posts/from-idea', body)),

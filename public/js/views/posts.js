@@ -66,7 +66,7 @@ export async function renderPosts(view, brand, sub) {
         <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt</div>
         <div class="xsmall ${tplFields(t).length ? '' : 'text-warn'} mt-1">${tplFields(t).length ? `Dolan alanlar: ${esc(tplFields(t).join(', '))}` : 'İşaretli alan yok: düzenleyicide kutulara rol ver'}</div>
         ${t.match.frame ? `<span class="tag mt-1">${t.match.frame === 'acilis' ? 'Sabit açılış slaytı' : 'Sabit kapanış slaytı'}</span>` : ''}<div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
-        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
+        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
       </div>`).join('')}</div></section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
@@ -154,6 +154,15 @@ export async function renderPosts(view, brand, sub) {
       if (!confirm('Ortak şablon bütün markalardan kaldırılsın mı? Ondan oluşturulan tasarımlar etkilenmez.')) return;
       try { await api.deleteSharedTemplate(delSh.dataset.delShared); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); }
       return;
+    }
+    const rn = e.target.closest('[data-rename-tpl]');
+    if (rn) {
+      const t = templates.find(x => x.id === rn.dataset.renameTpl);
+      return openModal({
+        title: 'Şablonun adı', submitLabel: 'Kaydet',
+        body: `<div class="field"><label for="tpl-name">Ad</label><input class="input" id="tpl-name" name="name" maxlength="80" required value="${esc(t.name)}" placeholder="Ör. Haftalık ipucu, Bayram tasarımı"></div>`,
+        onSubmit: async fd => { await api.renameTemplate(brand.id, t.id, fd.get('name')); toast('Şablonun adı değişti.', 'success'); renderPosts(view, brand, null); }
+      });
     }
     const delTpl = e.target.closest('[data-del-tpl]');
     if (delTpl) {
@@ -356,24 +365,32 @@ const refCard = (a, on) => `<div class="asset-wrap"><button type="button" class=
 async function referenceFlow(brand, models, refresh) {
   let refs;
   try { refs = (await api.assets(brand.id, 'reference')).assets; } catch (err) { return toast(err.message, 'error'); }
-  let picked = refs[0] ? refs[0].id : null;
+  // Birden çok referans seçilebilir: hepsi birlikte incelenir, en iyi tasarım dili seçilir (en fazla 6)
+  const picked = new Set(refs[0] ? [refs[0].id] : []);
+  const syncPick = () => {
+    m.form.querySelectorAll('[data-ref-pick]').forEach(x => { x.classList.toggle('is-picked', picked.has(x.dataset.refPick)); x.setAttribute('aria-pressed', String(picked.has(x.dataset.refPick))); });
+    m.form.querySelector('#ref-count').textContent = picked.size ? `${picked.size} referans seçili${picked.size > 1 ? ': hepsine bakılıp en iyi tasarım dili seçilir' : ''}` : 'Referans seçilmedi';
+  };
   const m = openModal({
     title: 'Referanstan şablon', submitLabel: 'İncele ve şablona çevir',
-    body: `<p class="small muted mb-3">Beğendiğin bir tasarımın ekran görüntüsünü seç ya da yükle. Model renk paletini, font benzerlerini ve yerleşimi çıkarır; metinler kopyalanmaz, görsel alanlarına markanın kendi logo ve maskotu konur.</p>
-      <div class="asset-grid" id="ref-grid">${refs.map(a => refCard(a, a.id === picked)).join('')}</div>
+    body: `<p class="small muted mb-3">Beğendiğin tasarımların ekran görüntülerini seç ya da toplu yükle (tıklayarak birden çok seçebilirsin). Model hepsine bakıp en iyi tasarım dilini seçer ve 3 slaytlık şablon kurar: <b>kapak</b>, her ara slaytta tekrar eden <b>içerik</b> ve <b>kapanış</b>. Metinler kopyalanmaz; logo, maskot ve konuşma balonu yerlerine markanın kendi görselleri konur.</p>
+      <div class="asset-grid" id="ref-grid">${refs.map(a => refCard(a, picked.has(a.id))).join('')}</div>
+      <p class="small strong mt-2" id="ref-count" role="status"></p>
       <p class="xsmall muted mt-1" id="ref-empty" ${refs.length ? 'hidden' : ''}>Henüz referans yok; aşağıdan yükle.</p>
-      <label class="btn btn-sm mt-3">${icon('upload')}Yeni referans yükle<input type="file" id="ref-file" accept="image/png,image/jpeg,image/webp" class="sr-only"></label>
+      <label class="btn btn-sm mt-3">${icon('upload')}Referans yükle (birden çok seçilebilir)<input type="file" id="ref-file" accept="image/png,image/jpeg,image/webp" multiple class="sr-only"></label>
       <div class="form-grid mt-3">
         <div class="field"><label for="ref-name">Şablon adı</label><input class="input" id="ref-name" name="name" maxlength="80" placeholder="Ör. Minimal duyuru"></div>
         <div class="field"><label for="ref-model">Model (görseli okuyabilen)</label>${modelSelect(models, 'yazim', { id: 'ref-model' })}</div>
       </div>
       <p class="xsmall muted mt-1">Claude, GPT-5, Gemini ve görsel destekli OpenRouter modelleri görseli okur.</p>`,
     onSubmit: async (fd, form) => {
-      if (!picked) throw new Error('Önce bir referans görsel seç ya da yükle.');
-      const res = await busyTimer(form.querySelector('[type=submit]'), () => api.analyzeDesign(brand.id, { assetId: picked, name: fd.get('name'), model: form.querySelector('#ref-model').value || null }), 'İnceliyor');
+      if (!picked.size) throw new Error('Önce en az bir referans görsel seç ya da yükle.');
+      if (picked.size > 6) throw new Error('En fazla 6 referans birlikte incelenebilir.');
+      const res = await busyTimer(form.querySelector('[type=submit]'), () => api.analyzeDesign(brand.id, { assetIds: [...picked], name: fd.get('name'), model: form.querySelector('#ref-model').value || null }), 'İnceliyor');
       showResult(res);
     }
   });
+  syncPick();
   m.form.addEventListener('click', async e => {
     const del = e.target.closest('[data-ref-del]');
     if (del) {
@@ -383,26 +400,33 @@ async function referenceFlow(brand, models, refresh) {
       try {
         await api.deleteAsset(brand.id, del.dataset.refDel);
         card.remove();
-        if (picked === del.dataset.refDel) { const first = m.form.querySelector('[data-ref-pick]'); picked = first ? first.dataset.refPick : null; if (first) first.classList.add('is-picked'); }
+        picked.delete(del.dataset.refDel);
+        syncPick();
         m.form.querySelector('#ref-empty').hidden = Boolean(m.form.querySelector('[data-ref-pick]'));
       } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const b = e.target.closest('[data-ref-pick]');
     if (!b) return;
-    picked = b.dataset.refPick;
-    m.form.querySelectorAll('[data-ref-pick]').forEach(x => x.classList.toggle('is-picked', x === b));
+    if (picked.has(b.dataset.refPick)) picked.delete(b.dataset.refPick); else picked.add(b.dataset.refPick);
+    syncPick();
   });
   m.form.querySelector('#ref-file').addEventListener('change', async e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const { asset } = await api.uploadAsset(brand.id, file, 'reference', file.name.replace(/\.[^.]+$/, '').slice(0, 80));
-      picked = asset.id;
-      m.form.querySelectorAll('[data-ref-pick]').forEach(x => x.classList.remove('is-picked'));
-      m.form.querySelector('#ref-grid').insertAdjacentHTML('afterbegin', refCard(asset, true));
-      m.form.querySelector('#ref-empty').hidden = true;
-    } catch (err) { toast(err.message, 'error'); }
+    const files = [...e.target.files];
+    if (!files.length) return;
+    // Toplu yükleme: yeni yüklenenler seçili olur (öncekiler bırakılır)
+    picked.clear();
+    for (const file of files.slice(0, 6)) {
+      try {
+        const { asset } = await api.uploadAsset(brand.id, file, 'reference', file.name.replace(/\.[^.]+$/, '').slice(0, 80));
+        picked.add(asset.id);
+        m.form.querySelector('#ref-grid').insertAdjacentHTML('afterbegin', refCard(asset, true));
+      } catch (err) { toast(`${file.name}: ${err.message}`, 'error'); }
+    }
+    if (files.length > 6) toast('En fazla 6 referans birlikte incelenir; ilk 6 dosya yüklendi.', 'info');
+    m.form.querySelector('#ref-empty').hidden = Boolean(m.form.querySelector('[data-ref-pick]'));
+    syncPick();
+    e.target.value = '';
   });
 
   function showResult(res) {
@@ -410,7 +434,7 @@ async function referenceFlow(brand, models, refresh) {
     openModal({
       title: `Şablon hazır: ${res.template.name}`, submitLabel: 'Bu şablonla tasarım aç',
       body: `${a.summary ? `<p>${esc(a.summary)}</p>` : ''}
-        <dl class="kv mt-3"><dt>Ruh hâli</dt><dd>${esc(a.mood || '—')}</dd><dt>Boyut</dt><dd>${esc(a.format)}</dd><dt>Fontlar</dt><dd>${esc(a.fonts.heading)} / ${esc(a.fonts.body)}</dd></dl>
+        <dl class="kv mt-3"><dt>Ruh hâli</dt><dd>${esc(a.mood || '—')}</dd><dt>Boyut</dt><dd>${esc(a.format)}</dd><dt>Fontlar</dt><dd>${esc(a.fonts.heading)} / ${esc(a.fonts.body)}</dd><dt>Yapı</dt><dd>${res.template.slides >= 3 ? 'Kapak + içerik (ara slaytlarda tekrar eder) + kapanış' : res.template.slides === 2 ? 'Kapak + içerik' : 'Tek slayt'}</dd></dl>
         ${a.palette.length ? `<div class="swatch-row mt-3">${a.palette.map(p => `<span class="swatch-btn" style="background:${esc(p.hex)}" title="${esc(p.hex)} · ${esc(p.role)}"></span>`).join('')}<span class="xsmall muted">${a.palette.map(p => esc(p.hex)).join(' ')}</span></div>` : ''}
         ${a.tips.length ? `<ul class="issue-list mt-3">${a.tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
         <p class="xsmall muted mt-3">${esc(aiNote(res.ai).replace('yazıldı', 'incelendi'))} · Şablon Post stüdyosundaki "Şablonlar" listesine eklendi.</p>`,
@@ -639,7 +663,9 @@ async function renderEditor(view, brand, id, models) {
       box.innerHTML = `${head}<div class="stack-sm">
         <button type="button" class="ed-text-add h1" data-add="text" data-preset="title">Başlık ekle</button>
         <button type="button" class="ed-text-add h2" data-add="text" data-preset="sub">Alt başlık ekle</button>
-        <button type="button" class="ed-text-add" data-add="text" data-preset="body">Gövde metni ekle</button></div>
+        <button type="button" class="ed-text-add" data-add="text" data-preset="body">Gövde metni ekle</button>
+        <button type="button" class="ed-text-add" data-add="speech">💬 Maskot konuşma balonu ekle</button></div>
+        <p class="xsmall muted mt-2">Konuşma balonu şablonda her postta konuya göre yeni bir cümleyle dolar; konuşma yoksa gizlenir.</p>
         <p class="xsmall muted mt-3">Fontlar: ${esc(brand.fonts.heading || 'Poppins')} / ${esc(brand.fonts.body || 'Inter')} (marka kimliğinden)</p>`;
       return;
     }
@@ -978,6 +1004,12 @@ async function renderEditor(view, brand, id, models) {
       if (add.dataset.add === 'text') {
         const spec = pr === 'title' ? { text: 'Başlık', size: 96, weight: 800, font: brand.fonts.heading } : pr === 'sub' ? { text: 'Alt başlık', size: 56, weight: 700, font: brand.fonts.heading } : { text: 'Yeni metin', size: 40, weight: 500, font: brand.fonts.body };
         return addLayer(Object.assign({ id: uid(), type: 'text', role: pr === 'title' ? 'title' : pr === 'body' ? 'body' : 'text', x: 90, y: Math.round(F.h / 2), w: 800, color: brand.colors.heading || '#1b1f3b', align: 'left' }, spec, { font: spec.font || 'Poppins' }));
+      }
+      if (add.dataset.add === 'speech') {
+        // Balon (şekil) + içindeki konuşma yazısı; ikisi de şablon rolüyle işaretli
+        const bx = Math.round(F.w * 0.18); const by = Math.round(F.h * 0.62);
+        slide().layers.push({ id: uid(), type: 'shape', shape: 'rect', role: 'bubble', x: bx, y: by, w: 420, h: 110, color: '#ffffff', radius: 40 });
+        return addLayer({ id: uid(), type: 'text', role: 'speech', text: 'Kaydırarak incele 👀', x: bx + 34, y: by + 34, w: 360, size: 36, maxH: 50, color: '#0b132b', font: brand.fonts.heading || 'Poppins', weight: 800, align: 'left' });
       }
       if (add.dataset.add === 'qr') {
         const text = ($('#ed-qr-text') || {}).value || '';

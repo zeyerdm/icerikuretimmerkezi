@@ -202,3 +202,83 @@ test('Kısayollar: referans silinir; fikirlerde Ctrl+A seç, Delete sil, Ctrl+Z 
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
 });
+
+test('Toplu referans: görseller birlikte incelenir, kapak + içerik + kapanış carousel şablonu çıkar (maskot yeri, balon, kutu yüksekliği); şablon yeniden adlandırılır', async () => {
+  const blocks = extra => [{ type: 'image', role: 'logo', x: 0.06, y: 0.05, w: 0.25, h: 0.07 }, { type: 'text', role: 'title', text: '*Vurgu* başlık', x: 0.06, y: 0.15, w: 0.88, h: 0.3, size: 0.1, weight: 900, color: '#ffffff', highlight: '#ff6b00' }, ...extra];
+  const provider = fakeProvider([{ summary: 'Koyu zemin', mood: 'enerjik', format: '4:5', palette: [{ hex: '#ff6b00', role: 'vurgu' }], fonts: { heading: 'Poppins', body: 'Inter' }, slides: [
+    { part: 'kapanis', background: '#0b1020', blocks: blocks([]) },
+    { part: 'kapak', background: '#0b1020', blocks: blocks([{ type: 'shape', role: 'bubble', shape: 'rect', x: 0.2, y: 0.66, w: 0.38, h: 0.07, color: '#ffffff', radius: 0.03 }, { type: 'text', role: 'speech', text: 'Kaydır', x: 0.23, y: 0.68, w: 0.33, h: 0.04, size: 0.03, color: '#0b132b' }, { type: 'image', role: 'mascot', x: 0.6, y: 0.62, w: 0.4, h: 0.38 }]) },
+    { part: 'icerik', background: '#0b1020', blocks: blocks([{ type: 'text', role: 'num', text: '02', x: 0.06, y: 0.1, w: 0.08, size: 0.03 }, { type: 'image', role: 'mascot', x: 0.6, y: 0.62, w: 0.4, h: 0.38 }]) }
+  ] }]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Toplu' })).data.brand;
+    const logo = await upload(s, b.id, 'logo', 'logo');
+    const m1 = await upload(s, b.id, 'mascot', 'mutlu');
+    const m2 = await upload(s, b.id, 'mascot', 'rahat');
+    const refs = [await upload(s, b.id, 'reference', 'r1'), await upload(s, b.id, 'reference', 'r2'), await upload(s, b.id, 'reference', 'r3')];
+    const r = await s.request('POST', `/api/brands/${b.id}/design-ref`, { assetIds: refs.map(x => x.id), name: '' });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(provider.calls[0].opts.images.length, 3, 'üç görsel birlikte gitti');
+    assert.match(provider.calls[0].prompt, /EN İYİ/);
+    assert.equal(r.data.template.kind, 'carousel');
+    assert.equal(r.data.template.slides, 3);
+    const tpl = (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates.find(t => t.id === r.data.template.id);
+    const [cover, mid, end] = tpl.data.slides;
+    assert.ok(cover.layers.some(l => l.role === 'bubble') && cover.layers.some(l => l.role === 'speech'), 'kapakta konuşma balonu (sıra düzeltildi)');
+    assert.ok(mid.layers.some(l => l.role === 'num'), 'içerik slaytı ortada');
+    assert.ok(!end.layers.some(l => l.role === 'num' || l.role === 'bubble'), 'kapanış sonda');
+    assert.equal(cover.layers.find(l => l.role === 'logo').src, logo.url);
+    const ms = [cover, mid].map(sl => sl.layers.find(l => l.role === 'mascot').src);
+    assert.ok(ms.every(u => [m1.url, m2.url].includes(u)) && ms[0] !== ms[1], 'slaytlarda farklı poz');
+    const title = cover.layers.find(l => l.role === 'title');
+    assert.equal(title.highlight, '#ff6b00');
+    assert.equal(title.maxH, Math.round(0.3 * 1350));
+    assert.deepEqual(tpl.data.reference.assetIds, refs.map(x => x.id));
+    // Yeniden adlandır
+    assert.equal((await s.request('PUT', `/api/brands/${b.id}/post-templates/${tpl.id}`, { name: '' })).status, 400);
+    const rn = await s.request('PUT', `/api/brands/${b.id}/post-templates/${tpl.id}`, { name: 'Haftalık ipucu' });
+    assert.equal(rn.data.template.name, 'Haftalık ipucu');
+    assert.equal((await s.request('PUT', `/api/brands/${b.id}/post-templates/yok`, { name: 'x' })).status, 404);
+  } finally { await s.stop(); }
+});
+
+test('Arayüz: referanslar çoklu seçilir ve birlikte gönderilir; şablonun adı değişir; maskot konuşma balonu eklenir', { skip: !chromium && 'Playwright yok' }, async () => {
+  const provider = fakeProvider([{ format: '4:5', slides: [{ part: 'kapak', background: '#111111', blocks: [{ type: 'text', role: 'title', text: 'Başlık', x: 0.1, y: 0.1, w: 0.8, size: 0.08 }] }, { part: 'icerik', blocks: [{ type: 'text', role: 'title', text: 'B', x: 0.1, y: 0.1, w: 0.8, size: 0.05 }] }, { part: 'kapanis', blocks: [{ type: 'text', role: 'title', text: 'Son', x: 0.1, y: 0.1, w: 0.8, size: 0.08 }] }] }]);
+  const s = await startServer({ aiProvider: provider });
+  const b = (await s.request('POST', '/api/brands', { name: 'Ref UI' })).data.brand;
+  const r1 = await upload(s, b.id, 'reference', 'Bir');
+  const r2 = await upload(s, b.id, 'reference', 'İki');
+  const browser = await chromium.launch();
+  const page = await (await browser.newContext({ viewport: { width: 1400, height: 950 } })).newPage();
+  const problems = [];
+  page.on('pageerror', e => problems.push(e.message));
+  try {
+    await page.goto(`${s.base}/#/m/${b.id}/post`);
+    await page.locator('[data-ref]').first().click();
+    await page.locator('#ref-count', { hasText: '1 referans seçili' }).waitFor();
+    const other = (await page.locator('[data-ref-pick].is-picked').getAttribute('data-ref-pick')) === r1.id ? r2.id : r1.id;
+    await page.locator(`[data-ref-pick="${other}"]`).click();
+    await page.locator('#ref-count', { hasText: '2 referans seçili' }).waitFor();
+    await page.locator('#ref-name').fill('Koyu carousel');
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.modal', { hasText: 'Kapak + içerik' }).waitFor();
+    assert.equal(provider.calls[0].opts.images.length, 2);
+    await page.keyboard.press('Escape');
+    await page.goto(`${s.base}/#/m/${b.id}/post`);
+    const card = page.locator('.tpl-card', { hasText: 'Koyu carousel' });
+    await card.locator('[data-rename-tpl]').click();
+    await page.locator('#tpl-name').fill('Haftalık ipucu');
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.tpl-card', { hasText: 'Haftalık ipucu' }).waitFor();
+    assert.match(await page.locator('.tpl-card', { hasText: 'Haftalık ipucu' }).textContent(), /3 slayt/);
+    // Düzenleyici: konuşma balonu
+    await page.locator('.tpl-card', { hasText: 'Haftalık ipucu' }).locator('[data-use-tpl]').click();
+    await page.locator('#stage').waitFor();
+    if (!(await page.locator('[data-add="speech"]').isVisible())) await page.locator('[data-rail="metin"]').click();
+    await page.locator('[data-add="speech"]').click();
+    await page.locator('#lp-role').waitFor();
+    assert.equal(await page.locator('#lp-role').inputValue(), 'speech');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await s.stop(); }
+});
