@@ -473,7 +473,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       const p = row(b.id, id);
       const title = 'title' in body ? text(body.title, { field: 'Ad', max: 120, required: true }) : p.title;
       const current = parseJson(p.data, {});
-      const data = body.data ? Object.assign(cleanData(body.data, b.id), { topic: current.topic }) : current;
+      const data = body.data ? Object.assign(cleanData(body.data, b.id), { topic: current.topic }, current.idea ? { idea: current.idea } : {}) : current;
       db.prepare('UPDATE posts SET title = ?, data = ?, updated_at = ? WHERE id = ?').run(title, JSON.stringify(data), now(), p.id);
       return toPost(row(b.id, p.id));
     },
@@ -501,6 +501,11 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
         post = await this.create(b.id, { topic, kind, modelRef });
       }
       const used = markIdeaUsed(db, b.id, idea.id, 'post');
+      // Postun kaynağı: dışa aktarırken "bu fikri havuzdan sil" önerisi için
+      const pd = parseJson(db.prepare('SELECT data FROM posts WHERE id = ?').get(post.id).data, {});
+      pd.idea = { id: idea.id, title: idea.title };
+      db.prepare('UPDATE posts SET data = ? WHERE id = ?').run(JSON.stringify(pd), post.id);
+      post.data = pd;
       return { post, template: tpl ? { id: tpl.id, name: tpl.name } : null, warning: used && used.warning };
     },
     setTemplateMatch(brandId, templateId, body = {}) {

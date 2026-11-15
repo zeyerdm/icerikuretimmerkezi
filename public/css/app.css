@@ -1866,3 +1866,6 @@ body.editor-mode .radial-fab { display: none; }
 .ed-topic { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 8px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); }
 .quick-post { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; padding: var(--s-3); }
 .quick-post .input { min-width: 260px; }
+.idea-del-toast { display: flex; flex-direction: column; gap: var(--s-2); pointer-events: auto; max-width: 380px; }
+.idea-del-toast b { color: inherit; }
+.fi-acts { flex-wrap: wrap; gap: 4px; }
