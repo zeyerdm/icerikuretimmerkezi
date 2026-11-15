@@ -240,7 +240,7 @@ test('fikirden takvime ve arşive; analizler gerçek veriyle', { skip }, async (
     const brand = (await srv.request('POST', '/api/brands', { name: 'Marka A' })).data.brand;
     await page.goto(srv.base + `/#/m/${brand.id}/fikirler`);
     await page.getByLabel('Fikir başlığı').fill('Kampüs anketi');
-    await page.getByRole('button', { name: 'Ekle' }).click();
+    await page.getByRole('button', { name: 'Ekle', exact: true }).click();
     await page.locator('.idea-card', { hasText: 'Kampüs anketi' }).waitFor();
     await page.locator('[data-plan]').click();
     assert.equal(await page.getByLabel('Başlık *').inputValue(), 'Kampüs anketi');

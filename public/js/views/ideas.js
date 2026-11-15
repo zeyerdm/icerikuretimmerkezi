@@ -7,7 +7,7 @@ import { state } from '../app.js';
 import { contentModal } from './forms.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 
-const SOURCE = { assistant: 'AI asistanı', manual: 'Elle eklendi', demo: 'Örnek', benzer: 'Benzerinden üretildi' };
+const SOURCE = { assistant: 'AI asistanı', manual: 'Elle eklendi', demo: 'Örnek', benzer: 'Benzerinden üretildi', toplu: 'Toplu eklendi' };
 const STATUSES = [['aktif', 'Hepsi'], ['kullanilmamis', 'Kullanılmamış'], ['kullanildi', 'Kullanıldı'], ['arsiv', 'Arşiv']];
 const PREF = 'ium.ideas.format';
 
@@ -39,7 +39,7 @@ export async function renderIdeas(view, brand) {
       (status === 'kullanildi' && list.length ? `<span class="row"><button type="button" class="btn btn-sm" data-bulk="arsivle">${icon('archive')}Kullanılanları arşivle</button><button type="button" class="btn btn-sm btn-ghost" data-bulk="sil">${icon('trash')}Kullanılanları sil</button></span>` : '');
     view.querySelector('#idea-results').innerHTML = list.length ? `<div class="idea-grid">${list.map(i => `
       <article class="idea-card${i.used ? ' is-used' : ''}${i.archived ? ' is-archived' : ''}">
-        <div class="ic-head"><span class="row"><span class="tag">${esc(i.formatLabel)}</span><span class="tag tag-soft">${esc(i.categoryLabel)}</span>${i.used ? `<span class="pill pill-ok" title="${esc(i.usedInLabels.join(', '))}"><span class="dot"></span>Kullanıldı</span>` : ''}</span>
+        <div class="ic-head"><span class="row"><label class="tag-pick" title="Hangi havuza ait (tür)"><span class="sr-only">Tür</span><select data-set-format="${esc(i.id)}" aria-label="${esc(i.title)} türü">${Object.entries(formats).map(([k, v]) => `<option value="${k}" ${i.format === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label><label class="tag-pick tag-pick-soft" title="Kategori"><span class="sr-only">Kategori</span><select data-set-category="${esc(i.id)}" aria-label="${esc(i.title)} kategorisi">${Object.entries(cats).map(([k, v]) => `<option value="${k}" ${i.category === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>${i.used ? `<span class="pill pill-ok" title="${esc(i.usedInLabels.join(', '))}"><span class="dot"></span>Kullanıldı</span>` : ''}</span>
           <button class="star ${i.favorite ? 'on' : ''}" data-fav="${esc(i.id)}" aria-pressed="${i.favorite}" aria-label="${i.favorite ? 'Favoriden çıkar' : 'Favorilere ekle'}">★</button></div>
         <h4>${esc(i.title)}</h4>
         ${i.description ? `<p class="small muted">${esc(i.description)}</p>` : ''}
@@ -54,7 +54,7 @@ export async function renderIdeas(view, brand) {
           ${aiReady ? `<button type="button" role="menuitem" data-similar="${esc(i.id)}">${icon('sparkle')}Benzerlerini üret…</button>` : ''}
           <button type="button" role="menuitem" data-used="${esc(i.id)}">${icon('check')}${i.used ? 'Kullanılmadı olarak işaretle' : 'Kullanıldı olarak işaretle'}</button>
           <button type="button" role="menuitem" data-archive="${esc(i.id)}">${icon('archive')}${i.archived ? 'Arşivden çıkar' : 'Arşivle'}</button>
-          <label class="idea-menu-row" role="menuitem">Tür <select class="select input-sm" data-set-format="${esc(i.id)}">${Object.entries(formats).map(([k, v]) => `<option value="${k}" ${i.format === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+
           <button type="button" role="menuitem" class="danger" data-del="${esc(i.id)}">${icon('trash')}Sil</button>
         </div>
       </article>`).join('')}</div>`
@@ -75,6 +75,7 @@ export async function renderIdeas(view, brand) {
       <select class="select" name="category" aria-label="Kategori">${Object.entries(cats).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
       <input class="input" name="description" placeholder="Kısa açıklama (isteğe bağlı)" maxlength="2000" aria-label="Açıklama">
       <button class="btn" type="submit">${icon('plus')}Ekle</button>
+      <button class="btn btn-ghost" type="button" data-bulk-add title="Madde madde çok sayıda fikir ekle">${icon('notes')}Toplu ekle</button>
     </form>
     <div class="filter-row" id="idea-filters"></div>
     <div id="idea-results"></div>`;
@@ -117,11 +118,36 @@ export async function renderIdeas(view, brand) {
     });
   }
 
+  // Toplu ekleme: her satır ayrı fikir; tür ve kategori satır satır belirlenir (ya da hepsine aynısı)
+  function bulkModal() {
+    const opt = (dict, sel) => `<option value="otomatik">Otomatik (her satır ayrı değerlendirilir)</option>${Object.entries(dict).map(([k, v]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>Hepsi: ${esc(v)}</option>`).join('')}`;
+    const m = openModal({
+      title: 'Toplu fikir ekle', submitLabel: 'Fikirleri ekle',
+      body: `<div class="field"><label for="bulk-text">Fikirler (her satıra bir; başındaki "-", "1." gibi işaretler silinir)</label>
+          <textarea class="textarea" id="bulk-text" name="text" rows="12" maxlength="40000" placeholder="Barista ipucu: evde süt köpürtme\nSınav haftası kahve rehberi\nPerde arkası: sabah hazırlığı…" required></textarea>
+          <span class="hint" id="bulk-count">0 fikir</span></div>
+        <div class="form-grid mt-3"><div class="field"><label for="bulk-format">Tür</label><select class="select" id="bulk-format" name="format">${opt(formats, format)}</select></div>
+          <div class="field"><label for="bulk-cat">Kategori</label><select class="select" id="bulk-cat" name="category">${opt(cats, '')}</select></div></div>
+        <p class="xsmall muted mt-2">${aiReady ? 'Otomatik seçilirse yapay zekâ her fikri ayrı ayrı türüne ve kategorisine ayırır (tek hızlı istek).' : 'Otomatik seçilirse her satır anahtar kelimelere göre ayrılır (yapay zekâ bağlı değil).'} Havuzdakilerin ya da listedeki diğer satırların çok benzeri eklenmez.</p>`,
+      onSubmit: async (fd, form) => {
+        const r = await busyTimer(form.querySelector('[type=submit]'), () => api.bulkIdeas(brand.id, { text: fd.get('text'), format: fd.get('format'), category: fd.get('category') }), 'Ekleniyor');
+        toast(`${r.added.length} fikir eklendi${r.skipped.length ? `, ${r.skipped.length} tanesi eklenmedi` : ''}.${r.note ? ' ' + r.note : ''}`, r.added.length ? 'success' : 'info', 6000);
+        draw();
+        if (r.skipped.length) setTimeout(() => openModal({ title: `Eklenmeyenler (${r.skipped.length})`, submitLabel: 'Tamam', body: `<ul class="bulk-skipped">${r.skipped.map(x => `<li><b>${esc(x.title)}</b><span class="xsmall muted"> · ${esc(x.reason)}</span></li>`).join('')}</ul>`, onSubmit: async () => {} }), 50);
+      }
+    });
+    const ta = m.form.querySelector('#bulk-text');
+    ta.addEventListener('input', () => { m.form.querySelector('#bulk-count').textContent = `${ta.value.split('\n').filter(l => l.trim()).length} fikir`; });
+  }
+
   view.onchange = e => {
     const f = e.target.closest('[data-set-format]');
-    if (f) { closeMenus(); patch(f.dataset.setFormat, { format: f.value }, 'Tür değişti.'); }
+    if (f) { closeMenus(); return patch(f.dataset.setFormat, { format: f.value }, `${formats[f.value]} havuzuna taşındı.`); }
+    const c = e.target.closest('[data-set-category]');
+    if (c) return patch(c.dataset.setCategory, { category: c.value }, 'Kategori değişti.');
   };
   view.onclick = async e => {
+    if (e.target.closest('[data-bulk-add]')) return bulkModal();
     const fm = e.target.closest('[data-format]');
     if (fm) { format = fm.dataset.format; category = ''; try { sessionStorage.setItem(PREF, format); } catch { /* yok */ } syncQuickFormat(); return draw(); }
     const st = e.target.closest('[data-status]');

@@ -150,6 +150,7 @@ export const api = {
   useIdea: (id, ideaId, place) => request('POST', `${b(id)}/ideas/${ideaId}/use`, { place }),
   similarIdeas: (id, ideaId, body) => request('POST', `${b(id)}/ideas/${ideaId}/similar`, body),
   bulkUsedIdeas: (id, action) => request('POST', b(id) + '/ideas/bulk-used', { action }),
+  bulkIdeas: (id, body) => request('POST', b(id) + '/ideas/bulk', body),
 
   writeContentText: (id, model) => request('POST', `/api/contents/${encodeURIComponent(id)}/write`, { model }),
   competitors: id => request('GET', b(id) + '/competitors'),

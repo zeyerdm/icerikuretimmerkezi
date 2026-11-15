@@ -31,6 +31,19 @@ export function titleSimilarity(a, b) {
 }
 
 const places = r => String(r.used_in || '').split(',').filter(Boolean);
+// Toplu eklemede AI yokken satırdan tür ve kategori tahmini
+export const guessFormat = t => (/reels|kısa video|tiktok|video/i.test(t) ? 'reels' : /youtube|vlog/i.test(t) ? 'youtube' : /story|hikâye|hikaye/i.test(t) ? 'story' : /post|carousel|gönderi|görsel/i.test(t) ? 'post' : 'genel');
+export function guessCategory(t) {
+  const s = String(t || '').toLocaleLowerCase('tr-TR');
+  if (/bayram|yılbaşı|yilbasi|anneler|babalar|sevgililer|öğretmenler|ramazan|günü kutlu|özel gün/.test(s)) return 'ozel_gun';
+  if (/indirim|kampanya|fiyat|sipariş|satın|fırsat|kupon/.test(s)) return 'satis';
+  if (/trend|akım|viral|challenge/.test(s)) return 'trend';
+  if (/komik|şaka|eğlen|caps|meme|güldür/.test(s)) return 'eglenceli';
+  if (/nasıl|ipucu|rehber|adım|öğren|hata|yöntem|taktik|püf/.test(s)) return 'egitici';
+  if (/perde arkası|ekibimiz|hikâyemiz|hikayemiz|tanış|biz kimiz/.test(s)) return 'bilinirlik';
+  if (/gündem|haber|bugün|bu hafta|yeni çıkan/.test(s)) return 'guncel';
+  return 'bilgilendirici';
+}
 const toIdea = r => ({
   id: r.id, title: r.title, description: r.description, category: r.category,
   categoryLabel: IDEA_CATEGORIES[r.category] || r.category, favorite: Boolean(r.favorite),
@@ -137,6 +150,53 @@ export function createIdeaService(db, { ai = null, brands = null } = {}) {
     },
 
     // Kullanılanları toplu arşivle ya da sil (silme çöp kutusuna değil, kalıcıdır; arayüz onay ister)
+    // Toplu ekleme: her satır ayrı fikir. Tür ve kategori satır satır belirlenir: istenen sabit değer ya da "otomatik"
+    // (AI bağlıysa tek hızlı istekle sınıflandırma, değilse anahtar kelimeler). Havuzdakilerin ve listedeki diğer
+    // satırların çok benzeri eklenmez; neden eklenmediği döner.
+    async bulkCreate(brandId, { text: raw = '', format = 'otomatik', category = 'otomatik', modelRef = null } = {}) {
+      const seen = new Set();
+      const lines = String(raw || '').split(/\r?\n/).map(l => l.replace(/^\s*(?:[-*•–]|\d+[.)-]|\(\d+\))\s*/, '').trim()).filter(Boolean)
+        .filter(l => { const k = l.toLocaleLowerCase('tr-TR'); if (seen.has(k)) return false; seen.add(k); return true; });
+      if (!lines.length) throw badRequest('Her satıra bir fikir yaz.');
+      if (lines.length > 200) throw badRequest('Bir seferde en çok 200 fikir eklenebilir.');
+      if (format !== 'otomatik' && !IDEA_FORMATS[format]) throw badRequest('Geçersiz fikir türü.');
+      if (category !== 'otomatik' && !IDEA_CATEGORIES[category]) throw badRequest('Geçersiz kategori.');
+      // Satır satır sınıflandırma
+      let ai_ = null; let aiNote = null;
+      const guess = lines.map(l => ({ format: guessFormat(l), category: guessCategory(l) }));
+      if ((format === 'otomatik' || category === 'otomatik') && ai && brands) {
+        try {
+          const prompt = [
+            'İÇERİK FİKRİ SINIFLANDIRMA', 'Her fikri ayrı değerlendir ve türünü ve kategorisini seç.',
+            `Türler: ${Object.entries(IDEA_FORMATS).map(([k, v]) => `${k} (${v})`).join(', ')}.`,
+            `Kategoriler: ${Object.entries(IDEA_CATEGORIES).map(([k, v]) => `${k} (${v})`).join(', ')}.`,
+            'FİKİRLER:', lines.map((l, i) => `${i + 1}. ${l}`).join('\n'), '',
+            'Sadece şu JSON biçiminde yanıt ver (her fikir için bir satır, sıra korunur):', JSON.stringify({ items: [{ n: 1, format: 'reels', category: 'egitici' }] })
+          ].join('\n');
+          const out = await ai.run({ task: 'fikir', brandId, prompt, json: true, modelRef, effort: 'low', temperature: 0.2 });
+          for (const it of (out.output && Array.isArray(out.output.items) ? out.output.items : [])) {
+            const i = Number(it && it.n) - 1;
+            if (!guess[i]) continue;
+            if (IDEA_FORMATS[it.format]) guess[i].format = it.format;
+            if (IDEA_CATEGORIES[it.category]) guess[i].category = it.category;
+          }
+          ai_ = { model: out.servedRef || out.ref, modelLabel: ai.labelOf(out.servedRef || out.ref), cost: out.cost, ms: out.ms };
+        } catch (err) { aiNote = `Yapay zekâ sınıflandıramadı (${err.message}); anahtar kelimelere göre ayrıldı.`; }
+      }
+      const added = []; const skipped = [];
+      lines.forEach((l, i) => {
+        const title = l.slice(0, 200);
+        const dupBatch = added.find(a => titleSimilarity(a.title, title) >= SIMILAR);
+        if (dupBatch) return skipped.push({ title, reason: `listede çok benzeri var: "${dupBatch.title}"` });
+        const near = nearOf(brandId, title);
+        if (near) return skipped.push({ title, reason: `havuzda çok benzeri var: "${near.title}"${near.used ? ' (kullanılmış)' : ''}` });
+        try { added.push(service.create(brandId, { title, category: category === 'otomatik' ? guess[i].category : category, format: format === 'otomatik' ? guess[i].format : format }, 'toplu')); }
+        catch (err) { skipped.push({ title, reason: err.message }); }
+      });
+      if (brands && brands.logActivity && added.length) brands.logActivity(brandId, 'idea.bulk', `${added.length} fikir toplu eklendi`);
+      return { added, skipped, ai: ai_, note: aiNote };
+    },
+
     bulkUsed(brandId, action) {
       if (action === 'arsivle') return { changed: Number(db.prepare('UPDATE ideas SET archived = 1 WHERE brand_id = ? AND used_at IS NOT NULL AND archived = 0').run(brandId).changes) };
       if (action === 'sil') return { changed: Number(db.prepare('DELETE FROM ideas WHERE brand_id = ? AND used_at IS NOT NULL').run(brandId).changes) };

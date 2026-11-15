@@ -417,3 +417,29 @@ test('İçerik fikirleri: her kartta görünür sil düğmesi; onaydan sonra fik
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('İçerik fikirleri: toplu ekle penceresi; kartta tür (havuz) ve kategori sonradan değiştirilir', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Toplu UI' })).data.brand;
+  await srv.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Var olan fikir', category: 'egitici' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/fikirler`);
+    await page.locator('[data-bulk-add]').click();
+    await page.locator('#bulk-text').fill('- Reels fikri bir video\n- Post fikri iki\n- Var olan fikir');
+    await page.locator('#bulk-count', { hasText: '3 fikir' }).waitFor();
+    await page.locator('.modal [type=submit]').click();
+    await page.locator('.toast', { hasText: '2 fikir eklendi, 1 tanesi eklenmedi' }).waitFor();
+    await page.locator('.modal', { hasText: 'Eklenmeyenler (1)' }).waitFor();
+    await page.locator('.modal [type=submit]').click();
+    const card = page.locator('.idea-card', { hasText: 'Post fikri iki' });
+    await card.waitFor();
+    await card.locator('[data-set-format]').selectOption('youtube');
+    await page.locator('.toast', { hasText: 'YouTube havuzuna taşındı' }).waitFor();
+    await page.locator('.idea-card', { hasText: 'Post fikri iki' }).locator('[data-set-category]').selectOption('trend');
+    await page.locator('.toast', { hasText: 'Kategori değişti' }).waitFor();
+    const i = (await srv.request('GET', `/api/brands/${b.id}/ideas`)).data.ideas.find(x => x.title === 'Post fikri iki');
+    assert.deepEqual([i.format, i.category], ['youtube', 'trend']);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
