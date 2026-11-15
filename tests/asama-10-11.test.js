@@ -387,3 +387,37 @@ test('Post kart düzeni (eski sistem tarzı): vurgulu başlık, slayta uygun mas
     assert.ok(saved.data.slides[0].layers.some(l => l.type === 'image' && l.align === 'left'), 'logo sola yaslı');
   } finally { await s.stop(); }
 });
+
+test('Toplu fikir ekleme: satır satır ayrı fikir, işaretler silinir, tür/kategori satır satır (AI ile ya da anahtar kelimeyle), tekrarlar eklenmez', async () => {
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Toplu' })).data.brand;
+    const u = `/api/brands/${b.id}/ideas`;
+    await s.request('POST', u, { title: 'Barista ipucu süt köpürtme', category: 'egitici' });
+    const text = ['1. Kahve nasıl demlenir rehberi (Reels)', '- Yılbaşı kampanya indirimi postu', '• Barista ipucu: süt köpürtme', 'Komik barista anları video', 'Kahve nasıl demlenir rehberi Reels', '', 'Kampüs gündemi bu hafta'].join('\n');
+    const r = await s.request('POST', `${u}/bulk`, { text });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const t = Object.fromEntries(r.data.added.map(i => [i.title, i]));
+    assert.deepEqual(Object.keys(t).sort(), ['Kahve nasıl demlenir rehberi (Reels)', 'Komik barista anları video', 'Kampüs gündemi bu hafta', 'Yılbaşı kampanya indirimi postu'].sort());
+    assert.equal(t['Kahve nasıl demlenir rehberi (Reels)'].format, 'reels'); assert.equal(t['Kahve nasıl demlenir rehberi (Reels)'].category, 'egitici');
+    assert.equal(t['Yılbaşı kampanya indirimi postu'].format, 'post'); assert.equal(t['Yılbaşı kampanya indirimi postu'].category, 'ozel_gun');
+    assert.equal(t['Komik barista anları video'].category, 'eglenceli');
+    assert.equal(t['Kampüs gündemi bu hafta'].category, 'guncel');
+    assert.equal(r.data.skipped.length, 2);
+    assert.ok(r.data.skipped.some(x => /havuzda/.test(x.reason)) && r.data.skipped.some(x => /listede/.test(x.reason)));
+    // Sabit tür ve kategori
+    const r2 = (await s.request('POST', `${u}/bulk`, { text: 'Bir\nİki farklı fikir', format: 'youtube', category: 'trend' })).data;
+    assert.ok(r2.added.every(i => i.format === 'youtube' && i.category === 'trend'));
+    assert.equal((await s.request('POST', `${u}/bulk`, { text: '   ' })).status, 400);
+    assert.equal((await s.request('POST', `${u}/bulk`, { text: 'x', format: 'yok' })).status, 400);
+  } finally { await s.stop(); }
+  // AI ile satır satır sınıflandırma
+  const provider = fakeProvider([{ items: [{ n: 1, format: 'story', category: 'satis' }, { n: 2, format: 'youtube', category: 'egitici' }] }]);
+  const s2 = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s2.request('POST', '/api/brands', { name: 'Toplu AI' })).data.brand;
+    const r = (await s2.request('POST', `/api/brands/${b.id}/ideas/bulk`, { text: 'Hafta sonu menüsü\nSıfırdan latte art' })).data;
+    assert.deepEqual(r.added.map(i => [i.format, i.category]), [['story', 'satis'], ['youtube', 'egitici']]);
+    assert.match(provider.calls[0].prompt, /1\. Hafta sonu menüsü\n2\. Sıfırdan latte art/);
+  } finally { await s2.stop(); }
+});

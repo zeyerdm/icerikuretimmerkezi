@@ -836,6 +836,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const format = b.format ? oneOf(String(b.format), Object.keys(IDEA_FORMATS), 'Fikir türü') : '';
     res.json({ idea: ideas.random(req.brand.id, { format, exclude: b.exclude }) });
   });
+  api.post('/brands/:brandId/ideas/bulk', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await ideas.bulkCreate(req.brand.id, { text: b.text, format: b.format || 'otomatik', category: b.category || 'otomatik', modelRef: mr(b) })); }));
   api.post('/brands/:brandId/ideas/bulk-used', (req, res) => res.json(ideas.bulkUsed(req.brand.id, String((req.body || {}).action || ''))));
   api.post('/brands/:brandId/ideas/:ideaId/use', (req, res) => res.json(ideas.use(req.brand.id, req.params.ideaId, String((req.body || {}).place || 'elle'))));
   api.post('/brands/:brandId/ideas/:ideaId/similar', route(async (req, res) => res.status(201).json(await ideas.similar(req.brand.id, req.params.ideaId, { count: (req.body || {}).count, modelRef: mr(req.body || {}) }))));
