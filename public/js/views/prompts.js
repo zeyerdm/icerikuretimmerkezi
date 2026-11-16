@@ -9,6 +9,7 @@ import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } fr
 import { imageBox, templateBox } from './imageGen.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 import { RULE_EXAMPLES } from '../ruleExamples.js';
+import { openRuleBuilder } from './ruleBuilder.js';
 
 // Görsel üretilebilen prompt türleri (video ve metin türleri için görsel üretilmez)
 const IMAGE_KINDS = { gorsel: '1:1', urun: '1:1', reklam: '4:5', post: '4:5' };
@@ -35,7 +36,7 @@ export async function renderPrompts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Prompt Studio', desc: `${esc(brand.name)} için görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı prompt'ları. Marka kimliği her prompt'a otomatik eklenir.`,
-      actions: `<button class="btn" data-rules>${icon('notes')}Kural şablonları</button><button class="btn" data-recipes>${icon('star')}Tariflerden ekle</button><button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
+      actions: `<button class="btn btn-primary" data-builder>${icon('sparkle')}Şablon oluşturucu</button><button class="btn" data-rules>${icon('notes')}Kural şablonları</button><button class="btn" data-recipes>${icon('star')}Tariflerden ekle</button><button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
     })}
     <section class="card mb-4">
       <div class="card-head"><h3>Yeni prompt</h3></div>
@@ -120,6 +121,7 @@ export async function renderPrompts(view, brand, sub) {
   };
   view.onclick = async e => {
     if (e.target.closest('[data-rules]')) return rulesModal(brand, meta, kind, loadRules);
+    if (e.target.closest('[data-builder]')) return openRuleBuilder(brand, meta, { onSaved: loadRules });
     if (e.target.closest('[data-recipes]')) return openRecipes('prompt', brand, res => go(`#/m/${brand.id}/prompt/${res.prompt.id}`));
     const k = e.target.closest('[data-kind]');
     if (k) {
@@ -446,7 +448,7 @@ function rulesModal(brand, meta, kind, onChange) {
     title: 'Kural şablonları', submitLabel: 'Kapat',
     body: `<p class="small muted mb-3">Prompt'ların hep aynı yapıda yazılmasını istiyorsan şablonunu buraya kaydet. <b>[Köşeli parantez]</b> içindeki alanları yapay zekâ isteğine göre doldurur; başlıklar ve diğer bütün cümleler kelimesi kelimesine aynen kalır. Sahneli üretimde her sahne bu şablonun bir kopyası olur.</p>
       <div id="rl-list"><p class="small muted">Yükleniyor…</p></div>
-      <div class="row mt-3"><button type="button" class="btn" data-rl-new>${icon('plus')}Yeni şablon</button>${RULE_EXAMPLES.map(x => `<button type="button" class="btn btn-ghost" data-rl-example="${esc(x.id)}">${icon('notes')}Hazır örnek: ${esc(x.name)}</button>`).join('')}</div>`,
+      <div class="row mt-3"><button type="button" class="btn btn-primary" data-rl-builder>${icon('sparkle')}Şablon oluşturucu</button><button type="button" class="btn" data-rl-new>${icon('plus')}Boş şablon</button>${RULE_EXAMPLES.map(x => `<button type="button" class="btn btn-ghost" data-rl-example="${esc(x.id)}">${icon('notes')}Hazır örnek: ${esc(x.name)}</button>`).join('')}</div>`,
     onSubmit: async () => {}
   });
   const box = m.form.querySelector('#rl-list');
@@ -455,14 +457,17 @@ function rulesModal(brand, meta, kind, onChange) {
     try { list = (await api.promptRules(brand.id)).rules; } catch (err) { box.innerHTML = `<p class="small">${esc(err.message)}</p>`; return; }
     box.innerHTML = list.length ? `<ul class="pool-list">${list.map(r => `<li class="pool-item">
         <span class="status-badge">${esc(r.kindLabel)}</span>
-        <div class="grow"><div class="strong">${esc(r.name)}${r.isDefault ? ' <span class="badge">Varsayılan</span>' : ''}</div><div class="xsmall muted">${r.headings.length} bölüm · ${r.fields} doldurulacak alan · ${r.lang === 'en' ? 'İngilizce' : 'Türkçe'}</div></div>
+        <div class="grow"><div class="strong">${esc(r.name)}${r.isDefault ? ' <span class="badge">Varsayılan</span>' : ''}${r.shared ? ' <span class="badge">Bütün markalar</span>' : ''}</div><div class="xsmall muted">${r.headings.length} bölüm · ${r.fields} doldurulacak alan · ${r.lang === 'en' ? 'İngilizce' : 'Türkçe'}</div></div>
         ${r.isDefault ? '' : `<button type="button" class="btn btn-sm btn-ghost" data-rl-default="${esc(r.id)}">Varsayılan yap</button>`}
+        ${r.spec && r.spec.platform ? `<button type="button" class="btn btn-sm btn-ghost" data-rl-build="${esc(r.id)}">Oluşturucuda aç</button>` : ''}
         <button type="button" class="btn btn-sm btn-ghost" data-rl-edit="${esc(r.id)}">Düzenle</button>
         <button type="button" class="btn btn-sm btn-ghost icon-btn" data-rl-del="${esc(r.id)}" aria-label="${esc(r.name)} şablonunu sil">${icon('trash')}</button></li>`).join('')}</ul>`
       : '<p class="small muted">Henüz şablon yok. "Yeni şablon" ile kendi yapını yaz ya da hazır örnekle başla.</p>';
   }
   draw();
   m.form.addEventListener('click', async e => {
+    const bl = e.target.closest('[data-rl-builder],[data-rl-build]');
+    if (bl) { e.preventDefault(); return openRuleBuilder(brand, meta, { rule: bl.dataset.rlBuild ? list.find(x => x.id === bl.dataset.rlBuild) : null, onSaved: async () => { await draw(); onChange(); } }); }
     const nw = e.target.closest('[data-rl-new]');
     const ex = e.target.closest('[data-rl-example]');
     const edt = e.target.closest('[data-rl-edit]');

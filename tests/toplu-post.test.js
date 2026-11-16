@@ -98,7 +98,7 @@ test('T.13 ortak şablonlar: roller hedef markaya çevrilir, dosyalar taşınmaz
     const tpl = (await s.request('POST', `/api/brands/${src.id}/posts/${p.id}/share-template`, { name: 'Ortak duyuru' })).data.template;
     assert.ok(tpl.id);
     // Kaydederken yanıt kaynak markayla önizlenir; hedef markanın listesinde kaynak markanın dosyası görünmez
-    const listed = (await s.request('GET', `/api/brands/${dst.id}/shared-templates`)).data.templates;
+    const listed = (await s.request('GET', `/api/brands/${dst.id}/shared-templates`)).data.templates.filter(t => !t.builtin);
     assert.equal(listed.length, 1);
     assert.doesNotMatch(JSON.stringify(listed[0].data), new RegExp(`${logo.id}|${photo.id}|/api/brands/${src.id}/`), 'kaynak markanın dosyası taşınmaz');
 
@@ -121,7 +121,7 @@ test('T.13 ortak şablonlar: roller hedef markaya çevrilir, dosyalar taşınmaz
     assert.ok(JSON.stringify(used).indexOf(src.id) === -1, 'kaynak markaya ait hiçbir dosya yolu kalmaz');
 
     // Liste hedef markayla önizlenir; silme
-    assert.equal((await s.request('GET', `/api/brands/${dst.id}/shared-templates`)).data.templates.length, 1);
+    assert.equal((await s.request('GET', `/api/brands/${dst.id}/shared-templates`)).data.templates.filter(t => !t.builtin).length, 1);
     assert.equal((await s.request('DELETE', `/api/shared-templates/${tpl.id}`)).status, 204);
     assert.equal((await s.request('POST', `/api/brands/${dst.id}/shared-templates/${tpl.id}/use`, {})).status, 404);
   } finally { await s.stop(); }

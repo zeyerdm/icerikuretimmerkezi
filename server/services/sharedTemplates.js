@@ -4,6 +4,8 @@
 // değiştirilir; hedef markada karşılığı olmayan görsel alanı "Görsel alanı" kutusuna döner (başka markanın dosyası taşınmaz).
 import { newId, now, text, notFound, parseJson, HEX } from '../lib/http.js';
 import { POST_KINDS, POST_FORMATS, cleanData } from './posts.js';
+import { BUILTIN_TEMPLATES, isBuiltin } from './builtinTemplates.js';
+import { badRequest } from '../lib/http.js';
 
 const norm = c => String(c || '').toLowerCase();
 
@@ -36,7 +38,10 @@ function roleColor(b, role, fallback) {
 }
 
 export function createSharedTemplateService({ db, ownerId, brands, assets }) {
+  // Uygulamayla gelen hazır tasarımlar (silinmez; her markada o markanın kimliğiyle)
+  const builtinRow = id => { const t = BUILTIN_TEMPLATES.find(x => x.id === id); return t ? { id: t.id, name: t.name, kind: t.kind, data: JSON.stringify(t.data), source_brand_id: null, created_at: '2026-01-01T00:00:00.000Z', builtin: true } : null; };
   const row = id => {
+    if (isBuiltin(id)) { const b0 = builtinRow(String(id)); if (!b0) throw notFound('Şablon bulunamadı.'); return b0; }
     const r = db.prepare('SELECT * FROM shared_templates WHERE id = ? AND owner_id = ?').get(String(id), ownerId);
     if (!r) throw notFound('Şablon bulunamadı.');
     return r;
@@ -77,8 +82,9 @@ export function createSharedTemplateService({ db, ownerId, brands, assets }) {
       for (const l of s.layers) {
         const o = Object.assign({}, l);
         if (o.colorRole) o.color = roleColor(b, o.colorRole, o.color);
+        if (o.highlightRole) o.highlight = roleColor(b, o.highlightRole, o.highlight);
         // Rolsüz beyaz/koyu yazı, altındaki yeni renkte (en üstteki şekil ya da slayt zemini) okunmaz kaldıysa okunur renge çekilir
-        if (o.type === 'text' && !o.colorRole && ['#ffffff', '#1b1f3b', '#000000'].includes(norm(o.color))) {
+        if (o.type === 'text' && !o.colorRole && !o.bgColor && ['#ffffff', '#1b1f3b', '#000000'].includes(norm(o.color))) {
           const cx = o.x + (o.w || 0) / 2;
           const cy = o.y + (o.size || 40) / 2;
           const under = [...layers].reverse().find(x => x.type === 'shape' && cx >= x.x && cx <= x.x + x.w && cy >= x.y && cy <= x.y + x.h);
@@ -95,7 +101,7 @@ export function createSharedTemplateService({ db, ownerId, brands, assets }) {
             continue;
           }
         }
-        delete o.colorRole; delete o.fontRole; delete o.imageRole;
+        delete o.colorRole; delete o.fontRole; delete o.imageRole; delete o.highlightRole;
         layers.push(o);
       }
       return { bg, layers }; // zemin görseli kaynak markanın dosyası olduğu için taşınmaz
@@ -107,14 +113,14 @@ export function createSharedTemplateService({ db, ownerId, brands, assets }) {
     const data = parseJson(r.data, {});
     return { id: r.id, name: r.name, kind: r.kind, kindLabel: POST_KINDS[r.kind] || r.kind, createdAt: r.created_at,
       sourceBrandId: r.source_brand_id, sourceBrandName: r.source_brand_id ? (() => { try { return brands.get(r.source_brand_id).name; } catch { return ''; } })() : '',
-      data: b ? theme(data, b) : null };
+      data: b ? theme(data, b) : null, builtin: Boolean(r.builtin) };
   };
 
   return {
     // Hedef markanın kimliğiyle önizlemeli liste
     list(brandId) {
       const b = brandId ? brands.get(brandId) : null;
-      return db.prepare('SELECT * FROM shared_templates WHERE owner_id = ? ORDER BY created_at DESC').all(ownerId).map(r => toItem(r, b));
+      return [...db.prepare('SELECT * FROM shared_templates WHERE owner_id = ? ORDER BY created_at DESC').all(ownerId), ...BUILTIN_TEMPLATES.map(t => builtinRow(t.id))].map(r => toItem(r, b));
     },
     saveFromPost(brandId, postId, { name } = {}) {
       const b = brands.get(brandId);
@@ -138,6 +144,19 @@ export function createSharedTemplateService({ db, ownerId, brands, assets }) {
       db.prepare("INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, '', ?, ?)").run(pid, b.id, name, r.kind, JSON.stringify(data), t, t);
       return { id: pid, title: name };
     },
-    remove(id) { db.prepare('DELETE FROM shared_templates WHERE id = ?').run(row(id).id); }
+    // Markanın şablonlarına ekler: "Tasarım" seçiminde görünür, post üretilirken yalnızca metin değişir
+    toBrandTemplate(brandId, id, { name } = {}) {
+      const b = brands.get(brandId);
+      const r = row(id);
+      const data = theme(parseJson(r.data, {}), b);
+      const tid = newId();
+      const nm = text(name, { field: 'Şablon adı', max: 80 }) || r.name;
+      db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(tid, b.id, nm, r.kind, JSON.stringify(data), now());
+      return { id: tid, name: nm, kind: r.kind };
+    },
+    remove(id) {
+      if (isBuiltin(id)) throw badRequest('Uygulamayla gelen hazır tasarımlar silinemez.');
+      db.prepare('DELETE FROM shared_templates WHERE id = ?').run(row(id).id);
+    }
   };
 }

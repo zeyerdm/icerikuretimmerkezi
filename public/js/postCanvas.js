@@ -21,8 +21,8 @@ export function loadImage(src) {
 
 export async function prepareSlide(slide) {
   const fonts = [...new Set(slide.layers.filter(l => l.type === 'text').map(l => l.font))];
-  loadFonts(fonts);
-  try { await Promise.all(fonts.map(f => document.fonts.load(`700 40px "${f}"`))); } catch { /* yedek yazı tipi */ }
+  await loadFonts(fonts);
+  try { await Promise.all(fonts.flatMap(f => [400, 700].map(w => document.fonts.load(`${w} 40px "${f}"`, 'AaZz ğüşıöç ĞÜŞİÖÇ 0123')))); } catch { /* yedek yazı tipi */ }
   await Promise.all([...slide.layers.filter(l => l.type === 'image').map(l => loadImage(l.src)), slide.bgImage ? loadImage(slide.bgImage.src) : null]);
 }
 

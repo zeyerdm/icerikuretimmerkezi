@@ -563,6 +563,20 @@ const MIGRATIONS = [
   );
   CREATE INDEX idx_prompt_rules_brand ON prompt_rules(brand_id, kind);
   ALTER TABLE prompts ADD COLUMN rule_id TEXT NOT NULL DEFAULT '';
+  `,
+  // 40: Şablon oluşturucu: ortak (bütün markalarda) kural şablonu, örnek prompt, seçimler; kullanıcının kendi stilleri
+  `
+  ALTER TABLE prompt_rules ADD COLUMN shared INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE prompt_rules ADD COLUMN example TEXT NOT NULL DEFAULT '';
+  ALTER TABLE prompt_rules ADD COLUMN spec TEXT NOT NULL DEFAULT '{}';
+  CREATE TABLE prompt_presets (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    text TEXT NOT NULL DEFAULT '',
+    preview TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+  );
   `
 ];
 

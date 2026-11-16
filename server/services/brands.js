@@ -20,7 +20,8 @@ export const PROFILE_FIELDS = {
 export const FONT_OPTIONS = [
   'Plus Jakarta Sans', 'Inter', 'Poppins', 'Montserrat', 'Outfit', 'Manrope', 'DM Sans', 'Nunito',
   'Rubik', 'Work Sans', 'Raleway', 'Lora', 'Playfair Display', 'Merriweather', 'Libre Baskerville',
-  'Space Grotesk', 'Bebas Neue', 'Anton', 'Oswald', 'Pacifico', 'Caveat'
+  'Space Grotesk', 'Bebas Neue', 'Anton', 'Oswald', 'Pacifico', 'Caveat',
+  'Fredoka', 'Dancing Script', 'DM Serif Display', 'Archivo Black'
 ];
 
 const COLOR_LIST_MAX = 6;
