@@ -64,7 +64,8 @@ export function ruleCheck(body, out) {
 }
 
 function toRule(r) {
-  return { id: r.id, kind: r.kind, kindLabel: (PROMPT_KINDS[r.kind] || {}).label || r.kind, name: r.name, body: r.body, lang: r.lang, isDefault: Boolean(r.is_default),
+  return { id: r.id, brandId: r.brand_id, kind: r.kind, kindLabel: (PROMPT_KINDS[r.kind] || {}).label || r.kind, name: r.name, body: r.body, lang: r.lang, isDefault: Boolean(r.is_default),
+    shared: Boolean(r.shared), example: r.example || '', spec: parseJson(r.spec, {}) || {},
     headings: ruleHeadings(r.body), fields: (String(r.body).match(PLACEHOLDER) || []).length, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 
@@ -106,12 +107,13 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     const worst = qs.reduce((a, q) => (q.score < a.score ? q : a), qs[0]);
     return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
   };
-  const ruleOf = (brandId, id) => (id ? db.prepare('SELECT * FROM prompt_rules WHERE id = ? AND brand_id = ?').get(String(id), brandId) || null : null);
+  // Ortak şablonlar (shared) bütün markalarda görünür ve kullanılır
+  const ruleOf = (brandId, id) => (id ? db.prepare('SELECT * FROM prompt_rules WHERE id = ? AND (brand_id = ? OR shared = 1)').get(String(id), brandId) || null : null);
   // ruleId: '' → türün varsayılan şablonu, 'none' → şablonsuz, kimlik → o şablon
   const pickRule = (brandId, kind, ruleId) => {
     if (ruleId === 'none') return null;
     if (ruleId) { const r0 = ruleOf(brandId, ruleId); if (!r0) throw notFound('Kural şablonu bulunamadı.'); if (r0.kind !== kind) throw badRequest('Bu kural şablonu başka bir prompt türü için.'); return r0; }
-    return db.prepare('SELECT * FROM prompt_rules WHERE brand_id = ? AND kind = ? AND is_default = 1').get(brandId, kind) || null;
+    return db.prepare('SELECT * FROM prompt_rules WHERE (brand_id = ? OR shared = 1) AND kind = ? AND is_default = 1 ORDER BY brand_id = ? DESC LIMIT 1').get(brandId, kind, brandId) || null;
   };
   // Şablonlu kurallar: genel kemik ve "ekranda yazı yok" kuralı yerine kullanıcının şablonu geçerlidir
   function ruleRules(kind, rule, sceneCount = 0) {
@@ -124,6 +126,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       '- "[A / B / C]" gibi seçenekli alanlarda isteğe en uygun olanı (ya da ikisini) seç. "[X]" gibi sayı alanlarına uygun sayıyı yaz; saniyeler birbirini izlesin ve toplam süreyle tutarlı olsun.',
       '- Madde işaretli satırların yapısını koru. Şablonda olmayan bölüm ekleme, olan bölümü çıkarma; açıklama ya da giriş cümlesi yazma.',
       `- Dil: ${rule.lang === 'en' ? 'İngilizce' : 'Türkçe'}. Gerçek kişi, ünlü ya da başka marka adı kullanma. Seslendirme veya kapak yazısı istenmişse metni tırnak içinde birebir yaz.`,
+      rule.example ? `- ÖRNEK PROMPT (yalnızca ayrıntı düzeyi, üslup ve dil için referans; içeriğini kopyalama):\n<<<\n${String(rule.example).slice(0, 4000)}\n>>>` : '',
       sceneCount >= 2 ? `- ${sceneCount} sahnenin HER BİRİ bu şablonun eksiksiz, ayrı bir kopyasıdır. Sahne numaralarını 1'den sırayla ver; "Sahne devamlılığı" gibi bölümlerde önceki ve sonraki sahneye açıkça bağla. Karakter, mekân ve ışık sahneler arasında tutarlı kalsın. Her sahnenin "prompt" alanı şablonun ilk satırından başlasın.` : '',
       '', 'ŞABLON:', '<<<', rule.body, '>>>'
     ].filter(Boolean).join('\n');
@@ -434,7 +437,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     // Kural şablonları: listele, ekle, düzenle, varsayılan yap, sil
     listRules(brandId, kind = null) {
       const b = brands.get(brandId);
-      return db.prepare('SELECT * FROM prompt_rules WHERE brand_id = ? ORDER BY kind, is_default DESC, updated_at DESC').all(b.id)
+      return db.prepare('SELECT * FROM prompt_rules WHERE brand_id = ? OR shared = 1 ORDER BY kind, is_default DESC, updated_at DESC').all(b.id)
         .filter(r => !kind || r.kind === kind).map(toRule);
     },
     saveRule(brandId, ruleId, body = {}) {
@@ -446,13 +449,16 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const ruleBody = text(body.body != null ? body.body : old && old.body, { field: 'Şablon', max: MAX_RULE, required: true });
       if (ruleBody.length < 20) throw badRequest('Şablon çok kısa; uyulmasını istediğin yapıyı yaz.');
       const lang = (body.lang != null ? body.lang : old && old.lang) === 'en' ? 'en' : 'tr';
+      const shared = body.shared != null ? Boolean(body.shared) : old ? Boolean(old.shared) : false;
+      const example = body.example != null ? (text(body.example, { field: 'Örnek prompt', max: 8000 }) || '') : old ? old.example : '';
+      const spec = body.spec && typeof body.spec === 'object' ? JSON.stringify(body.spec).slice(0, 4000) : old ? old.spec : '{}';
       const t = now();
       const id = old ? old.id : newId();
-      const isDefault = body.isDefault != null ? Boolean(body.isDefault) : old ? Boolean(old.is_default) : !db.prepare('SELECT 1 FROM prompt_rules WHERE brand_id = ? AND kind = ?').get(b.id, kind);
+      const isDefault = body.isDefault != null ? Boolean(body.isDefault) : old ? Boolean(old.is_default) : !db.prepare('SELECT 1 FROM prompt_rules WHERE (brand_id = ? OR shared = 1) AND kind = ?').get(b.id, kind);
       transaction(db, () => {
-        if (isDefault) db.prepare('UPDATE prompt_rules SET is_default = 0 WHERE brand_id = ? AND kind = ?').run(b.id, kind);
-        if (old) db.prepare('UPDATE prompt_rules SET kind = ?, name = ?, body = ?, lang = ?, is_default = ?, updated_at = ? WHERE id = ?').run(kind, name, ruleBody, lang, isDefault ? 1 : 0, t, id);
-        else db.prepare('INSERT INTO prompt_rules (id, brand_id, kind, name, body, lang, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, b.id, kind, name, ruleBody, lang, isDefault ? 1 : 0, t, t);
+        if (isDefault) db.prepare('UPDATE prompt_rules SET is_default = 0 WHERE (brand_id = ? OR shared = 1) AND kind = ?').run(b.id, kind);
+        if (old) db.prepare('UPDATE prompt_rules SET kind = ?, name = ?, body = ?, lang = ?, is_default = ?, shared = ?, example = ?, spec = ?, updated_at = ? WHERE id = ?').run(kind, name, ruleBody, lang, isDefault ? 1 : 0, shared ? 1 : 0, example, spec, t, id);
+        else db.prepare('INSERT INTO prompt_rules (id, brand_id, kind, name, body, lang, is_default, shared, example, spec, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, b.id, kind, name, ruleBody, lang, isDefault ? 1 : 0, shared ? 1 : 0, example, spec, t, t);
       });
       return toRule(ruleOf(b.id, id));
     },

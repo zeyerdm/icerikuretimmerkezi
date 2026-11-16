@@ -1905,3 +1905,35 @@ body.editor-mode .radial-fab { display: none; }
 .ed-stock-item img { width: 100%; height: 100%; object-fit: contain; }
 .ed-stock-more { grid-column: 1 / -1; }
 #ed-stock-color { width: 36px; height: 32px; padding: 0; border: 1px solid var(--line, #e5e7eb); border-radius: 8px; background: none; }
+/* Şablon oluşturucu */
+.modal.modal-xl { width: min(1240px, calc(100vw - 32px)); max-width: none; }
+.rb { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--s-4); align-items: start; }
+.rb-left { display: grid; gap: var(--s-3); max-height: 68vh; overflow-y: auto; padding-right: 6px; }
+.rb-right { position: sticky; top: 0; }
+.rb-body { font-size: 12.5px; line-height: 1.5; min-height: 420px; }
+.rb-sec h4 { margin: 0 0 6px; font-size: 14px; }
+.rb-sec p { margin: 0 0 6px; }
+.rb-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.rb-cards-sm { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.rb-card { display: grid; gap: 4px; padding: 6px; border: 2px solid var(--line, #e5e7eb); border-radius: 14px; background: var(--surface, #fff); cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.rb-card.on { border-color: var(--brand, #5b55e6); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #5b55e6) 20%, transparent); }
+.rb-card-name { font-size: 12px; font-weight: 600; line-height: 1.3; }
+.rb-card-name em { font-style: normal; color: var(--muted, #6b7280); font-weight: 500; }
+.rb-add { place-items: center; align-content: center; min-height: 110px; color: var(--muted, #6b7280); border-style: dashed; }
+.tp { height: 84px; border-radius: 10px; display: grid; place-content: center; text-align: center; padding: 6px; font-size: 21px; line-height: 1.05; overflow: hidden; gap: 4px; }
+.tp-none, .sp-none { background: repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 8px, #e5e7eb 8px, #e5e7eb 16px); color: #6b7280; font-size: 13px; font-weight: 600; text-shadow: none; }
+.tp-box { padding: 2px 8px; border-radius: 6px; transform: rotate(-2deg); display: inline-block; }
+.tp-pill { font: 700 9px/1 'Inter', sans-serif; padding: 5px 10px; border-radius: 999px; justify-self: center; text-shadow: none; letter-spacing: .04em; }
+.sp { height: 56px; border-radius: 10px; background: linear-gradient(160deg, #6b5b53, #2f2a33); display: grid; place-items: end center; padding: 8px; font-size: 15px; }
+.sp-none { display: grid; place-items: center; }
+.rb-pals { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.rb-pal { display: grid; gap: 4px; padding: 6px 8px; border: 2px solid var(--line, #e5e7eb); border-radius: 12px; background: var(--surface, #fff); cursor: pointer; text-align: left; font: inherit; font-size: 12px; color: inherit; }
+.rb-pal.on { border-color: var(--brand, #5b55e6); }
+.rb-pal.rb-add { min-height: 0; }
+.pal-row { display: flex; height: 18px; border-radius: 6px; overflow: hidden; min-width: 40px; background: #f3f4f6; }
+.pal-row span { flex: 1; }
+@media (max-width: 860px) { .rb { grid-template-columns: 1fr; } .rb-left { max-height: none; } .rb-right { position: static; } }
+.rb-cards, .rb-pals { align-items: start; }
+.rb-add svg { width: 22px; height: 22px; }
+.rb-cards .rb-add { min-height: 112px; }
+.rb-del { color: var(--rose-ink, #b42318); text-decoration: underline; font-weight: 500; cursor: pointer; }

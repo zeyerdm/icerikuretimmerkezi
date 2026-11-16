@@ -85,11 +85,11 @@ export async function renderPosts(view, brand, sub) {
   }
 
   // Ortak şablon kütüphanesi: bütün markalarda kullanılır; önizleme bu markanın renk, font, logo ve maskotuyla
-  view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Ortak şablon kütüphanesi</h3><span class="small muted">${sharedTpls.length} · bütün markalarda</span></div>
-    ${sharedTpls.length ? `<p class="small muted mb-3">Önizlemeler ${esc(brand.name)} markasının renkleri, yazı tipleri, logosu ve maskotuyla gösteriliyor.</p><div class="post-grid">${sharedTpls.map(t => `<div class="post-card tpl-card">
+  view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Ortak şablon kütüphanesi</h3><span class="small muted">${sharedTpls.length} · bütün markalarda · ${sharedTpls.filter(t => t.builtin).length} hazır tasarım</span></div>
+    ${sharedTpls.length ? `<p class="small muted mb-3">Önizlemeler ${esc(brand.name)} markasının renkleri, yazı tipleri, logosu ve maskotuyla gösteriliyor. "Şablonlarıma ekle" dersen tasarım bu markanın şablonlarına girer; post üretirken "Tasarım" listesinden seçilir ve yalnızca yazılar değişir.</p><div class="post-grid">${sharedTpls.map(t => `<div class="post-card tpl-card">
       <div class="post-thumb"><canvas data-shared-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
-      <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)}${t.sourceBrandName ? ` · ${esc(t.sourceBrandName)} markasından` : ''}</div>
-      <div class="row mt-2"><button class="btn btn-sm" data-use-shared="${esc(t.id)}">Bu markada kullan</button><button class="btn btn-sm btn-ghost icon-btn" data-del-shared="${esc(t.id)}" aria-label="Ortak şablonu sil">${icon('trash')}</button></div>
+      <div class="strong truncate">${t.builtin ? '<span class="badge">Hazır</span> ' : ''}${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data && t.data.slides.length) || 1} slayt${t.sourceBrandName ? ` · ${esc(t.sourceBrandName)} markasından` : ''}</div>
+      <div class="row mt-2"><button class="btn btn-sm" data-use-shared="${esc(t.id)}">Tasarım aç</button><button class="btn btn-sm btn-ghost" data-shared-tobrand="${esc(t.id)}">Şablonlarıma ekle</button>${t.builtin ? '' : `<button class="btn btn-sm btn-ghost icon-btn" data-del-shared="${esc(t.id)}" aria-label="Ortak şablonu sil">${icon('trash')}</button>`}</div>
     </div>`).join('')}</div>` : '<p class="card-text">Henüz ortak şablon yok. Bir tasarımın düzenleyicisinde Dosya → "Ortak şablon kütüphanesine kaydet" ile ekle; sonra her markada o markanın kimliğiyle kullanılır.</p>'}</section>`);
   for (const t of sharedTpls) {
     const c = view.querySelector(`[data-shared-thumb="${CSS.escape(t.id)}"]`);
@@ -157,6 +157,11 @@ export async function renderPosts(view, brand, sub) {
     const useSh = e.target.closest('[data-use-shared]');
     if (useSh) {
       try { const { post } = await api.useSharedTemplate(brand.id, useSh.dataset.useShared); go(base(brand) + '/' + post.id); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const tb = e.target.closest('[data-shared-tobrand]');
+    if (tb) {
+      try { const { template } = await busy(tb, () => api.sharedToBrand(brand.id, tb.dataset.sharedTobrand)); toast(`"${template.name}" şablonlarına eklendi; post üretirken Tasarım listesinden seç.`, 'success', 5000); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const delSh = e.target.closest('[data-del-shared]');
@@ -591,6 +596,9 @@ async function renderEditor(view, brand, id, models) {
 
   async function redraw({ keepProps = false } = {}) {
     const s = slide();
+    // Tuval, görsel ve yazı tipleri yüklenmeden önce de boyutunu alır (yerleşim sıçramasın)
+    const c0 = $('#stage');
+    if (c0) { const F = format(); if (c0.width !== F.w || c0.height !== F.h) { c0.width = F.w; c0.height = F.h; } fit(); }
     await resolveImages(s);
     const c = $('#stage');
     if (!c) return;

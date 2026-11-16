@@ -21,6 +21,7 @@ import { createCompareService } from './services/compare.js';
 import { createReelsService } from './services/reels/index.js';
 import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
+import { createPresetService } from './services/promptPresets.js';
 import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
@@ -152,6 +153,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const voiceover = createVoiceoverService({ db, ai, brands, uploadDir: path.join(dataDir, 'uploads') });
   const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
   const prompts = createPromptService({ db, ai, brands, reels, identity: promptIdentity });
+  const presets = createPresetService({ db });
   const compare = createCompareService({ db, ai, brands, prompts });
   const recipes = createRecipeService({ db, ownerId, brands, prompts });
   const images = createImageService({ db, ai, brands, assets });
@@ -663,6 +665,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/shared-templates', (req, res) => res.json({ templates: shared.list(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/share-template', (req, res) => res.status(201).json({ template: shared.saveFromPost(req.brand.id, req.params.id, req.body || {}) }));
   api.post('/brands/:brandId/shared-templates/:tid/use', (req, res) => res.status(201).json({ post: shared.use(req.brand.id, req.params.tid, req.body || {}) }));
+  api.post('/brands/:brandId/shared-templates/:tid/to-brand', (req, res) => res.status(201).json({ template: shared.toBrandTemplate(req.brand.id, req.params.tid, req.body || {}) }));
   api.delete('/shared-templates/:tid', (req, res) => { shared.remove(req.params.tid); res.status(204).end(); });
   api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
@@ -757,6 +760,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b), lang: b.lang === 'en' ? 'en' : 'tr', scenes: b.scenes, tool: b.tool, ruleId: b.ruleId || '' });
     res.status(201).json({ prompt });
   }));
+  // Şablon oluşturucu seçenekleri (mecra, başlık/altyazı stili, palet...) ve kullanıcının kendi stilleri (markadan bağımsız)
+  api.get('/prompt-presets', (req, res) => res.json(presets.all()));
+  api.post('/prompt-presets', (req, res) => res.status(201).json({ preset: presets.save(null, req.body || {}) }));
+  api.put('/prompt-presets/:id', (req, res) => res.json({ preset: presets.save(req.params.id, req.body || {}) }));
+  api.delete('/prompt-presets/:id', (req, res) => { presets.remove(req.params.id); res.status(204).end(); });
+  api.post('/brands/:brandId/prompt-rules/compose', (req, res) => res.json(presets.compose((req.body || {}).spec, brands.get(req.brand.id))));
   // Kural şablonları (kullanıcının kendi prompt yapısı)
   api.get('/brands/:brandId/prompt-rules', (req, res) => res.json({ rules: prompts.listRules(req.brand.id, req.query.kind || null) }));
   api.post('/brands/:brandId/prompt-rules', (req, res) => res.status(201).json({ rule: prompts.saveRule(req.brand.id, null, req.body || {}) }));

@@ -156,14 +156,18 @@ export function bucketByDay(isoTimes, days = 14) {
 
 // Marka fontlarını Google Fonts'tan yükler (aynı font iki kez yüklenmez)
 const loadedFonts = new Set();
+// Yazı tipi stil dosyası yüklenince (ya da hata/3 sn sonra) çözülen söz döner; çizim önce bunu bekler
+const fontSheets = new Map();
 export function loadFonts(families) {
   families.filter(f => f && !loadedFonts.has(f)).forEach(f => {
     loadedFonts.add(f);
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(f).replace(/%20/g, '+') + ':wght@400;600;700;800&display=swap';
+    fontSheets.set(f, new Promise(resolve => { link.onload = link.onerror = resolve; setTimeout(resolve, 3000); }));
     document.head.appendChild(link);
   });
+  return Promise.all(families.map(f => fontSheets.get(f)).filter(Boolean));
 }
 
 // Hata kutusu: sayfa yüklenemezse anlaşılır mesaj ve "Tekrar dene" (app.js bütün [data-retry] düğmelerini dinler)
