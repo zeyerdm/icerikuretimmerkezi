@@ -547,6 +547,22 @@ const MIGRATIONS = [
   // 38: 10.8 Tasarım şablonu ↔ fikir eşleşmesi (hangi tür ve kategorideki fikirler bu şablonla üretilir)
   `
   ALTER TABLE post_templates ADD COLUMN match TEXT NOT NULL DEFAULT '{}';
+  `,
+  // 39: Prompt Studio kural şablonları (kullanıcının kendi sahne/prompt yapısı; [köşeli] alanlar doldurulur, gerisi aynen kalır)
+  `
+  CREATE TABLE prompt_rules (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    body TEXT NOT NULL,
+    lang TEXT NOT NULL DEFAULT 'tr',
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_prompt_rules_brand ON prompt_rules(brand_id, kind);
+  ALTER TABLE prompts ADD COLUMN rule_id TEXT NOT NULL DEFAULT '';
   `
 ];
 

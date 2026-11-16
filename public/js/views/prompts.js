@@ -8,6 +8,7 @@ import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { imageBox, templateBox } from './imageGen.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
+import { RULE_EXAMPLES } from '../ruleExamples.js';
 
 // Görsel üretilebilen prompt türleri (video ve metin türleri için görsel üretilmez)
 const IMAGE_KINDS = { gorsel: '1:1', urun: '1:1', reklam: '4:5', post: '4:5' };
@@ -34,7 +35,7 @@ export async function renderPrompts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Prompt Studio', desc: `${esc(brand.name)} için görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı prompt'ları. Marka kimliği her prompt'a otomatik eklenir.`,
-      actions: `<button class="btn" data-recipes>${icon('star')}Tariflerden ekle</button><button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
+      actions: `<button class="btn" data-rules>${icon('notes')}Kural şablonları</button><button class="btn" data-recipes>${icon('star')}Tariflerden ekle</button><button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
     })}
     <section class="card mb-4">
       <div class="card-head"><h3>Yeni prompt</h3></div>
@@ -49,6 +50,7 @@ export async function renderPrompts(view, brand, sub) {
         <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'yazim', { id: 'ps-model' })}
           <select class="select w-auto" id="ps-scenes" aria-label="Sahne sayısı" title="Birbirinin devamı olan sahneler (7.8)"><option value="0">Tek prompt</option>${[2, 3, 4, 5].map(n => `<option value="${n}">${n} sahne</option>`).join('')}</select>
           <select class="select w-auto" id="ps-tool" aria-label="Hedef araç" title="Prompt bu araca uygun biçimde yazılır (7.10)"></select>
+          <select class="select w-auto" id="ps-rule" aria-label="Kural şablonu" title="Prompt bu şablonun yapısına birebir uyar"></select>
           <span class="spacer"></span><span class="small muted">Beyin fırtınası:</span>
           <select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
           <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
@@ -67,7 +69,19 @@ export async function renderPrompts(view, brand, sub) {
   // 10.2: hazır görsel şablonları kütüphaneden buraya taşındı (üretim üretim ekranında)
   templateBox(view.querySelector('#ps-tpl'), brand, () => loadList());
 
+  // Kural şablonları: seçili türün şablonları; varsayılan olan önceden seçili
+  let ruleList = [];
+  async function loadRules() { try { ruleList = (await api.promptRules(brand.id)).rules; } catch { ruleList = []; } syncRules(); }
+  function syncRules() {
+    const sel = view.querySelector('#ps-rule');
+    if (!sel) return;
+    const mine = ruleList.filter(r => r.kind === kind);
+    sel.hidden = !mine.length;
+    const def = mine.find(r => r.isDefault);
+    sel.innerHTML = `<option value="none">Kural şablonu yok</option>${mine.map(r => `<option value="${esc(r.id)}" ${def && def.id === r.id ? 'selected' : ''}>Şablon: ${esc(r.name)}${r.isDefault ? ' (varsayılan)' : ''}</option>`).join('')}`;
+  }
   const hint = () => {
+    syncRules();
     const k = meta.kinds[kind];
     view.querySelector('#ps-hint').textContent = `${k.hint}.${k.english ? ' Prompt önce Türkçe yazılır; hazır olunca tek tıkla İngilizceye çevrilir.' : ' Prompt Türkçe yazılır.'}`;
     const ts = view.querySelector('#ps-tool');
@@ -78,6 +92,7 @@ export async function renderPrompts(view, brand, sub) {
     }
   };
   hint();
+  loadRules();
   // 8.5 tahmini tutar (sahneli üretimde sahne sayısıyla; kalite kontrolü bir kez daha yazdırabilir)
   if (aiReady) bindCostHint(view.querySelector('#ps-cost'), models, () => { const n = Number(view.querySelector('#ps-scenes').value) || 1; return { task: 'yazim', ref: view.querySelector('#ps-model').value, job: 'prompt', times: n, suffix: n > 1 ? ` (${n} sahne)` : ' (eksik çıkarsa bir kez daha yazılır)' }; }, [view.querySelector('#ps-model'), view.querySelector('#ps-scenes')]);
 
@@ -104,6 +119,7 @@ export async function renderPrompts(view, brand, sub) {
     if (e.target.id === 'ps-q') { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value.trim(); loadList(); }, 250); }
   };
   view.onclick = async e => {
+    if (e.target.closest('[data-rules]')) return rulesModal(brand, meta, kind, loadRules);
     if (e.target.closest('[data-recipes]')) return openRecipes('prompt', brand, res => go(`#/m/${brand.id}/prompt/${res.prompt.id}`));
     const k = e.target.closest('[data-kind]');
     if (k) {
@@ -175,7 +191,7 @@ export async function renderPrompts(view, brand, sub) {
       const brief = view.querySelector('#ps-brief').value.trim();
       if (!brief) return toast('Önce ne istediğini kısaca yaz.', 'error');
       try {
-        const { prompt } = await streamBusy(create, st => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0), tool: (view.querySelector('#ps-tool') || {}).value || '' }, st));
+        const { prompt } = await streamBusy(create, st => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0), tool: (view.querySelector('#ps-tool') || {}).value || '', ruleId: (view.querySelector('#ps-rule') || {}).value || 'none' }, st));
         toast(aiNote(prompt.ai), 'success', 5000);
         if (picked) { try { const u = await api.useIdea(brand.id, picked.id, 'prompt'); if (u && u.warning) toast(u.warning, 'info', 6000); } catch { /* fikir silinmiş olabilir */ } picked = null; }
         go(base(brand) + '/' + prompt.id);
@@ -188,7 +204,7 @@ export async function renderPrompts(view, brand, sub) {
         body: `<div class="form-grid">
           <div class="field"><label for="pm-kind">Tür</label><select class="select" id="pm-kind" name="kind">${Object.entries(meta.kinds).map(([k2, v]) => `<option value="${k2}" ${k2 === kind ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select></div>
           <div class="field"><label for="pm-title">Başlık</label><input class="input" id="pm-title" name="title" maxlength="80"></div>
-          <div class="field full"><label for="pm-text">Prompt *</label><textarea class="textarea" id="pm-text" name="text" required maxlength="8000" rows="6"></textarea></div>
+          <div class="field full"><label for="pm-text">Prompt *</label><textarea class="textarea" id="pm-text" name="text" required maxlength="30000" rows="6"></textarea></div>
         </div>`,
         onSubmit: async fd => {
           const { prompt } = await api.createPrompt(brand.id, { manual: true, kind: fd.get('kind'), title: fd.get('title'), text: fd.get('text') });
@@ -268,12 +284,12 @@ async function renderDetail(view, brand, id, models) {
                 <div class="field mt-3"><label for="pp-text">${p.english ? (p.lang === 'tr' ? 'Prompt (Türkçe)' : 'Prompt (İngilizce, üretim aracına bu verilir)') : 'Prompt'}</label>
                   ${p.scenes && p.scenes.length ? `<div class="scene-list" id="pp-scenes">${p.scenes.map((s, i) => `<article class="scene-card" data-scene="${i}">
                       <div class="row"><b>Sahne ${i + 1}</b><input class="input input-sm" data-scene-title="${i}" maxlength="80" value="${esc(s.title)}" aria-label="Sahne ${i + 1} adı">${p.quality && p.quality.scenes && p.quality.scenes[i] ? `<span class="q-badge ${p.quality.scenes[i].ok ? 'ok' : 'bad'}" title="${esc(p.quality.scenes[i].missing.join(', '))}">%${p.quality.scenes[i].score}</span>` : ''}</div>
-                      <textarea class="textarea" data-scene-text="${i}" rows="5" maxlength="3000" aria-label="Sahne ${i + 1} metni">${esc(s.text)}</textarea>
+                      <textarea class="textarea" data-scene-text="${i}" rows="5" maxlength="12000" aria-label="Sahne ${i + 1} metni">${esc(s.text)}</textarea>
                       <div class="row"><button type="button" class="btn btn-sm" data-scene-act="extend" data-i="${i}">Uzat</button><input class="input input-sm" data-scene-how="${i}" maxlength="500" placeholder="Beğenmediğin kısmı nasıl değiştireyim?" aria-label="Sahne ${i + 1} için talimat"><button type="button" class="btn btn-sm" data-scene-act="rewrite" data-i="${i}">Değiştir</button></div>
                     </article>`).join('')}
                     <div class="row"><button type="button" class="btn btn-sm btn-primary" data-scene-act="add">${icon('plus')}Bir sahne daha üret (devamı)</button><span class="xsmall muted">Sahneleri elle de düzenleyebilirsin; Kaydet'e bas.</span></div></div>
-                  <textarea class="textarea prompt-text" id="pp-text" rows="6" maxlength="8000" readonly hidden>${esc(p.text)}</textarea>` : `<textarea class="textarea prompt-text" id="pp-text" rows="12" maxlength="8000">${esc(p.text)}</textarea>`}</div>
-                ${p.english && p.lang !== 'tr' ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="7" maxlength="8000">${esc(p.textTr)}</textarea></div>` : ''}
+                  <textarea class="textarea prompt-text" id="pp-text" rows="6" maxlength="30000" readonly hidden>${esc(p.text)}</textarea>` : `<textarea class="textarea prompt-text" id="pp-text" rows="12" maxlength="30000">${esc(p.text)}</textarea>`}</div>
+                ${p.english && p.lang !== 'tr' ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="7" maxlength="30000">${esc(p.textTr)}</textarea></div>` : ''}
                 ${p.quality && p.quality.checks.length ? `<div class="q-badges mt-2" aria-label="Kalite kontrolü"><span class="xsmall muted">Kalite kontrolü %${p.quality.score}${p.ai && p.ai.qualityRetried ? ' · eksikler için bir kez daha yazıldı' : ''}:</span>${p.quality.checks.map(c => `<span class="q-badge ${c.ok ? 'ok' : 'bad'}" title="${esc(c.msg || '')}">${c.ok ? '✓' : '✗'} ${esc(c.label)}</span>`).join('')}</div>` : ''}
                 <div class="row mt-3">
                   ${p.english && p.lang !== 'tr' ? '<button class="btn btn-sm btn-ghost" data-copy="tr">Türkçesini kopyala</button>' : ''}
@@ -283,7 +299,7 @@ async function renderDetail(view, brand, id, models) {
             </div>
           </main>
         </div>
-        <footer class="ed-bottom"><span class="small muted">${esc(p.kindLabel)} · ${p.text.length} karakter · ${p.versions.length} sürüm</span><span class="spacer"></span>${feedbackButtons(p.feedback, 'prompt', p.id)}${p.example ? '<span class="small">👍 Marka örneği</span> ' : ''}${p.favorite ? '<span class="small">★ Favori</span>' : ''}</footer>
+        <footer class="ed-bottom"><span class="small muted">${esc(p.kindLabel)}${p.rule ? ` · Kural şablonu: ${esc(p.rule.name)}` : ''} · ${p.text.length} karakter · ${p.versions.length} sürüm</span><span class="spacer"></span>${feedbackButtons(p.feedback, 'prompt', p.id)}${p.example ? '<span class="small">👍 Marka örneği</span> ' : ''}${p.favorite ? '<span class="small">★ Favori</span>' : ''}</footer>
       </div>`;
     document.body.classList.add('editor-mode');
     if (IMAGE_KINDS[p.kind]) imageBox(view.querySelector('#pp-image'), brand, { getPrompt: () => val('#pp-text'), promptId: p.id, aspect: IMAGE_KINDS[p.kind], mentionTarget: () => view.querySelector('#pp-text') });
@@ -421,4 +437,76 @@ async function renderDetail(view, brand, id, models) {
       try { await api.deletePrompt(brand.id, p.id); toast('Prompt silindi.', 'success'); go(base(brand)); } catch (err) { toast(err.message, 'error'); }
     }
   };
+}
+
+// ------------------------------------------------------------ Kural şablonları
+// Kullanıcının kendi prompt yapısı: başlıklar ve sabit cümleler aynen kalır, [köşeli] alanları yapay zekâ doldurur.
+function rulesModal(brand, meta, kind, onChange) {
+  const m = openModal({
+    title: 'Kural şablonları', submitLabel: 'Kapat',
+    body: `<p class="small muted mb-3">Prompt'ların hep aynı yapıda yazılmasını istiyorsan şablonunu buraya kaydet. <b>[Köşeli parantez]</b> içindeki alanları yapay zekâ isteğine göre doldurur; başlıklar ve diğer bütün cümleler kelimesi kelimesine aynen kalır. Sahneli üretimde her sahne bu şablonun bir kopyası olur.</p>
+      <div id="rl-list"><p class="small muted">Yükleniyor…</p></div>
+      <div class="row mt-3"><button type="button" class="btn" data-rl-new>${icon('plus')}Yeni şablon</button>${RULE_EXAMPLES.map(x => `<button type="button" class="btn btn-ghost" data-rl-example="${esc(x.id)}">${icon('notes')}Hazır örnek: ${esc(x.name)}</button>`).join('')}</div>`,
+    onSubmit: async () => {}
+  });
+  const box = m.form.querySelector('#rl-list');
+  let list = [];
+  async function draw() {
+    try { list = (await api.promptRules(brand.id)).rules; } catch (err) { box.innerHTML = `<p class="small">${esc(err.message)}</p>`; return; }
+    box.innerHTML = list.length ? `<ul class="pool-list">${list.map(r => `<li class="pool-item">
+        <span class="status-badge">${esc(r.kindLabel)}</span>
+        <div class="grow"><div class="strong">${esc(r.name)}${r.isDefault ? ' <span class="badge">Varsayılan</span>' : ''}</div><div class="xsmall muted">${r.headings.length} bölüm · ${r.fields} doldurulacak alan · ${r.lang === 'en' ? 'İngilizce' : 'Türkçe'}</div></div>
+        ${r.isDefault ? '' : `<button type="button" class="btn btn-sm btn-ghost" data-rl-default="${esc(r.id)}">Varsayılan yap</button>`}
+        <button type="button" class="btn btn-sm btn-ghost" data-rl-edit="${esc(r.id)}">Düzenle</button>
+        <button type="button" class="btn btn-sm btn-ghost icon-btn" data-rl-del="${esc(r.id)}" aria-label="${esc(r.name)} şablonunu sil">${icon('trash')}</button></li>`).join('')}</ul>`
+      : '<p class="small muted">Henüz şablon yok. "Yeni şablon" ile kendi yapını yaz ya da hazır örnekle başla.</p>';
+  }
+  draw();
+  m.form.addEventListener('click', async e => {
+    const nw = e.target.closest('[data-rl-new]');
+    const ex = e.target.closest('[data-rl-example]');
+    const edt = e.target.closest('[data-rl-edit]');
+    if (nw || ex || edt) {
+      e.preventDefault();
+      const r = edt ? list.find(x => x.id === edt.dataset.rlEdit) : ex ? Object.assign({}, RULE_EXAMPLES.find(x => x.id === ex.dataset.rlExample), { id: null }) : { kind, name: '', body: '', lang: 'tr' };
+      return editRule(brand, meta, r, async () => { await draw(); onChange(); });
+    }
+    const df = e.target.closest('[data-rl-default]');
+    if (df) { e.preventDefault(); try { await api.savePromptRule(brand.id, df.dataset.rlDefault, { isDefault: true }); await draw(); onChange(); } catch (err) { toast(err.message, 'error'); } return; }
+    const del = e.target.closest('[data-rl-del]');
+    if (del) {
+      e.preventDefault();
+      const r = list.find(x => x.id === del.dataset.rlDel);
+      if (!confirm(`"${r.name}" şablonu silinsin mi? Onunla yazılmış prompt'lar silinmez.`)) return;
+      try { await api.deletePromptRule(brand.id, r.id); await draw(); onChange(); } catch (err) { toast(err.message, 'error'); }
+    }
+  });
+}
+
+function editRule(brand, meta, r, done) {
+  const m = openModal({
+    title: r.id ? 'Kural şablonunu düzenle' : 'Yeni kural şablonu', submitLabel: 'Kaydet',
+    body: `<div class="form-grid">
+        <div class="field"><label for="rl-name">Şablon adı *</label><input class="input" id="rl-name" name="name" maxlength="80" required value="${esc(r.name || '')}" placeholder="Ör. Dikey video sahnesi"></div>
+        <div class="field"><label for="rl-kind">Prompt türü</label><select class="select" id="rl-kind" name="kind">${Object.entries(meta.kinds).map(([k, v]) => `<option value="${k}" ${k === r.kind ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select></div>
+        <div class="field"><label for="rl-lang">Yazım dili</label><select class="select" id="rl-lang" name="lang"><option value="tr" ${r.lang !== 'en' ? 'selected' : ''}>Türkçe</option><option value="en" ${r.lang === 'en' ? 'selected' : ''}>İngilizce</option></select></div>
+        <label class="chip-check field"><input type="checkbox" name="isDefault" ${r.isDefault || !r.id ? 'checked' : ''}><span>Bu türde varsayılan olsun</span></label>
+        <div class="field full"><label for="rl-body">Şablon *</label><textarea class="textarea mono" id="rl-body" name="body" rows="18" maxlength="20000" required placeholder="Başlık:\nSabit cümle... [doldurulacak alan] ...">${esc(r.body || '')}</textarea>
+          <span class="hint" id="rl-stat"></span></div>
+      </div>`,
+    onSubmit: async fd => {
+      await api.savePromptRule(brand.id, r.id, { name: fd.get('name'), kind: fd.get('kind'), lang: fd.get('lang'), body: fd.get('body'), isDefault: fd.get('isDefault') === 'on' });
+      toast('Kural şablonu kaydedildi.', 'success');
+      await done();
+    }
+  });
+  const ta = m.form.querySelector('#rl-body');
+  const stat = () => {
+    const v = ta.value;
+    const heads = v.split('\n').map(l => l.trim().replace(/^[*•-]\s*/, '')).filter(l => /:$/.test(l) && l.length >= 3 && l.length <= 70 && !l.includes('[')).length;
+    const fields = (v.match(/\[[^\]\n]+\]/g) || []).length;
+    m.form.querySelector('#rl-stat').textContent = `${heads} bölüm başlığı · ${fields} doldurulacak [alan] · ${v.length} karakter. ":" ile biten satırlar bölüm başlığı sayılır ve üretimde aranır.`;
+  };
+  ta.addEventListener('input', stat);
+  stat();
 }
