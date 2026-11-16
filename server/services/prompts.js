@@ -6,6 +6,7 @@ import { checkPrompt, retryInstruction } from './promptQuality.js';
 import { bookBlock } from './characterBook.js';
 import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
+import { transaction } from '../db.js';
 import { polish } from './reels/rules.js';
 import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
 
@@ -32,13 +33,40 @@ export const IMPROVE_ACTIONS = {
   alternatif: { label: 'Alternatif üret', ask: 'Aynı amaca hizmet eden ama farklı bir yaklaşım, kurgu ya da görsel dille tamamen yeni bir alternatif yaz.' }
 };
 
-const MAX_TEXT = 8000;
+const MAX_TEXT = 30000; // kural şablonlu sahneli prompt'lar uzun olabilir
+const MAX_RULE = 20000;
 const MAX_SCENES = 8;
 export const MAX_EXAMPLES = 3; // 7.9: türe göre en çok 3 marka örneği
 const IMAGE_KINDS = ['gorsel', 'urun', 'reklam', 'post', 'maskot'];
 // 7.8: sahneler [{ title, text }]; prompt metni sahnelerin birleşimidir (kopyalama ve görsel üretimi için)
-const sceneList = v => (Array.isArray(v) ? v : []).map(s => ({ title: String((s && s.title) || '').trim().slice(0, 80), text: String((s && (s.text || s.prompt)) || '').trim().slice(0, 3000) })).filter(s => s.text).slice(0, MAX_SCENES);
-const joinScenes = (scenes, lang) => scenes.map((s, i) => `${lang === 'en' ? 'SCENE' : 'SAHNE'} ${i + 1}${s.title ? ' — ' + s.title : ''}\n${s.text}`).join('\n\n');
+const sceneList = v => (Array.isArray(v) ? v : []).map(s => ({ title: String((s && s.title) || '').trim().slice(0, 80), text: String((s && (s.text || s.prompt)) || '').trim().slice(0, 12000) })).filter(s => s.text).slice(0, MAX_SCENES);
+// Sahne metni zaten "SAHNE 2 — ..." diye başlıyorsa (kural şablonu) başlık ikinci kez eklenmez
+const joinScenes = (scenes, lang) => scenes.map((s, i) => (/^\s*(SAHNE|SCENE)\s*\d/i.test(s.text) ? s.text : `${lang === 'en' ? 'SCENE' : 'SAHNE'} ${i + 1}${s.title ? ' — ' + s.title : ''}\n${s.text}`)).join('\n\n');
+
+// Kural şablonu: kullanıcının kendi prompt yapısı. Başlıklar ve sabit cümleler aynen kalır, [köşeli] alanlar doldurulur.
+const PLACEHOLDER = /\[[^\]\n]+\]/g;
+const foldTr = s => String(s || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
+// Şablondaki bölüm başlıkları: ":" ile biten, köşeli alan içermeyen kısa satırlar
+export function ruleHeadings(body) {
+  return [...new Set(String(body || '').split('\n').map(l => l.trim().replace(/^[*•-]\s*/, ''))
+    .filter(l => /:$/.test(l) && l.length >= 3 && l.length <= 70 && !l.includes('[')).map(l => l.slice(0, -1).trim()))];
+}
+export function ruleCheck(body, out) {
+  const t = foldTr(out);
+  const missing = ruleHeadings(body).filter(h => !t.includes(foldTr(h)));
+  const left = [...new Set(String(out || '').match(PLACEHOLDER) || [])];
+  const checks = [
+    ...ruleHeadings(body).map(h => ({ key: 'h:' + h, label: h, ok: !missing.includes(h), kind: 'section' })),
+    { key: 'filled', label: 'Bütün [alanlar] dolu', ok: !left.length, kind: 'rule', msg: left.length ? `Doldurulmamış alan: ${left.slice(0, 3).join(', ')}` : '' }
+  ];
+  const failed = checks.filter(c => !c.ok);
+  return { ok: !failed.length, score: Math.round((checks.length - failed.length) / checks.length * 100), checks, missing: failed.map(c => c.msg || `"${c.label}" bölümü yok`), rule: true };
+}
+
+function toRule(r) {
+  return { id: r.id, kind: r.kind, kindLabel: (PROMPT_KINDS[r.kind] || {}).label || r.kind, name: r.name, body: r.body, lang: r.lang, isDefault: Boolean(r.is_default),
+    headings: ruleHeadings(r.body), fields: (String(r.body).match(PLACEHOLDER) || []).length, createdAt: r.created_at, updatedAt: r.updated_at };
+}
 
 function toPrompt(row) {
   return {
@@ -46,7 +74,7 @@ function toPrompt(row) {
     english: Boolean((PROMPT_KINDS[row.kind] || {}).english),
     title: row.title, brief: row.brief, text: row.text, textTr: row.text_tr, favorite: Boolean(row.favorite), example: Boolean(row.is_example), model: row.model,
     lang: (PROMPT_KINDS[row.kind] || {}).english ? (row.lang || 'en') : 'tr',
-    tool: row.tool || '', aspect: row.aspect || '',
+    tool: row.tool || '', aspect: row.aspect || '', ruleId: row.rule_id || '',
     scenes: (() => { try { return sceneList(JSON.parse(row.scenes || '[]')); } catch { return []; } })(),
     createdAt: row.created_at, updatedAt: row.updated_at
   };
@@ -78,7 +106,38 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     const worst = qs.reduce((a, q) => (q.score < a.score ? q : a), qs[0]);
     return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
   };
+  const ruleOf = (brandId, id) => (id ? db.prepare('SELECT * FROM prompt_rules WHERE id = ? AND brand_id = ?').get(String(id), brandId) || null : null);
+  // ruleId: '' → türün varsayılan şablonu, 'none' → şablonsuz, kimlik → o şablon
+  const pickRule = (brandId, kind, ruleId) => {
+    if (ruleId === 'none') return null;
+    if (ruleId) { const r0 = ruleOf(brandId, ruleId); if (!r0) throw notFound('Kural şablonu bulunamadı.'); if (r0.kind !== kind) throw badRequest('Bu kural şablonu başka bir prompt türü için.'); return r0; }
+    return db.prepare('SELECT * FROM prompt_rules WHERE brand_id = ? AND kind = ? AND is_default = 1').get(brandId, kind) || null;
+  };
+  // Şablonlu kurallar: genel kemik ve "ekranda yazı yok" kuralı yerine kullanıcının şablonu geçerlidir
+  function ruleRules(kind, rule, sceneCount = 0) {
+    const k = PROMPT_KINDS[kind];
+    return [
+      `PROMPT TÜRÜ: ${k.label} (${k.hint}).`,
+      `KULLANICININ KURAL ŞABLONU ("${rule.name}"): Prompt'u AŞAĞIDAKİ ŞABLONU BİREBİR KULLANARAK yaz. Bu şablon diğer bütün biçim kurallarından önce gelir.`,
+      '- Bölüm başlıklarını, bölüm sırasını ve köşeli parantez dışındaki bütün sabit cümleleri KELİMESİ KELİMESİNE aynen koru; kısaltma, yeniden yazma, çevirme.',
+      '- Köşeli parantez içindeki [ ... ] alanları isteğe, marka hafızasına ve karakter bilgisine göre somut ve ayrıntılı içerikle doldur; köşeli parantezleri ve içindeki talimat yazısını sil. Hiçbir alan [ ... ] hâlinde kalmasın.',
+      '- "[A / B / C]" gibi seçenekli alanlarda isteğe en uygun olanı (ya da ikisini) seç. "[X]" gibi sayı alanlarına uygun sayıyı yaz; saniyeler birbirini izlesin ve toplam süreyle tutarlı olsun.',
+      '- Madde işaretli satırların yapısını koru. Şablonda olmayan bölüm ekleme, olan bölümü çıkarma; açıklama ya da giriş cümlesi yazma.',
+      `- Dil: ${rule.lang === 'en' ? 'İngilizce' : 'Türkçe'}. Gerçek kişi, ünlü ya da başka marka adı kullanma. Seslendirme veya kapak yazısı istenmişse metni tırnak içinde birebir yaz.`,
+      sceneCount >= 2 ? `- ${sceneCount} sahnenin HER BİRİ bu şablonun eksiksiz, ayrı bir kopyasıdır. Sahne numaralarını 1'den sırayla ver; "Sahne devamlılığı" gibi bölümlerde önceki ve sonraki sahneye açıkça bağla. Karakter, mekân ve ışık sahneler arasında tutarlı kalsın. Her sahnenin "prompt" alanı şablonun ilk satırından başlasın.` : '',
+      '', 'ŞABLON:', '<<<', rule.body, '>>>'
+    ].filter(Boolean).join('\n');
+  }
+  const rulesFor = r => { const ru = ruleOf(r.brand_id, r.rule_id); return ru ? ruleRules(r.kind, ru, toPrompt(r).scenes.length) : rules(r.kind, qLang(r), r.tool); };
   const quality = r => {
+    const ru = ruleOf(r.brand_id, r.rule_id);
+    if (ru) {
+      const sc = toPrompt(r).scenes;
+      if (!sc.length) return ruleCheck(ru.body, r.text);
+      const qs = sc.map(s => ruleCheck(ru.body, s.text));
+      const worst = qs.reduce((a, q) => (q.score < a.score ? q : a), qs[0]);
+      return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
+    }
     const scenes = toPrompt(r).scenes;
     return scenes.length ? sceneQuality(r.kind, scenes, qLang(r), qualityOpts(r.brand_id)) : checkPrompt(r.kind, r.text, qLang(r), qualityOpts(r.brand_id));
   };
@@ -88,7 +147,9 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     return f ? { vote: f.vote, reasons: parseJson(f.reasons, []) || [], note: f.note } : null;
   };
   function detail(r) {
+    const ru = ruleOf(r.brand_id, r.rule_id);
     return Object.assign(toPrompt(r), {
+      rule: ru ? { id: ru.id, name: ru.name } : null,
       quality: quality(r),
       feedback: fbOf(r.brand_id, 'prompt', r.id),
       // 7.10: hedef araca göre kopyalanacak çıktı (yalnız İngilizce hâlde)
@@ -191,14 +252,16 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     score(brandId, kind, textIn, lang) { return checkPrompt(kind, textIn, lang, qualityOpts(brandId)); },
 
     // AI ile yeni prompt: kısa tarif (brief) → tam prompt
-    async create(brandId, { kind, brief, modelRef = null, lang = 'tr', scenes: sceneCount = 0, tool = '' } = {}) {
+    async create(brandId, { kind, brief, modelRef = null, lang = 'tr', scenes: sceneCount = 0, tool = '', ruleId = '' } = {}) {
       const b = brands.get(brandId);
       const k = oneOf(kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
       const want = text(brief, { field: 'İstek', max: 2000, required: true });
-      const lg = PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
+      const rule = pickRule(b.id, k, String(ruleId || ''));
+      const lg = rule ? (PROMPT_KINDS[k].english && rule.lang === 'en' ? 'en' : 'tr') : PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
       const tl = validTool(k, tool) ? tool : '';
       const nScenes = Math.round(Number(sceneCount) || 0);
-      if (nScenes >= 2) return this.createScenes(b, k, want, Math.min(MAX_SCENES, nScenes), lg, modelRef, tl);
+      if (nScenes >= 2) return this.createScenes(b, k, want, Math.min(MAX_SCENES, nScenes), lg, modelRef, tl, rule);
+      if (rule) return this.createWithRule(b, k, want, lg, modelRef, tl, rule);
       const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, tl), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
       let r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
@@ -311,22 +374,93 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     },
 
     // 7.8: çok sahneli prompt (eski sistemdeki gibi): sahneler birbirinin devamı, her biri kemiğe uyan tam bir prompt
-    async createScenes(b, k, want, n, lg, modelRef, tl = '') {
+    async createScenes(b, k, want, n, lg, modelRef, tl = '', rule = null) {
       const shape = JSON.stringify({ title: 'Kısa Türkçe başlık', scenes: [{ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' }] });
-      const prompt = ['PROMPT STUDIO · SAHNELİ', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, tl), '',
+      const prompt = ['PROMPT STUDIO · SAHNELİ', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rule ? ruleRules(k, rule, n) : rules(k, lg, tl), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '',
-        `GÖREV: Bu istek için birbirinin devamı olan ${n} sahne yaz. Her sahne kendi başına kemiğe uyan tam bir prompt olsun; karakter, mekân, ışık ve stil sahneler arasında tutarlı kalsın; her sahne bir öncekinin bittiği yerden başlasın.`,
+        `GÖREV: Bu istek için birbirinin devamı olan ${n} sahne yaz. Her sahne kendi başına ${rule ? 'şablona birebir uyan' : 'kemiğe uyan'} tam bir prompt olsun; karakter, mekân, ışık ve stil sahneler arasında tutarlı kalsın; her sahne bir öncekinin bittiği yerden başlasın.`,
         '', 'Sadece şu JSON biçiminde yanıt ver:', shape].join('\n');
-      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
-      const scenes = sceneList(r.output && r.output.scenes);
+      let r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: rule ? 0.6 : 0.8 });
+      let scenes = sceneList(r.output && r.output.scenes);
       if (!scenes.length) throw badRequest('Model kullanılabilir sahne döndürmedi; tekrar dene.');
+      let retried = false;
+      // Şablon kontrolü: eksik bölüm ya da doldurulmamış [alan] varsa bir kez daha yazılır, daha iyisi tutulur
+      if (rule) {
+        const worst = list => Math.min(...list.map(s => ruleCheck(rule.body, s.text).score));
+        const q = scenes.map(s => ruleCheck(rule.body, s.text)).find(x => !x.ok);
+        if (q) {
+          try {
+            const r2 = await ai.run({ task: 'yazim', brandId: b.id, prompt: prompt + '\n\n' + retryInstruction(q), json: true, modelRef, temperature: 0.5 });
+            const s2 = sceneList(r2.output && r2.output.scenes);
+            retried = true;
+            if (s2.length && worst(s2) >= worst(scenes)) { r = Object.assign(r2, { cost: (r.cost || 0) + (r2.cost || 0) }); scenes = s2; }
+          } catch { /* ilk sonuç kalır */ }
+        }
+      }
       const title = polish(r.output && r.output.title).slice(0, 80) || want.slice(0, 60);
       const id = newId(); const t = now();
-      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, scenes, tool, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, b.id, k, title, want, joinScenes(scenes, lg), '', r.servedRef || r.ref, lg, JSON.stringify(scenes), tl, t, t);
+      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, scenes, tool, rule_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, b.id, k, title, want, joinScenes(scenes, lg), '', r.servedRef || r.ref, lg, JSON.stringify(scenes), tl, rule ? rule.id : '', t, t);
       const created = row(b.id, id);
-      saveVersion(created, `İlk üretim (${scenes.length} sahne)`);
-      return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: false }) });
+      saveVersion(created, `İlk üretim (${scenes.length} sahne${rule ? `, "${rule.name}" şablonu` : ''})`);
+      return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: retried }) });
+    },
+
+    // Kural şablonuyla tek prompt
+    async createWithRule(b, k, want, lg, modelRef, tl, rule) {
+      const prompt = ['PROMPT STUDIO · KURAL ŞABLONU', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', ruleRules(k, rule), '',
+        `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ title: 'Kısa Türkçe başlık (en çok 60 karakter)', prompt: 'Şablona göre doldurulmuş prompt\'un tamamı' })].join('\n');
+      let r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.6 });
+      let c = clean(r.output, k, want.slice(0, 60), 'tr');
+      let q = ruleCheck(rule.body, c.text);
+      let retried = false;
+      if (!q.ok) {
+        try {
+          const r2 = await ai.run({ task: 'yazim', brandId: b.id, prompt: prompt + '\n\n' + retryInstruction(q), json: true, modelRef, temperature: 0.5 });
+          const c2 = clean(r2.output, k, want.slice(0, 60), 'tr');
+          const q2 = ruleCheck(rule.body, c2.text);
+          retried = true;
+          if (q2.score >= q.score) { r = Object.assign(r2, { cost: (r.cost || 0) + (r2.cost || 0) }); c = c2; q = q2; }
+        } catch { /* ilk sonuç kalır */ }
+      }
+      const id = newId(); const t = now();
+      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, tool, rule_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, b.id, k, c.title, want, c.text, '', r.servedRef || r.ref, lg, tl, rule.id, t, t);
+      const created = row(b.id, id);
+      saveVersion(created, `İlk üretim ("${rule.name}" şablonu)`);
+      return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: retried }) });
+    },
+
+    // Kural şablonları: listele, ekle, düzenle, varsayılan yap, sil
+    listRules(brandId, kind = null) {
+      const b = brands.get(brandId);
+      return db.prepare('SELECT * FROM prompt_rules WHERE brand_id = ? ORDER BY kind, is_default DESC, updated_at DESC').all(b.id)
+        .filter(r => !kind || r.kind === kind).map(toRule);
+    },
+    saveRule(brandId, ruleId, body = {}) {
+      const b = brands.get(brandId);
+      const old = ruleId ? ruleOf(b.id, ruleId) : null;
+      if (ruleId && !old) throw notFound('Kural şablonu bulunamadı.');
+      const kind = oneOf(body.kind != null ? body.kind : old && old.kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
+      const name = text(body.name != null ? body.name : old && old.name, { field: 'Şablon adı', max: 80, required: true });
+      const ruleBody = text(body.body != null ? body.body : old && old.body, { field: 'Şablon', max: MAX_RULE, required: true });
+      if (ruleBody.length < 20) throw badRequest('Şablon çok kısa; uyulmasını istediğin yapıyı yaz.');
+      const lang = (body.lang != null ? body.lang : old && old.lang) === 'en' ? 'en' : 'tr';
+      const t = now();
+      const id = old ? old.id : newId();
+      const isDefault = body.isDefault != null ? Boolean(body.isDefault) : old ? Boolean(old.is_default) : !db.prepare('SELECT 1 FROM prompt_rules WHERE brand_id = ? AND kind = ?').get(b.id, kind);
+      transaction(db, () => {
+        if (isDefault) db.prepare('UPDATE prompt_rules SET is_default = 0 WHERE brand_id = ? AND kind = ?').run(b.id, kind);
+        if (old) db.prepare('UPDATE prompt_rules SET kind = ?, name = ?, body = ?, lang = ?, is_default = ?, updated_at = ? WHERE id = ?').run(kind, name, ruleBody, lang, isDefault ? 1 : 0, t, id);
+        else db.prepare('INSERT INTO prompt_rules (id, brand_id, kind, name, body, lang, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, b.id, kind, name, ruleBody, lang, isDefault ? 1 : 0, t, t);
+      });
+      return toRule(ruleOf(b.id, id));
+    },
+    removeRule(brandId, ruleId) {
+      const b = brands.get(brandId);
+      const r0 = ruleOf(b.id, ruleId);
+      if (!r0) throw notFound('Kural şablonu bulunamadı.');
+      db.prepare('DELETE FROM prompt_rules WHERE id = ?').run(r0.id);
     },
 
     // 7.8 sahne işlemleri: add (devamını üret), extend (sahneyi uzat), rewrite (beğenilmeyen sahneyi talimatla değiştir)
@@ -351,7 +485,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
           : `YALNIZCA sahne ${i + 1}'i şu talimata göre yeniden yaz: ${how}. Beğenilmeyen kısmı değiştir, geri kalanı ve diğer sahnelerle tutarlılığı koru.`;
         note = action === 'extend' ? `Sahne ${i + 1} uzatıldı` : `Sahne ${i + 1} değiştirildi`;
       } else throw badRequest('Geçersiz sahne işlemi.');
-      const prompt = ['PROMPT STUDIO · SAHNE', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, r.kind), '', rules(r.kind, lg, r.tool), '',
+      const prompt = ['PROMPT STUDIO · SAHNE', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, r.kind), '', rulesFor(r), '',
         `İLK İSTEK: ${r.brief || '-'}`, '', 'MEVCUT SAHNELER:', joinScenes(scenes, lg), '', `YAPILACAK: ${ask}`, '',
         'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' })].join('\n');
       const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
@@ -425,7 +559,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         ask = a.ask;
         note = a.label;
       }
-      const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, r.tool), '',
+      const prompt = ['PROMPT GELİŞTİRME', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rulesFor(r), '',
         `İLK İSTEK: ${r.brief || '(elle yazılmış prompt)'}`, '', `MEVCUT PROMPT:\n${r.text}`, '', `YAPILACAK DEĞİŞİKLİK:\n${ask}`, '',
         'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
       const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: action === 'kisalt' ? 0.4 : 0.8 });
