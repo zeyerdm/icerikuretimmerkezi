@@ -4,9 +4,11 @@ import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
-import { drawSlide, resolveImages, slideBlob, hitTest, layerBox } from '../postCanvas.js';
+import { drawSlide, resolveImages, slideBlob, hitTest, layerBox, handlesOf } from '../postCanvas.js';
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
+import { canvasesToPdf } from '../pdf.js';
+import { STOCK_KINDS, loadStock, itemsOf, searchItems, svgUrl, svgToPng } from '../stockPacks.js';
 
 // Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
 const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Başlık'], ['body', 'Açıklama'], ['item', 'Madde (bilgi grafiği)'], ['cta', 'Buton yazısı'], ['speech', 'Maskot konuşması'], ['topic', 'Konu etiketi'], ['num', 'Slayt numarası'], ['page', 'Slayt sayısı (/ 06)']];
@@ -14,6 +16,14 @@ const FILL_ROLES = ['title', 'body', 'item', 'cta', 'speech'];
 const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri (poz her postta konuya göre seçilir)'], ['logo', 'Logo']];
 // Şablonun hangi alanları her postta doluyor (kartta gösterilir)
 const ROLE_NAMES = { title: 'Başlık', body: 'Açıklama', item: 'Madde', cta: 'Buton', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri' };
+// Katmanlar panelindeki ad: verilen ad, yoksa yazının başı ya da türü
+function layerName(l) {
+  if (l.name) return l.name;
+  if (l.type === 'text') return `T  ${String(l.text || '').replace(/[*\n]/g, ' ').trim().slice(0, 28) || 'Metin'}`;
+  if (l.type === 'image') return l.role === 'mascot' ? 'Maskot' : l.role === 'logo' ? 'Logo' : 'Görsel';
+  if (l.type === 'qr') return 'QR kod';
+  return l.role === 'bubble' ? 'Konuşma balonu' : l.shape === 'circle' ? 'Daire' : 'Şekil';
+}
 function tplFields(t) {
   const set = new Set();
   (t.data.slides || []).forEach(s => (s.layers || []).forEach(l => { if (ROLE_NAMES[l.role] && (l.type === 'text' || l.role === 'mascot')) set.add(ROLE_NAMES[l.role]); }));
@@ -25,7 +35,7 @@ const base = brand => `#/m/${encodeURIComponent(brand.id)}/post`;
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 export async function renderPosts(view, brand, sub) {
-  view.onclick = view.onchange = view.oninput = view.onkeydown = null;
+  view.onclick = view.onchange = view.oninput = view.onkeydown = view.ondblclick = null;
   const models = await aiModels();
   if (sub === 'izgara') return renderGrid(view, brand);
   if (sub) return renderEditor(view, brand, sub, models);
@@ -451,7 +461,7 @@ async function referenceFlow(brand, models, refresh) {
 // Tam ekran: üstte Dosya / Yeniden boyutlandır / Paylaş menüleri; solda araç rayı ve tıklandıkça açılıp kapanan panel;
 // ortada sabit tasarım alanı (sayfa kaymaz); altta sayfa şeridi ve yakınlaştırma; sağda yalnızca bir öğe seçiliyken ayarlar.
 const RAIL = [
-  ['metin', 'Metin', 'edit'], ['ogeler', 'Öğeler', 'palette'], ['marka', 'Marka', 'identity'], ['yuklemeler', 'Yüklemeler', 'upload'],
+  ['metin', 'Metin', 'edit'], ['katmanlar', 'Katmanlar', 'layers'], ['ogeler', 'Öğeler', 'palette'], ['marka', 'Marka', 'identity'], ['yuklemeler', 'Yüklemeler', 'upload'],
   ['sablonlar', 'Şablonlar', 'grid'], ['zemin', 'Zemin', 'image'], ['ai', 'AI', 'sparkle'], ['aciklama', 'Açıklama', 'notes']
 ];
 
@@ -468,6 +478,7 @@ async function renderEditor(view, brand, id, models) {
   let current = 0;
   let selected = null;
   let multi = null; // Ctrl+A: slayttaki bütün katmanlar seçili (kopyala, kes, sil, taşı)
+  let guides = []; // sürüklerken mıknatısın tuttuğu hizalama çizgileri
   let dirty = false;
   let panel = 'metin';
   let zoom = 100;
@@ -505,6 +516,7 @@ async function renderEditor(view, brand, id, models) {
                 ${post.kind === 'youtube' ? `<button type="button" data-act="yt-preview">${icon('eye')}<span>YouTube önizlemesi</span></button>` : ''}
                 <button type="button" data-png="one">${icon('download')}<span>Bu slaytı PNG indir</span></button>
                 ${data.slides.length > 1 ? `<button type="button" data-png="all">${icon('download')}<span>Bütün slaytları indir</span></button>` : ''}
+                <button type="button" data-pdf>${icon('download')}<span>${data.slides.length > 1 ? 'PDF olarak indir (bütün slaytlar)' : 'PDF olarak indir'}</span></button>
                 <button type="button" data-drive="one">${icon('upload')}<span>Bu slaytı Drive'a gönder</span></button>${data.slides.length > 1 ? `<button type="button" data-drive="all">${icon('upload')}<span>Bütün slaytları Drive'a gönder</span></button>` : ''}
                 ${post.content ? '' : `<button type="button" data-act="schedule">${icon('calendar')}<span>Takvime ekle</span></button>`}
                 <button type="button" data-act="template">${icon('grid')}<span>Marka şablonu</span></button>
@@ -582,13 +594,14 @@ async function renderEditor(view, brand, id, models) {
     await resolveImages(s);
     const c = $('#stage');
     if (!c) return;
-    drawSlide(c, s, format(), { selectedId: multi || selected });
+    drawSlide(c, s, format(), { selectedId: multi || selected, handles: true, showHidden: true, guides });
     fit();
     drawList();
     // Panelden çıkarken (change) panel yeniden çizilmez: aynı anda basılan düğmenin tıklaması kaybolmasın
     if (!keepProps) drawProps();
+    if (panel === 'katmanlar') drawPanelBody();
   }
-  const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: multi || selected }); };
+  const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: multi || selected, handles: true, showHidden: true, guides }); };
 
   function drawList() {
     const list = $('#slide-list');
@@ -608,6 +621,7 @@ async function renderEditor(view, brand, id, models) {
     const p = $('#layer-panel');
     const l = layer();
     if (!l) { p.innerHTML = ''; return; }
+    const range = (key, label, value, min, max, step, unit = '') => `<div class="field"><label for="lp-${key}">${label}: <span data-val="${key}">${value}${unit}</span></label><input type="range" id="lp-${key}" min="${min}" max="${max}" step="${step}" data-prop="${key}" data-unit="${unit}" value="${value}"></div>`;
     const swatches = (key, value) => `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === value ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" data-prop="${key}" value="${esc(value)}" aria-label="Özel renk"></div>`;
     p.innerHTML = `${data.slides.length > 1 ? `<button type="button" class="btn btn-sm w-full mb-3" data-apply-all title="${l.type === 'text' ? 'Yazı stili (font, boyut, renk, hizalama, konum) aynı roldeki yazılara uygulanır; yazının kendisi değişmez' : 'Aynı görsel/şekil öbür slaytlarda da bu hâle gelir; olmayan slayta eklenir'}">${icon('grid')}Tüm slaytlara uygula</button>` : ''}<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
       <div class="row"><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-dup aria-label="Çoğalt" title="Çoğalt">${icon('plus')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil" title="Sil">${icon('trash')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-deselect aria-label="Kapat" title="Kapat">${icon('x')}</button></div></div>
@@ -627,7 +641,18 @@ async function renderEditor(view, brand, id, models) {
         </div>
         <div class="field"><span class="field-label">Hizalama</span><div class="seg">${[['left', 'Sol'], ['center', 'Orta'], ['right', 'Sağ']].map(([k, v]) => `<button type="button" data-align="${k}" class="${l.align === k ? 'active' : ''}">${v}</button>`).join('')}</div></div>
         <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>
-        <div class="field"><span class="field-label">Vurgu rengi <span class="xsmall muted">(kelimeyi *yıldız* içine al)</span></span>${swatches('highlight', l.highlight || brand.colors.primary || '#5b55e6')}</div>`
+        <div class="field"><span class="field-label">Vurgu rengi <span class="xsmall muted">(kelimeyi *yıldız* içine al)</span></span>${swatches('highlight', l.highlight || brand.colors.primary || '#5b55e6')}</div>
+        <details class="ed-fx" ${l.lineHeight || l.letterSpacing || l.upper || l.shadow || l.strokeW || l.bgColor ? 'open' : ''}><summary>Yazı efektleri</summary><div class="stack-sm mt-2">
+          ${range('lineHeight', 'Satır aralığı', l.lineHeight || 1.2, 0.8, 2.5, 0.05)}
+          ${range('letterSpacing', 'Harf aralığı', l.letterSpacing || 0, -5, 30, 1, 'px')}
+          <label class="chip-check"><input type="checkbox" data-flag="upper" ${l.upper ? 'checked' : ''}><span>HEPSİ BÜYÜK HARF</span></label>
+          ${range('shadow', 'Gölge', l.shadow || 0, 0, 60, 1)}
+          ${l.shadow ? `<div class="field"><span class="field-label">Gölge rengi</span>${swatches('shadowColor', l.shadowColor || '#000000')}</div>` : ''}
+          ${range('strokeW', 'Dış çizgi', l.strokeW || 0, 0, 20, 1, 'px')}
+          ${l.strokeW ? `<div class="field"><span class="field-label">Çizgi rengi</span>${swatches('strokeColor', l.strokeColor || '#000000')}</div>` : ''}
+          <label class="chip-check"><input type="checkbox" data-flag="bgBox" ${l.bgColor ? 'checked' : ''}><span>Yazının arkasına kutu</span></label>
+          ${l.bgColor ? `<div class="field"><span class="field-label">Kutu rengi</span>${swatches('bgColor', l.bgColor)}</div>${range('bgPad', 'Kutu boşluğu', l.bgPad != null ? l.bgPad : 20, 0, 80, 1, 'px')}${range('bgRadius', 'Kutu köşesi', l.bgRadius || 0, 0, 80, 1, 'px')}` : ''}
+        </div></details>`
       : l.type === 'qr' ? `
         <div class="field"><label for="lp-qr">Link ya da metin</label><textarea class="textarea" id="lp-qr" data-prop="text" rows="2" maxlength="200">${esc(l.text)}</textarea></div>
         <div class="field"><label for="lp-qw">Boyut</label><input class="input" id="lp-qw" type="number" min="80" max="2000" data-prop="w" value="${l.w}"></div>
@@ -636,6 +661,18 @@ async function renderEditor(view, brand, id, models) {
       : l.type === 'image' ? `
         <div class="form-grid"><div class="field"><label for="lp-iw">Genişlik</label><input class="input" id="lp-iw" type="number" min="10" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-ih">Yükseklik</label><input class="input" id="lp-ih" type="number" min="10" max="4000" data-prop="h" value="${l.h}"></div></div>
+        <details class="ed-fx" open><summary>Görsel ayarları</summary><div class="stack-sm mt-2">
+          <label class="chip-check"><input type="checkbox" data-flag="fit" ${l.fit === 'cover' ? 'checked' : ''}><span>Kutuyu doldur (taşanı kırp)</span></label>
+          ${range('radius', 'Köşe yuvarlaklığı', l.radius || 0, 0, Math.round(Math.min(l.w, l.h) / 2), 1, 'px')}
+          <div class="row"><label class="chip-check"><input type="checkbox" data-flag="circle" ${l.circle ? 'checked' : ''}><span>Daire</span></label><label class="chip-check"><input type="checkbox" data-flag="flipX" ${l.flipX ? 'checked' : ''}><span>Aynala</span></label></div>
+          ${range('brightness', 'Parlaklık', l.brightness != null ? l.brightness : 100, 0, 200, 5, '%')}
+          ${range('contrast', 'Kontrast', l.contrast != null ? l.contrast : 100, 0, 200, 5, '%')}
+          ${range('saturate', 'Doygunluk', l.saturate != null ? l.saturate : 100, 0, 200, 5, '%')}
+          ${range('grayscale', 'Siyah-beyaz', l.grayscale || 0, 0, 100, 5, '%')}
+          ${range('blur', 'Bulanıklık', l.blur || 0, 0, 20, 1, 'px')}
+          ${range('shadow', 'Gölge', l.shadow || 0, 0, 60, 1)}
+          <button type="button" class="btn btn-sm btn-ghost" data-fx-reset>Ayarları sıfırla</button>
+        </div></details>
         <div class="field"><label for="lp-irole">Şablonda bu görsel</label><select class="select" id="lp-irole" data-prop="role">${IMAGE_ROLES.map(([k, v]) => `<option value="${k}" ${(l.role || '') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
         <button type="button" class="btn btn-sm" data-replace-image>Görseli değiştir</button>`
       : `<div class="form-grid"><div class="field"><label for="lp-sw">Genişlik</label><input class="input" id="lp-sw" type="number" min="1" max="4000" data-prop="w" value="${l.w}"></div>
@@ -654,11 +691,51 @@ async function renderEditor(view, brand, id, models) {
     ? `<div class="ed-asset-grid">${list.map(a => `<button type="button" class="ed-asset" data-add-asset="${esc(a.id)}" title="${esc(a.label || a.categoryLabel)}"><img src="${esc(a.thumbUrl || a.url)}" alt="${esc(a.label || '')}" loading="lazy"></button>`).join('')}</div>`
     : `<p class="small muted">${empty}</p>`);
 
+  // Hazır paket ızgarası: en fazla 120 öğe gösterilir (arayınca daralır), "Daha fazla" ile artar
+  const stock = { kind: 'sticker', pack: '', q: '', color: brand.colors.primary || '#1b1f3b', limit: 120 };
+  async function drawStock() {
+    const grid = $('#ed-stock');
+    if (!grid) return;
+    let data;
+    try { data = await loadStock(stock.kind); } catch (err) { grid.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; return; }
+    if (!$('#ed-stock')) return;
+    const pk = $('#ed-stock-packs');
+    pk.innerHTML = data.packs.length > 1 ? `<div class="chips mb-2"><button type="button" class="chip ${!stock.pack ? 'active' : ''}" data-stock-pack="">Tümü</button>${data.packs.map(p => `<button type="button" class="chip ${stock.pack === p.id ? 'active' : ''}" data-stock-pack="${esc(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : '';
+    const all = searchItems(itemsOf(stock.kind, data, stock.pack), stock.q);
+    const shown = all.slice(0, stock.limit);
+    grid.innerHTML = shown.length ? `${shown.map(it => `<button type="button" class="ed-stock-item" data-stock-id="${esc(it.id)}" title="${esc(it.name)}" aria-label="${esc(it.name)} ekle"><img src="${svgUrl(it.svg(stock.color))}" alt="" loading="lazy"></button>`).join('')}
+      ${all.length > shown.length ? `<button type="button" class="btn btn-sm btn-ghost ed-stock-more" data-stock-more>Daha fazla (${all.length - shown.length})</button>` : ''}` : '<p class="small muted">Sonuç yok. Başka bir kelime dene.</p>';
+    grid._items = shown;
+  }
+  async function addStock(it) {
+    const label = (stock.kind === 'icon' ? `${it.name} ${stock.color}` : it.name).slice(0, 80);
+    const pack = `Hazır · ${it.pack}`.slice(0, 60);
+    let a = (await assets()).find(x => x.category === 'sticker' && x.pack === pack && x.label === label);
+    if (!a) {
+      toast('Ekleniyor…', 'info', 1200);
+      const file = await svgToPng(it.svg(stock.color), 512, it.id);
+      a = (await api.uploadAsset(brand.id, file, 'sticker', label, pack)).asset;
+      assetCache = null;
+    }
+    addAssetLayer(a);
+  }
+
   async function drawPanelBody() {
     const box = $('#ed-panel-body');
     if (!box || !panel) return;
     const title = (RAIL.find(r => r[0] === panel) || [])[1];
     const head = `<h3 class="ed-panel-title">${esc(title)}</h3>`;
+    if (panel === 'katmanlar') {
+      const list = slide().layers.slice().reverse();
+      box.innerHTML = `${head}${list.length ? `<ul class="ly-list" role="list">${list.map(l => `<li class="ly-row${l.id === selected || (multi || []).includes(l.id) ? ' on' : ''}${l.hidden ? ' is-hidden' : ''}" data-ly="${esc(l.id)}">
+          <button type="button" class="ly-name" data-ly-pick title="Seç · çift tıkla: adını değiştir">${esc(layerName(l))}</button>
+          <button type="button" class="ly-btn" data-ly-vis aria-label="${l.hidden ? 'Göster' : 'Gizle'}" title="${l.hidden ? 'Göster' : 'Gizle (dışa aktarılmaz)'}">${icon(l.hidden ? 'eyeOff' : 'eye')}</button>
+          <button type="button" class="ly-btn${l.locked ? ' on' : ''}" data-ly-lock aria-label="${l.locked ? 'Kilidi aç' : 'Kilitle'}" title="${l.locked ? 'Kilidi aç' : 'Kilitle (tuvalde tıklanmaz, taşınmaz)'}">${icon(l.locked ? 'lock' : 'unlock')}</button>
+          <button type="button" class="ly-btn" data-ly-move="1" aria-label="Öne al" title="Öne al">${icon('chevronUp')}</button>
+          <button type="button" class="ly-btn" data-ly-move="-1" aria-label="Arkaya al" title="Arkaya al">${icon('chevronDown')}</button></li>`).join('')}</ul>
+          <p class="xsmall muted mt-2">Üstteki katman önde görünür. Gizli katman dışa aktarılmaz; kilitli katman tuvalde tıklanmaz.</p>` : '<p class="small muted">Bu slaytta katman yok.</p>'}`;
+      return;
+    }
     if (panel === 'metin') {
       box.innerHTML = `${head}<div class="stack-sm">
         <button type="button" class="ed-text-add h1" data-add="text" data-preset="title">Başlık ekle</button>
@@ -677,9 +754,15 @@ async function renderEditor(view, brand, id, models) {
         <div class="ed-shapes"><button type="button" data-add="shape" title="Dikdörtgen"><span class="sh rect"></span></button><button type="button" data-add="shape" data-preset="rounded" title="Yuvarlak köşe"><span class="sh rounded"></span></button><button type="button" data-add="circle" title="Daire"><span class="sh circle"></span></button><button type="button" data-add="shape" data-preset="line" title="Çizgi"><span class="sh line"></span></button></div>
         <h4 class="ed-sub">QR kod</h4>
         <div class="row mb-3"><input class="input input-sm" id="ed-qr-text" placeholder="Link ya da metin (ör. kampanya sayfası)" maxlength="200" aria-label="QR kod metni"><button type="button" class="btn btn-sm" data-add="qr">${icon('plus')}Ekle</button></div>
-        <h4 class="ed-sub">Sticker'lar</h4>
+        <h4 class="ed-sub">Hazır paketler</h4>
+        <div class="seg seg-sm mb-2" role="group" aria-label="Paket türü">${STOCK_KINDS.map(([k, v]) => `<button type="button" class="${stock.kind === k ? 'active' : ''}" data-stock-kind="${k}">${v}</button>`).join('')}</div>
+        <div class="row mb-2"><input class="input input-sm grow" id="ed-stock-q" placeholder="Ara (ör. kalp, roket, kahve)" value="${esc(stock.q)}" aria-label="Pakette ara">${stock.kind === 'icon' ? `<input type="color" id="ed-stock-color" value="${esc(stock.color)}" aria-label="İkon rengi" title="İkon rengi">` : ''}</div>
+        <div id="ed-stock-packs"></div>
+        <div id="ed-stock" class="ed-stock-grid"><p class="small muted">Yükleniyor…</p></div>
+        <h4 class="ed-sub mt-3">Kütüphanedeki sticker'lar</h4>
         ${packs.length ? `<div class="chips mb-2"><button type="button" class="chip active" data-sticker-pack="">Tümü</button>${packs.map(p => `<button type="button" class="chip" data-sticker-pack="${esc(p)}">${esc(p)}</button>`).join('')}</div>` : ''}
         <div id="ed-stickers">${assetGrid(stickers, `Henüz sticker yok. <a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> paket olarak yükleyebilirsin.`)}</div>`;
+      drawStock();
       return;
     }
     if (panel === 'marka') {
@@ -747,13 +830,72 @@ async function renderEditor(view, brand, id, models) {
   }
 
   // Tuval: tıklayınca seç, sürükleyince taşı, ok tuşlarıyla kaydır
+  // Tutamaçla boyutlandırma. Görsel/QR: oran korunur (Shift ile serbest); şekil: serbest (Shift ile oran);
+  // yazı: köşeler yazıyı büyütür/küçültür, sağ/sol kenar yalnızca genişliği değiştirir.
+  function resizeLayer(l, d, p, shift) {
+    const o = d.orig; const b = d.box; const h = d.resize;
+    const dx = p.x - d.start.x; const dy = p.y - d.start.y;
+    const west = h.includes('w'); const north = h.includes('n');
+    const sx = h.includes('e') ? dx : west ? -dx : 0;
+    const sy = h.includes('s') ? dy : north ? -dy : 0;
+    if (l.type === 'text') {
+      if (h === 'e' || h === 'w') { l.w = Math.max(60, Math.round(o.w + sx)); if (west) l.x = Math.round(o.x + o.w - l.w); return; }
+      const k = Math.max(0.15, (b.w + sx) / b.w);
+      l.size = Math.max(10, Math.min(300, Math.round(o.size * k))); l.w = Math.max(60, Math.round(o.w * k));
+      if (o.maxH) l.maxH = Math.round(o.maxH * k);
+      if (west) l.x = Math.round(o.x + o.w - l.w);
+      if (north) l.y = Math.round(o.y + b.h - b.h * k);
+      return;
+    }
+    const keep = l.type === 'qr' || ((l.type === 'image') !== shift);
+    let w = Math.max(12, o.w + sx); let hh = Math.max(12, o.h + sy);
+    if (keep && h.length === 2) { const k = Math.max(w / o.w, hh / o.h); w = o.w * k; hh = o.h * k; }
+    if (l.type === 'qr') hh = w;
+    l.w = Math.round(w); l.h = Math.round(hh);
+    if (west) l.x = Math.round(o.x + o.w - l.w);
+    if (north) l.y = Math.round(o.y + o.h - l.h);
+  }
+  function snapLayer(c, l) {
+    const ctx = c.getContext('2d');
+    const F = format(); const T = Math.max(8, F.w / 110);
+    const b = layerBox(ctx, l);
+    const xs = [0, F.w / 2, F.w]; const ys = [0, F.h / 2, F.h];
+    for (const o of slide().layers) { if (o.id === l.id || o.hidden) continue; const ob = layerBox(ctx, o); xs.push(ob.x, ob.x + ob.w / 2, ob.x + ob.w); ys.push(ob.y, ob.y + ob.h / 2, ob.y + ob.h); }
+    const out = [];
+    const pick = (edges, targets) => { let best = null; for (const e of edges) for (const t of targets) { const dd = t - e; if (Math.abs(dd) <= T && (!best || Math.abs(dd) < Math.abs(best.d))) best = { d: dd, t }; } return best; };
+    const bx = pick([b.x, b.x + b.w / 2, b.x + b.w], xs);
+    if (bx) { l.x = Math.round(l.x + bx.d); out.push({ x: bx.t }); }
+    const by = pick([b.y, b.y + b.h / 2, b.y + b.h], ys);
+    if (by) { l.y = Math.round(l.y + by.d); out.push({ y: by.t }); }
+    return out;
+  }
+
   function wireStage() {
     const c = $('#stage');
     let drag = null;
     const point = e => { const r = c.getBoundingClientRect(); return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) }; };
     c.addEventListener('pointerdown', e => {
       const p = point(e);
+      // Seçili katmanın tutamacından tutulduysa boyutlandırma
+      const sel = layer();
+      if (sel && !multi && !sel.locked) {
+        const ctx = c.getContext('2d');
+        const tol = Math.max(18, c.width / 45);
+        const hk = Object.entries(handlesOf(ctx, sel)).find(([, [hx, hy]]) => Math.abs(p.x - hx) <= tol && Math.abs(p.y - hy) <= tol);
+        if (hk) {
+          const b = layerBox(ctx, sel);
+          drag = { resize: hk[0], id: sel.id, start: p, orig: JSON.parse(JSON.stringify(sel)), box: b, moved: false };
+          c.setPointerCapture(e.pointerId); c.focus(); return;
+        }
+      }
       const hit = hitTest(c, slide(), p.x, p.y);
+      // Shift+tık: katmanı çoklu seçime ekler/çıkarır (birlikte taşı, kopyala, sil)
+      if (e.shiftKey && hit) {
+        const cur = multi || (selected ? [selected] : []);
+        multi = cur.includes(hit.id) ? cur.filter(x => x !== hit.id) : [...cur, hit.id];
+        if (multi.length < 2) { const one = multi[0] || null; multi = null; setSelected(one); return redraw(); }
+        setSelected(null); multi = multi.slice(); c.focus(); return quick();
+      }
       // Çoklu seçimdeki bir katmandan tutulursa hepsi birlikte taşınır
       if (multi && hit && multi.includes(hit.id)) {
         drag = { group: slide().layers.filter(l => multi.includes(l.id)).map(l => ({ l, x: l.x, y: l.y })), sx: p.x, sy: p.y, moved: false };
@@ -770,18 +912,22 @@ async function renderEditor(view, brand, id, models) {
       const p = point(e);
       if (drag.group) { drag.group.forEach(g => { g.l.x = Math.round(g.x + p.x - drag.sx); g.l.y = Math.round(g.y + p.y - drag.sy); }); drag.moved = true; return quick(); }
       const l = slide().layers.find(x => x.id === drag.id);
+      if (!l) return;
+      if (drag.resize) { resizeLayer(l, drag, p, e.shiftKey); drag.moved = true; return quick(); }
       l.x = Math.round(p.x - drag.dx); l.y = Math.round(p.y - drag.dy);
+      // Mıknatıs: sayfanın ortası/kenarları ve diğer katmanların kenar/ortaları (Alt basılıysa kapalı)
+      guides = e.altKey ? [] : snapLayer(c, l);
       drag.moved = true;
       quick();
     });
-    const end = () => { if (drag && drag.moved) { markDirty(); redraw(); } drag = null; };
+    const end = () => { guides = []; if (drag && drag.moved) { markDirty(); redraw({ keepProps: false }); } else if (drag) quick(); drag = null; };
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', end);
     c.addEventListener('dblclick', () => { const t = $('#lp-text'); if (t) t.focus(); });
     c.addEventListener('keydown', e => {
       if (multi) return; // çoklu seçim tuşları belge düzeyinde
       const l = layer();
-      if (!l) return;
+      if (!l || l.locked) return;
       const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
       if (k) { e.preventDefault(); const s = e.shiftKey ? 10 : 1; l.x += k[0] * s; l.y += k[1] * s; markDirty(); redraw(); }
       if (e.key === 'Delete') { slide().layers = slide().layers.filter(x => x.id !== l.id); setSelected(null); markDirty(); redraw(); }
@@ -962,11 +1108,22 @@ async function renderEditor(view, brand, id, models) {
     if (t.id === 'slide-bg') { slide().bg = t.value; markDirty(); quick(); return; }
     if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(); quick(); return; }
     if (t.id === 'ed-zoom') { zoom = Number(t.value); $('#ed-zoom-val').textContent = `%${zoom}`; fit(); return; }
+    if (t.id === 'ed-stock-q') { clearTimeout(view._stockT); view._stockT = setTimeout(() => { stock.q = t.value; stock.limit = 120; drawStock(); }, 200); return; }
+    if (t.id === 'ed-stock-color') { stock.color = t.value; clearTimeout(view._stockT); view._stockT = setTimeout(drawStock, 150); return; }
+    // Efekt kutucukları
+    if (t.matches('[data-flag]') && layer()) {
+      const lf = layer(); const f = t.dataset.flag;
+      if (f === 'bgBox') { if (t.checked) lf.bgColor = lf.bgColor || '#ffffff'; else delete lf.bgColor; }
+      else if (f === 'fit') { if (t.checked) lf.fit = 'cover'; else delete lf.fit; }
+      else if (t.checked) lf[f] = true; else delete lf[f];
+      markDirty(); quick(); drawProps(); return;
+    }
     if (t.matches('[data-bubble]') && layer()) { const lb = layer(); if (t.checked) lb.role = 'bubble'; else delete lb.role; markDirty(); return; }
     const prop = t.dataset.prop;
     const l = layer();
     if (!prop || !l) return;
-    l[prop] = ['text', 'font', 'color', 'role'].includes(prop) ? t.value : Number(t.value);
+    l[prop] = ['text', 'font', 'color', 'role', 'shadowColor', 'strokeColor', 'bgColor'].includes(prop) ? t.value : Number(t.value);
+    const vl = $(`[data-val="${prop}"]`); if (vl) vl.textContent = `${t.value}${t.dataset.unit || ''}`;
     if (prop === 'maxH' && !(l.maxH > 0)) delete l.maxH;
     // Doldurulacak bir kutu seçilince yüksekliği şimdiki hâlinden alınır: uzun metin buna sığdırılır
     if (prop === 'role' && l.type === 'text' && FILL_ROLES.includes(l.role) && !l.maxH) {
@@ -978,8 +1135,19 @@ async function renderEditor(view, brand, id, models) {
     markDirty();
     quick();
   };
-  view.onchange = e => { if (e.target.dataset.prop || e.target.id === 'slide-bg') redraw({ keepProps: Boolean(e.target.dataset.prop) }); };
+  // Gölge/çizgi açılınca renk seçicisi görünsün diye panel yeniden çizilir
+  view.onchange = e => { const pr = e.target.dataset.prop; if (pr || e.target.id === 'slide-bg') redraw({ keepProps: Boolean(pr) && !['shadow', 'strokeW'].includes(pr) }); };
 
+  // Katmanlar paneli: ada çift tıklayınca yeniden adlandır
+  view.ondblclick = e => {
+    const nm = e.target.closest('[data-ly-pick]');
+    if (!nm) return;
+    const l = slide().layers.find(x => x.id === nm.closest('[data-ly]').dataset.ly);
+    const v = l && prompt('Katmanın adı (boş bırakırsan otomatik)', l.name || '');
+    if (v == null || !l) return;
+    if (v.trim()) l.name = v.trim().slice(0, 40); else delete l.name;
+    markDirty(); drawPanelBody();
+  };
   view.onclick = async e => {
     const t = e.target;
     const menu = t.closest('[data-menu]');
@@ -988,6 +1156,25 @@ async function renderEditor(view, brand, id, models) {
     const rail = t.closest('[data-rail]');
     if (rail) return openPanel(rail.dataset.rail);
     if (t.closest('[data-rail-close]')) return openPanel(panel);
+    const sk = t.closest('[data-stock-kind]');
+    if (sk) { stock.kind = sk.dataset.stockKind; stock.pack = ''; stock.q = ''; stock.limit = 120; return drawPanelBody(); }
+    const sp2 = t.closest('[data-stock-pack]');
+    if (sp2) { stock.pack = sp2.dataset.stockPack; stock.limit = 120; return drawStock(); }
+    if (t.closest('[data-stock-more]')) { stock.limit += 240; return drawStock(); }
+    const si = t.closest('[data-stock-id]');
+    if (si) { const it = ($('#ed-stock')._items || []).find(x => x.id === si.dataset.stockId); if (it) { try { await addStock(it); } catch (err) { toast(err.message, 'error'); } } return; }
+    const ly = t.closest('[data-ly]');
+    if (ly) {
+      const l = slide().layers.find(x => x.id === ly.dataset.ly);
+      if (!l) return;
+      if (t.closest('[data-ly-vis]')) { if (l.hidden) delete l.hidden; else l.hidden = true; markDirty(); return redraw(); }
+      if (t.closest('[data-ly-lock]')) { if (l.locked) delete l.locked; else l.locked = true; markDirty(); return redraw(); }
+      const mv = t.closest('[data-ly-move]');
+      if (mv) { const arr = slide().layers; const i = arr.indexOf(l); const j = i + Number(mv.dataset.lyMove); if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; markDirty(); return redraw(); }
+      // Seçim: liste yeniden çizilmez (çift tıklayıp adlandırma bozulmasın), yalnızca işaret güncellenir
+      if (t.closest('[data-ly-pick]')) { multi = null; setSelected(l.id); view.querySelectorAll('.ly-row').forEach(r => r.classList.toggle('on', r === ly)); drawProps(); quick(); fit(); return; }
+      return;
+    }
     const s = t.closest('[data-slide]');
     if (s) { current = Number(s.dataset.slide); setSelected(null); if (panel === 'zemin') drawPanelBody(); return redraw(); }
     if (t.closest('[data-slide-add]')) { data.slides.splice(current + 1, 0, { bg: (brand.colors.backgrounds || [])[0] || '#ffffff', layers: [] }); current++; setSelected(null); markDirty(); return shell(); }
@@ -1048,6 +1235,7 @@ async function renderEditor(view, brand, id, models) {
     if (t.closest('[data-layer-dup]') && layer()) { const c = Object.assign(JSON.parse(JSON.stringify(layer())), { id: uid() }); c.x += 30; c.y += 30; return addLayer(c); }
     if (t.closest('[data-layer-del]')) { slide().layers = slide().layers.filter(x => x.id !== selected); setSelected(null); markDirty(); return redraw(); }
     if (t.closest('[data-deselect]')) { setSelected(null); return redraw(); }
+    if (t.closest('[data-fx-reset]') && layer()) { const lr = layer(); ['fit', 'radius', 'circle', 'flipX', 'brightness', 'contrast', 'saturate', 'grayscale', 'blur', 'shadow', 'shadowColor'].forEach(k => delete lr[k]); markDirty(); return redraw(); }
     if (t.closest('[data-replace-image]') && layer()) return pickAsset(a => { const l = layer(); Object.assign(l, { prevSrc: l.prevSrc || l.src, prevAssetId: l.prevAssetId || l.assetId, src: a.url, assetId: a.id }); markDirty(); redraw(); });
     if (t.closest('[data-apply-all]') && layer()) return applyAll();
     if (t.closest('[data-bg-image]')) return pickAsset(a => { slide().bgImage = Object.assign({ fit: 'cover', dim: 0 }, slide().bgImage || {}, { src: a.url }); markDirty(); drawPanelBody(); redraw(); });
@@ -1107,6 +1295,16 @@ async function renderEditor(view, brand, id, models) {
       if (dirty && !confirm('Kaydedilmemiş değişiklikler var; yeniden yazınca yerleşim de baştan kurulur. Devam edilsin mi?')) return;
       try { const res = await busyTimer(rw, () => api.rewritePost(brand.id, post.id, { model: ($('#pw-model') || {}).value || null })); post = res.post; data = JSON.parse(JSON.stringify(post.data)); current = 0; selected = null; dirty = false; toast(aiNote(res.post.ai), 'success', 5000); shell(); } catch (err) { toast(err.message, 'error'); }
       return;
+    }
+    const pdfBtn = t.closest('[data-pdf]');
+    if (pdfBtn) {
+      closeMenus();
+      return busy(pdfBtn, async () => {
+        const canvases = [];
+        for (const s of data.slides) { await resolveImages(s); canvases.push(drawSlide(document.createElement('canvas'), s, format())); }
+        downloadBlob(await canvasesToPdf(canvases, { title: post.title }), `${safeName(post.title)}.pdf`);
+        offerIdeaDelete();
+      }).catch(err => toast(err.message, 'error'));
     }
     const png = t.closest('[data-png]');
     if (png) { closeMenus(); return busy(png, () => exportSlides(png.dataset.png, 'download')).catch(err => toast(err.message, 'error')); }
