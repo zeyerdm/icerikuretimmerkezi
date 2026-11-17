@@ -92,11 +92,12 @@ function drawRich(ctx, l, x0) {
   });
 }
 
-// Şablon kutusu (maxH): uzun metin kutuya sığana kadar yazı küçültülür (en fazla %45'ine kadar)
+// Şablon kutusu (maxH): uzun metin kutuya sığana kadar yazı küçültülür (okunurluk sınırına kadar)
 export function fitText(ctx, l) {
   if (l.type !== 'text' || !(l.maxH > 0)) return l;
   let size = l.size;
-  const min = Math.max(12, Math.round(l.size * 0.45));
+  // Okunurluk için en fazla %30 küçültülür; daha fazlası taşma sayılır ve Kontrol panelinde kısaltma önerilir
+  const min = Math.max(12, Math.round(l.size * 0.7));
   for (;;) {
     setFont(ctx, Object.assign({}, l, { size }));
     const n = wrapLines(ctx, plain(shown(l)), l.w).length;
@@ -104,6 +105,14 @@ export function fitText(ctx, l) {
     size = Math.max(min, size - 2);
   }
   return size === l.size ? l : Object.assign({}, l, { size });
+}
+
+// Yazının gerçek yüksekliği (sığdırma sonrası): taşma denetimi için
+export function textMetrics(ctx, l) {
+  const f = fitText(ctx, l);
+  setFont(ctx, f);
+  const lines = wrapLines(ctx, plain(shown(f)), f.w).length;
+  return { size: f.size, lines, h: lines * f.size * lh(f), shrunk: f.size < l.size };
 }
 
 // Katmanın kapladığı alan (seçim ve sürükleme için)

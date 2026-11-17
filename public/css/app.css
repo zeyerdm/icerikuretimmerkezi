@@ -2002,3 +2002,11 @@ body.editor-mode .radial-fab { display: none; }
 .tpl-ver { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--line, #e5e7eb); border-radius: 12px; }
 .tpl-ver.on { border-color: var(--brand, #5b55e6); }
 .tpl-ver canvas { width: 56px; height: 70px; border-radius: 6px; background: #f3f4f6; flex: none; }
+.ck-sum { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.ck-pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.ck-pill.ck-error { background: #fee2e2; color: #991b1b; } .ck-pill.ck-warn { background: #fef3c7; color: #92400e; } .ck-pill.ck-info { background: #e0e7ff; color: #3730a3; }
+.ck-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ck-item { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border: 1px solid var(--line, #e5e7eb); border-radius: 10px; }
+.ck-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex: none; }
+.ck-error .ck-dot { background: #dc2626; } .ck-warn .ck-dot { background: #f59e0b; } .ck-info .ck-dot { background: #6366f1; }
+.ck-item .row { flex-wrap: nowrap; }

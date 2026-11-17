@@ -9,6 +9,7 @@ import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng
 import { reviewBox } from './review.js';
 import { canvasesToPdf } from '../pdf.js';
 import { openColorPicker, gradCss } from '../colorPicker.js';
+import { checkDesign, applyFix } from '../designCheck.js';
 import { STOCK_KINDS, loadStock, itemsOf, searchItems, svgUrl, svgToPng } from '../stockPacks.js';
 
 // Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
@@ -544,7 +545,7 @@ async function referenceFlow(brand, models, refresh) {
 // ortada sabit tasarım alanı (sayfa kaymaz); altta sayfa şeridi ve yakınlaştırma; sağda yalnızca bir öğe seçiliyken ayarlar.
 const RAIL = [
   ['metin', 'Metin', 'edit'], ['katmanlar', 'Katmanlar', 'layers'], ['ogeler', 'Öğeler', 'palette'], ['marka', 'Marka', 'identity'], ['yuklemeler', 'Yüklemeler', 'upload'],
-  ['sablonlar', 'Şablonlar', 'grid'], ['zemin', 'Zemin', 'image'], ['ai', 'AI', 'sparkle'], ['aciklama', 'Açıklama', 'notes']
+  ['sablonlar', 'Şablonlar', 'grid'], ['zemin', 'Zemin', 'image'], ['kontrol', 'Kontrol', 'check'], ['ai', 'AI', 'sparkle'], ['aciklama', 'Açıklama', 'notes']
 ];
 
 async function renderEditor(view, brand, id, models) {
@@ -654,6 +655,26 @@ async function renderEditor(view, brand, id, models) {
   function undo() { if (!undoStack.length) return toast('Geri alınacak değişiklik yok.', 'info', 1800); redoStack.push(JSON.stringify(data)); restoreSnap(undoStack.pop()); }
   function redo() { if (!redoStack.length) return toast('Yinelenecek değişiklik yok.', 'info', 1800); undoStack.push(JSON.stringify(data)); restoreSnap(redoStack.pop()); }
 
+  // Marka kilidi: kilitli renk/yazı tipini marka dışına çekmek onay ister (onay bu düzenleme oturumu için geçerli)
+  const lockOk = {};
+  function lockAllows(prop, value) {
+    const lock = brand.designLock || {};
+    const colorProp = ['color', 'highlight', 'bgColor', 'strokeColor', 'shadowColor'].includes(prop);
+    const kind = colorProp && lock.colors && !palette.map(c => String(c).toLowerCase()).includes(String(value).toLowerCase()) ? 'colors' : prop === 'font' && lock.fonts && ![brand.fonts.heading, brand.fonts.body].includes(value) ? 'fonts' : null;
+    if (!kind || lockOk[kind]) return true;
+    if (!confirm(kind === 'colors' ? 'Marka renkleri kilitli. Bu tasarımda marka dışı renk kullanmak için kilidi geçici olarak açalım mı?' : 'Marka yazı tipleri kilitli. Bu tasarımda başka yazı tipi kullanmak için kilidi geçici olarak açalım mı?')) return false;
+    lockOk[kind] = true; return true;
+  }
+  // Dışa aktarma kapısı: denetim politikası "engelle" ise hata/uyarı varken dışa aktarılmaz; "uyar" ise sorar
+  function exportGate() {
+    const lock = brand.designLock || {};
+    if (lock.policy === 'off') return true;
+    const serious = checkDesign(data, brand, format(), lock).filter(i => i.level !== 'info');
+    if (!serious.length) return true;
+    if (lock.policy === 'block' && serious.some(i => i.level === 'error' || ['color', 'font', 'logo', 'mascot', 'size'].includes(i.code))) { toast(`${serious.length} sorun var; marka kuralları gereği dışa aktarılamıyor. Kontrol panelinden düzelt.`, 'error', 5000); openPanel('kontrol'); return false; }
+    if (confirm(`${serious.length} uyarı var (taşma, okunurluk ya da marka kuralı). Yine de dışa aktarılsın mı?`)) return true;
+    openPanel('kontrol'); return false;
+  }
   // Otomatik kayıt: son değişiklikten 4 sn sonra sessizce kaydeder (Dosya menüsünden kapatılabilir)
   function autoSaveOn() { try { return localStorage.getItem('ium.autosave') !== '0'; } catch { return true; } }
   let autoT = null; let autoBusy = false;
@@ -716,7 +737,7 @@ async function renderEditor(view, brand, id, models) {
     drawList();
     // Panelden çıkarken (change) panel yeniden çizilmez: aynı anda basılan düğmenin tıklaması kaybolmasın
     if (!keepProps) drawProps();
-    if (panel === 'katmanlar') drawPanelBody();
+    if (panel === 'katmanlar' || panel === 'kontrol') drawPanelBody();
   }
   const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: multi || selected, handles: true, showHidden: true, guides }); };
 
@@ -917,6 +938,33 @@ async function renderEditor(view, brand, id, models) {
     if (!box || !panel) return;
     const title = (RAIL.find(r => r[0] === panel) || [])[1];
     const head = `<h3 class="ed-panel-title">${esc(title)}</h3>`;
+    if (panel === 'kontrol') {
+      const lock = brand.designLock || {};
+      const issues = checkDesign(data, brand, format(), lock);
+      const lv = { error: 'Hata', warn: 'Uyarı', info: 'Öneri' };
+      const fixable = issues.filter(i => i.fix);
+      box.innerHTML = `${head}<div class="ck-sum">${['error', 'warn', 'info'].map(k => `<span class="ck-pill ck-${k}">${issues.filter(i => i.level === k).length} ${lv[k].toLocaleLowerCase('tr')}</span>`).join('')}</div>
+        ${issues.length ? `${fixable.length ? `<button type="button" class="btn btn-sm w-full mb-2" data-ck-fixall>${icon('check')}Düzeltilebilenleri düzelt (${fixable.length})</button>` : ''}
+        <ul class="ck-list">${issues.map((it, i) => `<li class="ck-item ck-${it.level}"><span class="ck-dot" aria-hidden="true"></span><div class="grow"><div class="small">${esc(it.msg)}</div><div class="xsmall muted">Sayfa ${it.slide + 1} · ${lv[it.level]}</div></div>
+          <div class="row"><button type="button" class="btn btn-sm btn-ghost" data-ck-go="${i}">Git</button>${it.fix ? `<button type="button" class="btn btn-sm" data-ck-fix="${i}">Düzelt</button>` : ''}</div></li>`).join('')}</ul>`
+        : '<p class="small">Sorun bulunmadı: metinler sığıyor, okunuyor ve sayfalar tutarlı.</p>'}
+        <details class="ed-fx mt-3" ${lock.colors || lock.fonts || lock.margin ? '' : ''}><summary>Marka tasarım kuralları (${esc(brand.name)})</summary>
+          <form class="stack-sm mt-2" id="ck-lock">
+            <label class="chip-check"><input type="checkbox" name="colors" ${lock.colors ? 'checked' : ''}><span>Renkler kilitli (yalnız marka renkleri)</span></label>
+            <label class="chip-check"><input type="checkbox" name="fonts" ${lock.fonts ? 'checked' : ''}><span>Yazı tipleri kilitli (${esc([brand.fonts.heading, brand.fonts.body].filter(Boolean).join(' / ') || 'marka fontu yok')})</span></label>
+            <label class="chip-check"><input type="checkbox" name="logo" ${lock.logo ? 'checked' : ''}><span>Logo konumu sabit</span></label>
+            <label class="chip-check"><input type="checkbox" name="mascot" ${lock.mascot ? 'checked' : ''}><span>Maskot konumu sabit</span></label>
+            <div class="form-grid"><div class="field"><label>Kenar boşluğu (px)</label><input class="input input-sm" type="number" name="margin" min="0" max="300" value="${lock.margin || 0}"></div>
+              <div class="field"><label>Denetim</label><select class="select" name="policy">${[['off', 'Kapalı'], ['warn', 'Dışa aktarırken uyar'], ['block', 'Hata varsa dışa aktarmayı engelle']].map(([k, v]) => `<option value="${k}" ${lock.policy === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+              <div class="field"><label>Başlık en az / en çok</label><div class="row"><input class="input input-sm" type="number" name="titleMin" value="${lock.titleMin || ''}" placeholder="px"><input class="input input-sm" type="number" name="titleMax" value="${lock.titleMax || ''}" placeholder="px"></div></div>
+              <div class="field"><label>Açıklama en az / en çok</label><div class="row"><input class="input input-sm" type="number" name="bodyMin" value="${lock.bodyMin || ''}" placeholder="px"><input class="input input-sm" type="number" name="bodyMax" value="${lock.bodyMax || ''}" placeholder="px"></div></div></div>
+            <div class="field"><label>Tasarım dili ve yerleşim kuralları</label><textarea class="textarea" name="notes" rows="3" maxlength="1500" placeholder="Ör. Başlık hep sol üstte, maskot sağ altta; bol boşluk; en fazla iki renk.">${esc(lock.notes || '')}</textarea></div>
+            <button type="button" class="btn btn-sm btn-primary" data-ck-save>Kuralları kaydet</button>
+            <p class="xsmall muted">Kilitli özelliklere yapay zekâ dokunmaz. Düzenleyicide kilitli bir özelliği değiştirmek istersen onay sorulur.</p>
+          </form></details>`;
+      box._issues = issues;
+      return;
+    }
     if (panel === 'katmanlar') {
       // En öndeki katman en üstte; aynı gruptakiler bir başlık altında toplanır
       const list = slide().layers.slice().reverse();
@@ -1503,6 +1551,7 @@ async function renderEditor(view, brand, id, models) {
     if (!prop || !l) return;
     l[prop] = ['text', 'font', 'color', 'role', 'shadowColor', 'strokeColor', 'bgColor'].includes(prop) ? t.value : Number(t.value);
     view._propKey = `${l.id}:${prop}`;
+    if (!lockAllows(prop, t.value)) { drawProps(); return; }
     const vl = $(`[data-val="${prop}"]`); if (vl) vl.textContent = `${t.value}${t.dataset.unit || ''}`;
     if (prop === 'maxH' && !(l.maxH > 0)) delete l.maxH;
     // Özel alan: rol "custom" olarak saklanmaz; kimlik (field) ile tanınır. Başka bir role geçince kimlik silinir
@@ -1538,6 +1587,17 @@ async function renderEditor(view, brand, id, models) {
     const rail = t.closest('[data-rail]');
     if (rail) return openPanel(rail.dataset.rail);
     if (t.closest('[data-rail-close]')) return openPanel(panel);
+    const ckg = t.closest('[data-ck-go]');
+    if (ckg) { const it = $('#ed-panel-body')._issues[Number(ckg.dataset.ckGo)]; current = it.slide; multi = null; setSelected(it.layer || null); drawList(); return redraw(); }
+    const ckf = t.closest('[data-ck-fix]');
+    if (ckf) { const it = $('#ed-panel-body')._issues[Number(ckf.dataset.ckFix)]; if (applyFix(data, it, format())) { markDirty(); drawList(); redraw(); drawPanelBody(); } return; }
+    if (t.closest('[data-ck-fixall]')) { let n = 0; for (const it of $('#ed-panel-body')._issues.filter(i => i.fix)) if (applyFix(data, it, format())) n++; if (n) { markDirty(); drawList(); redraw(); drawPanelBody(); toast(`${n} sorun düzeltildi. Geri almak için Ctrl+Z.`, 'success', 2500); } return; }
+    if (t.closest('[data-ck-save]')) {
+      const fd = new FormData($('#ck-lock'));
+      const body = { colors: fd.get('colors') === 'on', fonts: fd.get('fonts') === 'on', logo: fd.get('logo') === 'on', mascot: fd.get('mascot') === 'on', margin: Number(fd.get('margin')) || 0, policy: fd.get('policy'), titleMin: Number(fd.get('titleMin')) || 0, titleMax: Number(fd.get('titleMax')) || 0, bodyMin: Number(fd.get('bodyMin')) || 0, bodyMax: Number(fd.get('bodyMax')) || 0, notes: fd.get('notes') };
+      try { brand.designLock = (await api.setDesignLock(brand.id, body)).designLock; toast('Marka tasarım kuralları kaydedildi.', 'success'); drawPanelBody(); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const sk = t.closest('[data-stock-kind]');
     if (sk) { stock.kind = sk.dataset.stockKind; stock.pack = ''; stock.q = ''; stock.limit = 120; return drawPanelBody(); }
     const sp2 = t.closest('[data-stock-pack]');
@@ -1629,7 +1689,7 @@ async function renderEditor(view, brand, id, models) {
       const l = layer(); const key = cp.dataset.cp;
       const label = () => { const g = key === 'color' && l.gradient; cp.querySelector('.cp-trigger-sw').style.background = g ? gradCss(g) : l[key]; cp.lastElementChild.textContent = g ? 'Gradyan' : String(l[key]).toUpperCase(); };
       return openColorPicker(cp, { value: l[key] || '#000000', gradient: key === 'color' ? l.gradient : null, allowGradient: key === 'color' && l.type === 'shape', brandColors: palette, title: { color: 'Renk', highlight: 'Vurgu rengi', shadowColor: 'Gölge rengi', strokeColor: 'Çizgi rengi', bgColor: 'Kutu rengi' }[key] || 'Renk',
-        onChange: h => { l[key] = h; if (key === 'color') delete l.gradient; markDirty(false, `${l.id}:${key}`); quick(); label(); },
+        onChange: h => { if (!lockAllows(key, h)) { document.querySelectorAll('.cp-pop').forEach(pp => pp._close && pp._close()); return; } l[key] = h; if (key === 'color') delete l.gradient; markDirty(false, `${l.id}:${key}`); quick(); label(); },
         onGradient: g => { if (g) l.gradient = g; else delete l.gradient; markDirty(false, `${l.id}:grad`); quick(); label(); } });
     }
     const pose = t.closest('[data-pose]');
@@ -1740,6 +1800,7 @@ async function renderEditor(view, brand, id, models) {
     const pdfBtn = t.closest('[data-pdf]');
     if (pdfBtn) {
       closeMenus();
+      if (!exportGate()) return;
       return busy(pdfBtn, async () => {
         const canvases = [];
         for (const s of data.slides) { await resolveImages(s); canvases.push(drawSlide(document.createElement('canvas'), s, format())); }
@@ -1748,7 +1809,7 @@ async function renderEditor(view, brand, id, models) {
       }).catch(err => toast(err.message, 'error'));
     }
     const png = t.closest('[data-png]');
-    if (png) { closeMenus(); return busy(png, () => exportSlides(png.dataset.png, 'download')).catch(err => toast(err.message, 'error')); }
+    if (png) { closeMenus(); if (!exportGate()) return; return busy(png, () => exportSlides(png.dataset.png, 'download')).catch(err => toast(err.message, 'error')); }
     const dr = t.closest('[data-drive]');
     if (dr && !driveReady) { closeMenus(); return toast(state.settings && state.settings.drive && state.settings.drive.configured ? 'Bu markanın Drive klasörü yok: Marka kimliği → Profil\'de klasör linkini ekle.' : 'Drive bağlı değil: Ayarlar → Google Drive bölümünden bağla, sonra markanın klasör linkini ekle.', 'info', 6000); }
     if (dr) { closeMenus(); try { await busy(dr, () => exportSlides(dr.dataset.drive, 'drive')); toast('Google Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); } }

@@ -274,6 +274,7 @@ export const api = {
   useSharedTemplate: (id, tid, title) => request('POST', `${b(id)}/shared-templates/${tid}/use`, { title }),
   deleteSharedTemplate: tid => request('DELETE', `/api/shared-templates/${tid}`),
   postTemplates: id => request('GET', b(id) + '/post-templates'),
+  setDesignLock: (id, body) => request('PUT', `${b(id)}/design-lock`, body),
   saveTemplate: (id, pid, name, pack = '') => request('POST', `${b(id)}/posts/${pid}/template`, { name, pack }),
   updateTemplateFrom: (id, tid, pid) => request('POST', `${b(id)}/post-templates/${tid}/update-from/${pid}`, {}),
   templateVersions: (id, tid) => request('GET', `${b(id)}/post-templates/${tid}/versions`),

@@ -60,6 +60,19 @@ function normalizeFonts(input) {
   return { heading: font(input.heading, 'Başlık fontu'), body: font(input.body, 'Gövde fontu') };
 }
 
+// Marka tasarım kilidi: kilitli özelliklere yapay zekâ dokunmaz; düzenleyicide değiştirmek onay ister;
+// denetim (renk, font, boyut, kenar boşluğu, logo, maskot) politikası: kapalı / uyar / dışa aktarmayı engelle
+export function cleanDesignLock(o) {
+  o = o && typeof o === 'object' ? o : {};
+  const n = (v, a, b) => { const x = Math.round(Number(v)); return Number.isFinite(x) && x > 0 ? Math.min(b, Math.max(a, x)) : 0; };
+  return {
+    colors: Boolean(o.colors), fonts: Boolean(o.fonts), logo: Boolean(o.logo), mascot: Boolean(o.mascot),
+    margin: n(o.margin, 0, 300), titleMin: n(o.titleMin, 10, 300), titleMax: n(o.titleMax, 10, 300), bodyMin: n(o.bodyMin, 10, 200), bodyMax: n(o.bodyMax, 10, 200),
+    policy: ['off', 'warn', 'block'].includes(o.policy) ? o.policy : 'warn',
+    notes: String(o.notes || '').trim().slice(0, 1500)
+  };
+}
+
 export function toBrand(row) {
   if (!row) return null;
   return {
@@ -79,6 +92,7 @@ export function toBrand(row) {
     driveFolderUrl: folderUrl(row.drive_folder || ''),
     colors: Object.assign({ primary: '', secondary: [], backgrounds: [], heading: '', body: '' }, parseJson(row.colors, {})),
     fonts: Object.assign({ heading: '', body: '' }, parseJson(row.fonts, {})),
+    designLock: cleanDesignLock(parseJson(row.design_lock, {})),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -139,6 +153,13 @@ export function createBrandService(db, ownerId) {
       return service.get(id);
     },
 
+    // Marka tasarım kilidi (ayrı uç nokta: kimlik formunu etkilemez)
+    setDesignLock(brandId, body = {}) {
+      const b = this.get(brandId);
+      const lock = cleanDesignLock(Object.assign({}, b.designLock, body));
+      db.prepare('UPDATE brands SET design_lock = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(lock), new Date().toISOString(), b.id);
+      return lock;
+    },
     update(brandId, body) {
       const current = service.get(brandId);
       const profile = readProfile(body || {}, { partial: true });

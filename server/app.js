@@ -705,6 +705,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.delete('/brands/:brandId/patterns/:id', (req, res) => trashed(res, 'pattern', req.params.id, () => patterns.remove(req.brand.id, req.params.id)));
 
   // --- Akıllı marka hafızası ---
+  api.put('/brands/:brandId/design-lock', (req, res) => res.json({ designLock: brands.setDesignLock(req.brand.id, req.body || {}) }));
   api.get('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.get(req.brand.id), categories: memory.categories }));
   api.put('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.setLists(req.brand.id, req.body || {}) }));
   api.post('/brands/:brandId/memory/facts', (req, res) => res.status(201).json({ fact: memory.addFact(req.brand.id, req.body || {}) }));
