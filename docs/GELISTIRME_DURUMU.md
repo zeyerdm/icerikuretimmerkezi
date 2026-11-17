@@ -13,7 +13,7 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 | 3 | A3 | Katmanlar paneli yeniden tasarım | ✅ |
 | 4 | A4 | Renk seçici, gradyan, zemin düzenleme | ✅ |
 | 5 | A5a | Maskot yerleşimi: otomatik / ben yerleştireceğim / kullanma; poz değiştirme; konum korunur | ✅ |
-| 6 | E | (sürüyor) Çoklu yapay zekâ API platform seçimi (OpenRouter ve alternatifleri; resmî kaynaklardan fiyat; 10 $/ay bütçe; karar). Yalnızca rapor, kod yok | ⏳ |
+| 6 | E | Çoklu yapay zekâ API platform seçimi (OpenRouter ve alternatifleri; resmî kaynaklardan fiyat; 10 $/ay bütçe; karar). Yalnızca rapor, kod yok | ✅ rapor: docs/AI_PLATFORM_KARARI.md (onay bekliyor) |
 | 7 | A5b | Referanstan şablon: tasarım türü seçimi (tekli / carousel / Reels kapağı / story / diğer), tekli için tek referans ya da hepsini birlikte; carousel hikâye akışı | ⏳ |
 | 8 | C1-C2 | Mevcut sistemin teknik analizi + dört deponun kaynak kod incelemesi, 17 özellikte karşılaştırma, lisans değerlendirmesi (docs/ENTEGRASYON_ANALIZI.md) | ⏳ |
 | 9 | B1+C4 | Akıllı şablon değişkenleri ve alan kimlikleri (MAIN_TITLE, SUB_TITLE, DESCRIPTION, MAIN_IMAGE, LOGO, CTA, MASCOT); değiştirilebilir / sabit seçimi | ⏳ |
