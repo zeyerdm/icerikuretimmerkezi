@@ -76,6 +76,7 @@ export async function renderPosts(view, brand, sub) {
       <button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button>
       <button class="btn" type="button" data-from-idea title="İçerik havuzundan kullanılmamış bir fikir seç">${icon('idea')}Havuzdan</button>
     </form>` : ''}
+    <section class="card mb-4 gen-queue" id="gen-queue" hidden></section>
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     ${posts.length ? `<div class="post-grid">${posts.map(p => `
       <a class="card post-card" href="${base(brand)}/${esc(p.id)}">
@@ -130,6 +131,27 @@ export async function renderPosts(view, brand, sub) {
     k.addEventListener('change', sync);
     sync();
   };
+  // Üretim kuyruğu: toplu üretimlerin durumu (çalışırken 3 sn'de bir yenilenir)
+  const qToken = {}; view._qToken = qToken;
+  async function drawQueue() {
+    const box = view.querySelector('#gen-queue');
+    if (!box || view._qToken !== qToken) return;
+    let res;
+    try { res = await api.genJobs(brand.id); } catch { return; }
+    if (!box.isConnected) return;
+    const { jobs, batches } = res;
+    box.hidden = !batches.length;
+    if (!batches.length) return;
+    const open = new Set([...box.querySelectorAll('details[open]')].map(d => d.dataset.batch));
+    box.innerHTML = `<div class="card-head"><h3>Üretim kuyruğu</h3><span class="small muted">Her fikir ayrı tasarım olarak üretilir; bir hata diğerlerini durdurmaz</span></div>
+      ${batches.map((bt, bi) => { const mine = jobs.filter(j => j.batchId === bt.batchId); const pct = Math.round(bt.done / bt.total * 100); return `<details class="q-batch" data-batch="${esc(bt.batchId)}" ${open.has(bt.batchId) || (bi === 0 && (bt.waiting || bt.working)) ? 'open' : ''}>
+        <summary><span class="q-bar"><span style="width:${pct}%"></span></span><b>${bt.done}/${bt.total}</b> tamamlandı${bt.working ? ' · <span class="q-st q-isleniyor">işleniyor</span>' : ''}${bt.waiting ? ` · ${bt.waiting} bekliyor` : ''}${bt.paused ? ` · ${bt.paused} durduruldu` : ''}${bt.failed ? ` · <span class="q-st q-hata">${bt.failed} hata</span>` : ''}<span class="xsmall muted"> · ${timeAgo(bt.createdAt)}</span>
+          <span class="row q-ctl">${bt.waiting ? `<button type="button" class="btn btn-sm btn-ghost" data-q-act="pause" data-q-batch="${esc(bt.batchId)}">Durdur</button>` : ''}${bt.paused ? `<button type="button" class="btn btn-sm" data-q-act="resume" data-q-batch="${esc(bt.batchId)}">Devam et</button>` : ''}${bt.waiting || bt.paused ? `<button type="button" class="btn btn-sm btn-ghost" data-q-act="cancel" data-q-batch="${esc(bt.batchId)}">Bekleyenleri iptal et</button>` : ''}</span></summary>
+        <ul class="q-jobs">${mine.map(j => `<li><span class="q-st q-${j.status}">${esc(j.statusLabel)}</span><span class="grow truncate">${esc(j.ideaTitle)}${j.error ? ` <span class="xsmall danger-text">· ${esc(j.error)}</span>` : ''}</span>
+          ${j.postId ? `<a class="btn btn-sm btn-ghost" href="${base(brand)}/${esc(j.postId)}">Aç</a><button type="button" class="btn btn-sm btn-ghost" data-q-preview="${esc(j.postId)}">Önizle</button>` : ''}${['hata', 'durduruldu', 'yeniden'].includes(j.status) ? `<button type="button" class="btn btn-sm btn-ghost" data-q-retry="${esc(j.id)}">Yeniden dene</button>` : ''}</li>`).join('')}</ul></details>`; }).join('')}`;
+    if (batches.some(bt => bt.waiting || bt.working)) setTimeout(drawQueue, 3000);
+  }
+  drawQueue();
   // Hızlı üret (eski sistemdeki gibi tek satır): kart düzeninde carousel, varsayılan model; metin akarak gelir
   const qp = view.querySelector('#quick-post');
   if (qp) qp.addEventListener('submit', async e => {
@@ -188,6 +210,12 @@ export async function renderPosts(view, brand, sub) {
       try { await api.deleteSharedTemplate(delSh.dataset.delShared); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); }
       return;
     }
+    const qa = e.target.closest('[data-q-act]');
+    if (qa) { e.preventDefault(); if (qa.dataset.qAct === 'cancel' && !confirm('Bekleyen işler kuyruktan çıkarılsın mı? Tamamlananlar kalır.')) return; try { await api.genBatchAction(brand.id, qa.dataset.qBatch, qa.dataset.qAct); drawQueue(); } catch (err) { toast(err.message, 'error'); } return; }
+    const qr = e.target.closest('[data-q-retry]');
+    if (qr) { e.preventDefault(); try { await api.genRetry(brand.id, qr.dataset.qRetry); drawQueue(); } catch (err) { toast(err.message, 'error'); } return; }
+    const qp = e.target.closest('[data-q-preview]');
+    if (qp) { e.preventDefault(); try { const { post: pp } = await api.post(brand.id, qp.dataset.qPreview); return previewPost(brand, pp); } catch (err) { return toast(err.message, 'error'); } }
     const tv = e.target.closest('[data-tpl-versions]');
     if (tv) return templateVersionsModal(brand, templates.find(x => x.id === tv.dataset.tplVersions), () => renderPosts(view, brand, null));
     const tpk = e.target.closest('[data-tpl-pack]');

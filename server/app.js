@@ -22,6 +22,7 @@ import { createReelsService } from './services/reels/index.js';
 import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
 import { createPresetService } from './services/promptPresets.js';
+import { createGenQueue } from './services/genQueue.js';
 import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
@@ -116,7 +117,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, queueAutostart = true, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -138,6 +139,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const competitors = createCompetitorService({ db, ai, brands });
   const reels = createReelsService({ db, ai, brands, workspace, patterns });
   const posts = createPostService({ db, ai, brands, assets, workspace });
+  const queue = createGenQueue({ db, brands, posts, ideas, autostart: queueAutostart });
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
@@ -677,6 +679,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/post-templates/:tid/usage', (req, res) => res.json({ posts: posts.templateUsage(req.brand.id, req.params.tid) }));
   api.put('/brands/:brandId/post-templates/:tid', (req, res) => res.json({ template: posts.renameTemplate(req.brand.id, req.params.tid, req.body || {}) }));
   api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
+  // Toplu üretim kuyruğu
+  api.get('/brands/:brandId/gen-jobs', (req, res) => res.json({ jobs: queue.list(req.brand.id, { batchId: req.query.batch || null }), batches: queue.batches(req.brand.id), statuses: queue.statuses }));
+  api.post('/brands/:brandId/gen-batches', (req, res) => { const b = req.body || {}; res.status(201).json(queue.createBatch(req.brand.id, { ideaIds: b.ideaIds, category: b.category || null, format: b.format || null, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides, mascot: b.mascot, modelRef: b.model || null, force: Boolean(b.force) })); });
+  api.post('/brands/:brandId/gen-batches/:bid/:action', (req, res) => {
+    const a = req.params.action;
+    if (!['pause', 'resume', 'cancel'].includes(a)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Geçersiz işlem.' } });
+    res.json(queue[a](req.brand.id, req.params.bid));
+  });
+  api.post('/brands/:brandId/gen-jobs/:jid/retry', (req, res) => res.json({ job: queue.retry(req.brand.id, req.params.jid) }));
   api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides || null, modelRef: mr(b), mascot: b.mascot || 'auto' })); }));
   api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
   api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));

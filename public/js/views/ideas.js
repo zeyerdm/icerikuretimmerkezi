@@ -3,7 +3,7 @@
 // Kullanılan fikir işaretli durur ve stüdyoların "rastgele fikir çek"ine girmez; çok benzer fikir eklenince uyarı çıkar.
 import { api, trashBatch } from '../api.js';
 import { esc, icon, toast, timeAgo, pageHead, emptyState, busy, openModal } from '../ui.js';
-import { state } from '../app.js';
+import { state, go } from '../app.js';
 import { contentModal } from './forms.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 
@@ -72,15 +72,37 @@ export async function renderIdeas(view, brand) {
     view.querySelectorAll('.idea-card').forEach(c => { const cb = c.querySelector('[data-sel]'); c.classList.toggle('is-selected', sel.has(cb.dataset.sel)); cb.checked = sel.has(cb.dataset.sel); });
     bar.hidden = !sel.size;
     if (sel.size) bar.innerHTML = `<strong>${sel.size} fikir seçili</strong>
+      ${aiReady ? `<button type="button" class="btn btn-sm btn-primary" data-sel-act="bulkgen">${icon('sparkle')}Toplu üret</button>` : ''}
       <button type="button" class="btn btn-sm" data-sel-act="used">${icon('check')}Kullanıldı</button>
       <button type="button" class="btn btn-sm" data-sel-act="archive">${icon('archive')}${status === 'arsiv' ? 'Arşivden çıkar' : 'Arşivle'}</button>
       <button type="button" class="btn btn-sm btn-danger" data-sel-act="delete">${icon('trash')}Sil</button>
       <button type="button" class="btn btn-sm btn-ghost" data-sel-act="clear">Seçimi kaldır</button>
       <span class="xsmall muted">Ctrl+A hepsini seçer · Delete siler · Ctrl+Z geri alır · Esc bırakır</span>`;
   }
+  // Toplu üretim: seçilen fikirler aynı şablonla, her biri ayrı tasarım olarak kuyruğa alınır
+  async function bulkGenModal(ids) {
+    let templates = []; let models;
+    try { [{ templates }, models] = await Promise.all([api.postTemplates(brand.id), aiModels()]); } catch (err) { return toast(err.message, 'error'); }
+    const usable = templates.filter(t => !t.match.frame);
+    openModal({ title: `${ids.length} fikri toplu üret`, submitLabel: 'Kuyruğa al',
+      body: `<p class="small muted mb-3">Her fikir ayrı bir tasarım olarak üretilir: kendi başlığı, metni ve sayfaları olur; şablon ortaktır. Daha önce üretilmiş ya da zaten kuyrukta olan fikirler atlanır. Üretim arka planda sürer; durumu Post stüdyosundaki "Üretim kuyruğu" bölümünden izlersin.</p>
+        <div class="form-grid">
+          <div class="field full"><label for="bg-tpl">Şablon</label><select class="select" id="bg-tpl" name="templateId"><option value="">Her fikre en uygun şablon (yoksa marka yerleşimi)</option>${usable.map(t => `<option value="${esc(t.id)}">${t.pack ? `${esc(t.pack)} / ` : ''}${esc(t.name)} V${t.version || 1} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
+          <div class="field"><label for="bg-slides">Slayt (carousel)</label><select class="select" id="bg-slides" name="slides"><option value="">Şablondaki kadar</option>${[3, 4, 5, 6, 7, 8].map(n => `<option>${n}</option>`).join('')}</select></div>
+          <div class="field"><label for="bg-mascot">Maskot</label><select class="select" id="bg-mascot" name="mascot"><option value="auto">Otomatik yerleştir</option><option value="none">Kullanma</option></select></div>
+          <div class="field full"><label for="bg-model">Model</label>${modelSelect(models, 'yazim', { id: 'bg-model' })}</div>
+        </div>`,
+      onSubmit: async (fd, form) => {
+        const r = await api.genBatch(brand.id, { ideaIds: ids, templateId: fd.get('templateId') || null, slides: Number(fd.get('slides')) || null, mascot: fd.get('mascot'), model: form.querySelector('#bg-model').value || null });
+        sel.clear(); drawSelBar();
+        toast(`${r.added.length} fikir kuyruğa alındı${r.skipped.length ? `, ${r.skipped.length} atlandı (${[...new Set(r.skipped.map(x => x.reason))].join(', ')})` : ''}.`, r.added.length ? 'success' : 'info', 6000);
+        if (r.added.length) go(`#/m/${encodeURIComponent(brand.id)}/post`);
+      } });
+  }
   async function selAction(act) {
     const ids = [...sel];
     if (act === 'clear') { sel.clear(); return drawSelBar(); }
+    if (act === 'bulkgen') return bulkGenModal(ids);
     if (act === 'delete' && !confirm(`${ids.length} fikir silinsin mi? Çöp kutusuna gider; Ctrl+Z ile geri alabilirsin.`)) return;
     try {
       if (act === 'delete') await trashBatch(async () => { for (const id of ids) await api.deleteIdea(brand.id, id); });
