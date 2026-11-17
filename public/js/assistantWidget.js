@@ -29,12 +29,26 @@ function setOpen(open, remember = true) {
   if (open) { load(); setTimeout(() => { const i = host.querySelector('#chat-input'); if (i && !i.disabled) i.focus(); }, 0); }
 }
 
+// Asistan görünümü markaya uyar: marka ana rengi ve maskotu (yoksa logosu) avatar olur
+const HEXC = /^#[0-9a-f]{6}$/i;
+function onColor(hex) { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.62 ? '#111111' : '#ffffff'; }
+function avatar(cls) {
+  const src = brand.mascotUrl || brand.logoUrl;
+  return src ? `<span class="${cls} has-img"><img src="${esc(src)}" alt=""></span>` : `<span class="${cls}">✦</span>`;
+}
+function theme() {
+  const c = brand.colors && HEXC.test(brand.colors.primary || '') ? brand.colors.primary : null;
+  if (c) { host.style.setProperty('--asst', c); host.style.setProperty('--asst-on', onColor(c)); host.classList.add('branded'); }
+  else { host.style.removeProperty('--asst'); host.style.removeProperty('--asst-on'); host.classList.remove('branded'); }
+}
+
 function draw() {
   const aiReady = state.settings.ai.configured;
+  theme();
   host.innerHTML = `
     <section class="ai-panel chat card" aria-label="AI asistanı" hidden>
       <div class="chat-head">
-        <div class="ai-badge">✦</div>
+        ${avatar('ai-badge')}
         <div class="grow"><h3>AI Asistanı</h3><div class="xsmall muted">${esc(brand.name)} marka hafızasıyla çalışıyor</div></div>
         <button class="btn btn-sm btn-ghost" data-action="new-chat" title="Sohbet geçmişini sil">${icon('refresh')}Yeni sohbet</button>
         <button class="btn btn-sm btn-ghost icon-btn" data-ai-full aria-label="Tam ekran" title="Tam ekran (Esc ile çık)">${icon('expand')}</button>
@@ -50,7 +64,7 @@ function draw() {
         </form>
       </div>
     </section>
-    <button class="ai-fab" aria-expanded="false" aria-label="AI Asistanı" title="AI Asistanı">✦<span>Asistan</span></button>`;
+    <button class="ai-fab" aria-expanded="false" aria-label="${esc(brand.name)} asistanı" title="${esc(brand.name)} asistanı">${avatar('ai-fab-av')}<span>Asistan</span></button>`;
   loadedFor = null;
 }
 
@@ -162,7 +176,7 @@ export function mountAssistant(current, { page } = {}) {
   if (host.classList.contains('ai-full')) toggleFull(false);
   // Ana sayfadan ayrılınca (gömülü pencere sayfayla birlikte silinmiş olabilir) sağ alttaki yerine döner
   if (!host.isConnected || host.classList.contains('docked')) { host.classList.remove('docked'); document.body.appendChild(host); if (page !== 'home') setOpen(isOpenPref(), false); }
-  const changed = !brand || brand.id !== current.id;
+  const changed = !brand || brand.id !== current.id || brand.mascotUrl !== current.mascotUrl || (brand.colors || {}).primary !== (current.colors || {}).primary;
   brand = current;
   if (changed) draw();
   // Açık/kapalı tercihi hatırlanır; hiç seçilmediyse marka ana sayfasında açık başlar

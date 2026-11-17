@@ -137,6 +137,7 @@ export const api = {
   uploadAssetPack: (id, file, category, pack) =>
     request('POST', `${b(id)}/asset-packs?category=${encodeURIComponent(category)}&pack=${encodeURIComponent(pack)}`, file, { 'Content-Type': 'application/zip' }),
   assetPacks: id => request('GET', b(id) + '/asset-packs'),
+  postAiEdit: (id, body) => request('POST', `${b(id)}/posts/ai-edit`, body),
   // Global öğe kütüphanesi (yönetim paneli)
   elements: (all = false) => request('GET', `/api/elements${all ? '?all=1' : ''}`),
   elementLicenses: () => request('GET', '/api/elements/licenses'),

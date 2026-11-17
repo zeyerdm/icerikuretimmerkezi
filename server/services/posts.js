@@ -15,6 +15,17 @@ const MAX_SLIDES = 10;
 const MAX_LAYERS = 30;
 const LAYER_TYPES = ['text', 'image', 'shape', 'qr', 'vector'];
 // Öğe kütüphanesindeki (markadan bağımsız) dosyalar da görsel katmanı olabilir
+// A6 editör AI komutları (yalnızca metin değiştirir)
+export const AI_EDIT_COMMANDS = {
+  kisalt: 'Metinleri kısalt; anlamı koru, gereksiz kelimeleri at.',
+  kanca: 'Başlığı (ilk sayfa ve başlık alanları) daha güçlü bir kancaya çevir: merak uyandıran, net, kısa.',
+  cta: 'Harekete geçirici (CTA) metinleri daha net ve davetkâr yap; CTA yoksa son sayfanın kısa metnini CTA yap.',
+  samimi: 'Tonu daha samimi ve sıcak yap.',
+  resmi: 'Tonu daha kurumsal ve resmi yap.',
+  yazim: 'Yazım, noktalama ve dil bilgisi hatalarını düzelt; başka bir şeyi değiştirme.',
+  sade: 'Metni daha sade ve anlaşılır yaz; uzun cümleleri böl.',
+  serbest: 'Kullanıcının isteğini uygula.'
+};
 const ELEMENT_SRC = /^\/api\/elements\/[A-Za-z0-9-]+\/file$/;
 // Vektör öğe (SVG): betik, olay özniteliği, dış bağlantı ve gömülü belge içeremez
 export function safeSvg(svg) {
@@ -644,6 +655,32 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       const next = Object.assign({}, data, { slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format: data.format, kind: p.kind, topic: String(data.topic || p.title).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags });
       db.prepare('UPDATE posts SET title = ?, data = ?, model = ?, updated_at = ? WHERE id = ?').run(w.title, JSON.stringify(next), w.r.servedRef || w.r.ref, now(), p.id);
       return Object.assign(toPost(row(b.id, p.id)), { ai: meta(w.r) });
+    },
+
+    // A6 Editörde AI komutu: yalnızca metinler değişir (yerleşim, renk, font ve marka kilidi korunur). İstemci
+    // kaydedilmemiş metinleri ve her birinin karakter sınırını gönderir; model sınırı aşarsa kelime sınırında kısaltılır.
+    async aiEdit(brandId, { command, instruction = '', texts = [], topic = '', kind = 'post', modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const cmd = oneOf(String(command || ''), Object.keys(AI_EDIT_COMMANDS), 'Komut');
+      const free = text(instruction, { field: 'Komut', max: 400 });
+      if (cmd === 'serbest' && !free) throw badRequest('Ne yapılacağını yaz (ör. "başlığı soru cümlesi yap").');
+      const list = (Array.isArray(texts) ? texts : []).slice(0, 40).map(t => ({ id: String(t && t.id || '').slice(0, 40), role: String(t && (t.field || t.role) || 'text').slice(0, 30), text: String(t && t.text || '').slice(0, 1000), max: Math.max(4, Math.min(1000, Number(t && t.max) || 300)), slide: Number(t && t.slide) || 0 })).filter(t => t.id && t.text.trim());
+      if (!list.length) throw badRequest('Değiştirilecek metin yok. Bir metin seç ya da sayfaya metin ekle.');
+      const prompt = [
+        `Sen "${b.name}" markasının sosyal medya editörüsün. Bir ${kind === 'carousel' ? 'carousel' : 'post'} tasarımındaki metinleri komuta göre düzenle.`,
+        brands.memory(b.id) ? `Marka sesi ve kuralları:\n${String(brands.memory(b.id)).slice(0, 2000)}` : '',
+        topic ? `Konu: ${String(topic).slice(0, 200)}` : '',
+        `Komut: ${AI_EDIT_COMMANDS[cmd]}${free ? `\nKullanıcının isteği: ${free}` : ''}`,
+        'Kurallar: Yalnızca metinleri değiştir; yeni metin kutusu ekleme, kutu silme. Her metin kendi karakter sınırını (max) aşmasın. Türkçe yaz, emoji ve hashtag ekleme (metinde zaten varsa koru). Değişmesi gerekmeyen metni listeye koyma.',
+        'Metinler (JSON):', JSON.stringify(list.map(t => ({ id: t.id, alan: t.role, sayfa: t.slide + 1, max: t.max, metin: t.text }))),
+        'Yanıt yalnızca JSON: {"changes":[{"id":"...","text":"..."}],"note":"kısa açıklama"}'
+      ].filter(Boolean).join('\n\n');
+      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.6 });
+      const out = r.output || {};
+      const byId = new Map(list.map(t => [t.id, t]));
+      const fit = (s, max) => { const v = polish(s); if (v.length <= max) return v; const cut = v.slice(0, max + 1); const i = cut.lastIndexOf(' '); return (i > max * 0.6 ? cut.slice(0, i) : v.slice(0, max)).replace(/[,;:\s]+$/, ''); };
+      const changes = (Array.isArray(out.changes) ? out.changes : []).map(c => { const t = byId.get(String(c && c.id)); if (!t) return null; const v = fit(c.text, t.max); return v && v !== t.text ? { id: t.id, before: t.text, text: v } : null; }).filter(Boolean);
+      return { changes, note: polish(out.note).slice(0, 200), ai: meta(r) };
     },
 
     update(brandId, id, body = {}) {

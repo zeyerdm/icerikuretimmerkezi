@@ -1063,7 +1063,7 @@ async function renderEditor(view, brand, id, models) {
       box.innerHTML = `${head}<div class="ck-sum">${['error', 'warn', 'info'].map(k => `<span class="ck-pill ck-${k}">${issues.filter(i => i.level === k).length} ${lv[k].toLocaleLowerCase('tr')}</span>`).join('')}</div>
         ${issues.length ? `${fixable.length ? `<button type="button" class="btn btn-sm w-full mb-2" data-ck-fixall>${icon('check')}Düzeltilebilenleri düzelt (${fixable.length})</button>` : ''}
         <ul class="ck-list">${issues.map((it, i) => `<li class="ck-item ck-${it.level}"><span class="ck-dot" aria-hidden="true"></span><div class="grow"><div class="small">${esc(it.msg)}</div><div class="xsmall muted">Sayfa ${it.slide + 1} · ${lv[it.level]}</div></div>
-          <div class="row"><button type="button" class="btn btn-sm btn-ghost" data-ck-go="${i}">Git</button>${it.fix ? `<button type="button" class="btn btn-sm" data-ck-fix="${i}">Düzelt</button>` : ''}</div></li>`).join('')}</ul>`
+          <div class="row"><button type="button" class="btn btn-sm btn-ghost" data-ck-go="${i}">Git</button>${it.fix ? `<button type="button" class="btn btn-sm" data-ck-fix="${i}">Düzelt</button>` : ''}${aiReady && ['overflow', 'shrunk'].includes(it.code) ? `<button type="button" class="btn btn-sm" data-ai-short="${i}">${icon('sparkle')}Kısalt (AI)</button>` : ''}</div></li>`).join('')}</ul>`
         : '<p class="small">Sorun bulunmadı: metinler sığıyor, okunuyor ve sayfalar tutarlı.</p>'}
         <details class="ed-fx mt-3" ${lock.colors || lock.fonts || lock.margin ? '' : ''}><summary>Marka tasarım kuralları (${esc(brand.name)})</summary>
           <form class="stack-sm mt-2" id="ck-lock">
@@ -1192,9 +1192,24 @@ async function renderEditor(view, brand, id, models) {
       return;
     }
     if (panel === 'ai') {
-      box.innerHTML = `${head}${aiReady ? `<p class="small muted mb-2">Bütün slayt metinleri seçtiğin modelle yeniden yazılır; yerleşim marka şablonuyla baştan kurulur.</p>
-        <div class="stack-sm">${modelSelect(models, 'yazim', { id: 'pw-model' })}<button type="button" class="btn" data-rewrite>${icon('refresh')}Metni yeniden yaz</button></div>`
-        : '<div class="notice"><div>AI bağlı değil.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}`;
+      const cmds = [['kisalt', 'Kısalt'], ['kanca', 'Daha güçlü kanca'], ['cta', "CTA'yı güçlendir"], ['samimi', 'Daha samimi'], ['resmi', 'Daha resmi'], ['sade', 'Sadeleştir'], ['yazim', 'Yazımı düzelt']];
+      box.innerHTML = `${head}
+        <h4 class="ed-sub">Hızlı düzen (AI'sız)</h4>
+        <div class="chips mb-3">
+          <button type="button" class="chip" data-quick="mascot-right">Maskot sağ alta</button><button type="button" class="chip" data-quick="mascot-left">Maskot sol alta</button>
+          <button type="button" class="chip" data-quick="dup">Sayfayı çoğalt</button><button type="button" class="chip" data-quick="center-title">Başlığı ortala</button><button type="button" class="chip" data-quick="cta-page">Kapanış (CTA) sayfası</button>
+        </div>
+        ${aiReady ? `<h4 class="ed-sub">AI ile metin düzenle</h4>
+        <p class="xsmall muted mb-2">Yalnızca metinler değişir; yerleşim, renk, yazı tipi ve marka kilidi korunur. Sonucu görüp onaylarsın.</p>
+        <div class="seg seg-sm mb-2" role="group" aria-label="Kapsam">${[['sel', 'Seçili metin'], ['page', 'Bu sayfa'], ['all', 'Bütün sayfalar']].map(([k, v]) => `<button type="button" class="${aiScope === k ? 'active' : ''}" data-ai-scope="${k}">${v}</button>`).join('')}</div>
+        <div class="chips mb-2">${cmds.map(([k, v]) => `<button type="button" class="chip" data-ai-cmd="${k}">${v}</button>`).join('')}</div>
+        <div class="field"><label for="ai-free">Ne yapayım?</label><textarea class="textarea" id="ai-free" rows="2" maxlength="400" placeholder="Ör. başlığı soru cümlesi yap · maskotu sola taşı · bu sayfayı çoğalt"></textarea></div>
+        <div class="stack-sm">${modelSelect(models, 'yazim', { id: 'pw-model' })}<button type="button" class="btn btn-primary" data-ai-cmd="serbest">${icon('sparkle')}Uygula</button></div>
+        <div id="ai-result" class="mt-3"></div>
+        <h4 class="ed-sub mt-3">Baştan yaz</h4>
+        <p class="small muted mb-2">Bütün slayt metinleri seçtiğin modelle yeniden yazılır; şablonlu tasarımda yerleşim korunur.</p>
+        <button type="button" class="btn" data-rewrite>${icon('refresh')}Metni yeniden yaz</button>`
+        : '<div class="notice"><div>AI bağlı değil. Hızlı düzen komutları AI olmadan çalışır.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}`;
       return;
     }
     if (panel === 'aciklama') {
@@ -1204,6 +1219,60 @@ async function renderEditor(view, brand, id, models) {
       reviewBox(box.querySelector('#pc-review'), brand, models, () => `${box.querySelector('#pc-caption').value}\n\n${box.querySelector('#pc-tags').value}`, 'caption',
         improved => { box.querySelector('#pc-caption').value = improved; data.caption = improved; markDirty(); });
     }
+  }
+
+  // ---- A6 AI komutları
+  let aiScope = 'page';
+  let aiPending = null;
+  // Bir metin kutusunun alabileceği yaklaşık karakter sayısı (kutu yüksekliği varsa satır × satır başı karakter)
+  const capacity = l => { const len = (l.text || '').length; if (!(l.maxH > 0)) return Math.max(20, Math.ceil(len * 1.25)); const per = Math.max(4, Math.floor(l.w / ((l.size || 40) * 0.52))); const lines = Math.max(1, Math.floor(l.maxH / ((l.size || 40) * (l.lineHeight || 1.2)))); return Math.max(8, per * lines); };
+  function aiTexts(scope, cmd, only) {
+    const pick = (s, i) => s.layers.filter(l => l.type === 'text' && !l.hidden && !l.fixed && !l.locked && (l.text || '').trim()).map(l => ({ l, i }));
+    let list = scope === 'all' ? data.slides.flatMap(pick) : pick(slide(), current);
+    if (only) list = list.filter(x => x.l.id === only);
+    else if (scope === 'sel') { const ids = multi || (selected ? [selected] : []); list = list.filter(x => ids.includes(x.l.id)); }
+    return list.map(({ l, i }) => { const cap = capacity(l); const len = (l.text || '').length; return { id: l.id, role: l.role, field: l.field, text: l.text, slide: i, max: cmd === 'kisalt' ? Math.max(4, Math.min(cap, Math.ceil(len * 0.7))) : cap }; });
+  }
+  // AI'sız düzen komutları (serbest komut metninden de tanınır)
+  function quickCmd(k) {
+    const F = format();
+    if (k === 'mascot-right' || k === 'mascot-left') {
+      const m = slide().layers.find(l => l.type === 'image' && l.role === 'mascot');
+      if (!m) { toast('Bu sayfada maskot yok. Marka panelinden maskot ekle.', 'info'); return true; }
+      m.x = k === 'mascot-right' ? F.w - m.w - 20 : 20; m.y = F.h - m.h - 20; setSelected(m.id); markDirty(); redraw(); toast('Maskot taşındı.', 'success', 1200); return true;
+    }
+    if (k === 'dup') { view._ctxPage = current; pageAction('dup'); view._ctxPage = null; return true; }
+    if (k === 'center-title') {
+      const t = slide().layers.find(l => l.type === 'text' && (l.role === 'title' || l.field === 'MAIN_TITLE'));
+      if (!t) { toast('Bu sayfada başlık yok.', 'info'); return true; }
+      t.align = 'center'; t.x = Math.round((F.w - t.w) / 2); setSelected(t.id); markDirty(); redraw(); return true;
+    }
+    if (k === 'cta-page') { newPage('kapanis'); return true; }
+    return false;
+  }
+  const intentOf = q => { const s = q.toLocaleLowerCase('tr'); if (/maskot/.test(s) && /sağ/.test(s)) return 'mascot-right'; if (/maskot/.test(s) && /sol/.test(s)) return 'mascot-left'; if (/(sayfa|slayt)\w*\s+çoğalt|çoğalt/.test(s) && !/metin|yazı/.test(s)) return 'dup'; if (/başlı\w*\s+ortala/.test(s)) return 'center-title'; if (/(kapanış|cta)\s+sayfa/.test(s)) return 'cta-page'; return null; };
+  async function runAi(cmd, btn, only = null) {
+    const free = cmd === 'serbest' ? ($('#ai-free') || {}).value || '' : '';
+    if (cmd === 'serbest') { const it = intentOf(free); if (it && quickCmd(it)) return; }
+    const texts = aiTexts(only ? 'all' : aiScope, cmd, only);
+    if (!texts.length) return toast(aiScope === 'sel' && !only ? 'Önce tuvalde bir metin seç.' : 'Değiştirilecek metin yok.', 'info');
+    const modelRef = ($('#pw-model') || {}).value || null;
+    try {
+      const r = await busy(btn, () => api.postAiEdit(brand.id, { command: cmd, instruction: free, texts, topic: data.topic || post.title, kind: post.kind, modelRef }));
+      if (!r.changes.length) return toast('Değişiklik önerilmedi; metinler zaten uygun.', 'info');
+      if (only) { applyAi(r.changes); drawPanelBody(); return toast('Metin kısaltıldı. Geri almak için Ctrl+Z.', 'success'); }
+      aiPending = r.changes; drawAiResult(r.note);
+    } catch (err) { toast(err.message, 'error'); }
+  }
+  function applyAi(changes) {
+    const all = data.slides.flatMap(s => s.layers);
+    changes.forEach(c => { const l = all.find(x => x.id === c.id); if (l) l.text = c.text; });
+    markDirty(); redraw(); drawProps();
+  }
+  function drawAiResult(note) {
+    const host = $('#ai-result'); if (!host || !aiPending) return;
+    host.innerHTML = `<div class="ai-diff">${note ? `<p class="xsmall muted mb-2">${esc(note)}</p>` : ''}${aiPending.map((c, i) => `<label class="ai-diff-row"><input type="checkbox" data-ai-pick="${i}" checked><span><s class="muted">${esc(c.before)}</s><br><b>${esc(c.text)}</b></span></label>`).join('')}
+      <div class="row mt-2"><button type="button" class="btn btn-sm btn-primary" data-ai-apply>Seçilenleri uygula</button><button type="button" class="btn btn-sm btn-ghost" data-ai-cancel>Vazgeç</button></div></div>`;
   }
 
   function openPanel(k) {
@@ -1922,6 +1991,12 @@ async function renderEditor(view, brand, id, models) {
       } catch (err) { toast(err.message, 'error'); }
       return;
     }
+    const qk = t.closest('[data-quick]'); if (qk) { quickCmd(qk.dataset.quick); return; }
+    const asc = t.closest('[data-ai-scope]'); if (asc) { aiScope = asc.dataset.aiScope; view.querySelectorAll('[data-ai-scope]').forEach(b => b.classList.toggle('active', b === asc)); return; }
+    const acm = t.closest('[data-ai-cmd]'); if (acm) { await runAi(acm.dataset.aiCmd, acm); return; }
+    const ash = t.closest('[data-ai-short]'); if (ash) { const iss = (($('#ed-panel-body') || {})._issues || [])[Number(ash.dataset.aiShort)]; if (iss) await runAi('kisalt', ash, iss.layer); return; }
+    if (t.closest('[data-ai-apply]')) { const picks = [...view.querySelectorAll('[data-ai-pick]')].filter(x => x.checked).map(x => aiPending[Number(x.dataset.aiPick)]); applyAi(picks); aiPending = null; $('#ai-result').innerHTML = ''; toast(`${picks.length} metin güncellendi. Geri almak için Ctrl+Z.`, 'success'); return; }
+    if (t.closest('[data-ai-cancel]')) { aiPending = null; $('#ai-result').innerHTML = ''; return; }
     const rw = t.closest('[data-rewrite]');
     if (rw) {
       if (dirty && !confirm('Kaydedilmemiş değişiklikler var; yeniden yazınca yerleşim de baştan kurulur. Devam edilsin mi?')) return;
