@@ -43,7 +43,8 @@ function layerName(l) {
 }
 function tplFields(t) {
   const set = new Set();
-  (t.data.slides || []).forEach(s => (s.layers || []).forEach(l => { if (l.fixed) return; if (l.field && l.type === 'text') set.add(l.field); else if (ROLE_NAMES[l.role] && (l.type === 'text' || l.role === 'mascot' || l.role === 'main')) set.add(ROLE_NAMES[l.role]); }));
+  const CODE = { MAIN_TITLE: 'title', SUB_TITLE: 'subtitle', DESCRIPTION: 'body', STAT: 'stat', ITEM: 'item', CTA: 'cta', SPEECH: 'speech', TOPIC: 'topic', PAGE_NUMBER: 'num' };
+  (t.data.slides || []).forEach(s => (s.layers || []).forEach(l => { if (l.fixed) return; if (l.field && l.type === 'text') set.add(ROLE_NAMES[CODE[l.field]] || l.field); else if (ROLE_NAMES[l.role] && (l.type === 'text' || l.role === 'mascot' || l.role === 'main')) set.add(ROLE_NAMES[l.role]); }));
   return [...set];
 }
 import { youtubePreview } from './youtube.js';

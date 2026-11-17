@@ -327,6 +327,7 @@ test('10.8 havuzdan post: hangi fikrin yazıldığı ve geçen süre görünür,
     await page.locator('.modal [type=submit]').click();
     await page.locator('#fi-status', { hasText: '"Haftanın menüsü" fikrinden post yazılıyor' }).waitFor();
     await page.locator('#fi-status', { hasText: /[1-9]\d* sn/ }).waitFor();
+    await page.getByRole('button', { name: 'Bütün tasarımı düzenle' }).click(); // üretim sonrası önizleme penceresi
     await page.waitForURL(/\/post\/[A-Za-z0-9-]{8,}$/);
     await page.locator('.toast', { hasText: '"Haftanın menüsü" fikrinden' }).waitFor();
     await page.locator('.ed-topic', { hasText: 'Haftanın menüsü' }).waitFor();
@@ -345,6 +346,7 @@ test('Post stüdyosu hızlı üret: tek satır konu → kart düzeninde carousel
     await page.locator('#quick-post [name="topic"]').fill('Sınav haftasında kahve');
     await page.locator('#quick-post [name="slides"]').selectOption('4');
     await page.locator('#quick-post [type=submit]').click();
+    await page.getByRole('button', { name: 'Bütün tasarımı düzenle' }).click(); // üretim sonrası önizleme penceresi
     await page.waitForURL(/\/post\/[A-Za-z0-9-]{8,}$/);
     await page.locator('#stage').waitFor();
     await page.waitForTimeout(400);
@@ -386,6 +388,7 @@ test('Havuzdan fikir: beğenmedim → havuzdan sil (yenisi gelir), beğendim →
     // Üret → editör → PNG indir → silme önerisi
     const chosen = await page.locator('#fi-idea b').innerText();
     await page.locator('.modal [type=submit]').click();
+    await page.getByRole('button', { name: 'Bütün tasarımı düzenle' }).click(); // üretim sonrası önizleme penceresi
     await page.waitForURL(/\/post\/[A-Za-z0-9-]{8,}$/);
     await page.locator('#stage').waitFor();
     await page.locator('[data-menu="paylas"], [data-menu="disa"], [data-menu]', { hasText: /Paylaş|Dışa/ }).first().click();

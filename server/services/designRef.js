@@ -120,9 +120,11 @@ export function createDesignRefService({ db, ai, brands, assets }) {
   }
 
   return {
-    async analyze(brandId, { assetId, assetIds, modelRef = null, name = '', type = 'carousel', combine = true } = {}) {
+    async analyze(brandId, { assetId, assetIds, modelRef = null, name = '', type = null, combine = true } = {}) {
       const b = brands.get(brandId);
-      const tp = REF_TYPES[type] ? type : 'carousel';
+      // Tür seçilmediyse (eski istemci ya da API) biçim ve tür modelin okuduğu orandan gelir
+      const many = Array.isArray(assetIds) && new Set(assetIds.filter(Boolean)).size > 1;
+      const tp = REF_TYPES[type] ? type : many ? 'carousel' : 'diger';
       // Toplu referans: en fazla 6 görsel birlikte incelenir; tekli gönderide "tek referanstan" seçilirse yalnız ilki
       let ids = [...new Set((Array.isArray(assetIds) && assetIds.length ? assetIds : [assetId]).filter(Boolean).map(String))].slice(0, 6);
       if (tp !== 'carousel' && !combine) ids = ids.slice(0, 1);
@@ -150,7 +152,7 @@ export function createDesignRefService({ db, ai, brands, assets }) {
       // 11.10: ad verilmezse sıradaki "Şablon N"
       const tplName = polish(name).slice(0, 80) || `Şablon ${db.prepare('SELECT COUNT(*) AS n FROM post_templates WHERE brand_id = ?').get(b.id).n + 1}`;
       // Kapak + içerik + kapanış → carousel şablonu (ara slayt istenen sayıda tekrar eder)
-      const kind = tp === 'carousel' ? (data.slides.length > 1 ? 'carousel' : 'post') : tp === 'diger' ? (data.format === '9:16' ? 'story' : 'post') : REF_TYPES[tp].kind;
+      const kind = tp === 'carousel' ? (data.slides.length > 1 ? 'carousel' : 'post') : tp === 'diger' ? (data.format === '9:16' ? 'story' : data.slides.length > 1 ? 'carousel' : 'post') : REF_TYPES[tp].kind;
       db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(tplId, b.id, tplName, kind, JSON.stringify(Object.assign({ reference: { assetId: ids[0], assetIds: ids, type: tp, analysis } }, data)), now());
       brands.logActivity(b.id, 'design.analyzed', `Tasarım referansı şablona çevrildi: ${tplName}`);
       return { analysis, template: { id: tplId, name: tplName, kind, kindLabel: POST_KINDS[kind], slides: data.slides.length }, ai: { model: r.servedRef || r.ref, modelLabel: ai.labelOf(r.servedRef || r.ref), cost: r.cost, ms: r.ms, fallbackUsed: Boolean(r.fallbackUsed) } };
