@@ -89,7 +89,8 @@ test('Düzenleyici: tutamaçla boyutlandırma, mıknatıs, katmanlar paneli, efe
     await page.locator('[data-rail="katmanlar"]').click();
     await page.locator('.ly-row').nth(1).waitFor();
     assert.match(await page.locator('.ly-row').first().textContent(), /Arka/, 'üstte en öndeki katman');
-    await page.locator('.ly-row').first().locator('[data-ly-move="-1"]').click();
+    await page.locator('.ly-row').first().locator('[data-ly-pick]').click();
+    await page.locator('[data-ly-tool="back"]').click();
     await page.locator('.ly-row').last().locator('[data-ly-vis]').click();
     await page.locator('.ly-row').last().locator('[data-ly-lock]').click();
     page.once('dialog', d => d.accept('Alt yazı'));
@@ -110,22 +111,18 @@ test('Düzenleyici: tutamaçla boyutlandırma, mıknatıs, katmanlar paneli, efe
     await save();
     img = (await saved()).slides[0].layers.find(x => x.id === 'img1');
     assert.equal(img.circle, true); assert.equal(img.grayscale, 100);
-    // Hazır paket: emoji ara ve ekle → kütüphaneye sticker olarak kaydedilir
+    // Hazır paket: "kalp" ara (Türkçe arama İngilizce adları da bulur) ve ekle → SVG vektör katmanı olarak eklenir (kütüphaneye dosya yüklenmez)
     await page.locator('[data-rail="ogeler"]').click();
-    await page.locator('[data-stock-kind="emoji"]').click();
-    await page.locator('#ed-stock-q').fill('kalp');
-    await page.waitForFunction(() => document.querySelectorAll('.ed-stock-item').length > 3 && [...document.querySelectorAll('.ed-stock-item')].every(b => /heart/.test(b.title)));
+    await page.locator('#ed-el-q').fill('kalp');
+    await page.waitForFunction(() => document.querySelectorAll('.el-item').length > 3 && [...document.querySelectorAll('.el-item')].some(b => /heart/.test(b.title)));
     const before = (await saved()).slides[0].layers.length;
-    await page.locator('.ed-stock-item').first().click();
-    let st = [];
-    for (let i = 0; i < 50 && !st.length; i++) { await page.waitForTimeout(100); st = (await s.request('GET', `/api/brands/${b.id}/assets?category=sticker`)).data.assets; }
-    assert.equal(st.length, 1); assert.match(st[0].pack, /^Hazır · /);
-    // İkinci kez aynı öğe: kütüphanedeki kopya kullanılır
-    await page.locator('.ed-stock-item').first().click();
-    await page.waitForTimeout(400);
-    assert.equal((await s.request('GET', `/api/brands/${b.id}/assets?category=sticker`)).data.assets.length, 1);
+    await page.locator('.el-item[title*="heart"]').first().click();
+    await page.locator('.el-item[title*="heart"]').first().click();
     await save();
-    assert.equal((await saved()).slides[0].layers.length, before + 2, 'iki kez eklendi');
+    const added = (await saved()).slides[0].layers.slice(before);
+    assert.equal(added.length, 2, 'iki kez eklendi');
+    assert.ok(added.every(l => l.type === 'vector' && /heart/.test(l.elementId)), JSON.stringify(added.map(l => l.elementId)));
+    assert.equal((await s.request('GET', `/api/brands/${b.id}/assets?category=sticker`)).data.assets.length, 0, 'kütüphaneye kopya yüklenmez');
     // PDF: iki sayfa
     await page.locator('[data-menu="paylas"]').click();
     const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('[data-pdf]').click()]);

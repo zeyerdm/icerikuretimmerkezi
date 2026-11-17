@@ -653,6 +653,7 @@ test('Post stüdyosu: konudan carousel üret, katman seç ve düzenle, slayt ekl
     await page.getByLabel('Konu *').fill('Sınav haftası ipuçları');
     await page.getByLabel('Slayt sayısı (carousel)').fill('3');
     await page.getByRole('dialog').getByRole('button', { name: 'Üret' }).click();
+    await page.getByRole('button', { name: 'Bütün tasarımı düzenle' }).click(); // üretim sonrası önizleme penceresi
     await page.getByRole('heading', { name: 'Sınav ipuçları' }).waitFor();
     await page.locator('.slide-thumb').nth(2).waitFor();
     assert.equal(await page.locator('.slide-thumb').count(), 3);
@@ -673,6 +674,7 @@ test('Post stüdyosu: konudan carousel üret, katman seç ve düzenle, slayt ekl
     await page.waitForFunction(() => document.querySelector('#lp-x') && document.querySelector('#lp-x').value !== '90', null, { timeout: 5000 });
 
     await page.getByRole('button', { name: 'Slayt ekle' }).click();
+    await page.locator('[data-ctx="pt-bos"]').click(); // sayfa türü menüsü: boş sayfa
     await page.locator('.slide-thumb').nth(3).waitFor();
     await page.getByRole('button', { name: 'Gövde metni ekle' }).click();
     await page.locator('#lp-text').fill('Son söz');

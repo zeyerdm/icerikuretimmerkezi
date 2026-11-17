@@ -22,6 +22,8 @@ import { createReelsService } from './services/reels/index.js';
 import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
 import { createPresetService } from './services/promptPresets.js';
+import { createGenQueue } from './services/genQueue.js';
+import { createElementService, MAX_ELEMENT_BYTES } from './services/elements.js';
 import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
@@ -116,7 +118,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, queueAutostart = true, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -138,6 +140,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const competitors = createCompetitorService({ db, ai, brands });
   const reels = createReelsService({ db, ai, brands, workspace, patterns });
   const posts = createPostService({ db, ai, brands, assets, workspace });
+  const queue = createGenQueue({ db, brands, posts, ideas, autostart: queueAutostart });
+  const elements = createElementService(db, path.join(dataDir, 'uploads', 'elements'));
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
@@ -655,7 +659,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/posts', (req, res) => res.json({ posts: posts.list(req.brand.id) }));
   api.post('/brands/:brandId/posts', route(async (req, res) => {
     const b = req.body || {};
-    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b), templateId: b.templateId || null });
+    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b), templateId: b.templateId || null, templateVersion: b.templateVersion || null, mascot: b.mascot || 'auto' });
     res.status(201).json({ post });
   }));
   api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
@@ -669,10 +673,26 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.delete('/shared-templates/:tid', (req, res) => { shared.remove(req.params.tid); res.status(204).end(); });
   api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
+  // Şablon versiyonları, paket ve kullanım
+  api.post('/brands/:brandId/post-templates/:tid/update-from/:pid', (req, res) => res.json({ template: posts.updateTemplateFromPost(req.brand.id, req.params.tid, req.params.pid, req.body || {}) }));
+  api.get('/brands/:brandId/post-templates/:tid/versions', (req, res) => res.json({ versions: posts.templateVersions(req.brand.id, req.params.tid) }));
+  api.post('/brands/:brandId/post-templates/:tid/restore', (req, res) => res.json({ template: posts.restoreTemplateVersion(req.brand.id, req.params.tid, (req.body || {}).version) }));
+  api.put('/brands/:brandId/post-templates/:tid/pack', (req, res) => res.json({ template: posts.setTemplatePack(req.brand.id, req.params.tid, req.body || {}) }));
+  api.get('/brands/:brandId/post-templates/:tid/usage', (req, res) => res.json({ posts: posts.templateUsage(req.brand.id, req.params.tid) }));
   api.put('/brands/:brandId/post-templates/:tid', (req, res) => res.json({ template: posts.renameTemplate(req.brand.id, req.params.tid, req.body || {}) }));
   api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
-  api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, slides: b.slides || null, modelRef: mr(b) })); }));
+  // Toplu üretim kuyruğu
+  api.get('/brands/:brandId/gen-jobs', (req, res) => res.json({ jobs: queue.list(req.brand.id, { batchId: req.query.batch || null }), batches: queue.batches(req.brand.id), statuses: queue.statuses }));
+  api.post('/brands/:brandId/gen-batches', (req, res) => { const b = req.body || {}; res.status(201).json(queue.createBatch(req.brand.id, { ideaIds: b.ideaIds, category: b.category || null, format: b.format || null, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides, mascot: b.mascot, modelRef: b.model || null, force: Boolean(b.force) })); });
+  api.post('/brands/:brandId/gen-batches/:bid/:action', (req, res) => {
+    const a = req.params.action;
+    if (!['pause', 'resume', 'cancel'].includes(a)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Geçersiz işlem.' } });
+    res.json(queue[a](req.brand.id, req.params.bid));
+  });
+  api.post('/brands/:brandId/gen-jobs/:jid/retry', (req, res) => res.json({ job: queue.retry(req.brand.id, req.params.jid) }));
+  api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides || null, modelRef: mr(b), mascot: b.mascot || 'auto' })); }));
   api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
+  api.post('/brands/:brandId/posts/ai-edit', route(async (req, res) => { const b = req.body || {}; res.json(await posts.aiEdit(req.brand.id, { command: b.command, instruction: b.instruction, texts: b.texts, topic: b.topic, kind: b.kind, modelRef: mr(b) })); }));
   api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
   api.post('/brands/:brandId/posts/:id/schedule', (req, res) => res.status(201).json({ content: posts.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));
 
@@ -699,6 +719,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.delete('/brands/:brandId/patterns/:id', (req, res) => trashed(res, 'pattern', req.params.id, () => patterns.remove(req.brand.id, req.params.id)));
 
   // --- Akıllı marka hafızası ---
+  api.put('/brands/:brandId/design-lock', (req, res) => res.json({ designLock: brands.setDesignLock(req.brand.id, req.body || {}) }));
   api.get('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.get(req.brand.id), categories: memory.categories }));
   api.put('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.setLists(req.brand.id, req.body || {}) }));
   api.post('/brands/:brandId/memory/facts', (req, res) => res.status(201).json({ fact: memory.addFact(req.brand.id, req.body || {}) }));
@@ -750,7 +771,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // --- Tasarım referansı analizi ---
   api.post('/brands/:brandId/design-ref', route(async (req, res) => {
     const b = req.body || {};
-    res.status(201).json(await designRef.analyze(req.brand.id, { assetId: b.assetId, assetIds: b.assetIds, modelRef: mr(b), name: b.name }));
+    res.status(201).json(await designRef.analyze(req.brand.id, { assetId: b.assetId, assetIds: b.assetIds, modelRef: mr(b), name: b.name, type: b.type || null, combine: b.combine !== false }));
   }));
 
   // --- Prompt Studio ---
@@ -784,6 +805,24 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.get('/brands/:brandId/prompts/:id/versions/:vid', (req, res) => res.json({ version: prompts.version(req.brand.id, req.params.id, req.params.vid) }));
   api.post('/brands/:brandId/prompts/:id/restore', (req, res) => res.json({ prompt: prompts.restore(req.brand.id, req.params.id, (req.body || {}).versionId) }));
+
+  // --- Global öğe kütüphanesi (yönetim paneli) ---
+  const elMeta = q => ({ name: q.name, category: q.category, tags: q.tags, pack: q.pack, published: q.published, license: q.license, author: q.author, attribution: q.attribution, sourceUrl: q.sourceUrl });
+  api.get('/elements', (req, res) => res.json({ elements: elements.list({ all: req.query.all === '1' }), categories: elements.categories, licenses: elements.licenses }));
+  api.get('/elements/licenses', (req, res) => res.json({ custom: elements.licenseSummary() }));
+  api.post('/elements', express.raw({ type: () => true, limit: MAX_ELEMENT_BYTES }), (req, res) => res.status(201).json({ element: elements.create(req.body, elMeta(req.query)) }));
+  api.post('/elements/import', express.raw({ type: () => true, limit: '30mb' }), (req, res) => res.status(201).json(elements.importZip(req.body, elMeta(req.query))));
+  api.patch('/elements/:id', (req, res) => res.json({ element: elements.update(req.params.id, req.body || {}) }));
+  api.delete('/elements/:id', (req, res) => res.json(elements.remove(req.params.id)));
+  api.post('/elements/packs/:action', (req, res) => res.json(elements.packAction((req.body || {}).pack, req.params.action)));
+  api.get('/elements/:id/file', (req, res) => {
+    const f = elements.file(req.params.id);
+    res.setHeader('Content-Type', f.mime);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (f.svg) { res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox"); return res.send(f.svg); }
+    res.sendFile(f.path);
+  });
 
   // --- Varlık kütüphanesi ---
   api.get('/brands/:brandId/assets', (req, res) => {

@@ -33,7 +33,7 @@ export function itemsOf(kind, data, packId) {
 }
 
 // Türkçe aramayı İngilizce anahtar kelimelere de çevirir (emoji ve ikon adları İngilizce)
-const TR_EN = {
+export const TR_EN = {
   kalp: 'heart', yildiz: 'star', yıldız: 'star', ok: 'arrow', gul: 'smil', gül: 'smil', gulen: 'smil', gülen: 'smil', kahkaha: 'laugh', uzgun: 'sad', üzgün: 'sad', kizgin: 'angry', kızgın: 'angry',
   ates: 'fire', ateş: 'fire', roket: 'rocket', kahve: 'coffee', cay: 'tea', çay: 'tea', kitap: 'book', para: 'money', dolar: 'dollar', alisveris: 'shopping', alışveriş: 'shopping', sepet: 'cart',
   telefon: 'phone', bilgisayar: 'computer', laptop: 'laptop', kod: 'code', kamera: 'camera', fotograf: 'photo', fotoğraf: 'photo', muzik: 'music', müzik: 'music', video: 'video', mikrofon: 'microphone',

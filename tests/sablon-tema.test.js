@@ -39,7 +39,7 @@ test('Tema: şablon slaytları istenen sayıya uyar, alanlar dolar, maskot poza 
     assert.match(provider.calls[0].prompt, /5 slaytlık/);
     assert.match(provider.calls[0].prompt, /düşünen/, 'pozlar modele verilir');
     assert.equal(p.data.slides.length, 5);
-    assert.deepEqual(p.data.template, { id: tpl.id, name: 'Haftalık tema' });
+    assert.deepEqual(p.data.template, { id: tpl.id, name: 'Haftalık tema', version: 1 });
     // Kapak: zemin görseli aynen, başlık dolu
     assert.equal(p.data.slides[0].layers[0].src, zemin.url);
     assert.equal(p.data.slides[0].layers.find(l => l.role === 'title').text, 'Başlık 1');
@@ -112,15 +112,18 @@ test('Tema arayüzü: kutuya rol verilir (yükseklik otomatik), uzun yazı küç
       ctx.font = `${f.weight} ${f.size}px "${f.font}"`;
       return { size: f.size, h: m.wrapLines(ctx, layer.text, layer.w).length * f.size * 1.2 };
     }, { layer: l });
-    assert.ok(h.size < 90 && h.h <= l.maxH, `yazı küçüldü (${h.size}px, ${Math.round(h.h)}px)`);
+    // Yazı en fazla %30 küçülür (okunurluk sınırı); yine sığmazsa Kontrol paneli taşma uyarısı verir
+    assert.ok(h.size < 90 && (h.h <= l.maxH || h.size >= Math.floor(l.size * 0.7)), `yazı küçüldü (${h.size}px, ${Math.round(h.h)}px)`);
     const tpl = (await s.request('POST', `/api/brands/${b.id}/posts/${post.id}/template`, { name: 'Benim temam' })).data.template;
 
     await page.goto(`${s.base}/#/m/${b.id}/post`);
-    await page.locator('.tpl-card', { hasText: 'Dolan alanlar: Başlık' }).waitFor();
+    await page.locator('.tpl-card', { hasText: 'Dolan alanlar: Ana başlık' }).waitFor();
     await page.locator('#qp-tpl').selectOption(tpl.id);
     await page.locator('#quick-post [name="slides"]').selectOption('4');
     await page.locator('#quick-post [name="topic"]').fill('Kahve demleme');
     await page.locator('#quick-post [type=submit]').click();
+    await page.locator('.pv-card').nth(3).waitFor(); // üretim sonrası önizleme: 4 sayfa
+    await page.getByRole('button', { name: 'Bütün tasarımı düzenle' }).click();
     await page.locator('.slide-thumb').nth(3).waitFor();
     const posts = (await s.request('GET', `/api/brands/${b.id}/posts`)).data.posts;
     const made = posts.find(p => p.id !== post.id);
@@ -220,7 +223,7 @@ test('Toplu referans: görseller birlikte incelenir, kapak + içerik + kapanış
     const r = await s.request('POST', `/api/brands/${b.id}/design-ref`, { assetIds: refs.map(x => x.id), name: '' });
     assert.equal(r.status, 201, JSON.stringify(r.data));
     assert.equal(provider.calls[0].opts.images.length, 3, 'üç görsel birlikte gitti');
-    assert.match(provider.calls[0].prompt, /EN İYİ/);
+    assert.match(provider.calls[0].prompt, /ORTAK tasarım dilini/);
     assert.equal(r.data.template.kind, 'carousel');
     assert.equal(r.data.template.slides, 3);
     const tpl = (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates.find(t => t.id === r.data.template.id);

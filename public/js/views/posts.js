@@ -2,20 +2,37 @@
 // Katmanı tıkla seç, sürükle taşı (ok tuşlarıyla ince ayar); yazı, renk, font, boyut sağ panelden; logo/maskot/görsel kütüphaneden.
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
-import { state, go } from '../app.js';
+import { state, go, route } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { drawSlide, resolveImages, slideBlob, hitTest, layerBox, handlesOf } from '../postCanvas.js';
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
 import { canvasesToPdf } from '../pdf.js';
-import { STOCK_KINDS, loadStock, itemsOf, searchItems, svgUrl, svgToPng } from '../stockPacks.js';
+import { openColorPicker, gradCss } from '../colorPicker.js';
+import { checkDesign, applyFix } from '../designCheck.js';
+import { svgUrl } from '../stockPacks.js';
+import { loadRegistry, itemsFor, allItems, search as searchEls, usage as elUsage, markUsed, toggleFav, byIds, ratioOf, previewSvg, loadCustom } from '../elements.js';
 
 // Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
-const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Başlık'], ['body', 'Açıklama'], ['item', 'Madde (bilgi grafiği)'], ['cta', 'Buton yazısı'], ['speech', 'Maskot konuşması'], ['topic', 'Konu etiketi'], ['num', 'Slayt numarası'], ['page', 'Slayt sayısı (/ 06)']];
-const FILL_ROLES = ['title', 'body', 'item', 'cta', 'speech'];
-const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri (poz her postta konuya göre seçilir)'], ['logo', 'Logo']];
+// Şablon alanları: her alanın kimliği (MAIN_TITLE gibi) görünür; aynı alan birden çok kutuda ve sayfada olabilir
+const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Ana başlık · MAIN_TITLE'], ['subtitle', 'Alt başlık · SUB_TITLE'], ['body', 'Açıklama · DESCRIPTION'], ['stat', 'İstatistik / sayı · STAT'], ['item', 'Madde · ITEM'], ['cta', 'Buton yazısı · CTA'], ['speech', 'Maskot konuşması · SPEECH'], ['topic', 'Konu etiketi · TOPIC'], ['num', 'Slayt numarası · PAGE_NUMBER'], ['page', 'Slayt sayısı (/ 06) · PAGE_TOTAL'], ['custom', 'Özel alan (kendi adın)']];
+const FILL_ROLES = ['title', 'subtitle', 'body', 'stat', 'item', 'cta', 'speech', 'custom'];
+// Hazır zeminler: düz renkler ve gradyanlar
+const BG_PRESETS = [
+  { n: 'Gece', c: '#0b1020' }, { n: 'Krem', c: '#fff1e6' }, { n: 'Kağıt', c: '#f4f1ea' }, { n: 'Pastel pembe', c: '#fbe4ee' }, { n: 'Adaçayı', c: '#6d8a86' }, { n: 'Siyah', c: '#111111' },
+  { n: 'Gün batımı', g: { type: 'linear', angle: 45, stops: [{ c: '#ff7a59', p: 0 }, { c: '#ffd166', p: 100 }] } },
+  { n: 'Mor gece', g: { type: 'linear', angle: 135, stops: [{ c: '#1e1b4b', p: 0 }, { c: '#7c3aed', p: 100 }] } },
+  { n: 'Okyanus', g: { type: 'linear', angle: 90, stops: [{ c: '#0ea5e9', p: 0 }, { c: '#1e3a8a', p: 100 }] } },
+  { n: 'Pastel', g: { type: 'linear', angle: 60, stops: [{ c: '#fbcfe8', p: 0 }, { c: '#c7d2fe', p: 100 }] } },
+  { n: 'Nane', g: { type: 'linear', angle: 120, stops: [{ c: '#d1fae5', p: 0 }, { c: '#34d399', p: 100 }] } },
+  { n: 'Spot ışık', g: { type: 'radial', angle: 0, stops: [{ c: '#3b3f70', p: 0 }, { c: '#0b1020', p: 100 }] } },
+  { n: 'Turuncu ışık', g: { type: 'radial', angle: 0, stops: [{ c: '#ff9a3c', p: 0 }, { c: '#c2410c', p: 100 }] } },
+  { n: 'Gri', g: { type: 'linear', angle: 90, stops: [{ c: '#f8fafc', p: 0 }, { c: '#cbd5e1', p: 100 }] } }
+];
+const MASCOT_OPTS = [['auto', 'Maskot: otomatik yerleştir'], ['manual', 'Maskot: ben yerleştireceğim'], ['none', 'Maskot: kullanma']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri · MASCOT (poz konuya göre seçilir)'], ['logo', 'Logo · LOGO'], ['main', 'Ana görsel · MAIN_IMAGE (her içerikte değiştirilecek)']];
 // Şablonun hangi alanları her postta doluyor (kartta gösterilir)
-const ROLE_NAMES = { title: 'Başlık', body: 'Açıklama', item: 'Madde', cta: 'Buton', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri' };
+const ROLE_NAMES = { title: 'Ana başlık', subtitle: 'Alt başlık', body: 'Açıklama', stat: 'İstatistik', item: 'Madde', cta: 'Buton', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri', main: 'Ana görsel' };
 // Katmanlar panelindeki ad: verilen ad, yoksa yazının başı ya da türü
 function layerName(l) {
   if (l.name) return l.name;
@@ -26,7 +43,8 @@ function layerName(l) {
 }
 function tplFields(t) {
   const set = new Set();
-  (t.data.slides || []).forEach(s => (s.layers || []).forEach(l => { if (ROLE_NAMES[l.role] && (l.type === 'text' || l.role === 'mascot')) set.add(ROLE_NAMES[l.role]); }));
+  const CODE = { MAIN_TITLE: 'title', SUB_TITLE: 'subtitle', DESCRIPTION: 'body', STAT: 'stat', ITEM: 'item', CTA: 'cta', SPEECH: 'speech', TOPIC: 'topic', PAGE_NUMBER: 'num' };
+  (t.data.slides || []).forEach(s => (s.layers || []).forEach(l => { if (l.fixed) return; if (l.field && l.type === 'text') set.add(ROLE_NAMES[CODE[l.field]] || l.field); else if (ROLE_NAMES[l.role] && (l.type === 'text' || l.role === 'mascot' || l.role === 'main')) set.add(ROLE_NAMES[l.role]); }));
   return [...set];
 }
 import { youtubePreview } from './youtube.js';
@@ -54,11 +72,13 @@ export async function renderPosts(view, brand, sub) {
     })}
     ${aiReady ? `<form class="card quick-post mb-4" id="quick-post">
       <input class="input grow" name="topic" maxlength="1000" required placeholder="Konuyu yaz, carousel hazırlansın. Ör. Sınav haftasında kahve nasıl içilir?" aria-label="Post konusu">
-      <select class="select w-auto" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Tasarım: otomatik (marka yerleşimi)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>Tasarım: ${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select>
+      <select class="select w-auto" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Tasarım: otomatik (marka yerleşimi)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>Tasarım: ${t.pack ? `${esc(t.pack)} / ` : ''}${esc(t.name)} V${t.version || 1} · ${esc(t.kindLabel)}</option>`).join('')}</select>
       <select class="select w-auto" name="slides" aria-label="Slayt sayısı">${[4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 6 ? 'selected' : ''}>${n} slayt</option>`).join('')}</select>
+      <select class="select w-auto" name="mascot" aria-label="Maskot" title="Maskot kullanımı">${MASCOT_OPTS}</select>
       <button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button>
       <button class="btn" type="button" data-from-idea title="İçerik havuzundan kullanılmamış bir fikir seç">${icon('idea')}Havuzdan</button>
     </form>` : ''}
+    <section class="card mb-4 gen-queue" id="gen-queue" hidden></section>
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     ${posts.length ? `<div class="post-grid">${posts.map(p => `
       <a class="card post-card" href="${base(brand)}/${esc(p.id)}">
@@ -71,13 +91,14 @@ export async function renderPosts(view, brand, sub) {
   if (templates.length) {
     view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Şablonlar (tasarımların)</h3><span class="small muted">${templates.length}</span></div>
       <p class="small muted mb-3">Tasarımı bir kez hazırla: düzenleyicide yazı kutularını <b>Başlık / Açıklama / Maskot konuşması</b> diye, maskot görselini <b>Maskot yeri</b> diye işaretle ve "Marka şablonu olarak kaydet". Post üretirken yukarıdan tasarımı seç; yapay zekâ yalnızca metni yazar ve maskotun pozunu seçer, yerleşim değişmez. Özel gün tasarımları da böyle eklenir.</p>
-      <div class="post-grid">${templates.map(t => `<div class="post-card tpl-card">
+      ${[...new Set(templates.map(t => t.pack || ''))].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'tr')).map(pk => `${pk || templates.some(t => t.pack) ? `<h4 class="tpl-pack-head">${pk ? `${icon('grid')}${esc(pk)}` : 'Pakete eklenmemiş'}</h4>` : ''}
+      <div class="post-grid">${templates.filter(t => (t.pack || '') === pk).map(t => `<div class="post-card tpl-card">
         <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
-        <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt</div>
+        <div class="strong truncate">${esc(t.name)} <span class="badge" title="Şablon versiyonu">V${t.version || 1}</span></div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt · ${t.usedIn ? `<button type="button" class="link-btn" data-tpl-usage="${esc(t.id)}">${t.usedIn} içerikte kullanıldı</button>` : 'henüz kullanılmadı'}</div>
         <div class="xsmall ${tplFields(t).length ? '' : 'text-warn'} mt-1">${tplFields(t).length ? `Dolan alanlar: ${esc(tplFields(t).join(', '))}` : 'İşaretli alan yok: düzenleyicide kutulara rol ver'}</div>
         ${t.match.frame ? `<span class="tag mt-1">${t.match.frame === 'acilis' ? 'Sabit açılış slaytı' : 'Sabit kapanış slaytı'}</span>` : ''}<div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
-        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
-      </div>`).join('')}</div></section>`);
+        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost" data-tpl-versions="${esc(t.id)}">Versiyonlar</button><button class="btn btn-sm btn-ghost" data-tpl-pack="${esc(t.id)}">Paket</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
+      </div>`).join('')}</div>`).join('')}</section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
       if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format]); });
@@ -112,6 +133,27 @@ export async function renderPosts(view, brand, sub) {
     k.addEventListener('change', sync);
     sync();
   };
+  // Üretim kuyruğu: toplu üretimlerin durumu (çalışırken 3 sn'de bir yenilenir)
+  const qToken = {}; view._qToken = qToken;
+  async function drawQueue() {
+    const box = view.querySelector('#gen-queue');
+    if (!box || view._qToken !== qToken) return;
+    let res;
+    try { res = await api.genJobs(brand.id); } catch { return; }
+    if (!box.isConnected) return;
+    const { jobs, batches } = res;
+    box.hidden = !batches.length;
+    if (!batches.length) return;
+    const open = new Set([...box.querySelectorAll('details[open]')].map(d => d.dataset.batch));
+    box.innerHTML = `<div class="card-head"><h3>Üretim kuyruğu</h3><span class="small muted">Her fikir ayrı tasarım olarak üretilir; bir hata diğerlerini durdurmaz</span></div>
+      ${batches.map((bt, bi) => { const mine = jobs.filter(j => j.batchId === bt.batchId); const pct = Math.round(bt.done / bt.total * 100); return `<details class="q-batch" data-batch="${esc(bt.batchId)}" ${open.has(bt.batchId) || (bi === 0 && (bt.waiting || bt.working)) ? 'open' : ''}>
+        <summary><span class="q-bar"><span style="width:${pct}%"></span></span><b>${bt.done}/${bt.total}</b> tamamlandı${bt.working ? ' · <span class="q-st q-isleniyor">işleniyor</span>' : ''}${bt.waiting ? ` · ${bt.waiting} bekliyor` : ''}${bt.paused ? ` · ${bt.paused} durduruldu` : ''}${bt.failed ? ` · <span class="q-st q-hata">${bt.failed} hata</span>` : ''}<span class="xsmall muted"> · ${timeAgo(bt.createdAt)}</span>
+          <span class="row q-ctl">${bt.waiting ? `<button type="button" class="btn btn-sm btn-ghost" data-q-act="pause" data-q-batch="${esc(bt.batchId)}">Durdur</button>` : ''}${bt.paused ? `<button type="button" class="btn btn-sm" data-q-act="resume" data-q-batch="${esc(bt.batchId)}">Devam et</button>` : ''}${bt.waiting || bt.paused ? `<button type="button" class="btn btn-sm btn-ghost" data-q-act="cancel" data-q-batch="${esc(bt.batchId)}">Bekleyenleri iptal et</button>` : ''}</span></summary>
+        <ul class="q-jobs">${mine.map(j => `<li><span class="q-st q-${j.status}">${esc(j.statusLabel)}</span><span class="grow truncate">${esc(j.ideaTitle)}${j.error ? ` <span class="xsmall danger-text">· ${esc(j.error)}</span>` : ''}</span>
+          ${j.postId ? `<a class="btn btn-sm btn-ghost" href="${base(brand)}/${esc(j.postId)}">Aç</a><button type="button" class="btn btn-sm btn-ghost" data-q-preview="${esc(j.postId)}">Önizle</button>` : ''}${['hata', 'durduruldu', 'yeniden'].includes(j.status) ? `<button type="button" class="btn btn-sm btn-ghost" data-q-retry="${esc(j.id)}">Yeniden dene</button>` : ''}</li>`).join('')}</ul></details>`; }).join('')}`;
+    if (batches.some(bt => bt.waiting || bt.working)) setTimeout(drawQueue, 3000);
+  }
+  drawQueue();
   // Hızlı üret (eski sistemdeki gibi tek satır): kart düzeninde carousel, varsayılan model; metin akarak gelir
   const qp = view.querySelector('#quick-post');
   if (qp) qp.addEventListener('submit', async e => {
@@ -122,10 +164,10 @@ export async function renderPosts(view, brand, sub) {
     try {
       const templateId = fd.get('templateId') || null;
       try { localStorage.setItem(tplKey, templateId || ''); } catch { /* gizli pencere */ }
-      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId }, st));
+      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId, mascot: fd.get('mascot') || 'auto' }, st));
       if (!res) return;
       toast(aiNote(res.post.ai), 'success', 5000);
-      go(base(brand) + '/' + res.post.id);
+      previewPost(brand, res.post);
     } catch (err) { toast(err.message, 'error'); }
   });
   view.onclick = async e => {
@@ -170,6 +212,27 @@ export async function renderPosts(view, brand, sub) {
       try { await api.deleteSharedTemplate(delSh.dataset.delShared); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); }
       return;
     }
+    const qa = e.target.closest('[data-q-act]');
+    if (qa) { e.preventDefault(); if (qa.dataset.qAct === 'cancel' && !confirm('Bekleyen işler kuyruktan çıkarılsın mı? Tamamlananlar kalır.')) return; try { await api.genBatchAction(brand.id, qa.dataset.qBatch, qa.dataset.qAct); drawQueue(); } catch (err) { toast(err.message, 'error'); } return; }
+    const qr = e.target.closest('[data-q-retry]');
+    if (qr) { e.preventDefault(); try { await api.genRetry(brand.id, qr.dataset.qRetry); drawQueue(); } catch (err) { toast(err.message, 'error'); } return; }
+    const qp = e.target.closest('[data-q-preview]');
+    if (qp) { e.preventDefault(); try { const { post: pp } = await api.post(brand.id, qp.dataset.qPreview); return previewPost(brand, pp); } catch (err) { return toast(err.message, 'error'); } }
+    const tv = e.target.closest('[data-tpl-versions]');
+    if (tv) return templateVersionsModal(brand, templates.find(x => x.id === tv.dataset.tplVersions), () => renderPosts(view, brand, null));
+    const tpk = e.target.closest('[data-tpl-pack]');
+    if (tpk) {
+      const t = templates.find(x => x.id === tpk.dataset.tplPack);
+      const packs = [...new Set(templates.map(x => x.pack).filter(Boolean))];
+      return openModal({ title: `"${t.name}" hangi pakette?`, submitLabel: 'Kaydet',
+        body: `<p class="small muted mb-2">Paketler markanın şablonlarını gruplar (ör. "Teknoloji haberleri carousel", "Tekli duyuru", "Reels kapakları").</p><div class="field"><label for="tp-pack">Paket adı</label><input class="input" id="tp-pack" name="pack" maxlength="60" list="tp-packs" value="${esc(t.pack || '')}" placeholder="Boş bırakırsan paketten çıkar"><datalist id="tp-packs">${packs.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>`,
+        onSubmit: async fd => { await api.setTemplatePack(brand.id, t.id, fd.get('pack')); toast('Paket güncellendi.', 'success'); renderPosts(view, brand, null); } });
+    }
+    const tu = e.target.closest('[data-tpl-usage]');
+    if (tu) {
+      const t = templates.find(x => x.id === tu.dataset.tplUsage);
+      try { const { posts: used } = await api.templateUsage(brand.id, t.id); return openModal({ title: `"${t.name}" ile üretilenler`, submitLabel: 'Kapat', body: `<ul class="pool-list">${used.map(u => `<li class="pool-item"><span class="badge">V${u.version}</span><a class="grow" href="${base(brand)}/${esc(u.id)}">${esc(u.title)}</a><span class="xsmall muted">${timeAgo(u.updatedAt)}</span></li>`).join('')}</ul>`, onSubmit: async () => {} }); } catch (err) { return toast(err.message, 'error'); }
+    }
     const rn = e.target.closest('[data-rename-tpl]');
     if (rn) {
       const t = templates.find(x => x.id === rn.dataset.renameTpl);
@@ -201,7 +264,7 @@ export async function renderPosts(view, brand, sub) {
         onSubmit: async (fd, form) => {
           const res = await streamBusy(form.querySelector('[type=submit]'), st => api.createPost(brand.id, { topic: fd.get('topic'), kind: fd.get('kind'), format: fd.get('format'), slides: Number(fd.get('slides')), templateId: fd.get('templateId') || null, model: form.querySelector('#pc-model').value || null }, st));
           toast(aiNote(res.post.ai), 'success', 5000);
-          go(base(brand) + '/' + res.post.id);
+          previewPost(brand, res.post);
         }
       });
       const pm = m.form.querySelector('#pc-model');
@@ -235,6 +298,7 @@ async function fromIdeaFlow(brand, models, templates) {
     body: `<div class="form-grid">
       <div class="field"><label for="fi-format">Fikir türü</label><select class="select" id="fi-format" name="format">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
       <div class="field"><label for="fi-tpl">Şablon</label><select class="select" id="fi-tpl" name="templateId"><option value="">Eşleşen şablon (otomatik)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
+      <div class="field"><label for="fi-mascot">Maskot</label><select class="select" id="fi-mascot" name="mascot">${MASCOT_OPTS}</select></div>
       <div class="field"><label for="fi-slides">Slayt (carousel şablonunda)</label><select class="select" id="fi-slides" name="slides"><option value="">Şablondaki kadar</option>${[3, 4, 5, 6, 7, 8].map(n => `<option>${n}</option>`).join('')}</select></div>
       <div class="field full"><span class="field-label">Seçilen fikir</span><div class="pool-pick" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></div>
       <div class="field"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
@@ -252,7 +316,7 @@ async function fromIdeaFlow(brand, models, templates) {
       form.querySelectorAll('[data-fi-again], #fi-format').forEach(el => { el.disabled = true; });
       let r;
       try {
-        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, slides: Number(fd.get('slides')) || null, model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
+        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, slides: Number(fd.get('slides')) || null, mascot: fd.get('mascot') || 'auto', model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
       } finally {
         clearInterval(timer);
         status.hidden = true;
@@ -261,7 +325,7 @@ async function fromIdeaFlow(brand, models, templates) {
       if (!r) return;
       toast(`"${idea.title}" fikrinden ${r.template ? `"${r.template.name}" şablonuyla` : 'marka yerleşimiyle'} hazırlandı (${aiNote(r.post.ai)}). Fikir kullanıldı olarak işaretlendi.`, 'success', 7000);
       if (r.warning) toast(r.warning, 'info', 6000);
-      go(base(brand) + '/' + r.post.id);
+      previewPost(brand, r.post);
     }
   });
   const box = m.form.querySelector('#fi-idea');
@@ -375,6 +439,73 @@ async function renderGrid(view, brand) {
 // ------------------------------------------------------------ Tasarım referansı → şablon
 // Örnek tasarım (kütüphanedeki "Tasarım referansı" görselleri ya da yeni yüklenen) görseli okuyabilen modelle incelenir;
 // renk paleti, font önerisi ve yerleşim çıkarılıp düzenlenebilir şablon olarak kaydedilir.
+// Üretim sonrası önizleme ve kalite kontrol: bütün sayfalar kartlarda (kapak / iç sayfa / kapanış), her sayfanın
+// denetim sonuçları (taşma, okunurluk, eksik görsel, tutarlılık), sürükleyerek sıralama; istenen sayfa düzenleyicide açılır
+export async function previewPost(brand, post) {
+  const fmts = state.meta.posts.formats;
+  let data = JSON.parse(JSON.stringify(post.data));
+  let changed = false;
+  const F = fmts[data.format] || fmts['4:5'];
+  const tag = i => (data.slides.length < 2 ? 'Tek sayfa' : i === 0 ? 'Kapak' : i === data.slides.length - 1 ? 'Kapanış' : `İç sayfa ${i}`);
+  const m = openModal({ title: `Önizleme: ${post.title}`, submitLabel: 'Bütün tasarımı düzenle',
+    body: `<p class="small muted mb-2">Sayfaları sürükleyerek sıralayabilir, sorunları görebilir, bir sayfaya tıklayıp düzenleyicide açabilirsin.</p>
+      ${post.work ? `<details class="pv-work mb-2"><summary class="small"><b>Yapay zekâ ne yaptı, sistem ne yaptı?</b>${post.ai ? ` <span class="xsmall muted">· ${esc(aiNote(post.ai))}</span>` : ''}</summary><ul>${post.work.map(w => `<li><span class="pv-by pv-${w.by}">${w.by === 'ai' ? 'Yapay zekâ' : 'Sistem'}</span>${esc(w.label)}</li>`).join('')}</ul></details>` : ''}
+      <div id="pv-sum" class="ck-sum"></div><div class="pv-grid" id="pv-grid"></div>
+      <div class="row mt-3"><button type="button" class="btn btn-sm btn-ghost" data-pv-close>Kaydet ve listeye dön</button></div>`,
+    onSubmit: async () => { await persist(); go(base(brand) + '/' + post.id); } });
+  m.form.closest('.modal').classList.add('modal-xl');
+  async function persist() { if (changed) { await api.savePost(brand.id, post.id, { data }); changed = false; } }
+  async function draw() {
+    const issues = checkDesign(data, brand, F, brand.designLock || {});
+    const serious = issues.filter(i => i.level !== 'info');
+    m.form.querySelector('#pv-sum').innerHTML = serious.length ? `<span class="ck-pill ck-warn">${serious.length} sorun</span><span class="xsmall muted">Düzenleyicide "Kontrol" panelinden düzeltebilirsin.</span>` : '<span class="ck-pill ck-info">Sorun bulunmadı</span>';
+    m.form.querySelector('#pv-grid').innerHTML = data.slides.map((s, i) => { const own = issues.filter(x => x.slide === i && x.level !== 'info'); return `<div class="pv-card" draggable="true" data-pv="${i}">
+      <div class="pv-tag ${i === 0 ? 'cover' : i === data.slides.length - 1 && data.slides.length > 1 ? 'end' : ''}">${tag(i)}</div>
+      <canvas data-pv-c="${i}" aria-hidden="true"></canvas>
+      ${own.length ? `<ul class="pv-issues">${own.slice(0, 3).map(x => `<li class="ck-${x.level}">${esc(x.msg)}</li>`).join('')}${own.length > 3 ? `<li>+${own.length - 3} sorun</li>` : ''}</ul>` : '<div class="xsmall muted pv-ok">Sorun yok</div>'}
+      <button type="button" class="btn btn-sm w-full" data-pv-edit="${i}">Bu sayfayı düzenle</button></div>`; }).join('');
+    for (let i = 0; i < data.slides.length; i++) { const c = m.form.querySelector(`[data-pv-c="${i}"]`); await resolveImages(data.slides[i]); if (c && c.isConnected) drawSlide(c, data.slides[i], F); }
+  }
+  let from = null;
+  const grid = m.form.querySelector('#pv-grid');
+  grid.addEventListener('dragstart', e => { const c = e.target.closest('[data-pv]'); if (c) { from = Number(c.dataset.pv); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'sayfa'); } });
+  grid.addEventListener('dragover', e => { if (e.target.closest('[data-pv]')) e.preventDefault(); });
+  grid.addEventListener('drop', e => { const c = e.target.closest('[data-pv]'); if (!c || from == null) return; e.preventDefault(); const to = Number(c.dataset.pv); if (to !== from) { const [mv] = data.slides.splice(from, 1); data.slides.splice(to, 0, mv); changed = true; draw(); } from = null; });
+  m.form.addEventListener('click', async e => {
+    const ed2 = e.target.closest('[data-pv-edit]');
+    if (ed2) { e.preventDefault(); await persist(); try { sessionStorage.setItem(`ium.openSlide.${post.id}`, ed2.dataset.pvEdit); } catch { /* yok */ } m.close(); return go(base(brand) + '/' + post.id); }
+    if (e.target.closest('[data-pv-close]')) { e.preventDefault(); await persist(); m.close(); if (location.hash === base(brand)) route(); else go(base(brand)); }
+  });
+  draw();
+}
+
+// Şablon versiyonları: önizleme, geri yükleme, eski versiyonla tasarım açma
+async function templateVersionsModal(brand, t, done) {
+  let versions;
+  try { versions = (await api.templateVersions(brand.id, t.id)).versions; } catch (err) { return toast(err.message, 'error'); }
+  const fmts = state.meta.posts.formats;
+  const m = openModal({ title: `"${t.name}" versiyonları`, submitLabel: 'Kapat',
+    body: `<p class="small muted mb-2">Şablonu güncellemek yeni versiyon oluşturur; daha önce üretilen tasarımlar değişmez. Eski bir versiyona dönmek de yeni versiyon olarak kaydedilir.</p>
+      <div class="tpl-versions">${versions.map(v => `<div class="tpl-ver ${v.current ? 'on' : ''}"><canvas data-ver-c="${v.version}" aria-hidden="true"></canvas>
+        <div class="grow"><div class="strong">V${v.version}${v.current ? ' <span class="badge">Güncel</span>' : ''}</div><div class="xsmall muted">${esc(v.note || '')} · ${timeAgo(v.createdAt)}</div></div>
+        <div class="row">${v.current ? '' : `<button type="button" class="btn btn-sm" data-ver-restore="${v.version}">Bu versiyona dön</button>`}<button type="button" class="btn btn-sm btn-ghost" data-ver-open="${v.version}">Tasarım aç</button></div></div>`).join('')}</div>`,
+    onSubmit: async () => {} });
+  versions.forEach(v => { const c = m.form.querySelector(`[data-ver-c="${v.version}"]`); if (c && v.data.slides) resolveImages(v.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, v.data.slides[0], fmts[v.data.format] || fmts['4:5']); }); });
+  m.form.addEventListener('click', async e => {
+    const r = e.target.closest('[data-ver-restore]');
+    if (r) { e.preventDefault(); try { const { template } = await api.restoreTemplate(brand.id, t.id, Number(r.dataset.verRestore)); toast(`V${r.dataset.verRestore} geri yüklendi; şablon artık V${template.version}.`, 'success'); m.close(); done(); } catch (err) { toast(err.message, 'error'); } return; }
+    const o = e.target.closest('[data-ver-open]');
+    if (o) { e.preventDefault(); const v = versions.find(x => x.version === Number(o.dataset.verOpen)); try { const { post } = await api.createPost(brand.id, { blank: true, title: `${t.name} V${v.version}`, kind: t.kind }); await api.savePost(brand.id, post.id, { data: v.data }); m.close(); go(base(brand) + '/' + post.id); } catch (err) { toast(err.message, 'error'); } }
+  });
+}
+
+const REF_DESC = {
+  carousel: 'Model seçtiklerinin ortak tasarım dilini çıkarır ve 3 yapı kurar: <b>kapak</b> (güçlü hook, kaydırma isteği), bütün ara sayfalarda tekrar eden <b>bilgi sayfası</b> ve <b>kapanış</b> (sonuç, istenirse çağrı). Üçü tek hikâyenin parçaları gibi aynı dili paylaşır. Metinler kopyalanmaz; logo, maskot ve balon yerlerine markanın kendi görselleri konur.',
+  tekli: 'Tek bir 4:5 gönderi tasarımı kurulur. Mümkünse tek referans seç: çok referans tasarım kararlarını karıştırabilir.',
+  kapak: 'Reels kapağı (9:16) kurulur: ızgarada da okunacak büyük başlık; üst ve alt arayüz alanı boş bırakılır.',
+  story: 'Story (9:16) tasarımı kurulur: tek mesaj, etkileşim için boş alan.',
+  diger: 'Görselin türüne uygun tek tasarım kurulur; oran görselden çıkarılır.'
+};
 const refCard = (a, on) => `<div class="asset-wrap"><button type="button" class="asset asset-pick ${on ? 'is-picked' : ''}" data-ref-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.thumbUrl || a.url)}" alt=""></div><div class="meta small">${esc(a.label || 'Referans')}</div></button>
   <button type="button" class="asset-del" data-ref-del="${esc(a.id)}" aria-label="${esc(a.label || 'Referans')} referansını sil" title="Sil">${icon('trash')}</button></div>`;
 async function referenceFlow(brand, models, refresh) {
@@ -382,13 +513,26 @@ async function referenceFlow(brand, models, refresh) {
   try { refs = (await api.assets(brand.id, 'reference')).assets; } catch (err) { return toast(err.message, 'error'); }
   // Birden çok referans seçilebilir: hepsi birlikte incelenir, en iyi tasarım dili seçilir (en fazla 6)
   const picked = new Set(refs[0] ? [refs[0].id] : []);
+  // Önce tasarım türü: carousel 3 yapı (kapak, içerik, kapanış), diğerleri tek tasarım
+  let type = 'carousel';
+  let combine = true;
+  const single = () => type !== 'carousel' && !combine;
   const syncPick = () => {
+    // "Tek referanstan ilham al" modunda yalnızca bir seçim tutulur
+    if (single() && picked.size > 1) { const first = [...picked][picked.size - 1]; picked.clear(); picked.add(first); }
     m.form.querySelectorAll('[data-ref-pick]').forEach(x => { x.classList.toggle('is-picked', picked.has(x.dataset.refPick)); x.setAttribute('aria-pressed', String(picked.has(x.dataset.refPick))); });
-    m.form.querySelector('#ref-count').textContent = picked.size ? `${picked.size} referans seçili${picked.size > 1 ? ': hepsine bakılıp en iyi tasarım dili seçilir' : ''}` : 'Referans seçilmedi';
+    m.form.querySelector('#ref-count').textContent = picked.size ? `${picked.size} referans seçili${picked.size > 1 ? ': ortak tasarım dili analiz edilir, hiçbiri birebir kopyalanmaz' : ''}` : 'Referans seçilmedi';
+    m.form.querySelector('#ref-warn').hidden = !(type !== 'carousel' && combine && picked.size > 2);
+    m.form.querySelector('#ref-mode').hidden = type === 'carousel';
+    m.form.querySelector('#ref-desc').innerHTML = REF_DESC[type];
   };
   const m = openModal({
     title: 'Referanstan şablon', submitLabel: 'İncele ve şablona çevir',
-    body: `<p class="small muted mb-3">Beğendiğin tasarımların ekran görüntülerini seç ya da toplu yükle (tıklayarak birden çok seçebilirsin). Model hepsine bakıp en iyi tasarım dilini seçer ve 3 slaytlık şablon kurar: <b>kapak</b>, her ara slaytta tekrar eden <b>içerik</b> ve <b>kapanış</b>. Metinler kopyalanmaz; logo, maskot ve konuşma balonu yerlerine markanın kendi görselleri konur.</p>
+    body: `<div class="field"><span class="field-label">1. Referans ne tür bir tasarım?</span><div class="chips" role="radiogroup">${[['carousel', 'Carousel / çoklu gönderi'], ['tekli', 'Tekli gönderi'], ['kapak', 'Reels kapağı'], ['story', 'Story'], ['diger', 'Diğer']].map(([k, v]) => `<button type="button" role="radio" class="chip ${k === 'carousel' ? 'active' : ''}" aria-checked="${k === 'carousel'}" data-ref-type="${k}">${v}</button>`).join('')}</div></div>
+      <div class="field mt-2" id="ref-mode" hidden><span class="field-label">Çalışma biçimi</span><div class="seg seg-sm" role="radiogroup"><button type="button" role="radio" data-ref-combine="0">Tek referanstan ilham al</button><button type="button" role="radio" class="active" data-ref-combine="1">Seçtiklerimi birlikte değerlendir</button></div></div>
+      <p class="small muted mt-2 mb-3" id="ref-desc"></p>
+      <p class="notice small mb-2" id="ref-warn" hidden>Tek gönderide çok sayıda referans tasarım kararlarını karıştırabilir. En iyi sonuç için 1-2 referans seç ya da "Tek referanstan ilham al".</p>
+      <span class="field-label">2. Referansları seç</span>
       <div class="asset-grid" id="ref-grid">${refs.map(a => refCard(a, picked.has(a.id))).join('')}</div>
       <p class="small strong mt-2" id="ref-count" role="status"></p>
       <p class="xsmall muted mt-1" id="ref-empty" ${refs.length ? 'hidden' : ''}>Henüz referans yok; aşağıdan yükle.</p>
@@ -401,12 +545,16 @@ async function referenceFlow(brand, models, refresh) {
     onSubmit: async (fd, form) => {
       if (!picked.size) throw new Error('Önce en az bir referans görsel seç ya da yükle.');
       if (picked.size > 6) throw new Error('En fazla 6 referans birlikte incelenebilir.');
-      const res = await busyTimer(form.querySelector('[type=submit]'), () => api.analyzeDesign(brand.id, { assetIds: [...picked], name: fd.get('name'), model: form.querySelector('#ref-model').value || null }), 'İnceliyor');
+      const res = await busyTimer(form.querySelector('[type=submit]'), () => api.analyzeDesign(brand.id, { assetIds: [...picked], type, combine, name: fd.get('name'), model: form.querySelector('#ref-model').value || null }), 'İnceliyor');
       showResult(res);
     }
   });
   syncPick();
   m.form.addEventListener('click', async e => {
+    const rt = e.target.closest('[data-ref-type]');
+    if (rt) { e.preventDefault(); type = rt.dataset.refType; m.form.querySelectorAll('[data-ref-type]').forEach(b => { b.classList.toggle('active', b === rt); b.setAttribute('aria-checked', String(b === rt)); }); if (type === 'carousel') combine = true; m.form.querySelectorAll('[data-ref-combine]').forEach(b => b.classList.toggle('active', (b.dataset.refCombine === '1') === combine)); return syncPick(); }
+    const rc = e.target.closest('[data-ref-combine]');
+    if (rc) { e.preventDefault(); combine = rc.dataset.refCombine === '1'; m.form.querySelectorAll('[data-ref-combine]').forEach(b => b.classList.toggle('active', b === rc)); return syncPick(); }
     const del = e.target.closest('[data-ref-del]');
     if (del) {
       e.preventDefault();
@@ -467,7 +615,7 @@ async function referenceFlow(brand, models, refresh) {
 // ortada sabit tasarım alanı (sayfa kaymaz); altta sayfa şeridi ve yakınlaştırma; sağda yalnızca bir öğe seçiliyken ayarlar.
 const RAIL = [
   ['metin', 'Metin', 'edit'], ['katmanlar', 'Katmanlar', 'layers'], ['ogeler', 'Öğeler', 'palette'], ['marka', 'Marka', 'identity'], ['yuklemeler', 'Yüklemeler', 'upload'],
-  ['sablonlar', 'Şablonlar', 'grid'], ['zemin', 'Zemin', 'image'], ['ai', 'AI', 'sparkle'], ['aciklama', 'Açıklama', 'notes']
+  ['sablonlar', 'Şablonlar', 'grid'], ['zemin', 'Zemin', 'image'], ['kontrol', 'Kontrol', 'check'], ['ai', 'AI', 'sparkle'], ['aciklama', 'Açıklama', 'notes']
 ];
 
 async function renderEditor(view, brand, id, models) {
@@ -480,7 +628,9 @@ async function renderEditor(view, brand, id, models) {
   const fontList = [...new Set([brand.fonts.heading, brand.fonts.body, ...state.meta.fonts].filter(Boolean))];
   const palette = [...new Set([brand.colors.primary, ...(brand.colors.secondary || []), ...(brand.colors.backgrounds || []), brand.colors.heading, brand.colors.body, '#ffffff', '#1b1f3b'].filter(Boolean))];
   let data = JSON.parse(JSON.stringify(post.data));
+  // Önizlemeden belirli bir sayfayı düzenlemek için açıldıysa o sayfadan başlanır
   let current = 0;
+  try { const want = Number(sessionStorage.getItem(`ium.openSlide.${post.id}`)); sessionStorage.removeItem(`ium.openSlide.${post.id}`); if (want > 0 && want < data.slides.length) current = want; } catch { /* yok */ }
   let selected = null;
   let multi = null; // Ctrl+A: slayttaki bütün katmanlar seçili (kopyala, kes, sil, taşı)
   let guides = []; // sürüklerken mıknatısın tuttuğu hizalama çizgileri
@@ -492,6 +642,7 @@ async function renderEditor(view, brand, id, models) {
   const slide = () => data.slides[current];
   const layer = () => slide().layers.find(l => l.id === selected) || null;
   const $ = s => view.querySelector(s);
+  const $$ = s => [...view.querySelectorAll(s)];
 
   function shell() {
     view.innerHTML = `
@@ -504,6 +655,8 @@ async function renderEditor(view, brand, id, models) {
               <button type="button" data-act="rename">${icon('edit')}Adını değiştir</button>
               <button type="button" data-act="save">${icon('check')}Kaydet <span class="ed-hint" id="ed-save-state">${dirty ? 'Kaydedilmemiş değişiklik' : 'Değişiklikler kaydedildi'}</span></button>
               <button type="button" data-act="template">${icon('grid')}Marka şablonu olarak kaydet</button>
+              ${data.template ? `<button type="button" data-act="template-update">${icon('refresh')}Şablonu bu tasarımla güncelle <span class="ed-hint">${esc(data.template.name)} · yeni versiyon</span></button>` : ''}
+              <button type="button" data-act="autosave">${icon('check')}Otomatik kayıt <span class="ed-hint" id="ed-autosave-state">${autoSaveOn() ? 'Açık' : 'Kapalı'}</span></button>
               <button type="button" data-act="share-template">${icon('grid')}Ortak şablon kütüphanesine kaydet <span class="ed-hint">bütün markalar</span></button>
               ${post.content ? `<a href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde gör</a>` : `<button type="button" data-act="schedule">${icon('calendar')}Takvime ekle</button>`}
               <a href="${base(brand)}">${icon('plus')}Yeni tasarım oluştur</a>
@@ -511,6 +664,8 @@ async function renderEditor(view, brand, id, models) {
             </div></div>
           <div class="ed-menu"><button type="button" class="ed-top-btn" data-menu="boyut" aria-haspopup="true">Yeniden boyutlandır</button>
             <div class="ed-drop" data-drop="boyut" hidden>${Object.entries(meta.formats).map(([k, v]) => `<button type="button" data-format="${k}" class="${k === data.format ? 'on' : ''}">${esc(v.label)} <span class="ed-hint">${v.w}×${v.h}</span></button>`).join('')}</div></div>
+          <button type="button" class="ed-top-btn icon-only" data-act="undo" title="Geri al (Ctrl+Z)" aria-label="Geri al">${icon('undo')}</button>
+          <button type="button" class="ed-top-btn icon-only" data-act="redo" title="Yinele (Ctrl+Shift+Z)" aria-label="Yinele">${icon('redo')}</button>
           <span class="spacer"></span>
           <h1 class="ed-title" title="${esc(post.title)}${data.topic ? ` · Konu: ${esc(data.topic)}` : ''}">${esc(post.title)}</h1>${data.topic ? `<span class="ed-topic xsmall" title="${esc(data.topic)}">${esc(data.topic.length > 48 ? data.topic.slice(0, 48) + '…' : data.topic)}</span>` : ''}
           <button type="button" class="ed-top-btn ed-save" data-act="save">${dirty ? 'Kaydet •' : 'Kaydet'}</button>
@@ -573,14 +728,62 @@ async function renderEditor(view, brand, id, models) {
   function undo() { if (!undoStack.length) return toast('Geri alınacak değişiklik yok.', 'info', 1800); redoStack.push(JSON.stringify(data)); restoreSnap(undoStack.pop()); }
   function redo() { if (!redoStack.length) return toast('Yinelenecek değişiklik yok.', 'info', 1800); undoStack.push(JSON.stringify(data)); restoreSnap(redoStack.pop()); }
 
-  function markDirty(fromHistory = false) {
+  // Marka kilidi: kilitli renk/yazı tipini marka dışına çekmek onay ister (onay bu düzenleme oturumu için geçerli)
+  const lockOk = {};
+  function lockAllows(prop, value) {
+    const lock = brand.designLock || {};
+    const colorProp = ['color', 'highlight', 'bgColor', 'strokeColor', 'shadowColor'].includes(prop);
+    const kind = colorProp && lock.colors && !palette.map(c => String(c).toLowerCase()).includes(String(value).toLowerCase()) ? 'colors' : prop === 'font' && lock.fonts && ![brand.fonts.heading, brand.fonts.body].includes(value) ? 'fonts' : null;
+    if (!kind || lockOk[kind]) return true;
+    if (!confirm(kind === 'colors' ? 'Marka renkleri kilitli. Bu tasarımda marka dışı renk kullanmak için kilidi geçici olarak açalım mı?' : 'Marka yazı tipleri kilitli. Bu tasarımda başka yazı tipi kullanmak için kilidi geçici olarak açalım mı?')) return false;
+    lockOk[kind] = true; return true;
+  }
+  // Dışa aktarma kapısı: denetim politikası "engelle" ise hata/uyarı varken dışa aktarılmaz; "uyar" ise sorar
+  function exportGate() {
+    const lock = brand.designLock || {};
+    if (lock.policy === 'off') return true;
+    const serious = checkDesign(data, brand, format(), lock).filter(i => i.level !== 'info');
+    if (!serious.length) return true;
+    if (lock.policy === 'block' && serious.some(i => i.level === 'error' || ['color', 'font', 'logo', 'mascot', 'size'].includes(i.code))) { toast(`${serious.length} sorun var; marka kuralları gereği dışa aktarılamıyor. Kontrol panelinden düzelt.`, 'error', 5000); openPanel('kontrol'); return false; }
+    if (confirm(`${serious.length} uyarı var (taşma, okunurluk ya da marka kuralı). Yine de dışa aktarılsın mı?`)) return true;
+    openPanel('kontrol'); return false;
+  }
+  // Otomatik kayıt: son değişiklikten 4 sn sonra sessizce kaydeder (Dosya menüsünden kapatılabilir)
+  function autoSaveOn() { try { return localStorage.getItem('ium.autosave') !== '0'; } catch { return true; } }
+  let autoT = null; let autoBusy = false;
+  function scheduleAutoSave() {
+    if (!autoSaveOn()) return;
+    clearTimeout(autoT);
+    autoT = setTimeout(async () => {
+      if (!dirty || autoBusy || !view.isConnected || !$('#stage')) return;
+      autoBusy = true;
+      const sent = JSON.stringify(data);
+      try {
+        post = (await api.savePost(brand.id, post.id, { data: JSON.parse(sent) })).post;
+        if (JSON.stringify(data) === sent) {
+          dirty = false;
+          const b = $('.ed-save'); if (b) b.textContent = 'Kaydet';
+          const st = $('#ed-save-state'); if (st) st.textContent = `Otomatik kaydedildi ${new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+        } else scheduleAutoSave();
+      } catch { /* bağlantı yoksa bir sonraki değişiklikte tekrar denenir */ } finally { autoBusy = false; }
+    }, 4000);
+  }
+  // Aynı alanda art arda yapılan değişiklikler (yazı yazma, kaydırıcı sürükleme) tek adım sayılır
+  let lastKey = ''; let lastAt = 0;
+  function markDirty(fromHistory = false, key = '') {
     if (!fromHistory) {
       const now = JSON.stringify(data);
-      if (now !== lastSnap) { undoStack.push(lastSnap); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; lastSnap = now; }
+      if (now !== lastSnap) {
+        const merge = key && key === lastKey && Date.now() - lastAt < 1200 && undoStack.length;
+        if (!merge) { undoStack.push(lastSnap); if (undoStack.length > 100) undoStack.shift(); }
+        redoStack.length = 0; lastSnap = now;
+      }
+      lastKey = key; lastAt = Date.now();
     }
     dirty = true;
     const b = $('.ed-save'); if (b) b.textContent = 'Kaydet •';
     const st = $('#ed-save-state'); if (st) st.textContent = 'Kaydedilmemiş değişiklik';
+    scheduleAutoSave();
   }
 
   // Tasarım alanı ekrana sığar; yakınlaştırma bunun yüzdesidir
@@ -607,13 +810,35 @@ async function renderEditor(view, brand, id, models) {
     drawList();
     // Panelden çıkarken (change) panel yeniden çizilmez: aynı anda basılan düğmenin tıklaması kaybolmasın
     if (!keepProps) drawProps();
-    if (panel === 'katmanlar') drawPanelBody();
+    if (panel === 'katmanlar' || panel === 'kontrol') drawPanelBody();
   }
-  const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: multi || selected, handles: true, showHidden: true, guides }); };
+  // Hızlı yeniden çizim; vektör öğenin rengi/boyutu değiştiyse yeni hâli yüklenince bir kez daha çizilir
+  const quick = () => {
+    const c = $('#stage'); if (!c) return;
+    const s = slide(); const opts = () => ({ selectedId: multi || selected, handles: true, showHidden: true, guides });
+    drawSlide(c, s, format(), opts());
+    if (s.layers.some(l => l.type === 'vector')) resolveImages(s).then(() => { const c2 = $('#stage'); if (c2 && slide() === s) drawSlide(c2, s, format(), opts()); });
+  };
 
   function drawList() {
     const list = $('#slide-list');
-    list.innerHTML = data.slides.map((s, i) => `<button type="button" class="slide-thumb ${i === current ? 'active' : ''}" data-slide="${i}" aria-label="Slayt ${i + 1}" aria-current="${i === current}"><canvas></canvas><span>${i + 1}</span></button>`).join('');
+    list.innerHTML = data.slides.map((s, i) => `<button type="button" class="slide-thumb ${i === current ? 'active' : ''}" data-slide="${i}" draggable="true" aria-label="Slayt ${i + 1}" aria-current="${i === current}" title="Sürükleyerek sırala · sağ tık: sayfa işlemleri"><canvas></canvas><span>${i + 1}</span></button>`).join('');
+    // Sürükle-bırak ile sayfa sıralama; sağ tıkla sayfa menüsü
+    list.ondragstart = e => { const b = e.target.closest('[data-slide]'); if (!b) return; e.dataTransfer.setData('text/x-slide', b.dataset.slide); e.dataTransfer.effectAllowed = 'move'; };
+    list.ondragover = e => { if (e.target.closest('[data-slide]')) { e.preventDefault(); list.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to')); e.target.closest('[data-slide]').classList.add('drop-to'); } };
+    list.ondragleave = () => list.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to'));
+    list.ondrop = e => {
+      const b = e.target.closest('[data-slide]'); const from = Number(e.dataTransfer.getData('text/x-slide'));
+      list.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to'));
+      if (!b || !Number.isInteger(from)) return; e.preventDefault();
+      const to = Number(b.dataset.slide); if (to === from) return;
+      const [m] = data.slides.splice(from, 1); data.slides.splice(to, 0, m); current = to; setSelected(null); multi = null; markDirty(); shell();
+    };
+    list.oncontextmenu = e => {
+      const b = e.target.closest('[data-slide]'); if (!b) return; e.preventDefault();
+      view._ctxPage = Number(b.dataset.slide);
+      ctxMenu(e.clientX, e.clientY, [['pg-dup', 'Sayfayı çoğalt'], ['pg-copy', 'Sayfayı kopyala'], ['pg-paste', 'Sayfayı yapıştır (sonrasına)', '', !pageClip], '-', ['pg-left', 'Sola taşı', '', view._ctxPage === 0], ['pg-right', 'Sağa taşı', '', view._ctxPage === data.slides.length - 1], '-', ['pg-del', 'Sayfayı sil', '', data.slides.length <= 1]]);
+    };
     list.querySelectorAll('canvas').forEach((c, i) => resolveImages(data.slides[i]).then(() => drawSlide(c, data.slides[i], format())));
   }
 
@@ -629,18 +854,22 @@ async function renderEditor(view, brand, id, models) {
     const p = $('#layer-panel');
     const l = layer();
     if (!l) { p.innerHTML = ''; return; }
+    if (l.type === 'image' && l.role === 'mascot') setTimeout(fillPoses, 0);
     const range = (key, label, value, min, max, step, unit = '') => `<div class="field"><label for="lp-${key}">${label}: <span data-val="${key}">${value}${unit}</span></label><input type="range" id="lp-${key}" min="${min}" max="${max}" step="${step}" data-prop="${key}" data-unit="${unit}" value="${value}"></div>`;
-    const swatches = (key, value) => `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === value ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" data-prop="${key}" value="${esc(value)}" aria-label="Özel renk"></div>`;
-    p.innerHTML = `${data.slides.length > 1 ? `<button type="button" class="btn btn-sm w-full mb-3" data-apply-all title="${l.type === 'text' ? 'Yazı stili (font, boyut, renk, hizalama, konum) aynı roldeki yazılara uygulanır; yazının kendisi değişmez' : 'Aynı görsel/şekil öbür slaytlarda da bu hâle gelir; olmayan slayta eklenir'}">${icon('grid')}Tüm slaytlara uygula</button>` : ''}<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
+    // Hızlı renkler + seçili rengi gösteren ayrı düğme (açınca renk seçici; şekilde gradyan da)
+    const swatches = (key, value) => { const g = key === 'color' && l.type === 'shape' && l.gradient; return `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${!g && String(c).toLowerCase() === String(value).toLowerCase() ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}" title="${esc(c)}"></button>`).join('')}<button type="button" class="cp-trigger" data-cp="${key}" title="Renk seçici"><span class="cp-trigger-sw" style="background:${g ? gradCss(g) : esc(value)}"></span><span>${g ? 'Gradyan' : esc(String(value).toUpperCase())}</span></button></div>`; };
+    p.innerHTML = `${data.slides.length > 1 ? `<button type="button" class="btn btn-sm w-full mb-3" data-apply-all title="${l.type === 'text' ? 'Yazı stili (font, boyut, renk, hizalama, konum) aynı roldeki yazılara uygulanır; yazının kendisi değişmez' : 'Aynı görsel/şekil öbür slaytlarda da bu hâle gelir; olmayan slayta eklenir'}">${icon('grid')}Tüm slaytlara uygula</button>` : ''}<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'vector' ? 'Öğe' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
       <div class="row"><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-dup aria-label="Çoğalt" title="Çoğalt">${icon('plus')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil" title="Sil">${icon('trash')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-deselect aria-label="Kapat" title="Kapat">${icon('x')}</button></div></div>
       <div class="stack-sm">
       ${l.type === 'text' ? `
         <div class="field"><label for="lp-text">Yazı</label><textarea class="textarea" id="lp-text" data-prop="text" rows="3" maxlength="1000">${esc(l.text)}</textarea></div>
         <div class="form-grid tpl-field">
-          <div class="field"><label for="lp-role">Şablonda bu kutuya</label><select class="select" id="lp-role" data-prop="role">${TEXT_ROLES.map(([k, v]) => `<option value="${k}" ${(l.role || 'text') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+          <div class="field"><label for="lp-role">Şablon alanı</label><select class="select" id="lp-role" data-prop="role">${TEXT_ROLES.map(([k, v]) => `<option value="${k}" ${(l.field && !TEXT_ROLES.some(r => r[0] === l.role && r[0] !== 'text' && r[0] !== 'custom') ? 'custom' : (l.role || 'text')) === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
           <div class="field"><label for="lp-maxh">Kutu yüksekliği</label><input class="input" id="lp-maxh" type="number" min="0" max="4000" data-prop="maxH" value="${l.maxH || 0}" title="0 = sınırsız. Doluysa uzun yazı bu yüksekliğe sığana kadar küçülür."></div>
         </div>
-        <p class="xsmall muted">Bu tasarımı şablon olarak kaydedince, post üretirken yalnızca işaretli kutular yeni metinle dolar; yerleşim ve görseller aynen kalır.</p>
+        ${l.role === 'custom' || (l.field && l.role === 'text') ? `<div class="field"><label for="lp-field">Alan kimliği</label><input class="input" id="lp-field" data-field-name value="${esc(l.field || '')}" maxlength="30" placeholder="Ör. FIYAT, TARIH, SEHIR" title="Büyük harf, rakam ve alt çizgi. Aynı kimlik başka kutularda da varsa hepsi aynı değerle dolar."></div>` : ''}
+        ${l.role && l.role !== 'text' ? `<label class="chip-check"><input type="checkbox" data-flag="fixed" ${l.fixed ? 'checked' : ''}><span>Sabit: yapay zekâ bu alanı değiştirmesin</span></label>` : ''}
+        <p class="xsmall muted">Bu tasarımı şablon olarak kaydedince, post üretirken yalnızca işaretli ve sabit olmayan alanlar yeni içerikle dolar; yerleşim, renkler ve diğer öğeler aynen kalır.</p>
         <div class="form-grid">
           <div class="field"><label for="lp-font">Font</label><select class="select" id="lp-font" data-prop="font">${fontList.map(f => `<option ${f === l.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
           <div class="field"><label for="lp-weight">Kalınlık</label><select class="select" id="lp-weight" data-prop="weight">${[400, 500, 600, 700, 800, 900].map(w => `<option value="${w}" ${w === l.weight ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
@@ -666,6 +895,11 @@ async function renderEditor(view, brand, id, models) {
         <div class="field"><label for="lp-qw">Boyut</label><input class="input" id="lp-qw" type="number" min="80" max="2000" data-prop="w" value="${l.w}"></div>
         <div class="field"><span class="field-label">Renk (koyu renk seç; zemin her zaman beyaz kalır)</span>${swatches('color', l.color || '#000000')}</div>
         <p class="xsmall muted">Paylaşmadan önce telefon kamerasıyla okutup dene.</p>`
+      : l.type === 'vector' ? `
+        <div class="form-grid"><div class="field"><label for="lp-vw">Genişlik</label><input class="input" id="lp-vw" type="number" min="4" max="4000" data-prop="w" value="${l.w}"></div>
+          <div class="field"><label for="lp-vh">Yükseklik</label><input class="input" id="lp-vh" type="number" min="4" max="4000" data-prop="h" value="${l.h}"></div></div>
+        ${l.recolor ? `<div class="field"><span class="field-label">Renk</span>${swatches('color', l.color || '#1b1f3b')}</div>` : '<p class="xsmall muted">Çok renkli öğe: renkleri değiştirilemez, vektör olarak kalır.</p>'}
+        <label class="chip-check"><input type="checkbox" data-flag="flipX" ${l.flipX ? 'checked' : ''}><span>Aynala</span></label>`
       : l.type === 'image' ? `
         <div class="form-grid"><div class="field"><label for="lp-iw">Genişlik</label><input class="input" id="lp-iw" type="number" min="10" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-ih">Yükseklik</label><input class="input" id="lp-ih" type="number" min="10" max="4000" data-prop="h" value="${l.h}"></div></div>
@@ -681,6 +915,9 @@ async function renderEditor(view, brand, id, models) {
           ${range('shadow', 'Gölge', l.shadow || 0, 0, 60, 1)}
           <button type="button" class="btn btn-sm btn-ghost" data-fx-reset>Ayarları sıfırla</button>
         </div></details>
+        ${l.role === 'mascot' ? `<div class="field"><span class="field-label">Maskot pozu</span><div class="pose-grid" id="lp-poses"><span class="xsmall muted">Pozlar yükleniyor…</span></div></div>
+          <div class="stack-sm">${data.slides.length > 1 ? `<button type="button" class="btn btn-sm" data-mascot-all>${icon('grid')}Bu konumu bütün sayfalarda kullan</button>` : ''}
+          <label class="chip-check"><input type="checkbox" data-flag="pin" ${l.pin ? 'checked' : ''}><span>Yeni sayfalarda aynı yerde tekrarla</span></label></div>` : ''}
         <div class="field"><label for="lp-irole">Şablonda bu görsel</label><select class="select" id="lp-irole" data-prop="role">${IMAGE_ROLES.map(([k, v]) => `<option value="${k}" ${(l.role || '') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
         <button type="button" class="btn btn-sm" data-replace-image>Görseli değiştir</button>`
       : `<div class="form-grid"><div class="field"><label for="lp-sw">Genişlik</label><input class="input" id="lp-sw" type="number" min="1" max="4000" data-prop="w" value="${l.w}"></div>
@@ -688,6 +925,7 @@ async function renderEditor(view, brand, id, models) {
           ${l.shape === 'circle' ? '' : `<div class="field"><label for="lp-r">Köşe</label><input class="input" id="lp-r" type="number" min="0" max="1000" data-prop="radius" value="${l.radius || 0}"></div>`}</div>
         <label class="chip-check"><input type="checkbox" data-bubble ${l.role === 'bubble' ? 'checked' : ''}><span>Maskotun konuşma balonu (konuşma yoksa gizlenir)</span></label>
         <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>`}
+      <div class="field"><label for="lp-rot">Döndür: <span data-val="rot">${l.rot || 0}°</span></label><div class="row"><input type="range" id="lp-rot" min="-180" max="180" step="1" data-prop="rot" data-unit="°" value="${l.rot || 0}" class="grow"><button type="button" class="btn btn-sm btn-ghost" data-rot="-90" title="90° sola">↺</button><button type="button" class="btn btn-sm btn-ghost" data-rot="90" title="90° sağa">↻</button><button type="button" class="btn btn-sm btn-ghost" data-rot="0" title="Sıfırla">0°</button></div></div>
       <div class="field"><label for="lp-op">Saydamlık: ${l.opacity != null ? l.opacity : 100}%</label><input type="range" id="lp-op" min="10" max="100" step="5" data-prop="opacity" value="${l.opacity != null ? l.opacity : 100}"></div>
       <div class="form-grid"><div class="field"><label for="lp-x">X</label><input class="input" id="lp-x" type="number" data-prop="x" value="${l.x}"></div><div class="field"><label for="lp-y">Y</label><input class="input" id="lp-y" type="number" data-prop="y" value="${l.y}"></div></div>
       </div>`;
@@ -699,33 +937,118 @@ async function renderEditor(view, brand, id, models) {
     ? `<div class="ed-asset-grid">${list.map(a => `<button type="button" class="ed-asset" data-add-asset="${esc(a.id)}" title="${esc(a.label || a.categoryLabel)}"><img src="${esc(a.thumbUrl || a.url)}" alt="${esc(a.label || '')}" loading="lazy"></button>`).join('')}</div>`
     : `<p class="small muted">${empty}</p>`);
 
-  // Hazır paket ızgarası: en fazla 120 öğe gösterilir (arayınca daralır), "Daha fazla" ile artar
-  const stock = { kind: 'sticker', pack: '', q: '', color: brand.colors.primary || '#1b1f3b', limit: 120 };
-  async function drawStock() {
-    const grid = $('#ed-stock');
-    if (!grid) return;
-    let data;
-    try { data = await loadStock(stock.kind); } catch (err) { grid.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; return; }
-    if (!$('#ed-stock')) return;
-    const pk = $('#ed-stock-packs');
-    pk.innerHTML = data.packs.length > 1 ? `<div class="chips mb-2"><button type="button" class="chip ${!stock.pack ? 'active' : ''}" data-stock-pack="">Tümü</button>${data.packs.map(p => `<button type="button" class="chip ${stock.pack === p.id ? 'active' : ''}" data-stock-pack="${esc(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : '';
-    const all = searchItems(itemsOf(stock.kind, data, stock.pack), stock.q);
-    const shown = all.slice(0, stock.limit);
-    grid.innerHTML = shown.length ? `${shown.map(it => `<button type="button" class="ed-stock-item" data-stock-id="${esc(it.id)}" title="${esc(it.name)}" aria-label="${esc(it.name)} ekle"><img src="${svgUrl(it.svg(stock.color))}" alt="" loading="lazy"></button>`).join('')}
-      ${all.length > shown.length ? `<button type="button" class="btn btn-sm btn-ghost ed-stock-more" data-stock-more>Daha fazla (${all.length - shown.length})</button>` : ''}` : '<p class="small muted">Sonuç yok. Başka bir kelime dene.</p>';
-    grid._items = shown;
-  }
-  async function addStock(it) {
-    const label = (stock.kind === 'icon' ? `${it.name} ${stock.color}` : it.name).slice(0, 80);
-    const pack = `Hazır · ${it.pack}`.slice(0, 60);
-    let a = (await assets()).find(x => x.category === 'sticker' && x.pack === pack && x.label === label);
-    if (!a) {
-      toast('Ekleniyor…', 'info', 1200);
-      const file = await svgToPng(it.svg(stock.color), 512, it.id);
-      a = (await api.uploadAsset(brand.id, file, 'sticker', label, pack)).asset;
-      assetCache = null;
+  // Öğeler paneli: kategori ağacı, Türkçe arama, son kullanılanlar, favoriler, popüler ve yeni öğeler
+  const el = { view: 'home', cat: null, sub: null, q: '', color: brand.colors.primary || '#1b1f3b', limit: 120 };
+  const elMap = new Map();
+  const elCell = it => { elMap.set(it.id, it); const fav = elUsage().fav.includes(it.id); const src = it.svg ? svgUrl(previewSvg(it, el.color)) : esc(it.url);
+    return `<div class="el-cell"><button type="button" class="el-item" data-el="${esc(it.id)}" draggable="true" title="${esc(it.name)}" aria-label="${esc(it.name)} ekle"><img src="${src}" alt="" loading="lazy" draggable="false"></button><button type="button" class="el-fav ${fav ? 'on' : ''}" data-el-fav="${esc(it.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Favorilerden çıkar' : 'Favorilere ekle'}" title="${fav ? 'Favorilerden çıkar' : 'Favorilere ekle'}">★</button></div>`; };
+  const elGrid = (list, more) => (list.length ? `<div class="el-grid">${list.map(elCell).join('')}</div>${more ? `<button type="button" class="btn btn-sm btn-ghost mt-2" data-el-more>Daha fazla (${more})</button>` : ''}` : '<p class="small muted">Sonuç yok. Başka bir kelime dene.</p>');
+  async function drawElements() {
+    const box = $('#ed-el'); if (!box) return;
+    let reg;
+    try { reg = await loadRegistry(); } catch (err) { box.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; return; }
+    const custom = await loadCustom(api);
+    const cats = [...reg.categories];
+    if (custom.length) {
+      const groups = [...new Map(custom.map(it => [it.group, it.custom.categoryLabel || it.group])).entries()];
+      cats.unshift({ id: 'custom', name: 'Yüklenen öğeler', count: custom.length, subs: [{ id: 'custom:*', pack: 'custom', group: '*', name: 'Tümü' }, ...groups.map(([g, n]) => ({ id: `custom:${g}`, pack: 'custom', group: g, name: n }))] });
     }
-    addAssetLayer(a);
+    let html = '';
+    try {
+      if (el.view === 'search' && el.q.trim()) {
+        box.innerHTML = '<p class="small muted">Aranıyor…</p>';
+        const res = searchEls(await allItems(api), el.q);
+        html = `<p class="xsmall muted mb-2">${res.length} sonuç</p>${elGrid(res.slice(0, el.limit), Math.max(0, res.length - el.limit))}`;
+      } else if (el.view === 'cat' && el.cat) {
+        const cat = cats.find(c => c.id === el.cat) || cats[0];
+        const sub = cat.subs.find(x => x.id === el.sub) || null;
+        const lists = await Promise.all((sub ? [sub] : cat.subs).map(x => itemsFor(x, api).catch(() => [])));
+        const all = lists.flat();
+        html = `<div class="row mb-2"><button type="button" class="btn btn-sm btn-ghost" data-el-home>← Kategoriler</button><strong class="grow">${esc(cat.name)}</strong></div>
+          ${cat.subs.length > 1 ? `<div class="chips mb-2"><button type="button" class="chip ${!sub ? 'active' : ''}" data-el-sub="">Tümü</button>${cat.subs.map(x => `<button type="button" class="chip ${sub && sub.id === x.id ? 'active' : ''}" data-el-sub="${esc(x.id)}">${esc(x.name)}</button>`).join('')}</div>` : ''}
+          ${elGrid(all.slice(0, el.limit), Math.max(0, all.length - el.limit))}`;
+      } else {
+        const u = elUsage();
+        const recent = await byIds(u.recent.slice(0, 12), api);
+        const favs = await byIds(u.fav.slice(0, 24), api);
+        const popular = await byIds(Object.entries(u.count).sort((x, y) => y[1] - x[1]).slice(0, 12).map(x => x[0]), api);
+        const fresh = [...custom].sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt))).slice(0, 12);
+        const strip = (title, list) => (list.length ? `<h4 class="ed-sub">${title}</h4>${elGrid(list)}` : '');
+        html = `${strip('Son kullanılanlar', recent)}${strip('Favoriler', favs)}${strip('En çok kullanılanlar', popular)}${strip('Yeni eklenenler', fresh)}
+          <h4 class="ed-sub">Kategoriler</h4>
+          <div class="el-cats">${cats.map(c => `<button type="button" class="el-cat" data-el-cat="${esc(c.id)}"><span>${esc(c.name)}</span><small>${c.count || ''}</small></button>`).join('')}</div>`;
+      }
+    } catch (err) { html = `<p class="small muted">${esc(err.message)}</p>`; }
+    const host = $('#ed-el'); if (!host) return;
+    host.innerHTML = html;
+    host.ondragstart = e => { const b = e.target.closest('[data-el]'); if (!b) return; e.dataTransfer.setData('text/x-element', b.dataset.el); e.dataTransfer.effectAllowed = 'copy'; };
+  }
+  // Öğeyi tuvale ekler (at: tuval koordinatı; yoksa ortaya)
+  function addElement(it, at) {
+    const F = format(); markUsed(it.id);
+    const isPattern = /^temel:(desenler|dokular)-/.test(it.id);
+    if (!it.svg) { // yüklenen PNG/WebP/GIF öğe: görsel katmanı
+      const s = 300; const x = at ? at.x - s / 2 : F.w / 2 - s / 2; const y = at ? at.y - s / 2 : F.h / 2 - s / 2;
+      return addLayer({ id: uid(), type: 'image', src: it.url, elementId: it.id, name: it.name.slice(0, 40), x: Math.round(x), y: Math.round(y), w: s, h: s });
+    }
+    const r = ratioOf(it.vb);
+    const w = isPattern ? F.w : 300; const h = isPattern ? F.h : Math.round(300 * r);
+    const l = { id: uid(), type: 'vector', svg: it.svg(), w, h, elementId: it.id, name: it.name.slice(0, 40), color: el.color, ...(it.recolor ? { recolor: true } : {}),
+      x: isPattern ? 0 : Math.round(at ? at.x - w / 2 : F.w / 2 - w / 2), y: isPattern ? 0 : Math.round(at ? at.y - h / 2 : F.h / 2 - h / 2) };
+    if (isPattern) { Object.assign(l, { fit: 'cover', opacity: 20 }); slide().layers.unshift(l); setSelected(l.id); markDirty(); return redraw(); }
+    addLayer(l);
+  }
+
+  // Katman küçük önizlemeleri: katman tek başına çizilir, kapladığı alan 44 px kareye sığdırılır
+  // Maskot pozları (seçili maskotun pozunu değiştirmek için)
+  async function fillPoses() {
+    const box = $('#lp-poses'); const l = layer();
+    if (!box || !l) return;
+    const list = (await assets()).filter(a => a.category === 'mascot');
+    box.innerHTML = list.length ? list.map(a => `<button type="button" class="pose ${a.url === l.src ? 'on' : ''}" data-pose="${esc(a.id)}" title="${esc(a.label || 'Poz')}"><img src="${esc(a.thumbUrl || a.url)}" alt="${esc(a.label || '')}"></button>`).join('') : '<span class="xsmall muted">Kütüphanede maskot pozu yok.</span>';
+  }
+
+  async function drawLayerThumbs(box) {
+    const s = slide();
+    await resolveImages(s);
+    const off = document.createElement('canvas');
+    const F = format();
+    for (const l of s.layers) {
+      const c = box.querySelector(`[data-ly-thumb="${CSS.escape(l.id)}"]`);
+      if (!c) continue;
+      drawSlide(off, { bg: 'rgba(0,0,0,0)', layers: [Object.assign({}, l, { hidden: false, opacity: 100 })] }, F);
+      const b = layerBox(off.getContext('2d'), l);
+      const pad = 8; const sx = Math.max(0, b.x - pad); const sy = Math.max(0, b.y - pad); const sw = Math.max(1, Math.min(F.w - sx, b.w + pad * 2)); const sh = Math.max(1, Math.min(F.h - sy, b.h + pad * 2));
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, 44, 44);
+      ctx.fillStyle = l.type === 'text' && /^#f|^#e|^#d|^#fff/i.test(l.color || '') ? '#3b3f52' : '#f1f2f6'; ctx.fillRect(0, 0, 44, 44);
+      const k = Math.min(40 / sw, 40 / sh);
+      ctx.drawImage(off, sx, sy, sw, sh, (44 - sw * k) / 2, (44 - sh * k) / 2, sw * k, sh * k);
+    }
+    // Sürükle-bırak sıralama (grup başlığı bütün grubu taşır)
+    const ul = box.querySelector('#ly-list');
+    if (!ul) return;
+    let dragIds = null;
+    ul.ondragstart = e => {
+      const r = e.target.closest('[data-ly],[data-ly-group]'); if (!r) return;
+      dragIds = r.dataset.lyGroup ? groupIds(r.dataset.lyGroup) : [r.dataset.ly];
+      e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'katman');
+    };
+    ul.ondragover = e => { const r = e.target.closest('[data-ly],[data-ly-group]'); if (!r || !dragIds) return; e.preventDefault(); ul.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to')); r.classList.add('drop-to'); };
+    ul.ondragleave = () => ul.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to'));
+    ul.ondrop = e => {
+      const r = e.target.closest('[data-ly],[data-ly-group]'); ul.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to'));
+      if (!r || !dragIds) return; e.preventDefault();
+      const target = r.dataset.lyGroup ? groupIds(r.dataset.lyGroup) : [r.dataset.ly];
+      if (target.some(id => dragIds.includes(id))) { dragIds = null; return; }
+      // Liste en öndekinden başlar: bir satırın üstüne bırakılan, o satırın önüne geçer
+      const arr = slide().layers;
+      const moving = arr.filter(l => dragIds.includes(l.id));
+      const rest = arr.filter(l => !dragIds.includes(l.id));
+      const topIdx = Math.max(...target.map(id => rest.findIndex(l => l.id === id)));
+      rest.splice(topIdx + 1, 0, ...moving);
+      slide().layers = rest; dragIds = null; markDirty(); redraw();
+    };
   }
 
   async function drawPanelBody() {
@@ -733,15 +1056,60 @@ async function renderEditor(view, brand, id, models) {
     if (!box || !panel) return;
     const title = (RAIL.find(r => r[0] === panel) || [])[1];
     const head = `<h3 class="ed-panel-title">${esc(title)}</h3>`;
+    if (panel === 'kontrol') {
+      const lock = brand.designLock || {};
+      const issues = checkDesign(data, brand, format(), lock);
+      const lv = { error: 'Hata', warn: 'Uyarı', info: 'Öneri' };
+      const fixable = issues.filter(i => i.fix);
+      box.innerHTML = `${head}<div class="ck-sum">${['error', 'warn', 'info'].map(k => `<span class="ck-pill ck-${k}">${issues.filter(i => i.level === k).length} ${lv[k].toLocaleLowerCase('tr')}</span>`).join('')}</div>
+        ${issues.length ? `${fixable.length ? `<button type="button" class="btn btn-sm w-full mb-2" data-ck-fixall>${icon('check')}Düzeltilebilenleri düzelt (${fixable.length})</button>` : ''}
+        <ul class="ck-list">${issues.map((it, i) => `<li class="ck-item ck-${it.level}"><span class="ck-dot" aria-hidden="true"></span><div class="grow"><div class="small">${esc(it.msg)}</div><div class="xsmall muted">Sayfa ${it.slide + 1} · ${lv[it.level]}</div></div>
+          <div class="row"><button type="button" class="btn btn-sm btn-ghost" data-ck-go="${i}">Git</button>${it.fix ? `<button type="button" class="btn btn-sm" data-ck-fix="${i}">Düzelt</button>` : ''}${aiReady && ['overflow', 'shrunk'].includes(it.code) ? `<button type="button" class="btn btn-sm" data-ai-short="${i}">${icon('sparkle')}Kısalt (AI)</button>` : ''}</div></li>`).join('')}</ul>`
+        : '<p class="small">Sorun bulunmadı: metinler sığıyor, okunuyor ve sayfalar tutarlı.</p>'}
+        <details class="ed-fx mt-3" ${lock.colors || lock.fonts || lock.margin ? '' : ''}><summary>Marka tasarım kuralları (${esc(brand.name)})</summary>
+          <form class="stack-sm mt-2" id="ck-lock">
+            <label class="chip-check"><input type="checkbox" name="colors" ${lock.colors ? 'checked' : ''}><span>Renkler kilitli (yalnız marka renkleri)</span></label>
+            <label class="chip-check"><input type="checkbox" name="fonts" ${lock.fonts ? 'checked' : ''}><span>Yazı tipleri kilitli (${esc([brand.fonts.heading, brand.fonts.body].filter(Boolean).join(' / ') || 'marka fontu yok')})</span></label>
+            <label class="chip-check"><input type="checkbox" name="logo" ${lock.logo ? 'checked' : ''}><span>Logo konumu sabit</span></label>
+            <label class="chip-check"><input type="checkbox" name="mascot" ${lock.mascot ? 'checked' : ''}><span>Maskot konumu sabit</span></label>
+            <div class="form-grid"><div class="field"><label>Kenar boşluğu (px)</label><input class="input input-sm" type="number" name="margin" min="0" max="300" value="${lock.margin || 0}"></div>
+              <div class="field"><label>Denetim</label><select class="select" name="policy">${[['off', 'Kapalı'], ['warn', 'Dışa aktarırken uyar'], ['block', 'Hata varsa dışa aktarmayı engelle']].map(([k, v]) => `<option value="${k}" ${lock.policy === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+              <div class="field"><label>Başlık en az / en çok</label><div class="row"><input class="input input-sm" type="number" name="titleMin" value="${lock.titleMin || ''}" placeholder="px"><input class="input input-sm" type="number" name="titleMax" value="${lock.titleMax || ''}" placeholder="px"></div></div>
+              <div class="field"><label>Açıklama en az / en çok</label><div class="row"><input class="input input-sm" type="number" name="bodyMin" value="${lock.bodyMin || ''}" placeholder="px"><input class="input input-sm" type="number" name="bodyMax" value="${lock.bodyMax || ''}" placeholder="px"></div></div></div>
+            <div class="field"><label>Tasarım dili ve yerleşim kuralları</label><textarea class="textarea" name="notes" rows="3" maxlength="1500" placeholder="Ör. Başlık hep sol üstte, maskot sağ altta; bol boşluk; en fazla iki renk.">${esc(lock.notes || '')}</textarea></div>
+            <button type="button" class="btn btn-sm btn-primary" data-ck-save>Kuralları kaydet</button>
+            <p class="xsmall muted">Kilitli özelliklere yapay zekâ dokunmaz. Düzenleyicide kilitli bir özelliği değiştirmek istersen onay sorulur.</p>
+          </form></details>`;
+      box._issues = issues;
+      return;
+    }
     if (panel === 'katmanlar') {
+      // En öndeki katman en üstte; aynı gruptakiler bir başlık altında toplanır
       const list = slide().layers.slice().reverse();
-      box.innerHTML = `${head}${list.length ? `<ul class="ly-list" role="list">${list.map(l => `<li class="ly-row${l.id === selected || (multi || []).includes(l.id) ? ' on' : ''}${l.hidden ? ' is-hidden' : ''}" data-ly="${esc(l.id)}">
-          <button type="button" class="ly-name" data-ly-pick title="Seç · çift tıkla: adını değiştir">${esc(layerName(l))}</button>
+      const sel = new Set(selIds());
+      const row = (l, inGroup) => `<li class="ly-row${sel.has(l.id) ? ' on' : ''}${l.hidden ? ' is-hidden' : ''}${inGroup ? ' in-group' : ''}" data-ly="${esc(l.id)}" draggable="true">
+          <span class="ly-grip" aria-hidden="true">⋮⋮</span><canvas class="ly-thumb" data-ly-thumb="${esc(l.id)}" width="44" height="44" aria-hidden="true"></canvas>
+          <button type="button" class="ly-name" data-ly-pick title="Seç · çift tıkla: adını değiştir">${esc(layerName(l))}${l.pin ? ' <span class="ly-tag" title="Her yeni sayfada tekrarlanır">sabit</span>' : ''}</button>
           <button type="button" class="ly-btn" data-ly-vis aria-label="${l.hidden ? 'Göster' : 'Gizle'}" title="${l.hidden ? 'Göster' : 'Gizle (dışa aktarılmaz)'}">${icon(l.hidden ? 'eyeOff' : 'eye')}</button>
-          <button type="button" class="ly-btn${l.locked ? ' on' : ''}" data-ly-lock aria-label="${l.locked ? 'Kilidi aç' : 'Kilitle'}" title="${l.locked ? 'Kilidi aç' : 'Kilitle (tuvalde tıklanmaz, taşınmaz)'}">${icon(l.locked ? 'lock' : 'unlock')}</button>
-          <button type="button" class="ly-btn" data-ly-move="1" aria-label="Öne al" title="Öne al">${icon('chevronUp')}</button>
-          <button type="button" class="ly-btn" data-ly-move="-1" aria-label="Arkaya al" title="Arkaya al">${icon('chevronDown')}</button></li>`).join('')}</ul>
-          <p class="xsmall muted mt-2">Üstteki katman önde görünür. Gizli katman dışa aktarılmaz; kilitli katman tuvalde tıklanmaz.</p>` : '<p class="small muted">Bu slaytta katman yok.</p>'}`;
+          <button type="button" class="ly-btn${l.locked ? ' on' : ''}" data-ly-lock aria-label="${l.locked ? 'Kilidi aç' : 'Kilitle'}" title="${l.locked ? 'Kilidi aç' : 'Kilitle'}">${icon(l.locked ? 'lock' : 'unlock')}</button></li>`;
+      const parts = []; const seen = new Set();
+      for (const l of list) {
+        if (l.group) {
+          if (seen.has(l.group)) continue;
+          seen.add(l.group);
+          const members = list.filter(x => x.group === l.group);
+          if (members.length > 1) {
+            parts.push(`<li class="ly-group${members.every(m => sel.has(m.id)) ? ' on' : ''}" data-ly-group="${esc(l.group)}" draggable="true"><span class="ly-grip" aria-hidden="true">⋮⋮</span>${icon('group')}<button type="button" class="ly-name" data-ly-gpick>Grup · ${members.length} öğe</button><button type="button" class="ly-btn" data-ly-ungroup title="Grubu çöz" aria-label="Grubu çöz">${icon('x')}</button></li>`);
+            members.forEach(m => parts.push(row(m, true)));
+            continue;
+          }
+        }
+        parts.push(row(l, false));
+      }
+      box.innerHTML = `${head}${list.length ? `<div class="row mb-2 ly-tools"><button type="button" class="btn btn-sm btn-ghost" data-ly-tool="group" title="Ctrl+G">${icon('group')}Grupla</button><button type="button" class="btn btn-sm btn-ghost" data-ly-tool="front" title="En öne">${icon('chevronUp')}Öne</button><button type="button" class="btn btn-sm btn-ghost" data-ly-tool="back" title="En arkaya">${icon('chevronDown')}Arkaya</button></div>
+          <ul class="ly-list" role="list" id="ly-list">${parts.join('')}</ul>
+          <p class="xsmall muted mt-2">Sürükleyerek sırala; üstteki önde görünür. Shift+tık ile çoklu seç. Gizli katman dışa aktarılmaz, kilitli katman tuvalde tıklanmaz.</p>` : '<p class="small muted">Bu slaytta katman yok.</p>'}`;
+      drawLayerThumbs(box);
       return;
     }
     if (panel === 'metin') {
@@ -758,19 +1126,21 @@ async function renderEditor(view, brand, id, models) {
       const list = await assets();
       const stickers = list.filter(a => a.category === 'sticker');
       const packs = [...new Set(stickers.map(a => a.pack).filter(Boolean))];
-      box.innerHTML = `${head}<h4 class="ed-sub">Şekiller</h4>
+      const sw = [...new Set([brand.colors.primary, ...(brand.colors.secondary || []), brand.colors.heading, '#ffffff', '#111111'].filter(c => /^#[0-9a-f]{6}$/i.test(c || '')))];
+      box.innerHTML = `${head}
+        <div class="row mb-2"><input class="input input-sm grow" id="ed-el-q" type="search" placeholder="Öğe ara (ör. kalp, ok, çerçeve, kahve)" value="${esc(el.q)}" aria-label="Öğe ara"></div>
+        <div class="row mb-2 el-colors" role="group" aria-label="Öğe rengi"><span class="xsmall muted">Renk</span>${sw.map(c => `<button type="button" class="sw ${el.color === c ? 'on' : ''}" data-el-color="${esc(c)}" style="background:${esc(c)}" title="${esc(c)}" aria-label="Renk ${esc(c)}"></button>`).join('')}<input type="color" id="ed-el-color" value="${esc(el.color)}" aria-label="Özel renk" title="Özel renk"></div>
+        <p class="xsmall muted mb-2">Tek renkli öğelerin rengi değişir. Tıkla ya da tuvale sürükle.</p>
+        <div id="ed-el"><p class="small muted">Yükleniyor…</p></div>
+        <h4 class="ed-sub mt-3">Basit şekil</h4>
         <div class="ed-shapes"><button type="button" data-add="shape" title="Dikdörtgen"><span class="sh rect"></span></button><button type="button" data-add="shape" data-preset="rounded" title="Yuvarlak köşe"><span class="sh rounded"></span></button><button type="button" data-add="circle" title="Daire"><span class="sh circle"></span></button><button type="button" data-add="shape" data-preset="line" title="Çizgi"><span class="sh line"></span></button></div>
         <h4 class="ed-sub">QR kod</h4>
         <div class="row mb-3"><input class="input input-sm" id="ed-qr-text" placeholder="Link ya da metin (ör. kampanya sayfası)" maxlength="200" aria-label="QR kod metni"><button type="button" class="btn btn-sm" data-add="qr">${icon('plus')}Ekle</button></div>
-        <h4 class="ed-sub">Hazır paketler</h4>
-        <div class="seg seg-sm mb-2" role="group" aria-label="Paket türü">${STOCK_KINDS.map(([k, v]) => `<button type="button" class="${stock.kind === k ? 'active' : ''}" data-stock-kind="${k}">${v}</button>`).join('')}</div>
-        <div class="row mb-2"><input class="input input-sm grow" id="ed-stock-q" placeholder="Ara (ör. kalp, roket, kahve)" value="${esc(stock.q)}" aria-label="Pakette ara">${stock.kind === 'icon' ? `<input type="color" id="ed-stock-color" value="${esc(stock.color)}" aria-label="İkon rengi" title="İkon rengi">` : ''}</div>
-        <div id="ed-stock-packs"></div>
-        <div id="ed-stock" class="ed-stock-grid"><p class="small muted">Yükleniyor…</p></div>
         <h4 class="ed-sub mt-3">Kütüphanedeki sticker'lar</h4>
         ${packs.length ? `<div class="chips mb-2"><button type="button" class="chip active" data-sticker-pack="">Tümü</button>${packs.map(p => `<button type="button" class="chip" data-sticker-pack="${esc(p)}">${esc(p)}</button>`).join('')}</div>` : ''}
-        <div id="ed-stickers">${assetGrid(stickers, `Henüz sticker yok. <a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> paket olarak yükleyebilirsin.`)}</div>`;
-      drawStock();
+        <div id="ed-stickers">${assetGrid(stickers, `Henüz sticker yok. <a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> paket olarak yükleyebilirsin.`)}</div>
+        <p class="xsmall muted mt-3"><a class="link" href="#/ayarlar/ogeler">Öğe yükle</a> · <a class="link" href="#/ayarlar/lisanslar">Lisanslar</a></p>`;
+      drawElements();
       return;
     }
     if (panel === 'marka') {
@@ -804,19 +1174,43 @@ async function renderEditor(view, brand, id, models) {
       return;
     }
     if (panel === 'zemin') {
-      const bi = slide().bgImage;
-      box.innerHTML = `${head}<div class="field"><label for="slide-bg">Zemin rengi</label><div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === slide().bg ? 'on' : ''}" style="background:${esc(c)}" data-bg-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" id="slide-bg" value="${esc(slide().bg)}" aria-label="Slayt zemin rengi"></div></div>
+      const sl = slide(); const bi = sl.bgImage; const g = sl.bgGradient;
+      box.innerHTML = `${head}<div class="field"><span class="field-label">Zemin rengi</span><div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${!g && String(c).toLowerCase() === String(sl.bg).toLowerCase() ? 'on' : ''}" style="background:${esc(c)}" data-bg-color="${esc(c)}" aria-label="${esc(c)}" title="${esc(c)}"></button>`).join('')}
+          <button type="button" class="cp-trigger" data-cp-bg title="Renk seçici ve gradyan"><span class="cp-trigger-sw" style="background:${g ? gradCss(g) : esc(sl.bg)}"></span><span>${g ? 'Gradyan' : esc(String(sl.bg).toUpperCase())}</span></button></div></div>
+        <h4 class="ed-sub">Hazır zeminler</h4>
+        <div class="bg-presets">${BG_PRESETS.map((p, i) => `<button type="button" class="bg-preset" data-bg-preset="${i}" style="background:${p.g ? gradCss(p.g) : p.c}" title="${esc(p.n)}" aria-label="${esc(p.n)}"></button>`).join('')}</div>
         <h4 class="ed-sub">Zemin görseli</h4>
         ${bi ? `<div class="seg mb-2">${[['cover', 'Kapla'], ['contain', 'Sığdır']].map(([k, v]) => `<button type="button" data-bg-fit="${k}" class="${bi.fit === k ? 'active' : ''}">${v}</button>`).join('')}</div>
+          <label class="small" for="bg-zoom">Ölçek</label><input type="range" id="bg-zoom" min="100" max="300" step="5" value="${bi.zoom || 100}" data-bg-img="zoom">
+          <label class="small" for="bg-ox">Yatay konum</label><input type="range" id="bg-ox" min="-50" max="50" step="1" value="${bi.ox || 0}" data-bg-img="ox">
+          <label class="small" for="bg-oy">Dikey konum</label><input type="range" id="bg-oy" min="-50" max="50" step="1" value="${bi.oy || 0}" data-bg-img="oy">
           <label class="small" for="bg-dim">Karartma</label><input type="range" id="bg-dim" min="0" max="80" step="5" value="${bi.dim || 0}">
           <div class="row mt-2"><button type="button" class="btn btn-sm" data-bg-image>Değiştir</button><button type="button" class="btn btn-sm btn-ghost" data-bg-remove>Kaldır</button></div>`
-        : `<button type="button" class="btn btn-sm" data-bg-image>${icon('image')}Kütüphaneden zemin görseli seç</button>`}`;
+        : `<button type="button" class="btn btn-sm" data-bg-image>${icon('image')}Kütüphaneden zemin görseli seç</button>`}
+        <h4 class="ed-sub">Bütün sayfalar</h4>
+        <div class="stack-sm">${data.slides.length > 1 ? `<button type="button" class="btn btn-sm" data-bg-all>${icon('grid')}Bu zemini bütün sayfalara uygula</button>` : ''}
+        <label class="chip-check"><input type="checkbox" id="bg-pin" ${data.bgPin ? 'checked' : ''}><span>Zemini sabitle (yeni sayfalar bu zeminle açılır)</span></label></div>`;
       return;
     }
     if (panel === 'ai') {
-      box.innerHTML = `${head}${aiReady ? `<p class="small muted mb-2">Bütün slayt metinleri seçtiğin modelle yeniden yazılır; yerleşim marka şablonuyla baştan kurulur.</p>
-        <div class="stack-sm">${modelSelect(models, 'yazim', { id: 'pw-model' })}<button type="button" class="btn" data-rewrite>${icon('refresh')}Metni yeniden yaz</button></div>`
-        : '<div class="notice"><div>AI bağlı değil.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}`;
+      const cmds = [['kisalt', 'Kısalt'], ['kanca', 'Daha güçlü kanca'], ['cta', "CTA'yı güçlendir"], ['samimi', 'Daha samimi'], ['resmi', 'Daha resmi'], ['sade', 'Sadeleştir'], ['yazim', 'Yazımı düzelt']];
+      box.innerHTML = `${head}
+        <h4 class="ed-sub">Hızlı düzen (AI'sız)</h4>
+        <div class="chips mb-3">
+          <button type="button" class="chip" data-quick="mascot-right">Maskot sağ alta</button><button type="button" class="chip" data-quick="mascot-left">Maskot sol alta</button>
+          <button type="button" class="chip" data-quick="dup">Sayfayı çoğalt</button><button type="button" class="chip" data-quick="center-title">Başlığı ortala</button><button type="button" class="chip" data-quick="cta-page">Kapanış (CTA) sayfası</button>
+        </div>
+        ${aiReady ? `<h4 class="ed-sub">AI ile metin düzenle</h4>
+        <p class="xsmall muted mb-2">Yalnızca metinler değişir; yerleşim, renk, yazı tipi ve marka kilidi korunur. Sonucu görüp onaylarsın.</p>
+        <div class="seg seg-sm mb-2" role="group" aria-label="Kapsam">${[['sel', 'Seçili metin'], ['page', 'Bu sayfa'], ['all', 'Bütün sayfalar']].map(([k, v]) => `<button type="button" class="${aiScope === k ? 'active' : ''}" data-ai-scope="${k}">${v}</button>`).join('')}</div>
+        <div class="chips mb-2">${cmds.map(([k, v]) => `<button type="button" class="chip" data-ai-cmd="${k}">${v}</button>`).join('')}</div>
+        <div class="field"><label for="ai-free">Ne yapayım?</label><textarea class="textarea" id="ai-free" rows="2" maxlength="400" placeholder="Ör. başlığı soru cümlesi yap · maskotu sola taşı · bu sayfayı çoğalt"></textarea></div>
+        <div class="stack-sm">${modelSelect(models, 'yazim', { id: 'pw-model' })}<button type="button" class="btn btn-primary" data-ai-cmd="serbest">${icon('sparkle')}Uygula</button></div>
+        <div id="ai-result" class="mt-3"></div>
+        <h4 class="ed-sub mt-3">Baştan yaz</h4>
+        <p class="small muted mb-2">Bütün slayt metinleri seçtiğin modelle yeniden yazılır; şablonlu tasarımda yerleşim korunur.</p>
+        <button type="button" class="btn" data-rewrite>${icon('refresh')}Metni yeniden yaz</button>`
+        : '<div class="notice"><div>AI bağlı değil. Hızlı düzen komutları AI olmadan çalışır.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}`;
       return;
     }
     if (panel === 'aciklama') {
@@ -826,6 +1220,60 @@ async function renderEditor(view, brand, id, models) {
       reviewBox(box.querySelector('#pc-review'), brand, models, () => `${box.querySelector('#pc-caption').value}\n\n${box.querySelector('#pc-tags').value}`, 'caption',
         improved => { box.querySelector('#pc-caption').value = improved; data.caption = improved; markDirty(); });
     }
+  }
+
+  // ---- A6 AI komutları
+  let aiScope = 'page';
+  let aiPending = null;
+  // Bir metin kutusunun alabileceği yaklaşık karakter sayısı (kutu yüksekliği varsa satır × satır başı karakter)
+  const capacity = l => { const len = (l.text || '').length; if (!(l.maxH > 0)) return Math.max(20, Math.ceil(len * 1.25)); const per = Math.max(4, Math.floor(l.w / ((l.size || 40) * 0.52))); const lines = Math.max(1, Math.floor(l.maxH / ((l.size || 40) * (l.lineHeight || 1.2)))); return Math.max(8, per * lines); };
+  function aiTexts(scope, cmd, only) {
+    const pick = (s, i) => s.layers.filter(l => l.type === 'text' && !l.hidden && !l.fixed && !l.locked && (l.text || '').trim()).map(l => ({ l, i }));
+    let list = scope === 'all' ? data.slides.flatMap(pick) : pick(slide(), current);
+    if (only) list = list.filter(x => x.l.id === only);
+    else if (scope === 'sel') { const ids = multi || (selected ? [selected] : []); list = list.filter(x => ids.includes(x.l.id)); }
+    return list.map(({ l, i }) => { const cap = capacity(l); const len = (l.text || '').length; return { id: l.id, role: l.role, field: l.field, text: l.text, slide: i, max: cmd === 'kisalt' ? Math.max(4, Math.min(cap, Math.ceil(len * 0.7))) : cap }; });
+  }
+  // AI'sız düzen komutları (serbest komut metninden de tanınır)
+  function quickCmd(k) {
+    const F = format();
+    if (k === 'mascot-right' || k === 'mascot-left') {
+      const m = slide().layers.find(l => l.type === 'image' && l.role === 'mascot');
+      if (!m) { toast('Bu sayfada maskot yok. Marka panelinden maskot ekle.', 'info'); return true; }
+      m.x = k === 'mascot-right' ? F.w - m.w - 20 : 20; m.y = F.h - m.h - 20; setSelected(m.id); markDirty(); redraw(); toast('Maskot taşındı.', 'success', 1200); return true;
+    }
+    if (k === 'dup') { view._ctxPage = current; pageAction('dup'); view._ctxPage = null; return true; }
+    if (k === 'center-title') {
+      const t = slide().layers.find(l => l.type === 'text' && (l.role === 'title' || l.field === 'MAIN_TITLE'));
+      if (!t) { toast('Bu sayfada başlık yok.', 'info'); return true; }
+      t.align = 'center'; t.x = Math.round((F.w - t.w) / 2); setSelected(t.id); markDirty(); redraw(); return true;
+    }
+    if (k === 'cta-page') { newPage('kapanis'); return true; }
+    return false;
+  }
+  const intentOf = q => { const s = q.toLocaleLowerCase('tr'); if (/maskot/.test(s) && /sağ/.test(s)) return 'mascot-right'; if (/maskot/.test(s) && /sol/.test(s)) return 'mascot-left'; if (/(sayfa|slayt)\w*\s+çoğalt|çoğalt/.test(s) && !/metin|yazı/.test(s)) return 'dup'; if (/başlı\w*\s+ortala/.test(s)) return 'center-title'; if (/(kapanış|cta)\s+sayfa/.test(s)) return 'cta-page'; return null; };
+  async function runAi(cmd, btn, only = null) {
+    const free = cmd === 'serbest' ? ($('#ai-free') || {}).value || '' : '';
+    if (cmd === 'serbest') { const it = intentOf(free); if (it && quickCmd(it)) return; }
+    const texts = aiTexts(only ? 'all' : aiScope, cmd, only);
+    if (!texts.length) return toast(aiScope === 'sel' && !only ? 'Önce tuvalde bir metin seç.' : 'Değiştirilecek metin yok.', 'info');
+    const modelRef = ($('#pw-model') || {}).value || null;
+    try {
+      const r = await busy(btn, () => api.postAiEdit(brand.id, { command: cmd, instruction: free, texts, topic: data.topic || post.title, kind: post.kind, modelRef }));
+      if (!r.changes.length) return toast('Değişiklik önerilmedi; metinler zaten uygun.', 'info');
+      if (only) { applyAi(r.changes); drawPanelBody(); return toast('Metin kısaltıldı. Geri almak için Ctrl+Z.', 'success'); }
+      aiPending = r.changes; drawAiResult(r.note);
+    } catch (err) { toast(err.message, 'error'); }
+  }
+  function applyAi(changes) {
+    const all = data.slides.flatMap(s => s.layers);
+    changes.forEach(c => { const l = all.find(x => x.id === c.id); if (l) l.text = c.text; });
+    markDirty(); redraw(); drawProps();
+  }
+  function drawAiResult(note) {
+    const host = $('#ai-result'); if (!host || !aiPending) return;
+    host.innerHTML = `<div class="ai-diff">${note ? `<p class="xsmall muted mb-2">${esc(note)}</p>` : ''}${aiPending.map((c, i) => `<label class="ai-diff-row"><input type="checkbox" data-ai-pick="${i}" checked><span><s class="muted">${esc(c.before)}</s><br><b>${esc(c.text)}</b></span></label>`).join('')}
+      <div class="row mt-2"><button type="button" class="btn btn-sm btn-primary" data-ai-apply>Seçilenleri uygula</button><button type="button" class="btn btn-sm btn-ghost" data-ai-cancel>Vazgeç</button></div></div>`;
   }
 
   function openPanel(k) {
@@ -855,7 +1303,7 @@ async function renderEditor(view, brand, id, models) {
       if (north) l.y = Math.round(o.y + b.h - b.h * k);
       return;
     }
-    const keep = l.type === 'qr' || ((l.type === 'image') !== shift);
+    const keep = l.type === 'qr' || ((l.type === 'image' || l.type === 'vector') !== shift);
     let w = Math.max(12, o.w + sx); let hh = Math.max(12, o.h + sy);
     if (keep && h.length === 2) { const k = Math.max(w / o.w, hh / o.h); w = o.w * k; hh = o.h * k; }
     if (l.type === 'qr') hh = w;
@@ -882,7 +1330,27 @@ async function renderEditor(view, brand, id, models) {
     const c = $('#stage');
     let drag = null;
     const point = e => { const r = c.getBoundingClientRect(); return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) }; };
+    // Öğeler panelinden sürükle-bırak
+    c.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('text/x-element')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+    c.addEventListener('drop', e => { const id = e.dataTransfer.getData('text/x-element'); const it = id && elMap.get(id); if (!it) return; e.preventDefault(); const p = point(e); const F = format(); addElement(it, { x: p.x * (F.w / c.width), y: p.y * (F.h / c.height) }); });
+    // Sağ tık: tıklanan katman seçilir (çoklu seçimdeyse seçim korunur), bağlam menüsü açılır
+    const openCtxAt = (cx, cy) => {
+      const p = point({ clientX: cx, clientY: cy });
+      const hit = hitTest(c, slide(), p.x, p.y);
+      if (hit && !(multi && multi.includes(hit.id))) {
+        if (hit.group && groupIds(hit.group).length > 1) { setSelected(null); multi = groupIds(hit.group); } else { multi = null; setSelected(hit.id); }
+        redraw();
+      } else if (!hit) { multi = null; setSelected(null); redraw(); }
+      layerMenu(cx, cy);
+    };
+    c.addEventListener('contextmenu', e => { e.preventDefault(); if (drag) drag = null; openCtxAt(e.clientX, e.clientY); });
+    // Dokunmatik: uzun basınca aynı menü
+    let press = null;
+    c.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch') return; const sx = e.clientX; const sy = e.clientY; press = setTimeout(() => { press = null; drag = null; openCtxAt(sx, sy); }, 550); }, true);
+    const cancelPress = e => { if (press && (e.type !== 'pointermove' || Math.hypot(e.movementX || 0, e.movementY || 0) > 4)) { clearTimeout(press); press = null; } };
+    c.addEventListener('pointermove', cancelPress, true); c.addEventListener('pointerup', cancelPress, true); c.addEventListener('pointercancel', cancelPress, true);
     c.addEventListener('pointerdown', e => {
+      if (e.button === 2) return; // sağ tık sürükleme başlatmaz
       const p = point(e);
       // Seçili katmanın tutamacından tutulduysa boyutlandırma
       const sel = layer();
@@ -903,6 +1371,11 @@ async function renderEditor(view, brand, id, models) {
         multi = cur.includes(hit.id) ? cur.filter(x => x !== hit.id) : [...cur, hit.id];
         if (multi.length < 2) { const one = multi[0] || null; multi = null; setSelected(one); return redraw(); }
         setSelected(null); multi = multi.slice(); c.focus(); return quick();
+      }
+      // Gruptaki bir katmana tıklanınca bütün grup seçilir (Alt ile tek katman)
+      if (hit && hit.group && !e.altKey && !(multi && multi.includes(hit.id))) {
+        const g = groupIds(hit.group);
+        if (g.length > 1) { setSelected(null); multi = g; }
       }
       // Çoklu seçimdeki bir katmandan tutulursa hepsi birlikte taşınır
       if (multi && hit && multi.includes(hit.id)) {
@@ -937,7 +1410,7 @@ async function renderEditor(view, brand, id, models) {
       const l = layer();
       if (!l || l.locked) return;
       const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-      if (k) { e.preventDefault(); const s = e.shiftKey ? 10 : 1; l.x += k[0] * s; l.y += k[1] * s; markDirty(); redraw(); }
+      if (k) { e.preventDefault(); const s = e.shiftKey ? 10 : 1; l.x += k[0] * s; l.y += k[1] * s; markDirty(false, `${l.id}:move`); redraw(); }
       if (e.key === 'Delete') { slide().layers = slide().layers.filter(x => x.id !== l.id); setSelected(null); markDirty(); redraw(); }
       if (e.key === 'Escape') { setSelected(null); redraw(); }
     });
@@ -995,6 +1468,121 @@ async function renderEditor(view, brand, id, models) {
 
   const closeMenus = () => view.querySelectorAll('[data-drop]').forEach(d => { d.hidden = true; });
   const addLayer = l => { slide().layers.push(l); setSelected(l.id); markDirty(); redraw(); };
+  // Gruplar: aynı "group" değerini taşıyan katmanlar birlikte seçilir ve taşınır
+  const groupIds = g => slide().layers.filter(l => l.group === g).map(l => l.id);
+  const selIds = () => multi || (selected ? [selected] : []);
+  function groupSel() {
+    const ids = selIds();
+    if (ids.length < 2) return toast('Gruplamak için en az iki katman seç (Shift+tık ya da Ctrl+A).', 'info', 2500);
+    const g = 'g' + uid();
+    slide().layers.forEach(l => { if (ids.includes(l.id)) l.group = g; });
+    multi = ids; setSelected(null); markDirty(); redraw();
+    toast(`${ids.length} katman gruplandı. Gruptaki tek katmanı seçmek için Alt+tık.`, 'success', 2500);
+  }
+  function ungroup() {
+    const ids = selIds();
+    const gs = new Set(slide().layers.filter(l => ids.includes(l.id) && l.group).map(l => l.group));
+    if (!gs.size) return toast('Seçili katmanlarda grup yok.', 'info', 1800);
+    slide().layers.forEach(l => { if (gs.has(l.group)) delete l.group; });
+    markDirty(); redraw(); toast('Grup çözüldü.', 'success', 1800);
+  }
+  // Katman sırası: öne/arkaya (bir adım ya da en uca)
+  function reorder(dir) {
+    const ids = selIds(); if (!ids.length) return;
+    const arr = slide().layers;
+    const picked = arr.filter(l => ids.includes(l.id)); const rest = arr.filter(l => !ids.includes(l.id));
+    if (dir === 'front') slide().layers = [...rest, ...picked];
+    else if (dir === 'back') slide().layers = [...picked, ...rest];
+    else {
+      const idx = arr.findIndex(l => ids.includes(l.id));
+      if (dir === 'up') { const last = arr.map((l, i) => (ids.includes(l.id) ? i : -1)).filter(i => i >= 0).pop(); if (last >= arr.length - 1) return; const nxt = arr[last + 1]; slide().layers = arr.filter(l => l !== nxt); slide().layers.splice(slide().layers.findIndex(l => ids.includes(l.id)), 0, nxt); }
+      else { if (idx <= 0) return; const prv = arr[idx - 1]; slide().layers = arr.filter(l => l !== prv); const lastSel = slide().layers.map((l, i) => (ids.includes(l.id) ? i : -1)).filter(i => i >= 0).pop(); slide().layers.splice(lastSel + 1, 0, prv); }
+    }
+    markDirty(); redraw();
+  }
+  // Yeni sayfa: türüne göre mevcut sayfalardan yerleşim alınır; sabitlenen öğeler (pin) ve zemin korunur
+  function newPage(kind) {
+    if (data.slides.length >= 10) return toast('En fazla 10 slayt olabilir.', 'info');
+    const clone = s => { const c = JSON.parse(JSON.stringify(s)); delete c.frame; c.layers.forEach(l => { l.id = uid(); }); return c; };
+    const n = data.slides.length;
+    let page;
+    if (kind === 'kapak') page = clone(data.slides[0]);
+    else if (kind === 'kapanis') page = clone(data.slides[n - 1]);
+    else if (kind === 'bilgi') page = clone(data.slides[n >= 3 ? Math.min(current === 0 || current === n - 1 ? 1 : current, n - 2) : current]);
+    else if (kind === 'cogalt') page = clone(slide());
+    else {
+      const cur = slide();
+      page = { bg: cur.bg, layers: cur.layers.filter(l => l.pin).map(l => Object.assign(JSON.parse(JSON.stringify(l)), { id: uid() })) };
+      if (cur.bgImage) page.bgImage = JSON.parse(JSON.stringify(cur.bgImage));
+      if (cur.bgGradient) page.bgGradient = JSON.parse(JSON.stringify(cur.bgGradient));
+    }
+    // Zemin sabitlendiyse her yeni sayfa bu sayfanın zeminiyle açılır
+    if (data.bgPin) { const cur = slide(); page.bg = cur.bg; if (cur.bgGradient) page.bgGradient = JSON.parse(JSON.stringify(cur.bgGradient)); else delete page.bgGradient; if (cur.bgImage) page.bgImage = JSON.parse(JSON.stringify(cur.bgImage)); else delete page.bgImage; }
+    data.slides.splice(current + 1, 0, page); current++; setSelected(null); multi = null; markDirty(); shell();
+    toast({ kapak: 'Kapak sayfası eklendi.', bilgi: 'Bilgi sayfası eklendi.', kapanis: 'Kapanış sayfası eklendi.', cogalt: 'Sayfa çoğaltıldı.' }[kind] || 'Sayfa eklendi; sabitlenen öğeler ve zemin korundu.', 'success', 2000);
+  }
+  // Sağ tık / uzun dokunma menüsü
+  function ctxMenu(x, y, items) {
+    document.querySelectorAll('.ctx-menu').forEach(m => m.remove());
+    const m = document.createElement('div');
+    m.className = 'ctx-menu'; m.setAttribute('role', 'menu');
+    m.innerHTML = items.map(it => (it === '-' ? '<hr>' : `<button type="button" role="menuitem" data-ctx="${it[0]}" ${it[3] ? 'disabled' : ''}>${it[1]}${it[2] ? `<span class="ed-hint">${it[2]}</span>` : ''}</button>`)).join('');
+    document.body.appendChild(m);
+    const r = m.getBoundingClientRect();
+    m.style.left = `${Math.min(x, innerWidth - r.width - 8)}px`; m.style.top = `${Math.min(y, innerHeight - r.height - 8)}px`;
+    const close = ev => { if (ev && ev.type === 'keydown' && ev.key !== 'Escape') return; m.remove(); document.removeEventListener('mousedown', outside, true); document.removeEventListener('keydown', close, true); };
+    const outside = ev => { if (!m.contains(ev.target)) close(); };
+    setTimeout(() => { document.addEventListener('mousedown', outside, true); document.addEventListener('keydown', close, true); }, 0);
+    m.addEventListener('click', ev => { const b = ev.target.closest('[data-ctx]'); if (!b) return; close(); runCtx(b.dataset.ctx); });
+    const first = m.querySelector('button:not([disabled])'); if (first) first.focus();
+  }
+  function layerMenu(x, y) {
+    const ids = selIds(); const one = layer();
+    const grouped = slide().layers.some(l => ids.includes(l.id) && l.group);
+    const anyLocked = slide().layers.some(l => ids.includes(l.id) && l.locked);
+    const anyPin = slide().layers.some(l => ids.includes(l.id) && l.pin);
+    if (!ids.length) return ctxMenu(x, y, [['paste', 'Yapıştır', 'Ctrl+V', !clip], ['all', 'Tümünü seç', 'Ctrl+A'], '-', ['page-dup', 'Sayfayı çoğalt'], ['page-new', 'Yeni boş sayfa (sabit öğelerle)']]);
+    ctxMenu(x, y, [['copy', 'Kopyala', 'Ctrl+C'], ['paste', 'Yapıştır', 'Ctrl+V', !clip], ['dup', 'Çoğalt', 'Ctrl+D'], ['del', 'Sil', 'Delete'], '-',
+      ['front', 'En öne getir'], ['up', 'Bir öne'], ['down', 'Bir arkaya'], ['back', 'En arkaya gönder'], '-',
+      ['rot90', '90° sağa döndür'], '-',
+      ['lock', anyLocked ? 'Kilidi aç' : 'Kilitle'], ['pin', anyPin ? 'Yeni sayfalarda tekrarlama' : 'Her yeni sayfada tekrarla'],
+      ids.length > 1 ? ['group', 'Grupla', 'Ctrl+G'] : null, grouped ? ['ungroup', 'Grubu çöz', 'Ctrl+Shift+G'] : null,
+      one && data.slides.length > 1 ? ['all-slides', 'Tüm slaytlara uygula'] : null].filter(Boolean));
+  }
+  function runCtx(a) {
+    if (a.startsWith('pt-')) return newPage(a.slice(3));
+    const ids = selIds();
+    const items = slide().layers.filter(l => ids.includes(l.id));
+    if (a === 'copy') { clip = JSON.parse(JSON.stringify(items.length > 1 ? items : items[0])); return toast('Kopyalandı; Ctrl+V ile yapıştır.', 'info', 1500); }
+    if (a === 'paste') return clip && pasteLayer(clip);
+    if (a === 'dup') return pasteLayer(JSON.parse(JSON.stringify(items.length > 1 ? items : items[0])));
+    if (a === 'del') { slide().layers = slide().layers.filter(l => !ids.includes(l.id)); multi = null; setSelected(null); markDirty(); return redraw(); }
+    if (['front', 'back', 'up', 'down'].includes(a)) return reorder(a);
+    if (a === 'lock') { const on = !items.some(l => l.locked); items.forEach(l => { if (on) l.locked = true; else delete l.locked; }); if (on) { multi = null; setSelected(null); } markDirty(); return redraw(); }
+    if (a === 'pin') { const on = !items.some(l => l.pin); items.forEach(l => { if (on) l.pin = true; else delete l.pin; }); markDirty(); toast(on ? 'Yeni boş sayfalarda aynı yerde tekrarlanacak.' : 'Tekrarlama kaldırıldı.', 'success', 2200); return redraw(); }
+    if (a === 'rot90') { items.forEach(l => { const r = ((((l.rot || 0) + 90) + 180) % 360 + 360) % 360 - 180; if (r) l.rot = r; else delete l.rot; }); markDirty(); return redraw(); }
+    if (a === 'group') return groupSel();
+    if (a === 'ungroup') return ungroup();
+    if (a === 'all') { setSelected(null); multi = slide().layers.map(l => l.id); return quick(); }
+    if (a === 'all-slides') return applyAll();
+    if (a === 'page-dup') return newPage('cogalt');
+    if (a === 'page-new') return newPage('bos');
+    if (a.startsWith('pg-')) { pageAction(a.slice(3)); view._ctxPage = null; }
+  }
+  // Sayfa menüsü (slayt şeridinde sağ tık): çoğalt, kopyala, yapıştır, taşı, sil
+  let pageClip = null;
+  function pageAction(a) {
+    const i = view._ctxPage != null ? view._ctxPage : current;
+    if (a === 'dup' || a === 'paste') {
+      if (data.slides.length >= 10) return toast('En fazla 10 slayt olabilir.', 'info');
+      const src = a === 'dup' ? data.slides[i] : pageClip; if (!src) return;
+      const c = JSON.parse(JSON.stringify(src)); c.layers.forEach(l => { l.id = uid(); });
+      data.slides.splice(i + 1, 0, c); current = i + 1;
+    } else if (a === 'copy') { pageClip = JSON.parse(JSON.stringify(data.slides[i])); return toast('Sayfa kopyalandı; sağ tık → Sayfayı yapıştır.', 'info', 1800); }
+    else if (a === 'left' || a === 'right') { const j = i + (a === 'left' ? -1 : 1); if (j < 0 || j >= data.slides.length) return; [data.slides[i], data.slides[j]] = [data.slides[j], data.slides[i]]; current = j; }
+    else if (a === 'del') { if (data.slides.length <= 1 || !confirm('Bu sayfa silinsin mi?')) return; data.slides.splice(i, 1); current = Math.max(0, Math.min(current, data.slides.length - 1)); }
+    setSelected(null); multi = null; markDirty(); shell();
+  }
 
   // 11.8 Tüm slaytlara uygula: seçili katmanın karşılığı öbür slaytlarda bulunur ve aynı hâle getirilir.
   // Yazı: aynı roldeki yazının stili (metni değil). Görsel: aynı kaynaklı (değiştirildiyse eski kaynaklı) ya da aynı yerdeki
@@ -1029,7 +1617,8 @@ async function renderEditor(view, brand, id, models) {
   // Ctrl+C / Ctrl+X katmanı kopyalar / keser, Ctrl+V yapıştırır; panoda görsel varsa (ör. ekrandan kırpılan) tasarıma
   // görsel olarak eklenir. Ctrl+Z geri al, Ctrl+Y ya da Ctrl+Shift+Z yinele, Ctrl+D çoğalt, Delete sil.
   let clip = null;
-  const typing = el => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  // Yalnızca yazı girilen alanlar "yazıyor" sayılır; renk, kaydırıcı, seçim, kutucuk ve sayı alanında kısayollar çalışır
+  const typing = el => el && (el.isContentEditable || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && ['text', 'search', 'email', 'url', 'tel', 'password', ''].includes(el.type || '')));
   const alive = () => view.isConnected && $('#stage');
   const pasteLayer = l => {
     // Çoklu kopya: hepsi birlikte yapıştırılır ve seçili kalır
@@ -1061,6 +1650,8 @@ async function renderEditor(view, brand, id, models) {
     const k = e.key.toLowerCase();
     if (mod && k === 'z' && !e.shiftKey) { e.preventDefault(); return undo(); }
     if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); return redo(); }
+    // Ctrl+G grupla, Ctrl+Shift+G grubu çöz
+    if (mod && k === 'g') { e.preventDefault(); return e.shiftKey ? ungroup() : groupSel(); }
     // Ctrl+A: slayttaki bütün katmanları seç
     if (mod && k === 'a') {
       e.preventDefault();
@@ -1101,7 +1692,21 @@ async function renderEditor(view, brand, id, models) {
   };
   document.addEventListener('keydown', onKey, true);
   document.addEventListener('paste', onPaste, true);
-  const addAssetLayer = a => { const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, ...(a.category === 'mascot' ? { role: 'mascot' } : a.category === 'logo' ? { role: 'logo' } : {}), x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
+  // Maskot: seçili bir maskot varsa yalnızca pozu değişir (yer ve boyut aynı); yoksa son kullanılan maskot yerine,
+  // o da yoksa sağ alt köşeye yerleşir
+  const mascotSpot = () => {
+    const near = [slide(), ...data.slides].flatMap(s => s.layers).find(l => l.type === 'image' && l.role === 'mascot');
+    if (near) return { x: near.x, y: near.y, w: near.w, h: near.h };
+    if (data.mascotSpot) return data.mascotSpot;
+    const F = format(); return { x: F.w - 470, y: F.h - 540, w: 450, h: 520 };
+  };
+  const placeMascot = a => {
+    const cur = layer();
+    if (cur && cur.type === 'image' && cur.role === 'mascot') { cur.src = a.url; cur.assetId = a.id; markDirty(); drawProps(); return redraw(); }
+    const sp = mascotSpot();
+    addLayer(Object.assign({ id: uid(), type: 'image', role: 'mascot', src: a.url, assetId: a.id }, sp));
+  };
+  const addAssetLayer = a => { if (a.category === 'mascot') return placeMascot(a); const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, ...(a.category === 'mascot' ? { role: 'mascot' } : a.category === 'logo' ? { role: 'logo' } : {}), x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
   async function save(btn) {
     post = (await busy(btn, () => api.savePost(brand.id, post.id, { data }))).post;
     data = JSON.parse(JSON.stringify(post.data)); dirty = false;
@@ -1114,10 +1719,18 @@ async function renderEditor(view, brand, id, models) {
     if (t.id === 'pc-caption') { data.caption = t.value; markDirty(); return; }
     if (t.id === 'pc-tags') { data.hashtags = t.value.split(/[\s,]+/).filter(Boolean).map(h => h.replace(/^#?/, '#')); markDirty(); return; }
     if (t.id === 'slide-bg') { slide().bg = t.value; markDirty(); quick(); return; }
-    if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(); quick(); return; }
+    if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(false, 'bgdim'); quick(); return; }
+    if (t.dataset.bgImg && slide().bgImage) { slide().bgImage[t.dataset.bgImg] = Number(t.value); markDirty(false, 'bgimg:' + t.dataset.bgImg); quick(); return; }
+    if (t.id === 'bg-pin') { if (t.checked) data.bgPin = true; else delete data.bgPin; markDirty(); return; }
     if (t.id === 'ed-zoom') { zoom = Number(t.value); $('#ed-zoom-val').textContent = `%${zoom}`; fit(); return; }
-    if (t.id === 'ed-stock-q') { clearTimeout(view._stockT); view._stockT = setTimeout(() => { stock.q = t.value; stock.limit = 120; drawStock(); }, 200); return; }
-    if (t.id === 'ed-stock-color') { stock.color = t.value; clearTimeout(view._stockT); view._stockT = setTimeout(drawStock, 150); return; }
+    if (t.matches('[data-field-name]') && layer()) {
+      const v = t.value.toLocaleUpperCase('en').replace(/[^A-Z0-9_]/g, '_').replace(/^[^A-Z]+/, '').slice(0, 30);
+      if (v !== t.value) t.value = v;
+      const lf = layer(); if (v.length >= 2) lf.field = v; else delete lf.field;
+      markDirty(false, `${lf.id}:field`); return;
+    }
+    if (t.id === 'ed-el-q') { clearTimeout(view._stockT); view._stockT = setTimeout(() => { el.q = t.value; el.limit = 120; el.view = el.q.trim() ? 'search' : 'home'; drawElements(); }, 250); return; }
+    if (t.id === 'ed-el-color') { el.color = t.value; clearTimeout(view._stockT); view._stockT = setTimeout(drawElements, 150); return; }
     // Efekt kutucukları
     if (t.matches('[data-flag]') && layer()) {
       const lf = layer(); const f = t.dataset.flag;
@@ -1131,8 +1744,12 @@ async function renderEditor(view, brand, id, models) {
     const l = layer();
     if (!prop || !l) return;
     l[prop] = ['text', 'font', 'color', 'role', 'shadowColor', 'strokeColor', 'bgColor'].includes(prop) ? t.value : Number(t.value);
+    view._propKey = `${l.id}:${prop}`;
+    if (!lockAllows(prop, t.value)) { drawProps(); return; }
     const vl = $(`[data-val="${prop}"]`); if (vl) vl.textContent = `${t.value}${t.dataset.unit || ''}`;
     if (prop === 'maxH' && !(l.maxH > 0)) delete l.maxH;
+    // Özel alan: rol "custom" olarak saklanmaz; kimlik (field) ile tanınır. Başka bir role geçince kimlik silinir
+    if (prop === 'role') { if (l.role === 'custom') { l.role = 'text'; l.field = l.field || 'ALAN_' + (slide().layers.indexOf(l) + 1); drawProps(); } else { delete l.field; if (l.role === 'text') delete l.fixed; } }
     // Doldurulacak bir kutu seçilince yüksekliği şimdiki hâlinden alınır: uzun metin buna sığdırılır
     if (prop === 'role' && l.type === 'text' && FILL_ROLES.includes(l.role) && !l.maxH) {
       const ctx = document.createElement('canvas').getContext('2d');
@@ -1140,7 +1757,7 @@ async function renderEditor(view, brand, id, models) {
       const mh = $('#lp-maxh'); if (mh) mh.value = l.maxH;
     }
     if (l.type === 'qr' && prop === 'w') l.h = l.w;
-    markDirty();
+    markDirty(false, view._propKey);
     quick();
   };
   // Gölge/çizgi açılınca renk seçicisi görünsün diye panel yeniden çizilir
@@ -1164,13 +1781,29 @@ async function renderEditor(view, brand, id, models) {
     const rail = t.closest('[data-rail]');
     if (rail) return openPanel(rail.dataset.rail);
     if (t.closest('[data-rail-close]')) return openPanel(panel);
-    const sk = t.closest('[data-stock-kind]');
-    if (sk) { stock.kind = sk.dataset.stockKind; stock.pack = ''; stock.q = ''; stock.limit = 120; return drawPanelBody(); }
-    const sp2 = t.closest('[data-stock-pack]');
-    if (sp2) { stock.pack = sp2.dataset.stockPack; stock.limit = 120; return drawStock(); }
-    if (t.closest('[data-stock-more]')) { stock.limit += 240; return drawStock(); }
-    const si = t.closest('[data-stock-id]');
-    if (si) { const it = ($('#ed-stock')._items || []).find(x => x.id === si.dataset.stockId); if (it) { try { await addStock(it); } catch (err) { toast(err.message, 'error'); } } return; }
+    const ckg = t.closest('[data-ck-go]');
+    if (ckg) { const it = $('#ed-panel-body')._issues[Number(ckg.dataset.ckGo)]; current = it.slide; multi = null; setSelected(it.layer || null); drawList(); return redraw(); }
+    const ckf = t.closest('[data-ck-fix]');
+    if (ckf) { const it = $('#ed-panel-body')._issues[Number(ckf.dataset.ckFix)]; if (applyFix(data, it, format())) { markDirty(); drawList(); redraw(); drawPanelBody(); } return; }
+    if (t.closest('[data-ck-fixall]')) { let n = 0; for (const it of $('#ed-panel-body')._issues.filter(i => i.fix)) if (applyFix(data, it, format())) n++; if (n) { markDirty(); drawList(); redraw(); drawPanelBody(); toast(`${n} sorun düzeltildi. Geri almak için Ctrl+Z.`, 'success', 2500); } return; }
+    if (t.closest('[data-ck-save]')) {
+      const fd = new FormData($('#ck-lock'));
+      const body = { colors: fd.get('colors') === 'on', fonts: fd.get('fonts') === 'on', logo: fd.get('logo') === 'on', mascot: fd.get('mascot') === 'on', margin: Number(fd.get('margin')) || 0, policy: fd.get('policy'), titleMin: Number(fd.get('titleMin')) || 0, titleMax: Number(fd.get('titleMax')) || 0, bodyMin: Number(fd.get('bodyMin')) || 0, bodyMax: Number(fd.get('bodyMax')) || 0, notes: fd.get('notes') };
+      try { brand.designLock = (await api.setDesignLock(brand.id, body)).designLock; toast('Marka tasarım kuralları kaydedildi.', 'success'); drawPanelBody(); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const ec = t.closest('[data-el-cat]');
+    if (ec) { el.view = 'cat'; el.cat = ec.dataset.elCat; el.sub = null; el.limit = 120; return drawElements(); }
+    const es = t.closest('[data-el-sub]');
+    if (es) { el.sub = es.dataset.elSub || null; el.limit = 120; return drawElements(); }
+    if (t.closest('[data-el-home]')) { el.view = 'home'; el.cat = null; el.q = ''; const q = $('#ed-el-q'); if (q) q.value = ''; return drawElements(); }
+    if (t.closest('[data-el-more]')) { el.limit += 240; return drawElements(); }
+    const eco = t.closest('[data-el-color]');
+    if (eco) { el.color = eco.dataset.elColor; $$('[data-el-color]').forEach(b => b.classList.toggle('on', b === eco)); const ci = $('#ed-el-color'); if (ci) ci.value = el.color; return drawElements(); }
+    const ef = t.closest('[data-el-fav]');
+    if (ef) { const on = toggleFav(ef.dataset.elFav); ef.classList.toggle('on', on); ef.setAttribute('aria-pressed', on); toast(on ? 'Favorilere eklendi.' : 'Favorilerden çıkarıldı.', 'success', 1200); return; }
+    const ei = t.closest('[data-el]');
+    if (ei) { const it = elMap.get(ei.dataset.el); if (it) addElement(it); return; }
     const ly = t.closest('[data-ly]');
     if (ly) {
       const l = slide().layers.find(x => x.id === ly.dataset.ly);
@@ -1179,13 +1812,26 @@ async function renderEditor(view, brand, id, models) {
       if (t.closest('[data-ly-lock]')) { if (l.locked) delete l.locked; else l.locked = true; markDirty(); return redraw(); }
       const mv = t.closest('[data-ly-move]');
       if (mv) { const arr = slide().layers; const i = arr.indexOf(l); const j = i + Number(mv.dataset.lyMove); if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; markDirty(); return redraw(); }
-      // Seçim: liste yeniden çizilmez (çift tıklayıp adlandırma bozulmasın), yalnızca işaret güncellenir
-      if (t.closest('[data-ly-pick]')) { multi = null; setSelected(l.id); view.querySelectorAll('.ly-row').forEach(r => r.classList.toggle('on', r === ly)); drawProps(); quick(); fit(); return; }
+      // Seçim: liste yeniden çizilmez (çift tıklayıp adlandırma bozulmasın), yalnızca işaret güncellenir; Shift ile çoklu
+      if (t.closest('[data-ly-pick]')) {
+        if (e.shiftKey) { const cur = selIds(); multi = cur.includes(l.id) ? cur.filter(x => x !== l.id) : [...cur, l.id]; if (multi.length < 2) { const one = multi[0] || null; multi = null; setSelected(one); } else setSelected(null); }
+        else { multi = null; setSelected(l.id); }
+        const ids = selIds(); view.querySelectorAll('.ly-row').forEach(r => r.classList.toggle('on', ids.includes(r.dataset.ly)));
+        drawProps(); quick(); fit(); return;
+      }
       return;
     }
+    const lg = t.closest('[data-ly-group]');
+    if (lg) {
+      if (t.closest('[data-ly-ungroup]')) { setSelected(null); multi = groupIds(lg.dataset.lyGroup); return ungroup(); }
+      setSelected(null); multi = groupIds(lg.dataset.lyGroup); return redraw();
+    }
+    const lt = t.closest('[data-ly-tool]');
+    if (lt) { const a = lt.dataset.lyTool; return a === 'group' ? groupSel() : reorder(a); }
     const s = t.closest('[data-slide]');
     if (s) { current = Number(s.dataset.slide); setSelected(null); if (panel === 'zemin') drawPanelBody(); return redraw(); }
-    if (t.closest('[data-slide-add]')) { data.slides.splice(current + 1, 0, { bg: (brand.colors.backgrounds || [])[0] || '#ffffff', layers: [] }); current++; setSelected(null); markDirty(); return shell(); }
+    const sa = t.closest('[data-slide-add]');
+    if (sa) { const r = sa.getBoundingClientRect(); return ctxMenu(r.left, r.top - 230, [['pt-kapak', 'Kapak sayfası', 'ilk sayfanın düzeni'], ['pt-bilgi', 'Bilgi sayfası', 'ara sayfa düzeni'], ['pt-kapanis', 'Kapanış sayfası', 'son sayfanın düzeni'], ['pt-cogalt', 'Bu sayfayı çoğalt'], ['pt-bos', 'Boş sayfa', 'zemin + sabit öğeler']]); }
     if (t.closest('[data-slide-dup]')) { const copy = JSON.parse(JSON.stringify(slide())); copy.layers.forEach(l => { l.id = uid(); }); data.slides.splice(current + 1, 0, copy); current++; markDirty(); return shell(); }
     if (t.closest('[data-slide-del]')) { if (!confirm('Bu slayt silinsin mi?')) return; data.slides.splice(current, 1); current = Math.max(0, current - 1); setSelected(null); markDirty(); return shell(); }
     const mv = t.closest('[data-slide-move]');
@@ -1226,7 +1872,7 @@ async function renderEditor(view, brand, id, models) {
     const bc = t.closest('[data-brand-color]');
     if (bc) { const l = layer(); if (l && l.type !== 'image') l.color = bc.dataset.brandColor; else slide().bg = bc.dataset.brandColor; markDirty(); return redraw(); }
     const bgc = t.closest('[data-bg-color]');
-    if (bgc) { slide().bg = bgc.dataset.bgColor; markDirty(); drawPanelBody(); return redraw(); }
+    if (bgc) { slide().bg = bgc.dataset.bgColor; delete slide().bgGradient; markDirty(); drawPanelBody(); return redraw(); }
     const tpl = t.closest('[data-apply-tpl]');
     if (tpl) {
       const tt = ($('#ed-panel-body')._tpls || []).find(x => x.id === tpl.dataset.applyTpl);
@@ -1235,7 +1881,39 @@ async function renderEditor(view, brand, id, models) {
       data.slides[current] = copy; setSelected(null); markDirty(); return redraw();
     }
     const sw = t.closest('[data-swatch]');
-    if (sw && layer()) { layer()[sw.dataset.swatch] = sw.dataset.color; markDirty(); return redraw(); }
+    if (sw && layer()) { layer()[sw.dataset.swatch] = sw.dataset.color; if (sw.dataset.swatch === 'color') delete layer().gradient; markDirty(); return redraw(); }
+    // Renk seçici (özellik paneli): canlı önizleme, art arda değişiklik tek geri alma adımı
+    const cp = t.closest('[data-cp]');
+    if (cp && layer()) {
+      const l = layer(); const key = cp.dataset.cp;
+      const label = () => { const g = key === 'color' && l.gradient; cp.querySelector('.cp-trigger-sw').style.background = g ? gradCss(g) : l[key]; cp.lastElementChild.textContent = g ? 'Gradyan' : String(l[key]).toUpperCase(); };
+      return openColorPicker(cp, { value: l[key] || '#000000', gradient: key === 'color' ? l.gradient : null, allowGradient: key === 'color' && l.type === 'shape', brandColors: palette, title: { color: 'Renk', highlight: 'Vurgu rengi', shadowColor: 'Gölge rengi', strokeColor: 'Çizgi rengi', bgColor: 'Kutu rengi' }[key] || 'Renk',
+        onChange: h => { if (!lockAllows(key, h)) { document.querySelectorAll('.cp-pop').forEach(pp => pp._close && pp._close()); return; } l[key] = h; if (key === 'color') delete l.gradient; markDirty(false, `${l.id}:${key}`); quick(); label(); },
+        onGradient: g => { if (g) l.gradient = g; else delete l.gradient; markDirty(false, `${l.id}:grad`); quick(); label(); } });
+    }
+    const pose = t.closest('[data-pose]');
+    if (pose && layer()) { const a = (await assets()).find(x => x.id === pose.dataset.pose); if (a) { const l = layer(); l.src = a.url; l.assetId = a.id; markDirty(); fillPoses(); return redraw(); } }
+    if (t.closest('[data-mascot-all]') && layer()) {
+      // Maskot olmayan sayfalara aynı konum ve boyutta eklenir, olanlarda yeri eşitlenir (poz korunur)
+      const m = layer(); let n = 0;
+      data.slides.forEach(s => { if (s === slide()) return; const ex = s.layers.find(x => x.type === 'image' && x.role === 'mascot'); if (ex) Object.assign(ex, { x: m.x, y: m.y, w: m.w, h: m.h }); else { s.layers.push(Object.assign(JSON.parse(JSON.stringify(m)), { id: uid() })); } n++; });
+      data.mascotSpot = { x: m.x, y: m.y, w: m.w, h: m.h };
+      markDirty(); drawList(); return toast(`Maskot ${n} sayfada aynı konuma yerleşti.`, 'success', 2200);
+    }
+    const cpb = t.closest('[data-cp-bg]');
+    if (cpb) {
+      const s = slide();
+      return openColorPicker(cpb, { value: s.bg, gradient: s.bgGradient, allowGradient: true, brandColors: palette, title: 'Zemin',
+        onChange: h => { s.bg = h; delete s.bgGradient; markDirty(false, 'bg'); quick(); cpb.querySelector('.cp-trigger-sw').style.background = h; cpb.lastElementChild.textContent = h.toUpperCase(); },
+        onGradient: g => { if (g) s.bgGradient = g; else delete s.bgGradient; markDirty(false, 'bggrad'); quick(); cpb.querySelector('.cp-trigger-sw').style.background = g ? gradCss(g) : s.bg; cpb.lastElementChild.textContent = g ? 'Gradyan' : s.bg.toUpperCase(); } });
+    }
+    const bgp = t.closest('[data-bg-preset]');
+    if (bgp) { const pr = BG_PRESETS[Number(bgp.dataset.bgPreset)]; const s = slide(); if (pr.g) { s.bgGradient = JSON.parse(JSON.stringify(pr.g)); s.bg = pr.g.stops[0].c; } else { s.bg = pr.c; delete s.bgGradient; } markDirty(); drawPanelBody(); return redraw(); }
+    if (t.closest('[data-bg-all]')) {
+      const s = slide();
+      data.slides.forEach(o => { if (o === s) return; o.bg = s.bg; if (s.bgGradient) o.bgGradient = JSON.parse(JSON.stringify(s.bgGradient)); else delete o.bgGradient; if (s.bgImage) o.bgImage = JSON.parse(JSON.stringify(s.bgImage)); else delete o.bgImage; });
+      markDirty(); drawList(); return toast('Zemin bütün sayfalara uygulandı.', 'success', 2000);
+    }
     const al = t.closest('[data-align]');
     if (al && layer()) { layer().align = al.dataset.align; markDirty(); return redraw(); }
     const ord = t.closest('[data-order]');
@@ -1243,6 +1921,8 @@ async function renderEditor(view, brand, id, models) {
     if (t.closest('[data-layer-dup]') && layer()) { const c = Object.assign(JSON.parse(JSON.stringify(layer())), { id: uid() }); c.x += 30; c.y += 30; return addLayer(c); }
     if (t.closest('[data-layer-del]')) { slide().layers = slide().layers.filter(x => x.id !== selected); setSelected(null); markDirty(); return redraw(); }
     if (t.closest('[data-deselect]')) { setSelected(null); return redraw(); }
+    const rt = t.closest('[data-rot]');
+    if (rt) { for (const l of slide().layers.filter(x => selIds().includes(x.id))) { const v = Number(rt.dataset.rot); let r = v === 0 ? 0 : ((l.rot || 0) + v); r = ((r + 180) % 360 + 360) % 360 - 180; if (r) l.rot = r; else delete l.rot; } markDirty(); drawProps(); return redraw(); }
     if (t.closest('[data-fx-reset]') && layer()) { const lr = layer(); ['fit', 'radius', 'circle', 'flipX', 'brightness', 'contrast', 'saturate', 'grayscale', 'blur', 'shadow', 'shadowColor'].forEach(k => delete lr[k]); markDirty(); return redraw(); }
     if (t.closest('[data-replace-image]') && layer()) return pickAsset(a => { const l = layer(); Object.assign(l, { prevSrc: l.prevSrc || l.src, prevAssetId: l.prevAssetId || l.assetId, src: a.url, assetId: a.id }); markDirty(); redraw(); });
     if (t.closest('[data-apply-all]') && layer()) return applyAll();
@@ -1256,6 +1936,9 @@ async function renderEditor(view, brand, id, models) {
       const a = act.dataset.act;
       try {
         if (a === 'save') return await save(act);
+        if (a === 'undo') return undo();
+        if (a === 'autosave') { const on = !autoSaveOn(); try { localStorage.setItem('ium.autosave', on ? '1' : '0'); } catch { /* gizli pencere */ } const st = $('#ed-autosave-state'); if (st) st.textContent = on ? 'Açık' : 'Kapalı'; if (on && dirty) scheduleAutoSave(); return toast(on ? 'Otomatik kayıt açık: değişiklikler birkaç saniye sonra kaydedilir.' : 'Otomatik kayıt kapalı; "Kaydet" ile kaydet.', 'info', 2500); }
+        if (a === 'redo') return redo();
         if (a === 'rename') {
           const name = prompt('Tasarımın adı', post.title);
           if (!name || !name.trim()) return;
@@ -1267,13 +1950,24 @@ async function renderEditor(view, brand, id, models) {
           return youtubePreview(brand, URL.createObjectURL(blob), { title: post.title, logoUrl: logo ? logo.url : null });
         }
         if (a === 'template') {
-          const name = prompt('Şablon adı (boş bırakırsan "Şablon N" olur)', '');
-          if (name === null) return;
-          if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
-          await api.saveTemplate(brand.id, post.id, name.trim());
-          toast('Marka şablonu olarak kaydedildi.', 'success');
-          if (panel === 'sablonlar') drawPanelBody();
-          return;
+          const { templates: own } = await api.postTemplates(brand.id);
+          const packs = [...new Set(own.map(x => x.pack).filter(Boolean))];
+          return openModal({ title: 'Marka şablonu olarak kaydet', submitLabel: 'Kaydet',
+            body: `<div class="form-grid"><div class="field"><label for="st-name">Şablon adı</label><input class="input" id="st-name" name="name" maxlength="80" placeholder="Boş bırakırsan &quot;Şablon N&quot;"></div>
+              <div class="field"><label for="st-pack">Paket (isteğe bağlı)</label><input class="input" id="st-pack" name="pack" maxlength="60" list="st-packs" placeholder="Ör. Teknoloji haberleri carousel"><datalist id="st-packs">${packs.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div></div>
+              <p class="xsmall muted mt-2">Şablon V1 olarak kaydedilir. Sonra bu şablonla üretilen bir tasarımı düzenleyip "Şablonu bu tasarımla güncelle" dersen V2 olur; önceki üretimler değişmez.</p>`,
+            onSubmit: async fd => {
+              if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
+              await api.saveTemplate(brand.id, post.id, String(fd.get('name') || '').trim(), String(fd.get('pack') || '').trim());
+              toast('Marka şablonu olarak kaydedildi (V1).', 'success');
+              if (panel === 'sablonlar') drawPanelBody();
+            } });
+        }
+        if (a === 'template-update' && data.template) {
+          if (!confirm(`"${data.template.name}" şablonu bu tasarımla güncellensin mi? Yeni versiyon oluşur; daha önce üretilen tasarımlar değişmez.`)) return;
+          if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; data = JSON.parse(JSON.stringify(post.data)); dirty = false; }
+          const { template } = await api.updateTemplateFrom(brand.id, data.template.id, post.id);
+          return toast(`"${template.name}" şablonu V${template.version} oldu.`, 'success', 3500);
         }
         if (a === 'share-template') {
           const name = prompt('Ortak şablonun adı (bütün markalarda görünür)', post.title);
@@ -1298,6 +1992,12 @@ async function renderEditor(view, brand, id, models) {
       } catch (err) { toast(err.message, 'error'); }
       return;
     }
+    const qk = t.closest('[data-quick]'); if (qk) { quickCmd(qk.dataset.quick); return; }
+    const asc = t.closest('[data-ai-scope]'); if (asc) { aiScope = asc.dataset.aiScope; view.querySelectorAll('[data-ai-scope]').forEach(b => b.classList.toggle('active', b === asc)); return; }
+    const acm = t.closest('[data-ai-cmd]'); if (acm) { await runAi(acm.dataset.aiCmd, acm); return; }
+    const ash = t.closest('[data-ai-short]'); if (ash) { const iss = (($('#ed-panel-body') || {})._issues || [])[Number(ash.dataset.aiShort)]; if (iss) await runAi('kisalt', ash, iss.layer); return; }
+    if (t.closest('[data-ai-apply]')) { const picks = [...view.querySelectorAll('[data-ai-pick]')].filter(x => x.checked).map(x => aiPending[Number(x.dataset.aiPick)]); applyAi(picks); aiPending = null; $('#ai-result').innerHTML = ''; toast(`${picks.length} metin güncellendi. Geri almak için Ctrl+Z.`, 'success'); return; }
+    if (t.closest('[data-ai-cancel]')) { aiPending = null; $('#ai-result').innerHTML = ''; return; }
     const rw = t.closest('[data-rewrite]');
     if (rw) {
       if (dirty && !confirm('Kaydedilmemiş değişiklikler var; yeniden yazınca yerleşim de baştan kurulur. Devam edilsin mi?')) return;
@@ -1307,6 +2007,7 @@ async function renderEditor(view, brand, id, models) {
     const pdfBtn = t.closest('[data-pdf]');
     if (pdfBtn) {
       closeMenus();
+      if (!exportGate()) return;
       return busy(pdfBtn, async () => {
         const canvases = [];
         for (const s of data.slides) { await resolveImages(s); canvases.push(drawSlide(document.createElement('canvas'), s, format())); }
@@ -1315,7 +2016,7 @@ async function renderEditor(view, brand, id, models) {
       }).catch(err => toast(err.message, 'error'));
     }
     const png = t.closest('[data-png]');
-    if (png) { closeMenus(); return busy(png, () => exportSlides(png.dataset.png, 'download')).catch(err => toast(err.message, 'error')); }
+    if (png) { closeMenus(); if (!exportGate()) return; return busy(png, () => exportSlides(png.dataset.png, 'download')).catch(err => toast(err.message, 'error')); }
     const dr = t.closest('[data-drive]');
     if (dr && !driveReady) { closeMenus(); return toast(state.settings && state.settings.drive && state.settings.drive.configured ? 'Bu markanın Drive klasörü yok: Marka kimliği → Profil\'de klasör linkini ekle.' : 'Drive bağlı değil: Ayarlar → Google Drive bölümünden bağla, sonra markanın klasör linkini ekle.', 'info', 6000); }
     if (dr) { closeMenus(); try { await busy(dr, () => exportSlides(dr.dataset.drive, 'drive')); toast('Google Drive klasörüne gönderildi.', 'success'); } catch (err) { toast(err.message, 'error'); } }

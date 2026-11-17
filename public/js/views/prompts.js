@@ -11,6 +11,8 @@ import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 import { RULE_EXAMPLES } from '../ruleExamples.js';
 import { openRuleBuilder } from './ruleBuilder.js';
 
+// Havuzdan fikir çekerken fikir türü, seçili prompt türünden çıkarılır (ikinci bir tür seçimi gerekmez)
+const POOL_OF = { gorsel: 'post', post: 'post', urun: 'post', reklam: 'genel', metin: 'genel', video: 'reels', reels: 'reels', maskot: 'reels' };
 // Görsel üretilebilen prompt türleri (video ve metin türleri için görsel üretilmez)
 const IMAGE_KINDS = { gorsel: '1:1', urun: '1:1', reklam: '4:5', post: '4:5' };
 
@@ -44,7 +46,7 @@ export async function renderPrompts(view, brand, sub) {
       <p class="small muted mb-3" id="ps-hint"></p>
       ${aiReady ? `
         <div class="pool-pick mb-2"><button type="button" class="btn btn-sm" data-pick-idea>${icon('idea')}Havuzdan fikir çek</button>
-          <select class="select w-auto input-sm" id="ps-pick-format" aria-label="Fikir türü">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)} fikirleri</option>`).join('')}</select>
+<span class="tag" id="ps-pick-format" title="Fikir türü yukarıdaki prompt türünden gelir">${esc(state.meta.ideaFormats[POOL_OF[kind]] || 'Genel')} fikirleri</span>
           <span class="small muted" id="ps-picked">İçerik fikirlerinden kullanılmamış bir fikir rastgele seçilir; istersen elle de yazabilirsin.</span></div>
         <label class="sr-only" for="ps-brief">İstek</label>
         <textarea class="textarea" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
@@ -127,6 +129,7 @@ export async function renderPrompts(view, brand, sub) {
     if (k) {
       kind = k.dataset.kind;
       view.querySelectorAll('[data-kind]').forEach(b => { b.classList.toggle('active', b === k); b.setAttribute('aria-checked', String(b === k)); });
+      const pf = view.querySelector('#ps-pick-format'); if (pf) pf.textContent = `${state.meta.ideaFormats[POOL_OF[kind]] || 'Genel'} fikirleri`;
       return hint();
     }
     const f = e.target.closest('[data-filter]');
@@ -178,7 +181,7 @@ export async function renderPrompts(view, brand, sub) {
     const pick = e.target.closest('[data-pick-idea]');
     if (pick) {
       try {
-        const { idea } = await busy(pick, () => api.randomIdea(brand.id, { format: view.querySelector('#ps-pick-format').value, exclude: pickedSeen }));
+        const { idea } = await busy(pick, () => api.randomIdea(brand.id, { format: POOL_OF[kind] || 'genel', exclude: pickedSeen }));
         const note = view.querySelector('#ps-picked');
         if (!idea) { picked = null; note.innerHTML = `Bu türde kullanılmamış fikir kalmadı. <a class="link" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerine</a> fikir ekle ya da benzerlerini üret.`; return; }
         picked = idea; pickedSeen.push(idea.id);

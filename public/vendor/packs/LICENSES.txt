@@ -66,3 +66,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+
+== iconpark.json
+IconPark (Bytedance Inc.), Apache License 2.0. Full text and modification notice: LICENSE-Apache-2.0.txt
+
+== sosyal.json (Simple Icons, via @iconify-json/simple-icons 1.2.103)
+CC0 1.0 Universal (public domain dedication). https://github.com/simple-icons/simple-icons
+The logos are trademarks of their respective owners.
+
+== temel.json
+Original artwork by Kreatifhane (scripts/build-temel-elements.py).
