@@ -12,8 +12,9 @@ import { openColorPicker, gradCss } from '../colorPicker.js';
 import { STOCK_KINDS, loadStock, itemsOf, searchItems, svgUrl, svgToPng } from '../stockPacks.js';
 
 // Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
-const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Başlık'], ['body', 'Açıklama'], ['item', 'Madde (bilgi grafiği)'], ['cta', 'Buton yazısı'], ['speech', 'Maskot konuşması'], ['topic', 'Konu etiketi'], ['num', 'Slayt numarası'], ['page', 'Slayt sayısı (/ 06)']];
-const FILL_ROLES = ['title', 'body', 'item', 'cta', 'speech'];
+// Şablon alanları: her alanın kimliği (MAIN_TITLE gibi) görünür; aynı alan birden çok kutuda ve sayfada olabilir
+const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Ana başlık · MAIN_TITLE'], ['subtitle', 'Alt başlık · SUB_TITLE'], ['body', 'Açıklama · DESCRIPTION'], ['stat', 'İstatistik / sayı · STAT'], ['item', 'Madde · ITEM'], ['cta', 'Buton yazısı · CTA'], ['speech', 'Maskot konuşması · SPEECH'], ['topic', 'Konu etiketi · TOPIC'], ['num', 'Slayt numarası · PAGE_NUMBER'], ['page', 'Slayt sayısı (/ 06) · PAGE_TOTAL'], ['custom', 'Özel alan (kendi adın)']];
+const FILL_ROLES = ['title', 'subtitle', 'body', 'stat', 'item', 'cta', 'speech', 'custom'];
 // Hazır zeminler: düz renkler ve gradyanlar
 const BG_PRESETS = [
   { n: 'Gece', c: '#0b1020' }, { n: 'Krem', c: '#fff1e6' }, { n: 'Kağıt', c: '#f4f1ea' }, { n: 'Pastel pembe', c: '#fbe4ee' }, { n: 'Adaçayı', c: '#6d8a86' }, { n: 'Siyah', c: '#111111' },
@@ -27,9 +28,9 @@ const BG_PRESETS = [
   { n: 'Gri', g: { type: 'linear', angle: 90, stops: [{ c: '#f8fafc', p: 0 }, { c: '#cbd5e1', p: 100 }] } }
 ];
 const MASCOT_OPTS = [['auto', 'Maskot: otomatik yerleştir'], ['manual', 'Maskot: ben yerleştireceğim'], ['none', 'Maskot: kullanma']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
-const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri (poz her postta konuya göre seçilir)'], ['logo', 'Logo']];
+const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri · MASCOT (poz konuya göre seçilir)'], ['logo', 'Logo · LOGO'], ['main', 'Ana görsel · MAIN_IMAGE (her içerikte değiştirilecek)']];
 // Şablonun hangi alanları her postta doluyor (kartta gösterilir)
-const ROLE_NAMES = { title: 'Başlık', body: 'Açıklama', item: 'Madde', cta: 'Buton', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri' };
+const ROLE_NAMES = { title: 'Ana başlık', subtitle: 'Alt başlık', body: 'Açıklama', stat: 'İstatistik', item: 'Madde', cta: 'Buton', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri', main: 'Ana görsel' };
 // Katmanlar panelindeki ad: verilen ad, yoksa yazının başı ya da türü
 function layerName(l) {
   if (l.name) return l.name;
@@ -40,7 +41,7 @@ function layerName(l) {
 }
 function tplFields(t) {
   const set = new Set();
-  (t.data.slides || []).forEach(s => (s.layers || []).forEach(l => { if (ROLE_NAMES[l.role] && (l.type === 'text' || l.role === 'mascot')) set.add(ROLE_NAMES[l.role]); }));
+  (t.data.slides || []).forEach(s => (s.layers || []).forEach(l => { if (l.fixed) return; if (l.field && l.type === 'text') set.add(l.field); else if (ROLE_NAMES[l.role] && (l.type === 'text' || l.role === 'mascot' || l.role === 'main')) set.add(ROLE_NAMES[l.role]); }));
   return [...set];
 }
 import { youtubePreview } from './youtube.js';
@@ -704,10 +705,12 @@ async function renderEditor(view, brand, id, models) {
       ${l.type === 'text' ? `
         <div class="field"><label for="lp-text">Yazı</label><textarea class="textarea" id="lp-text" data-prop="text" rows="3" maxlength="1000">${esc(l.text)}</textarea></div>
         <div class="form-grid tpl-field">
-          <div class="field"><label for="lp-role">Şablonda bu kutuya</label><select class="select" id="lp-role" data-prop="role">${TEXT_ROLES.map(([k, v]) => `<option value="${k}" ${(l.role || 'text') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+          <div class="field"><label for="lp-role">Şablon alanı</label><select class="select" id="lp-role" data-prop="role">${TEXT_ROLES.map(([k, v]) => `<option value="${k}" ${(l.field && !TEXT_ROLES.some(r => r[0] === l.role && r[0] !== 'text' && r[0] !== 'custom') ? 'custom' : (l.role || 'text')) === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
           <div class="field"><label for="lp-maxh">Kutu yüksekliği</label><input class="input" id="lp-maxh" type="number" min="0" max="4000" data-prop="maxH" value="${l.maxH || 0}" title="0 = sınırsız. Doluysa uzun yazı bu yüksekliğe sığana kadar küçülür."></div>
         </div>
-        <p class="xsmall muted">Bu tasarımı şablon olarak kaydedince, post üretirken yalnızca işaretli kutular yeni metinle dolar; yerleşim ve görseller aynen kalır.</p>
+        ${l.role === 'custom' || (l.field && l.role === 'text') ? `<div class="field"><label for="lp-field">Alan kimliği</label><input class="input" id="lp-field" data-field-name value="${esc(l.field || '')}" maxlength="30" placeholder="Ör. FIYAT, TARIH, SEHIR" title="Büyük harf, rakam ve alt çizgi. Aynı kimlik başka kutularda da varsa hepsi aynı değerle dolar."></div>` : ''}
+        ${l.role && l.role !== 'text' ? `<label class="chip-check"><input type="checkbox" data-flag="fixed" ${l.fixed ? 'checked' : ''}><span>Sabit: yapay zekâ bu alanı değiştirmesin</span></label>` : ''}
+        <p class="xsmall muted">Bu tasarımı şablon olarak kaydedince, post üretirken yalnızca işaretli ve sabit olmayan alanlar yeni içerikle dolar; yerleşim, renkler ve diğer öğeler aynen kalır.</p>
         <div class="form-grid">
           <div class="field"><label for="lp-font">Font</label><select class="select" id="lp-font" data-prop="font">${fontList.map(f => `<option ${f === l.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
           <div class="field"><label for="lp-weight">Kalınlık</label><select class="select" id="lp-weight" data-prop="weight">${[400, 500, 600, 700, 800, 900].map(w => `<option value="${w}" ${w === l.weight ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
@@ -1419,6 +1422,12 @@ async function renderEditor(view, brand, id, models) {
     if (t.dataset.bgImg && slide().bgImage) { slide().bgImage[t.dataset.bgImg] = Number(t.value); markDirty(false, 'bgimg:' + t.dataset.bgImg); quick(); return; }
     if (t.id === 'bg-pin') { if (t.checked) data.bgPin = true; else delete data.bgPin; markDirty(); return; }
     if (t.id === 'ed-zoom') { zoom = Number(t.value); $('#ed-zoom-val').textContent = `%${zoom}`; fit(); return; }
+    if (t.matches('[data-field-name]') && layer()) {
+      const v = t.value.toLocaleUpperCase('en').replace(/[^A-Z0-9_]/g, '_').replace(/^[^A-Z]+/, '').slice(0, 30);
+      if (v !== t.value) t.value = v;
+      const lf = layer(); if (v.length >= 2) lf.field = v; else delete lf.field;
+      markDirty(false, `${lf.id}:field`); return;
+    }
     if (t.id === 'ed-stock-q') { clearTimeout(view._stockT); view._stockT = setTimeout(() => { stock.q = t.value; stock.limit = 120; drawStock(); }, 200); return; }
     if (t.id === 'ed-stock-color') { stock.color = t.value; clearTimeout(view._stockT); view._stockT = setTimeout(drawStock, 150); return; }
     // Efekt kutucukları
@@ -1437,6 +1446,8 @@ async function renderEditor(view, brand, id, models) {
     view._propKey = `${l.id}:${prop}`;
     const vl = $(`[data-val="${prop}"]`); if (vl) vl.textContent = `${t.value}${t.dataset.unit || ''}`;
     if (prop === 'maxH' && !(l.maxH > 0)) delete l.maxH;
+    // Özel alan: rol "custom" olarak saklanmaz; kimlik (field) ile tanınır. Başka bir role geçince kimlik silinir
+    if (prop === 'role') { if (l.role === 'custom') { l.role = 'text'; l.field = l.field || 'ALAN_' + (slide().layers.indexOf(l) + 1); drawProps(); } else { delete l.field; if (l.role === 'text') delete l.fixed; } }
     // Doldurulacak bir kutu seçilince yüksekliği şimdiki hâlinden alınır: uzun metin buna sığdırılır
     if (prop === 'role' && l.type === 'text' && FILL_ROLES.includes(l.role) && !l.maxH) {
       const ctx = document.createElement('canvas').getContext('2d');
