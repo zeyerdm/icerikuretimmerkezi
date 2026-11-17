@@ -2,7 +2,7 @@
 // Katmanı tıkla seç, sürükle taşı (ok tuşlarıyla ince ayar); yazı, renk, font, boyut sağ panelden; logo/maskot/görsel kütüphaneden.
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
-import { state, go } from '../app.js';
+import { state, go, route } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { drawSlide, resolveImages, slideBlob, hitTest, layerBox, handlesOf } from '../postCanvas.js';
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
@@ -143,7 +143,7 @@ export async function renderPosts(view, brand, sub) {
       const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId, mascot: fd.get('mascot') || 'auto' }, st));
       if (!res) return;
       toast(aiNote(res.post.ai), 'success', 5000);
-      go(base(brand) + '/' + res.post.id);
+      previewPost(brand, res.post);
     } catch (err) { toast(err.message, 'error'); }
   });
   view.onclick = async e => {
@@ -234,7 +234,7 @@ export async function renderPosts(view, brand, sub) {
         onSubmit: async (fd, form) => {
           const res = await streamBusy(form.querySelector('[type=submit]'), st => api.createPost(brand.id, { topic: fd.get('topic'), kind: fd.get('kind'), format: fd.get('format'), slides: Number(fd.get('slides')), templateId: fd.get('templateId') || null, model: form.querySelector('#pc-model').value || null }, st));
           toast(aiNote(res.post.ai), 'success', 5000);
-          go(base(brand) + '/' + res.post.id);
+          previewPost(brand, res.post);
         }
       });
       const pm = m.form.querySelector('#pc-model');
@@ -295,7 +295,7 @@ async function fromIdeaFlow(brand, models, templates) {
       if (!r) return;
       toast(`"${idea.title}" fikrinden ${r.template ? `"${r.template.name}" şablonuyla` : 'marka yerleşimiyle'} hazırlandı (${aiNote(r.post.ai)}). Fikir kullanıldı olarak işaretlendi.`, 'success', 7000);
       if (r.warning) toast(r.warning, 'info', 6000);
-      go(base(brand) + '/' + r.post.id);
+      previewPost(brand, r.post);
     }
   });
   const box = m.form.querySelector('#fi-idea');
@@ -409,6 +409,44 @@ async function renderGrid(view, brand) {
 // ------------------------------------------------------------ Tasarım referansı → şablon
 // Örnek tasarım (kütüphanedeki "Tasarım referansı" görselleri ya da yeni yüklenen) görseli okuyabilen modelle incelenir;
 // renk paleti, font önerisi ve yerleşim çıkarılıp düzenlenebilir şablon olarak kaydedilir.
+// Üretim sonrası önizleme ve kalite kontrol: bütün sayfalar kartlarda (kapak / iç sayfa / kapanış), her sayfanın
+// denetim sonuçları (taşma, okunurluk, eksik görsel, tutarlılık), sürükleyerek sıralama; istenen sayfa düzenleyicide açılır
+export async function previewPost(brand, post) {
+  const fmts = state.meta.posts.formats;
+  let data = JSON.parse(JSON.stringify(post.data));
+  let changed = false;
+  const F = fmts[data.format] || fmts['4:5'];
+  const tag = i => (data.slides.length < 2 ? 'Tek sayfa' : i === 0 ? 'Kapak' : i === data.slides.length - 1 ? 'Kapanış' : `İç sayfa ${i}`);
+  const m = openModal({ title: `Önizleme: ${post.title}`, submitLabel: 'Bütün tasarımı düzenle',
+    body: `<p class="small muted mb-2">Sayfaları sürükleyerek sıralayabilir, sorunları görebilir, bir sayfaya tıklayıp düzenleyicide açabilirsin.</p><div id="pv-sum" class="ck-sum"></div><div class="pv-grid" id="pv-grid"></div>
+      <div class="row mt-3"><button type="button" class="btn btn-sm btn-ghost" data-pv-close>Kaydet ve listeye dön</button></div>`,
+    onSubmit: async () => { await persist(); go(base(brand) + '/' + post.id); } });
+  m.form.closest('.modal').classList.add('modal-xl');
+  async function persist() { if (changed) { await api.savePost(brand.id, post.id, { data }); changed = false; } }
+  async function draw() {
+    const issues = checkDesign(data, brand, F, brand.designLock || {});
+    const serious = issues.filter(i => i.level !== 'info');
+    m.form.querySelector('#pv-sum').innerHTML = serious.length ? `<span class="ck-pill ck-warn">${serious.length} sorun</span><span class="xsmall muted">Düzenleyicide "Kontrol" panelinden düzeltebilirsin.</span>` : '<span class="ck-pill ck-info">Sorun bulunmadı</span>';
+    m.form.querySelector('#pv-grid').innerHTML = data.slides.map((s, i) => { const own = issues.filter(x => x.slide === i && x.level !== 'info'); return `<div class="pv-card" draggable="true" data-pv="${i}">
+      <div class="pv-tag ${i === 0 ? 'cover' : i === data.slides.length - 1 && data.slides.length > 1 ? 'end' : ''}">${tag(i)}</div>
+      <canvas data-pv-c="${i}" aria-hidden="true"></canvas>
+      ${own.length ? `<ul class="pv-issues">${own.slice(0, 3).map(x => `<li class="ck-${x.level}">${esc(x.msg)}</li>`).join('')}${own.length > 3 ? `<li>+${own.length - 3} sorun</li>` : ''}</ul>` : '<div class="xsmall muted pv-ok">Sorun yok</div>'}
+      <button type="button" class="btn btn-sm w-full" data-pv-edit="${i}">Bu sayfayı düzenle</button></div>`; }).join('');
+    for (let i = 0; i < data.slides.length; i++) { const c = m.form.querySelector(`[data-pv-c="${i}"]`); await resolveImages(data.slides[i]); if (c && c.isConnected) drawSlide(c, data.slides[i], F); }
+  }
+  let from = null;
+  const grid = m.form.querySelector('#pv-grid');
+  grid.addEventListener('dragstart', e => { const c = e.target.closest('[data-pv]'); if (c) { from = Number(c.dataset.pv); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'sayfa'); } });
+  grid.addEventListener('dragover', e => { if (e.target.closest('[data-pv]')) e.preventDefault(); });
+  grid.addEventListener('drop', e => { const c = e.target.closest('[data-pv]'); if (!c || from == null) return; e.preventDefault(); const to = Number(c.dataset.pv); if (to !== from) { const [mv] = data.slides.splice(from, 1); data.slides.splice(to, 0, mv); changed = true; draw(); } from = null; });
+  m.form.addEventListener('click', async e => {
+    const ed2 = e.target.closest('[data-pv-edit]');
+    if (ed2) { e.preventDefault(); await persist(); try { sessionStorage.setItem(`ium.openSlide.${post.id}`, ed2.dataset.pvEdit); } catch { /* yok */ } m.close(); return go(base(brand) + '/' + post.id); }
+    if (e.target.closest('[data-pv-close]')) { e.preventDefault(); await persist(); m.close(); if (location.hash === base(brand)) route(); else go(base(brand)); }
+  });
+  draw();
+}
+
 // Şablon versiyonları: önizleme, geri yükleme, eski versiyonla tasarım açma
 async function templateVersionsModal(brand, t, done) {
   let versions;
@@ -558,7 +596,9 @@ async function renderEditor(view, brand, id, models) {
   const fontList = [...new Set([brand.fonts.heading, brand.fonts.body, ...state.meta.fonts].filter(Boolean))];
   const palette = [...new Set([brand.colors.primary, ...(brand.colors.secondary || []), ...(brand.colors.backgrounds || []), brand.colors.heading, brand.colors.body, '#ffffff', '#1b1f3b'].filter(Boolean))];
   let data = JSON.parse(JSON.stringify(post.data));
+  // Önizlemeden belirli bir sayfayı düzenlemek için açıldıysa o sayfadan başlanır
   let current = 0;
+  try { const want = Number(sessionStorage.getItem(`ium.openSlide.${post.id}`)); sessionStorage.removeItem(`ium.openSlide.${post.id}`); if (want > 0 && want < data.slides.length) current = want; } catch { /* yok */ }
   let selected = null;
   let multi = null; // Ctrl+A: slayttaki bütün katmanlar seçili (kopyala, kes, sil, taşı)
   let guides = []; // sürüklerken mıknatısın tuttuğu hizalama çizgileri
