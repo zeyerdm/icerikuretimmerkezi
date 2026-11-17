@@ -655,7 +655,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/posts', (req, res) => res.json({ posts: posts.list(req.brand.id) }));
   api.post('/brands/:brandId/posts', route(async (req, res) => {
     const b = req.body || {};
-    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b), templateId: b.templateId || null, mascot: b.mascot || 'auto' });
+    const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b), templateId: b.templateId || null, templateVersion: b.templateVersion || null, mascot: b.mascot || 'auto' });
     res.status(201).json({ post });
   }));
   api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
@@ -669,9 +669,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.delete('/shared-templates/:tid', (req, res) => { shared.remove(req.params.tid); res.status(204).end(); });
   api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
   api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
+  // Şablon versiyonları, paket ve kullanım
+  api.post('/brands/:brandId/post-templates/:tid/update-from/:pid', (req, res) => res.json({ template: posts.updateTemplateFromPost(req.brand.id, req.params.tid, req.params.pid, req.body || {}) }));
+  api.get('/brands/:brandId/post-templates/:tid/versions', (req, res) => res.json({ versions: posts.templateVersions(req.brand.id, req.params.tid) }));
+  api.post('/brands/:brandId/post-templates/:tid/restore', (req, res) => res.json({ template: posts.restoreTemplateVersion(req.brand.id, req.params.tid, (req.body || {}).version) }));
+  api.put('/brands/:brandId/post-templates/:tid/pack', (req, res) => res.json({ template: posts.setTemplatePack(req.brand.id, req.params.tid, req.body || {}) }));
+  api.get('/brands/:brandId/post-templates/:tid/usage', (req, res) => res.json({ posts: posts.templateUsage(req.brand.id, req.params.tid) }));
   api.put('/brands/:brandId/post-templates/:tid', (req, res) => res.json({ template: posts.renameTemplate(req.brand.id, req.params.tid, req.body || {}) }));
   api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
-  api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, slides: b.slides || null, modelRef: mr(b), mascot: b.mascot || 'auto' })); }));
+  api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides || null, modelRef: mr(b), mascot: b.mascot || 'auto' })); }));
   api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
   api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
   api.post('/brands/:brandId/posts/:id/schedule', (req, res) => res.status(201).json({ content: posts.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));

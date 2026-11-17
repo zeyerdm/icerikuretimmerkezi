@@ -421,7 +421,37 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     while (slides.length > MAX_SLIDES) slides.splice(slides.length - (close ? 2 : 1), 1);
     return Object.assign({}, data, { slides });
   };
-  const toTemplate = r => ({ id: r.id, name: r.name, kind: r.kind, kindLabel: POST_KINDS[r.kind] || r.kind, data: parseJson(r.data, {}), match: cleanMatch(parseJson(r.match, {})), createdAt: r.created_at });
+  // Şablonun alanları (kartta ve üretimde): alan kimliği, tür, sabit mi
+  const fieldsOf = data => {
+    const m = new Map();
+    for (const s of (data.slides || [])) for (const l of (s.layers || [])) {
+      const code = l.field || (l.role && FIELD_CODES[l.role]);
+      if (!code || (l.type === 'image' && !['mascot', 'logo', 'main'].includes(l.role))) continue;
+      const e = m.get(code) || { code, type: l.type === 'image' ? 'image' : 'text', fixed: true, count: 0 };
+      e.count++; if (!l.fixed) e.fixed = false;
+      m.set(code, e);
+    }
+    return [...m.values()];
+  };
+  // Şablonun kullanıldığı içerik sayısı (post verisindeki şablon kaydından)
+  const usageOf = (brandId, tid) => { try { return db.prepare("SELECT COUNT(*) AS n FROM posts WHERE brand_id = ? AND json_extract(data, '$.template.id') = ?").get(brandId, tid).n; } catch { return 0; } };
+  const toTemplate = r => { const data = parseJson(r.data, {}); return { id: r.id, name: r.name, kind: r.kind, kindLabel: POST_KINDS[r.kind] || r.kind, data, match: cleanMatch(parseJson(r.match, {})), createdAt: r.created_at,
+    pack: r.pack || '', version: r.version || 1, fields: fieldsOf(data), usedIn: usageOf(r.brand_id, r.id) }; };
+  // Versiyon kaydı: her versiyonun verisi saklanır; eski versiyonla üretilmiş tasarımlar etkilenmez (onlar kopya)
+  const saveVersionRow = (tid, version, data, note) => db.prepare('INSERT OR REPLACE INTO post_template_versions (id, template_id, version, data, note, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(newId(), tid, version, typeof data === 'string' ? data : JSON.stringify(data), String(note || '').slice(0, 120), now());
+  // Üretimde istenen versiyon (yoksa güncel)
+  const templateAt = (brandId, tid, version = null) => {
+    const r0 = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(tid), brandId);
+    if (!r0) throw notFound('Şablon bulunamadı.');
+    const t = toTemplate(r0);
+    const v = Number(version);
+    if (v && v !== t.version) {
+      const vr = db.prepare('SELECT * FROM post_template_versions WHERE template_id = ? AND version = ?').get(t.id, v);
+      if (!vr) throw notFound(`Şablonun V${v} versiyonu bulunamadı.`);
+      return Object.assign(t, { data: parseJson(vr.data, {}), version: v });
+    }
+    return t;
+  };
   // 10.8: fikre en uygun şablon: tür ve kategori eşleşmesi puanlanır (ikisi de tutarsa en iyi); hiçbiri tutmazsa yok
   const bestTemplate = (brandId, idea) => {
     let best = null;
@@ -517,12 +547,12 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     const w = await writeTexts(b, { topic, kind: tpl.kind, slides: want, modelRef, mascot, fields, limits });
     const fitted = tpl.kind === 'carousel' ? fitSlides(tslides, w.texts.length) : tslides;
     const filled = fillTemplate(Object.assign({}, clean, { slides: fitted }), w.texts, { mascots: brandAssets(b).mascots, topic: String(topic).split(' — ')[0] });
-    let data = Object.assign(withFrames(b.id, filled, tpl.kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta }), { caption: w.caption, hashtags: w.hashtags, topic, template: { id: tpl.id, name: tpl.name } });
+    let data = Object.assign(withFrames(b.id, filled, tpl.kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta }), { caption: w.caption, hashtags: w.hashtags, topic, template: { id: tpl.id, name: tpl.name, version: tpl.version || 1 } });
     if (mascotMode !== 'auto') data = stripMascot(data);
     const r = { id: newId(), brand_id: b.id, title: w.title, kind: tpl.kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
     db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
     brands.logActivity(b.id, 'post.created', `"${tpl.name}" şablonuyla hazırlandı: ${w.title}`);
-    return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), template: { id: tpl.id, name: tpl.name } });
+    return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), template: { id: tpl.id, name: tpl.name, version: tpl.version || 1 } });
   }
 
   return {
@@ -532,15 +562,11 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     list: brandId => db.prepare('SELECT * FROM posts WHERE brand_id = ? ORDER BY updated_at DESC').all(brands.get(brandId).id).map(toPost),
     get: (brandId, id) => toPost(row(brands.get(brandId).id, id)),
 
-    async create(brandId, { topic, kind = 'carousel', format = null, slides = 6, modelRef = null, templateId = null, mascot = 'auto' } = {}) {
+    async create(brandId, { topic, kind = 'carousel', format = null, slides = 6, modelRef = null, templateId = null, templateVersion = null, mascot = 'auto' } = {}) {
       const b = brands.get(brandId);
       const mm = MASCOT_MODES.includes(mascot) ? mascot : 'auto';
       // 11.10: konudan üretirken şablon seçildiyse metin o şablona yerleşir
-      if (templateId) {
-        const r0 = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
-        if (!r0) throw notFound('Şablon bulunamadı.');
-        return fromTemplateTopic(b, toTemplate(r0), text(topic, { field: 'Konu', max: 1000, required: true }), modelRef, slides, mm);
-      }
+      if (templateId) return fromTemplateTopic(b, templateAt(b.id, templateId, templateVersion), text(topic, { field: 'Konu', max: 1000, required: true }), modelRef, slides, mm);
       oneOf(kind, Object.keys(POST_KINDS), 'Tür');
       format = format || KIND_DEFAULTS[kind].format;
       if (!POST_FORMATS[format]) throw badRequest('Geçersiz boyut.');
@@ -603,18 +629,15 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
 
     // 10.8 Fikirden tasarım: fikrin metni marka diliyle yazılır, eşleşen (ya da seçilen) şablona yerleşir; şablon yoksa
     // fikrin türüne uygun marka yerleşimiyle hazırlanır. Fikir "kullanıldı (Post stüdyosu)" olur.
-    async fromIdea(brandId, { ideaId, templateId = null, slides = null, modelRef = null, mascot = 'auto' } = {}) {
+    async fromIdea(brandId, { ideaId, templateId = null, templateVersion = null, slides = null, modelRef = null, mascot = 'auto' } = {}) {
       const b = brands.get(brandId);
       const ir = db.prepare('SELECT * FROM ideas WHERE id = ? AND brand_id = ?').get(String(ideaId || ''), b.id);
       if (!ir) throw notFound('Fikir bulunamadı.');
       const idea = { id: ir.id, title: ir.title, description: ir.description, format: ir.format || 'genel', category: ir.category };
       const topic = idea.title + (idea.description ? ` — ${idea.description}` : '');
       let tpl = null;
-      if (templateId) {
-        const r0 = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
-        if (!r0) throw notFound('Şablon bulunamadı.');
-        tpl = toTemplate(r0);
-      } else tpl = bestTemplate(b.id, idea);
+      if (templateId) tpl = templateAt(b.id, templateId, templateVersion);
+      else tpl = bestTemplate(b.id, idea);
       let post;
       const mm = MASCOT_MODES.includes(mascot) ? mascot : 'auto';
       if (tpl) post = await fromTemplateTopic(b, tpl, topic, modelRef, slides, mm);
@@ -645,15 +668,63 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(r.id));
     },
     listTemplates: brandId => db.prepare('SELECT * FROM post_templates WHERE brand_id = ? ORDER BY created_at DESC').all(brands.get(brandId).id).map(toTemplate),
-    saveTemplate(brandId, id, { name } = {}) {
+    saveTemplate(brandId, id, { name, pack = '' } = {}) {
       const b = brands.get(brandId);
       const p = row(b.id, id);
       const n = text(name, { field: 'Şablon adı', max: 80 }) || `Şablon ${db.prepare('SELECT COUNT(*) AS n FROM post_templates WHERE brand_id = ?').get(b.id).n + 1}`;
       const data = parseJson(p.data, {});
-      delete data.topic;
+      delete data.topic; delete data.template; delete data.idea;
       const r = { id: newId(), name: n, created_at: now() };
-      db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(r.id, b.id, n, p.kind, JSON.stringify(data), r.created_at);
+      db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at, pack) VALUES (?, ?, ?, ?, ?, ?, ?)').run(r.id, b.id, n, p.kind, JSON.stringify(data), r.created_at, text(pack, { field: 'Paket', max: 60 }) || '');
+      saveVersionRow(r.id, 1, data, 'İlk sürüm');
       return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(r.id));
+    },
+    // Şablonu bir tasarımla günceller: yeni versiyon olur (V2, V3...); daha önce üretilenler değişmez
+    updateTemplateFromPost(brandId, tid, postId, { note = '' } = {}) {
+      const b = brands.get(brandId);
+      const t = templateAt(b.id, tid);
+      const p = row(b.id, postId);
+      const data = parseJson(p.data, {});
+      delete data.topic; delete data.template; delete data.idea;
+      const cur = db.prepare('SELECT * FROM post_templates WHERE id = ?').get(t.id);
+      if (!db.prepare('SELECT 1 FROM post_template_versions WHERE template_id = ? AND version = ?').get(t.id, t.version)) saveVersionRow(t.id, t.version, cur.data, 'İlk sürüm');
+      const v = t.version + 1;
+      saveVersionRow(t.id, v, data, note || `${p.title} tasarımından`);
+      db.prepare('UPDATE post_templates SET data = ?, version = ?, kind = ? WHERE id = ?').run(JSON.stringify(data), v, p.kind, t.id);
+      brands.logActivity(b.id, 'template.version', `"${t.name}" şablonu V${v} oldu`);
+      return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(t.id));
+    },
+    templateVersions(brandId, tid) {
+      const b = brands.get(brandId);
+      const t = templateAt(b.id, tid);
+      const rows = db.prepare('SELECT version, note, created_at, data FROM post_template_versions WHERE template_id = ? ORDER BY version DESC').all(t.id);
+      if (!rows.some(r => r.version === t.version)) rows.unshift({ version: t.version, note: 'Güncel', created_at: t.createdAt, data: JSON.stringify(t.data) });
+      return rows.map(r => ({ version: r.version, note: r.note, createdAt: r.created_at, current: r.version === t.version, data: parseJson(r.data, {}) }));
+    },
+    // Eski bir versiyona dönüş: o versiyonun verisi yeni versiyon olarak güncel olur (geçmiş silinmez)
+    restoreTemplateVersion(brandId, tid, version) {
+      const b = brands.get(brandId);
+      const t = templateAt(b.id, tid);
+      const old = templateAt(b.id, tid, Number(version));
+      if (old.version === t.version) return t;
+      const cur = db.prepare('SELECT * FROM post_templates WHERE id = ?').get(t.id);
+      if (!db.prepare('SELECT 1 FROM post_template_versions WHERE template_id = ? AND version = ?').get(t.id, t.version)) saveVersionRow(t.id, t.version, cur.data, 'İlk sürüm');
+      const v = t.version + 1;
+      saveVersionRow(t.id, v, old.data, `V${old.version} geri yüklendi`);
+      db.prepare('UPDATE post_templates SET data = ?, version = ? WHERE id = ?').run(JSON.stringify(old.data), v, t.id);
+      return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(t.id));
+    },
+    setTemplatePack(brandId, tid, { pack = '' } = {}) {
+      const b = brands.get(brandId);
+      const r = db.prepare('UPDATE post_templates SET pack = ? WHERE id = ? AND brand_id = ?').run(text(pack, { field: 'Paket', max: 60 }) || '', String(tid), b.id);
+      if (!r.changes) throw notFound('Şablon bulunamadı.');
+      return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(String(tid)));
+    },
+    // Şablonun kullanıldığı içerikler
+    templateUsage(brandId, tid) {
+      const b = brands.get(brandId);
+      templateAt(b.id, tid);
+      try { return db.prepare("SELECT id, title, updated_at, json_extract(data, '$.template.version') AS version FROM posts WHERE brand_id = ? AND json_extract(data, '$.template.id') = ? ORDER BY updated_at DESC LIMIT 200").all(b.id, String(tid)).map(r => ({ id: r.id, title: r.title, version: r.version || 1, updatedAt: r.updated_at })); } catch { return []; }
     },
     // Şablona özel ad (ör. "Haftalık ipucu", "Bayram tasarımı")
     renameTemplate(brandId, templateId, { name } = {}) {

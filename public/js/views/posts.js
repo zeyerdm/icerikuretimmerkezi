@@ -69,7 +69,7 @@ export async function renderPosts(view, brand, sub) {
     })}
     ${aiReady ? `<form class="card quick-post mb-4" id="quick-post">
       <input class="input grow" name="topic" maxlength="1000" required placeholder="Konuyu yaz, carousel hazırlansın. Ör. Sınav haftasında kahve nasıl içilir?" aria-label="Post konusu">
-      <select class="select w-auto" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Tasarım: otomatik (marka yerleşimi)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>Tasarım: ${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select>
+      <select class="select w-auto" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Tasarım: otomatik (marka yerleşimi)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>Tasarım: ${t.pack ? `${esc(t.pack)} / ` : ''}${esc(t.name)} V${t.version || 1} · ${esc(t.kindLabel)}</option>`).join('')}</select>
       <select class="select w-auto" name="slides" aria-label="Slayt sayısı">${[4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 6 ? 'selected' : ''}>${n} slayt</option>`).join('')}</select>
       <select class="select w-auto" name="mascot" aria-label="Maskot" title="Maskot kullanımı">${MASCOT_OPTS}</select>
       <button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button>
@@ -87,13 +87,14 @@ export async function renderPosts(view, brand, sub) {
   if (templates.length) {
     view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Şablonlar (tasarımların)</h3><span class="small muted">${templates.length}</span></div>
       <p class="small muted mb-3">Tasarımı bir kez hazırla: düzenleyicide yazı kutularını <b>Başlık / Açıklama / Maskot konuşması</b> diye, maskot görselini <b>Maskot yeri</b> diye işaretle ve "Marka şablonu olarak kaydet". Post üretirken yukarıdan tasarımı seç; yapay zekâ yalnızca metni yazar ve maskotun pozunu seçer, yerleşim değişmez. Özel gün tasarımları da böyle eklenir.</p>
-      <div class="post-grid">${templates.map(t => `<div class="post-card tpl-card">
+      ${[...new Set(templates.map(t => t.pack || ''))].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'tr')).map(pk => `${pk || templates.some(t => t.pack) ? `<h4 class="tpl-pack-head">${pk ? `${icon('grid')}${esc(pk)}` : 'Pakete eklenmemiş'}</h4>` : ''}
+      <div class="post-grid">${templates.filter(t => (t.pack || '') === pk).map(t => `<div class="post-card tpl-card">
         <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
-        <div class="strong truncate">${esc(t.name)}</div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt</div>
+        <div class="strong truncate">${esc(t.name)} <span class="badge" title="Şablon versiyonu">V${t.version || 1}</span></div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt · ${t.usedIn ? `<button type="button" class="link-btn" data-tpl-usage="${esc(t.id)}">${t.usedIn} içerikte kullanıldı</button>` : 'henüz kullanılmadı'}</div>
         <div class="xsmall ${tplFields(t).length ? '' : 'text-warn'} mt-1">${tplFields(t).length ? `Dolan alanlar: ${esc(tplFields(t).join(', '))}` : 'İşaretli alan yok: düzenleyicide kutulara rol ver'}</div>
         ${t.match.frame ? `<span class="tag mt-1">${t.match.frame === 'acilis' ? 'Sabit açılış slaytı' : 'Sabit kapanış slaytı'}</span>` : ''}<div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
-        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
-      </div>`).join('')}</div></section>`);
+        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost" data-tpl-versions="${esc(t.id)}">Versiyonlar</button><button class="btn btn-sm btn-ghost" data-tpl-pack="${esc(t.id)}">Paket</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
+      </div>`).join('')}</div>`).join('')}</section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
       if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format]); });
@@ -185,6 +186,21 @@ export async function renderPosts(view, brand, sub) {
       if (!confirm('Ortak şablon bütün markalardan kaldırılsın mı? Ondan oluşturulan tasarımlar etkilenmez.')) return;
       try { await api.deleteSharedTemplate(delSh.dataset.delShared); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); }
       return;
+    }
+    const tv = e.target.closest('[data-tpl-versions]');
+    if (tv) return templateVersionsModal(brand, templates.find(x => x.id === tv.dataset.tplVersions), () => renderPosts(view, brand, null));
+    const tpk = e.target.closest('[data-tpl-pack]');
+    if (tpk) {
+      const t = templates.find(x => x.id === tpk.dataset.tplPack);
+      const packs = [...new Set(templates.map(x => x.pack).filter(Boolean))];
+      return openModal({ title: `"${t.name}" hangi pakette?`, submitLabel: 'Kaydet',
+        body: `<p class="small muted mb-2">Paketler markanın şablonlarını gruplar (ör. "Teknoloji haberleri carousel", "Tekli duyuru", "Reels kapakları").</p><div class="field"><label for="tp-pack">Paket adı</label><input class="input" id="tp-pack" name="pack" maxlength="60" list="tp-packs" value="${esc(t.pack || '')}" placeholder="Boş bırakırsan paketten çıkar"><datalist id="tp-packs">${packs.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>`,
+        onSubmit: async fd => { await api.setTemplatePack(brand.id, t.id, fd.get('pack')); toast('Paket güncellendi.', 'success'); renderPosts(view, brand, null); } });
+    }
+    const tu = e.target.closest('[data-tpl-usage]');
+    if (tu) {
+      const t = templates.find(x => x.id === tu.dataset.tplUsage);
+      try { const { posts: used } = await api.templateUsage(brand.id, t.id); return openModal({ title: `"${t.name}" ile üretilenler`, submitLabel: 'Kapat', body: `<ul class="pool-list">${used.map(u => `<li class="pool-item"><span class="badge">V${u.version}</span><a class="grow" href="${base(brand)}/${esc(u.id)}">${esc(u.title)}</a><span class="xsmall muted">${timeAgo(u.updatedAt)}</span></li>`).join('')}</ul>`, onSubmit: async () => {} }); } catch (err) { return toast(err.message, 'error'); }
     }
     const rn = e.target.closest('[data-rename-tpl]');
     if (rn) {
@@ -392,6 +408,26 @@ async function renderGrid(view, brand) {
 // ------------------------------------------------------------ Tasarım referansı → şablon
 // Örnek tasarım (kütüphanedeki "Tasarım referansı" görselleri ya da yeni yüklenen) görseli okuyabilen modelle incelenir;
 // renk paleti, font önerisi ve yerleşim çıkarılıp düzenlenebilir şablon olarak kaydedilir.
+// Şablon versiyonları: önizleme, geri yükleme, eski versiyonla tasarım açma
+async function templateVersionsModal(brand, t, done) {
+  let versions;
+  try { versions = (await api.templateVersions(brand.id, t.id)).versions; } catch (err) { return toast(err.message, 'error'); }
+  const fmts = state.meta.posts.formats;
+  const m = openModal({ title: `"${t.name}" versiyonları`, submitLabel: 'Kapat',
+    body: `<p class="small muted mb-2">Şablonu güncellemek yeni versiyon oluşturur; daha önce üretilen tasarımlar değişmez. Eski bir versiyona dönmek de yeni versiyon olarak kaydedilir.</p>
+      <div class="tpl-versions">${versions.map(v => `<div class="tpl-ver ${v.current ? 'on' : ''}"><canvas data-ver-c="${v.version}" aria-hidden="true"></canvas>
+        <div class="grow"><div class="strong">V${v.version}${v.current ? ' <span class="badge">Güncel</span>' : ''}</div><div class="xsmall muted">${esc(v.note || '')} · ${timeAgo(v.createdAt)}</div></div>
+        <div class="row">${v.current ? '' : `<button type="button" class="btn btn-sm" data-ver-restore="${v.version}">Bu versiyona dön</button>`}<button type="button" class="btn btn-sm btn-ghost" data-ver-open="${v.version}">Tasarım aç</button></div></div>`).join('')}</div>`,
+    onSubmit: async () => {} });
+  versions.forEach(v => { const c = m.form.querySelector(`[data-ver-c="${v.version}"]`); if (c && v.data.slides) resolveImages(v.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, v.data.slides[0], fmts[v.data.format] || fmts['4:5']); }); });
+  m.form.addEventListener('click', async e => {
+    const r = e.target.closest('[data-ver-restore]');
+    if (r) { e.preventDefault(); try { const { template } = await api.restoreTemplate(brand.id, t.id, Number(r.dataset.verRestore)); toast(`V${r.dataset.verRestore} geri yüklendi; şablon artık V${template.version}.`, 'success'); m.close(); done(); } catch (err) { toast(err.message, 'error'); } return; }
+    const o = e.target.closest('[data-ver-open]');
+    if (o) { e.preventDefault(); const v = versions.find(x => x.version === Number(o.dataset.verOpen)); try { const { post } = await api.createPost(brand.id, { blank: true, title: `${t.name} V${v.version}`, kind: t.kind }); await api.savePost(brand.id, post.id, { data: v.data }); m.close(); go(base(brand) + '/' + post.id); } catch (err) { toast(err.message, 'error'); } }
+  });
+}
+
 const REF_DESC = {
   carousel: 'Model seçtiklerinin ortak tasarım dilini çıkarır ve 3 yapı kurar: <b>kapak</b> (güçlü hook, kaydırma isteği), bütün ara sayfalarda tekrar eden <b>bilgi sayfası</b> ve <b>kapanış</b> (sonuç, istenirse çağrı). Üçü tek hikâyenin parçaları gibi aynı dili paylaşır. Metinler kopyalanmaz; logo, maskot ve balon yerlerine markanın kendi görselleri konur.',
   tekli: 'Tek bir 4:5 gönderi tasarımı kurulur. Mümkünse tek referans seç: çok referans tasarım kararlarını karıştırabilir.',
@@ -545,6 +581,8 @@ async function renderEditor(view, brand, id, models) {
               <button type="button" data-act="rename">${icon('edit')}Adını değiştir</button>
               <button type="button" data-act="save">${icon('check')}Kaydet <span class="ed-hint" id="ed-save-state">${dirty ? 'Kaydedilmemiş değişiklik' : 'Değişiklikler kaydedildi'}</span></button>
               <button type="button" data-act="template">${icon('grid')}Marka şablonu olarak kaydet</button>
+              ${data.template ? `<button type="button" data-act="template-update">${icon('refresh')}Şablonu bu tasarımla güncelle <span class="ed-hint">${esc(data.template.name)} · yeni versiyon</span></button>` : ''}
+              <button type="button" data-act="autosave">${icon('check')}Otomatik kayıt <span class="ed-hint" id="ed-autosave-state">${autoSaveOn() ? 'Açık' : 'Kapalı'}</span></button>
               <button type="button" data-act="share-template">${icon('grid')}Ortak şablon kütüphanesine kaydet <span class="ed-hint">bütün markalar</span></button>
               ${post.content ? `<a href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde gör</a>` : `<button type="button" data-act="schedule">${icon('calendar')}Takvime ekle</button>`}
               <a href="${base(brand)}">${icon('plus')}Yeni tasarım oluştur</a>
@@ -616,6 +654,26 @@ async function renderEditor(view, brand, id, models) {
   function undo() { if (!undoStack.length) return toast('Geri alınacak değişiklik yok.', 'info', 1800); redoStack.push(JSON.stringify(data)); restoreSnap(undoStack.pop()); }
   function redo() { if (!redoStack.length) return toast('Yinelenecek değişiklik yok.', 'info', 1800); undoStack.push(JSON.stringify(data)); restoreSnap(redoStack.pop()); }
 
+  // Otomatik kayıt: son değişiklikten 4 sn sonra sessizce kaydeder (Dosya menüsünden kapatılabilir)
+  function autoSaveOn() { try { return localStorage.getItem('ium.autosave') !== '0'; } catch { return true; } }
+  let autoT = null; let autoBusy = false;
+  function scheduleAutoSave() {
+    if (!autoSaveOn()) return;
+    clearTimeout(autoT);
+    autoT = setTimeout(async () => {
+      if (!dirty || autoBusy || !view.isConnected || !$('#stage')) return;
+      autoBusy = true;
+      const sent = JSON.stringify(data);
+      try {
+        post = (await api.savePost(brand.id, post.id, { data: JSON.parse(sent) })).post;
+        if (JSON.stringify(data) === sent) {
+          dirty = false;
+          const b = $('.ed-save'); if (b) b.textContent = 'Kaydet';
+          const st = $('#ed-save-state'); if (st) st.textContent = `Otomatik kaydedildi ${new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+        } else scheduleAutoSave();
+      } catch { /* bağlantı yoksa bir sonraki değişiklikte tekrar denenir */ } finally { autoBusy = false; }
+    }, 4000);
+  }
   // Aynı alanda art arda yapılan değişiklikler (yazı yazma, kaydırıcı sürükleme) tek adım sayılır
   let lastKey = ''; let lastAt = 0;
   function markDirty(fromHistory = false, key = '') {
@@ -631,6 +689,7 @@ async function renderEditor(view, brand, id, models) {
     dirty = true;
     const b = $('.ed-save'); if (b) b.textContent = 'Kaydet •';
     const st = $('#ed-save-state'); if (st) st.textContent = 'Kaydedilmemiş değişiklik';
+    scheduleAutoSave();
   }
 
   // Tasarım alanı ekrana sığar; yakınlaştırma bunun yüzdesidir
@@ -1617,6 +1676,7 @@ async function renderEditor(view, brand, id, models) {
       try {
         if (a === 'save') return await save(act);
         if (a === 'undo') return undo();
+        if (a === 'autosave') { const on = !autoSaveOn(); try { localStorage.setItem('ium.autosave', on ? '1' : '0'); } catch { /* gizli pencere */ } const st = $('#ed-autosave-state'); if (st) st.textContent = on ? 'Açık' : 'Kapalı'; if (on && dirty) scheduleAutoSave(); return toast(on ? 'Otomatik kayıt açık: değişiklikler birkaç saniye sonra kaydedilir.' : 'Otomatik kayıt kapalı; "Kaydet" ile kaydet.', 'info', 2500); }
         if (a === 'redo') return redo();
         if (a === 'rename') {
           const name = prompt('Tasarımın adı', post.title);
@@ -1629,13 +1689,24 @@ async function renderEditor(view, brand, id, models) {
           return youtubePreview(brand, URL.createObjectURL(blob), { title: post.title, logoUrl: logo ? logo.url : null });
         }
         if (a === 'template') {
-          const name = prompt('Şablon adı (boş bırakırsan "Şablon N" olur)', '');
-          if (name === null) return;
-          if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
-          await api.saveTemplate(brand.id, post.id, name.trim());
-          toast('Marka şablonu olarak kaydedildi.', 'success');
-          if (panel === 'sablonlar') drawPanelBody();
-          return;
+          const { templates: own } = await api.postTemplates(brand.id);
+          const packs = [...new Set(own.map(x => x.pack).filter(Boolean))];
+          return openModal({ title: 'Marka şablonu olarak kaydet', submitLabel: 'Kaydet',
+            body: `<div class="form-grid"><div class="field"><label for="st-name">Şablon adı</label><input class="input" id="st-name" name="name" maxlength="80" placeholder="Boş bırakırsan &quot;Şablon N&quot;"></div>
+              <div class="field"><label for="st-pack">Paket (isteğe bağlı)</label><input class="input" id="st-pack" name="pack" maxlength="60" list="st-packs" placeholder="Ör. Teknoloji haberleri carousel"><datalist id="st-packs">${packs.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div></div>
+              <p class="xsmall muted mt-2">Şablon V1 olarak kaydedilir. Sonra bu şablonla üretilen bir tasarımı düzenleyip "Şablonu bu tasarımla güncelle" dersen V2 olur; önceki üretimler değişmez.</p>`,
+            onSubmit: async fd => {
+              if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
+              await api.saveTemplate(brand.id, post.id, String(fd.get('name') || '').trim(), String(fd.get('pack') || '').trim());
+              toast('Marka şablonu olarak kaydedildi (V1).', 'success');
+              if (panel === 'sablonlar') drawPanelBody();
+            } });
+        }
+        if (a === 'template-update' && data.template) {
+          if (!confirm(`"${data.template.name}" şablonu bu tasarımla güncellensin mi? Yeni versiyon oluşur; daha önce üretilen tasarımlar değişmez.`)) return;
+          if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; data = JSON.parse(JSON.stringify(post.data)); dirty = false; }
+          const { template } = await api.updateTemplateFrom(brand.id, data.template.id, post.id);
+          return toast(`"${template.name}" şablonu V${template.version} oldu.`, 'success', 3500);
         }
         if (a === 'share-template') {
           const name = prompt('Ortak şablonun adı (bütün markalarda görünür)', post.title);

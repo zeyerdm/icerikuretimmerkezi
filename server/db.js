@@ -577,6 +577,37 @@ const MIGRATIONS = [
     preview TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL
   );
+  `,
+  // 41: Akıllı şablon sistemi: şablon paketi ve versiyonları, marka tasarım kilidi, toplu üretim kuyruğu
+  `
+  ALTER TABLE post_templates ADD COLUMN pack TEXT NOT NULL DEFAULT '';
+  ALTER TABLE post_templates ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+  CREATE TABLE post_template_versions (
+    id TEXT PRIMARY KEY,
+    template_id TEXT NOT NULL REFERENCES post_templates(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX idx_tpl_versions ON post_template_versions(template_id, version);
+  ALTER TABLE brands ADD COLUMN design_lock TEXT NOT NULL DEFAULT '{}';
+  CREATE TABLE gen_jobs (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    batch_id TEXT NOT NULL,
+    idea_id TEXT NOT NULL,
+    template_id TEXT,
+    template_version INTEGER,
+    options TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'bekliyor',
+    error TEXT NOT NULL DEFAULT '',
+    post_id TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_gen_jobs ON gen_jobs(brand_id, batch_id, status);
   `
 ];
 
