@@ -224,6 +224,15 @@ export function layoutSlides({ texts, brand, format = '4:5', kind = 'carousel', 
   });
 }
 
+// Gradyan: doğrusal ya da dairesel, 2-5 renk durağı (konum 0-100)
+export function cleanGradient(g) {
+  if (!g || typeof g !== 'object') return null;
+  const stops = (Array.isArray(g.stops) ? g.stops : []).filter(s => s && HEX.test(s.c || '')).slice(0, 5)
+    .map(s => ({ c: s.c, p: Math.max(0, Math.min(100, Math.round(Number(s.p) || 0))) })).sort((a, b) => a.p - b.p);
+  if (stops.length < 2) return null;
+  return { type: g.type === 'radial' ? 'radial' : 'linear', angle: Math.round(((Number(g.angle) || 0) % 360 + 360) % 360), stops };
+}
+
 function cleanLayer(l) {
   if (!l || typeof l !== 'object' || !LAYER_TYPES.includes(l.type)) throw badRequest('Geçersiz katman.');
   const num = (v, min, max, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : d; };
@@ -233,6 +242,9 @@ function cleanLayer(l) {
   if (l.hidden) out.hidden = true;
   if (l.locked) out.locked = true;
   if (polish(l.name)) out.name = polish(l.name).slice(0, 40);
+  // Grup (birlikte seçilir/taşınır) ve "her yeni sayfada tekrarla"
+  if (/^[\w-]{1,20}$/.test(String(l.group || ''))) out.group = String(l.group);
+  if (l.pin) out.pin = true;
   const fx = (k, min, max) => { if (l[k] != null && l[k] !== '' && Number.isFinite(Number(l[k]))) out[k] = Math.min(max, Math.max(min, Math.round(Number(l[k]) * 100) / 100)); };
   const col = k => { if (HEX.test(l[k] || '')) out[k] = l[k]; };
   if (l.type === 'text') {
@@ -268,6 +280,7 @@ function cleanLayer(l) {
   } else {
     Object.assign(out, { shape: l.shape === 'circle' ? 'circle' : 'rect', w: num(l.w, 1, 4000, 100), h: num(l.h, 1, 4000, 100), color: HEX.test(l.color || '') ? l.color : '#5b55e6', radius: num(l.radius, 0, 1000, 0) });
     if (l.role === 'bubble') out.role = 'bubble'; // maskotun konuşma balonu: konuşma yoksa gizlenir
+    const gr = cleanGradient(l.gradient); if (gr) out.gradient = gr;
   }
   return out;
 }
@@ -293,9 +306,14 @@ export function cleanData(data, brandId) {
         if (!ASSET_SRC.test(String(s.bgImage.src)) || !own(String(s.bgImage.src))) throw badRequest('Zemin görseli bu markanın kütüphanesinden olmalı.');
         const dim = Math.max(0, Math.min(80, Math.round(Number(s.bgImage.dim) || 0)));
         out.bgImage = { src: s.bgImage.src, fit: s.bgImage.fit === 'contain' ? 'contain' : 'cover', dim };
+        // Konum ve ölçek: yakınlaştırma (100-300) ve kaydırma (-50..50, yüzde)
+        const z = Math.round(Number(s.bgImage.zoom) || 100); if (z > 100) out.bgImage.zoom = Math.min(300, z);
+        ['ox', 'oy'].forEach(k => { const v = Math.round(Number(s.bgImage[k]) || 0); if (v) out.bgImage[k] = Math.max(-50, Math.min(50, v)); });
       }
+      const sg = cleanGradient(s && s.bgGradient); if (sg) out.bgGradient = sg;
       return out;
     }),
+    ...(data.bgPin ? { bgPin: true } : {}),
     caption: String(data.caption || '').slice(0, 3000),
     hashtags: (Array.isArray(data.hashtags) ? data.hashtags : []).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 10)
   };
@@ -454,16 +472,20 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
   }
   const meta = r => ({ model: r.servedRef || r.ref, modelLabel: ai.labelOf(r.servedRef || r.ref), cost: r.cost, ms: r.ms, fallbackUsed: Boolean(r.fallbackUsed) });
   // Konu/fikir metni marka diliyle yazılır, şablonun metin katmanlarına yerleşir (görsel, renk, yerleşim aynen); carousel'e açılış/kapanış eklenir
-  async function fromTemplateTopic(b, tpl, topic, modelRef, slides = null) {
+  // Maskot kullanılmayacaksa (ya da kullanıcı kendisi yerleştirecekse) maskot, balon ve konuşma kutuları çıkarılır
+  const MASCOT_MODES = ['auto', 'manual', 'none'];
+  const stripMascot = data => Object.assign({}, data, { slides: data.slides.map(s => Object.assign({}, s, { layers: s.layers.filter(l => !((l.type === 'image' && l.role === 'mascot') || l.role === 'bubble' || (l.type === 'text' && l.role === 'speech'))) })) });
+  async function fromTemplateTopic(b, tpl, topic, modelRef, slides = null, mascotMode = 'auto') {
     const clean = cleanData(tpl.data, b.id);
     const tslides = clean.slides.filter(s => !s.frame);
     // Carousel'de istenen slayt sayısı (yoksa şablonun kendi sayısı; 3'ten azsa 6)
     const want = tpl.kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || (tslides.length >= 3 ? tslides.length : 6))) : tslides.length || 1;
-    const mascot = tslides.some(s => (s.layers || []).some(l => l.type === 'image' && l.role === 'mascot'));
+    const mascot = mascotMode === 'auto' && tslides.some(s => (s.layers || []).some(l => l.type === 'image' && l.role === 'mascot'));
     const w = await writeTexts(b, { topic, kind: tpl.kind, slides: want, modelRef, mascot });
     const fitted = tpl.kind === 'carousel' ? fitSlides(tslides, w.texts.length) : tslides;
     const filled = fillTemplate(Object.assign({}, clean, { slides: fitted }), w.texts, { mascots: brandAssets(b).mascots, topic: String(topic).split(' — ')[0] });
-    const data = Object.assign(withFrames(b.id, filled, tpl.kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta }), { caption: w.caption, hashtags: w.hashtags, topic, template: { id: tpl.id, name: tpl.name } });
+    let data = Object.assign(withFrames(b.id, filled, tpl.kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta }), { caption: w.caption, hashtags: w.hashtags, topic, template: { id: tpl.id, name: tpl.name } });
+    if (mascotMode !== 'auto') data = stripMascot(data);
     const r = { id: newId(), brand_id: b.id, title: w.title, kind: tpl.kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
     db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
     brands.logActivity(b.id, 'post.created', `"${tpl.name}" şablonuyla hazırlandı: ${w.title}`);
@@ -477,20 +499,22 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     list: brandId => db.prepare('SELECT * FROM posts WHERE brand_id = ? ORDER BY updated_at DESC').all(brands.get(brandId).id).map(toPost),
     get: (brandId, id) => toPost(row(brands.get(brandId).id, id)),
 
-    async create(brandId, { topic, kind = 'carousel', format = null, slides = 6, modelRef = null, templateId = null } = {}) {
+    async create(brandId, { topic, kind = 'carousel', format = null, slides = 6, modelRef = null, templateId = null, mascot = 'auto' } = {}) {
       const b = brands.get(brandId);
+      const mm = MASCOT_MODES.includes(mascot) ? mascot : 'auto';
       // 11.10: konudan üretirken şablon seçildiyse metin o şablona yerleşir
       if (templateId) {
         const r0 = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
         if (!r0) throw notFound('Şablon bulunamadı.');
-        return fromTemplateTopic(b, toTemplate(r0), text(topic, { field: 'Konu', max: 1000, required: true }), modelRef, slides);
+        return fromTemplateTopic(b, toTemplate(r0), text(topic, { field: 'Konu', max: 1000, required: true }), modelRef, slides, mm);
       }
       oneOf(kind, Object.keys(POST_KINDS), 'Tür');
       format = format || KIND_DEFAULTS[kind].format;
       if (!POST_FORMATS[format]) throw badRequest('Geçersiz boyut.');
       const t = text(topic, { field: 'Konu', max: 1000, required: true });
       const w = await writeTexts(b, { topic: t, kind, slides, modelRef });
-      const data = withFrames(b.id, { format, slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format, kind, topic: String(t).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags, topic: t }, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta });
+      let data = withFrames(b.id, { format, slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format, kind, topic: String(t).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags, topic: t }, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta });
+      if (mm !== 'auto') data = stripMascot(data);
       const r = { id: newId(), brand_id: b.id, title: w.title, kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
       db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
       brands.logActivity(b.id, 'post.created', `${POST_KINDS[kind]} hazırlandı: ${w.title}`);
@@ -546,7 +570,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
 
     // 10.8 Fikirden tasarım: fikrin metni marka diliyle yazılır, eşleşen (ya da seçilen) şablona yerleşir; şablon yoksa
     // fikrin türüne uygun marka yerleşimiyle hazırlanır. Fikir "kullanıldı (Post stüdyosu)" olur.
-    async fromIdea(brandId, { ideaId, templateId = null, slides = null, modelRef = null } = {}) {
+    async fromIdea(brandId, { ideaId, templateId = null, slides = null, modelRef = null, mascot = 'auto' } = {}) {
       const b = brands.get(brandId);
       const ir = db.prepare('SELECT * FROM ideas WHERE id = ? AND brand_id = ?').get(String(ideaId || ''), b.id);
       if (!ir) throw notFound('Fikir bulunamadı.');
@@ -559,10 +583,11 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
         tpl = toTemplate(r0);
       } else tpl = bestTemplate(b.id, idea);
       let post;
-      if (tpl) post = await fromTemplateTopic(b, tpl, topic, modelRef, slides);
+      const mm = MASCOT_MODES.includes(mascot) ? mascot : 'auto';
+      if (tpl) post = await fromTemplateTopic(b, tpl, topic, modelRef, slides, mm);
       else {
         const kind = idea.format === 'story' ? 'story' : 'post';
-        post = await this.create(b.id, { topic, kind, modelRef });
+        post = await this.create(b.id, { topic, kind, modelRef, mascot: mm });
       }
       const used = markIdeaUsed(db, b.id, idea.id, 'post');
       // Postun kaynağı: dışa aktarırken "bu fikri havuzdan sil" önerisi için

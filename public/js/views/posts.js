@@ -8,11 +8,25 @@ import { drawSlide, resolveImages, slideBlob, hitTest, layerBox, handlesOf } fro
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
 import { canvasesToPdf } from '../pdf.js';
+import { openColorPicker, gradCss } from '../colorPicker.js';
 import { STOCK_KINDS, loadStock, itemsOf, searchItems, svgUrl, svgToPng } from '../stockPacks.js';
 
 // Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
 const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Başlık'], ['body', 'Açıklama'], ['item', 'Madde (bilgi grafiği)'], ['cta', 'Buton yazısı'], ['speech', 'Maskot konuşması'], ['topic', 'Konu etiketi'], ['num', 'Slayt numarası'], ['page', 'Slayt sayısı (/ 06)']];
 const FILL_ROLES = ['title', 'body', 'item', 'cta', 'speech'];
+// Hazır zeminler: düz renkler ve gradyanlar
+const BG_PRESETS = [
+  { n: 'Gece', c: '#0b1020' }, { n: 'Krem', c: '#fff1e6' }, { n: 'Kağıt', c: '#f4f1ea' }, { n: 'Pastel pembe', c: '#fbe4ee' }, { n: 'Adaçayı', c: '#6d8a86' }, { n: 'Siyah', c: '#111111' },
+  { n: 'Gün batımı', g: { type: 'linear', angle: 45, stops: [{ c: '#ff7a59', p: 0 }, { c: '#ffd166', p: 100 }] } },
+  { n: 'Mor gece', g: { type: 'linear', angle: 135, stops: [{ c: '#1e1b4b', p: 0 }, { c: '#7c3aed', p: 100 }] } },
+  { n: 'Okyanus', g: { type: 'linear', angle: 90, stops: [{ c: '#0ea5e9', p: 0 }, { c: '#1e3a8a', p: 100 }] } },
+  { n: 'Pastel', g: { type: 'linear', angle: 60, stops: [{ c: '#fbcfe8', p: 0 }, { c: '#c7d2fe', p: 100 }] } },
+  { n: 'Nane', g: { type: 'linear', angle: 120, stops: [{ c: '#d1fae5', p: 0 }, { c: '#34d399', p: 100 }] } },
+  { n: 'Spot ışık', g: { type: 'radial', angle: 0, stops: [{ c: '#3b3f70', p: 0 }, { c: '#0b1020', p: 100 }] } },
+  { n: 'Turuncu ışık', g: { type: 'radial', angle: 0, stops: [{ c: '#ff9a3c', p: 0 }, { c: '#c2410c', p: 100 }] } },
+  { n: 'Gri', g: { type: 'linear', angle: 90, stops: [{ c: '#f8fafc', p: 0 }, { c: '#cbd5e1', p: 100 }] } }
+];
+const MASCOT_OPTS = [['auto', 'Maskot: otomatik yerleştir'], ['manual', 'Maskot: ben yerleştireceğim'], ['none', 'Maskot: kullanma']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
 const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri (poz her postta konuya göre seçilir)'], ['logo', 'Logo']];
 // Şablonun hangi alanları her postta doluyor (kartta gösterilir)
 const ROLE_NAMES = { title: 'Başlık', body: 'Açıklama', item: 'Madde', cta: 'Buton', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri' };
@@ -56,6 +70,7 @@ export async function renderPosts(view, brand, sub) {
       <input class="input grow" name="topic" maxlength="1000" required placeholder="Konuyu yaz, carousel hazırlansın. Ör. Sınav haftasında kahve nasıl içilir?" aria-label="Post konusu">
       <select class="select w-auto" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Tasarım: otomatik (marka yerleşimi)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>Tasarım: ${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select>
       <select class="select w-auto" name="slides" aria-label="Slayt sayısı">${[4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 6 ? 'selected' : ''}>${n} slayt</option>`).join('')}</select>
+      <select class="select w-auto" name="mascot" aria-label="Maskot" title="Maskot kullanımı">${MASCOT_OPTS}</select>
       <button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button>
       <button class="btn" type="button" data-from-idea title="İçerik havuzundan kullanılmamış bir fikir seç">${icon('idea')}Havuzdan</button>
     </form>` : ''}
@@ -122,7 +137,7 @@ export async function renderPosts(view, brand, sub) {
     try {
       const templateId = fd.get('templateId') || null;
       try { localStorage.setItem(tplKey, templateId || ''); } catch { /* gizli pencere */ }
-      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId }, st));
+      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId, mascot: fd.get('mascot') || 'auto' }, st));
       if (!res) return;
       toast(aiNote(res.post.ai), 'success', 5000);
       go(base(brand) + '/' + res.post.id);
@@ -235,6 +250,7 @@ async function fromIdeaFlow(brand, models, templates) {
     body: `<div class="form-grid">
       <div class="field"><label for="fi-format">Fikir türü</label><select class="select" id="fi-format" name="format">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
       <div class="field"><label for="fi-tpl">Şablon</label><select class="select" id="fi-tpl" name="templateId"><option value="">Eşleşen şablon (otomatik)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
+      <div class="field"><label for="fi-mascot">Maskot</label><select class="select" id="fi-mascot" name="mascot">${MASCOT_OPTS}</select></div>
       <div class="field"><label for="fi-slides">Slayt (carousel şablonunda)</label><select class="select" id="fi-slides" name="slides"><option value="">Şablondaki kadar</option>${[3, 4, 5, 6, 7, 8].map(n => `<option>${n}</option>`).join('')}</select></div>
       <div class="field full"><span class="field-label">Seçilen fikir</span><div class="pool-pick" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></div>
       <div class="field"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
@@ -252,7 +268,7 @@ async function fromIdeaFlow(brand, models, templates) {
       form.querySelectorAll('[data-fi-again], #fi-format').forEach(el => { el.disabled = true; });
       let r;
       try {
-        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, slides: Number(fd.get('slides')) || null, model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
+        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, slides: Number(fd.get('slides')) || null, mascot: fd.get('mascot') || 'auto', model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
       } finally {
         clearInterval(timer);
         status.hidden = true;
@@ -511,6 +527,8 @@ async function renderEditor(view, brand, id, models) {
             </div></div>
           <div class="ed-menu"><button type="button" class="ed-top-btn" data-menu="boyut" aria-haspopup="true">Yeniden boyutlandır</button>
             <div class="ed-drop" data-drop="boyut" hidden>${Object.entries(meta.formats).map(([k, v]) => `<button type="button" data-format="${k}" class="${k === data.format ? 'on' : ''}">${esc(v.label)} <span class="ed-hint">${v.w}×${v.h}</span></button>`).join('')}</div></div>
+          <button type="button" class="ed-top-btn icon-only" data-act="undo" title="Geri al (Ctrl+Z)" aria-label="Geri al">${icon('undo')}</button>
+          <button type="button" class="ed-top-btn icon-only" data-act="redo" title="Yinele (Ctrl+Shift+Z)" aria-label="Yinele">${icon('redo')}</button>
           <span class="spacer"></span>
           <h1 class="ed-title" title="${esc(post.title)}${data.topic ? ` · Konu: ${esc(data.topic)}` : ''}">${esc(post.title)}</h1>${data.topic ? `<span class="ed-topic xsmall" title="${esc(data.topic)}">${esc(data.topic.length > 48 ? data.topic.slice(0, 48) + '…' : data.topic)}</span>` : ''}
           <button type="button" class="ed-top-btn ed-save" data-act="save">${dirty ? 'Kaydet •' : 'Kaydet'}</button>
@@ -573,10 +591,17 @@ async function renderEditor(view, brand, id, models) {
   function undo() { if (!undoStack.length) return toast('Geri alınacak değişiklik yok.', 'info', 1800); redoStack.push(JSON.stringify(data)); restoreSnap(undoStack.pop()); }
   function redo() { if (!redoStack.length) return toast('Yinelenecek değişiklik yok.', 'info', 1800); undoStack.push(JSON.stringify(data)); restoreSnap(redoStack.pop()); }
 
-  function markDirty(fromHistory = false) {
+  // Aynı alanda art arda yapılan değişiklikler (yazı yazma, kaydırıcı sürükleme) tek adım sayılır
+  let lastKey = ''; let lastAt = 0;
+  function markDirty(fromHistory = false, key = '') {
     if (!fromHistory) {
       const now = JSON.stringify(data);
-      if (now !== lastSnap) { undoStack.push(lastSnap); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; lastSnap = now; }
+      if (now !== lastSnap) {
+        const merge = key && key === lastKey && Date.now() - lastAt < 1200 && undoStack.length;
+        if (!merge) { undoStack.push(lastSnap); if (undoStack.length > 100) undoStack.shift(); }
+        redoStack.length = 0; lastSnap = now;
+      }
+      lastKey = key; lastAt = Date.now();
     }
     dirty = true;
     const b = $('.ed-save'); if (b) b.textContent = 'Kaydet •';
@@ -613,7 +638,23 @@ async function renderEditor(view, brand, id, models) {
 
   function drawList() {
     const list = $('#slide-list');
-    list.innerHTML = data.slides.map((s, i) => `<button type="button" class="slide-thumb ${i === current ? 'active' : ''}" data-slide="${i}" aria-label="Slayt ${i + 1}" aria-current="${i === current}"><canvas></canvas><span>${i + 1}</span></button>`).join('');
+    list.innerHTML = data.slides.map((s, i) => `<button type="button" class="slide-thumb ${i === current ? 'active' : ''}" data-slide="${i}" draggable="true" aria-label="Slayt ${i + 1}" aria-current="${i === current}" title="Sürükleyerek sırala · sağ tık: sayfa işlemleri"><canvas></canvas><span>${i + 1}</span></button>`).join('');
+    // Sürükle-bırak ile sayfa sıralama; sağ tıkla sayfa menüsü
+    list.ondragstart = e => { const b = e.target.closest('[data-slide]'); if (!b) return; e.dataTransfer.setData('text/x-slide', b.dataset.slide); e.dataTransfer.effectAllowed = 'move'; };
+    list.ondragover = e => { if (e.target.closest('[data-slide]')) { e.preventDefault(); list.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to')); e.target.closest('[data-slide]').classList.add('drop-to'); } };
+    list.ondragleave = () => list.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to'));
+    list.ondrop = e => {
+      const b = e.target.closest('[data-slide]'); const from = Number(e.dataTransfer.getData('text/x-slide'));
+      list.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to'));
+      if (!b || !Number.isInteger(from)) return; e.preventDefault();
+      const to = Number(b.dataset.slide); if (to === from) return;
+      const [m] = data.slides.splice(from, 1); data.slides.splice(to, 0, m); current = to; setSelected(null); multi = null; markDirty(); shell();
+    };
+    list.oncontextmenu = e => {
+      const b = e.target.closest('[data-slide]'); if (!b) return; e.preventDefault();
+      view._ctxPage = Number(b.dataset.slide);
+      ctxMenu(e.clientX, e.clientY, [['pg-dup', 'Sayfayı çoğalt'], ['pg-copy', 'Sayfayı kopyala'], ['pg-paste', 'Sayfayı yapıştır (sonrasına)', '', !pageClip], '-', ['pg-left', 'Sola taşı', '', view._ctxPage === 0], ['pg-right', 'Sağa taşı', '', view._ctxPage === data.slides.length - 1], '-', ['pg-del', 'Sayfayı sil', '', data.slides.length <= 1]]);
+    };
     list.querySelectorAll('canvas').forEach((c, i) => resolveImages(data.slides[i]).then(() => drawSlide(c, data.slides[i], format())));
   }
 
@@ -630,7 +671,8 @@ async function renderEditor(view, brand, id, models) {
     const l = layer();
     if (!l) { p.innerHTML = ''; return; }
     const range = (key, label, value, min, max, step, unit = '') => `<div class="field"><label for="lp-${key}">${label}: <span data-val="${key}">${value}${unit}</span></label><input type="range" id="lp-${key}" min="${min}" max="${max}" step="${step}" data-prop="${key}" data-unit="${unit}" value="${value}"></div>`;
-    const swatches = (key, value) => `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === value ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" data-prop="${key}" value="${esc(value)}" aria-label="Özel renk"></div>`;
+    // Hızlı renkler + seçili rengi gösteren ayrı düğme (açınca renk seçici; şekilde gradyan da)
+    const swatches = (key, value) => { const g = key === 'color' && l.type === 'shape' && l.gradient; return `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${!g && String(c).toLowerCase() === String(value).toLowerCase() ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}" title="${esc(c)}"></button>`).join('')}<button type="button" class="cp-trigger" data-cp="${key}" title="Renk seçici"><span class="cp-trigger-sw" style="background:${g ? gradCss(g) : esc(value)}"></span><span>${g ? 'Gradyan' : esc(String(value).toUpperCase())}</span></button></div>`; };
     p.innerHTML = `${data.slides.length > 1 ? `<button type="button" class="btn btn-sm w-full mb-3" data-apply-all title="${l.type === 'text' ? 'Yazı stili (font, boyut, renk, hizalama, konum) aynı roldeki yazılara uygulanır; yazının kendisi değişmez' : 'Aynı görsel/şekil öbür slaytlarda da bu hâle gelir; olmayan slayta eklenir'}">${icon('grid')}Tüm slaytlara uygula</button>` : ''}<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
       <div class="row"><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-dup aria-label="Çoğalt" title="Çoğalt">${icon('plus')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil" title="Sil">${icon('trash')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-deselect aria-label="Kapat" title="Kapat">${icon('x')}</button></div></div>
       <div class="stack-sm">
@@ -728,20 +770,82 @@ async function renderEditor(view, brand, id, models) {
     addAssetLayer(a);
   }
 
+  // Katman küçük önizlemeleri: katman tek başına çizilir, kapladığı alan 44 px kareye sığdırılır
+  async function drawLayerThumbs(box) {
+    const s = slide();
+    await resolveImages(s);
+    const off = document.createElement('canvas');
+    const F = format();
+    for (const l of s.layers) {
+      const c = box.querySelector(`[data-ly-thumb="${CSS.escape(l.id)}"]`);
+      if (!c) continue;
+      drawSlide(off, { bg: 'rgba(0,0,0,0)', layers: [Object.assign({}, l, { hidden: false, opacity: 100 })] }, F);
+      const b = layerBox(off.getContext('2d'), l);
+      const pad = 8; const sx = Math.max(0, b.x - pad); const sy = Math.max(0, b.y - pad); const sw = Math.max(1, Math.min(F.w - sx, b.w + pad * 2)); const sh = Math.max(1, Math.min(F.h - sy, b.h + pad * 2));
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, 44, 44);
+      ctx.fillStyle = l.type === 'text' && /^#f|^#e|^#d|^#fff/i.test(l.color || '') ? '#3b3f52' : '#f1f2f6'; ctx.fillRect(0, 0, 44, 44);
+      const k = Math.min(40 / sw, 40 / sh);
+      ctx.drawImage(off, sx, sy, sw, sh, (44 - sw * k) / 2, (44 - sh * k) / 2, sw * k, sh * k);
+    }
+    // Sürükle-bırak sıralama (grup başlığı bütün grubu taşır)
+    const ul = box.querySelector('#ly-list');
+    if (!ul) return;
+    let dragIds = null;
+    ul.ondragstart = e => {
+      const r = e.target.closest('[data-ly],[data-ly-group]'); if (!r) return;
+      dragIds = r.dataset.lyGroup ? groupIds(r.dataset.lyGroup) : [r.dataset.ly];
+      e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'katman');
+    };
+    ul.ondragover = e => { const r = e.target.closest('[data-ly],[data-ly-group]'); if (!r || !dragIds) return; e.preventDefault(); ul.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to')); r.classList.add('drop-to'); };
+    ul.ondragleave = () => ul.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to'));
+    ul.ondrop = e => {
+      const r = e.target.closest('[data-ly],[data-ly-group]'); ul.querySelectorAll('.drop-to').forEach(x => x.classList.remove('drop-to'));
+      if (!r || !dragIds) return; e.preventDefault();
+      const target = r.dataset.lyGroup ? groupIds(r.dataset.lyGroup) : [r.dataset.ly];
+      if (target.some(id => dragIds.includes(id))) { dragIds = null; return; }
+      // Liste en öndekinden başlar: bir satırın üstüne bırakılan, o satırın önüne geçer
+      const arr = slide().layers;
+      const moving = arr.filter(l => dragIds.includes(l.id));
+      const rest = arr.filter(l => !dragIds.includes(l.id));
+      const topIdx = Math.max(...target.map(id => rest.findIndex(l => l.id === id)));
+      rest.splice(topIdx + 1, 0, ...moving);
+      slide().layers = rest; dragIds = null; markDirty(); redraw();
+    };
+  }
+
   async function drawPanelBody() {
     const box = $('#ed-panel-body');
     if (!box || !panel) return;
     const title = (RAIL.find(r => r[0] === panel) || [])[1];
     const head = `<h3 class="ed-panel-title">${esc(title)}</h3>`;
     if (panel === 'katmanlar') {
+      // En öndeki katman en üstte; aynı gruptakiler bir başlık altında toplanır
       const list = slide().layers.slice().reverse();
-      box.innerHTML = `${head}${list.length ? `<ul class="ly-list" role="list">${list.map(l => `<li class="ly-row${l.id === selected || (multi || []).includes(l.id) ? ' on' : ''}${l.hidden ? ' is-hidden' : ''}" data-ly="${esc(l.id)}">
-          <button type="button" class="ly-name" data-ly-pick title="Seç · çift tıkla: adını değiştir">${esc(layerName(l))}</button>
+      const sel = new Set(selIds());
+      const row = (l, inGroup) => `<li class="ly-row${sel.has(l.id) ? ' on' : ''}${l.hidden ? ' is-hidden' : ''}${inGroup ? ' in-group' : ''}" data-ly="${esc(l.id)}" draggable="true">
+          <span class="ly-grip" aria-hidden="true">⋮⋮</span><canvas class="ly-thumb" data-ly-thumb="${esc(l.id)}" width="44" height="44" aria-hidden="true"></canvas>
+          <button type="button" class="ly-name" data-ly-pick title="Seç · çift tıkla: adını değiştir">${esc(layerName(l))}${l.pin ? ' <span class="ly-tag" title="Her yeni sayfada tekrarlanır">sabit</span>' : ''}</button>
           <button type="button" class="ly-btn" data-ly-vis aria-label="${l.hidden ? 'Göster' : 'Gizle'}" title="${l.hidden ? 'Göster' : 'Gizle (dışa aktarılmaz)'}">${icon(l.hidden ? 'eyeOff' : 'eye')}</button>
-          <button type="button" class="ly-btn${l.locked ? ' on' : ''}" data-ly-lock aria-label="${l.locked ? 'Kilidi aç' : 'Kilitle'}" title="${l.locked ? 'Kilidi aç' : 'Kilitle (tuvalde tıklanmaz, taşınmaz)'}">${icon(l.locked ? 'lock' : 'unlock')}</button>
-          <button type="button" class="ly-btn" data-ly-move="1" aria-label="Öne al" title="Öne al">${icon('chevronUp')}</button>
-          <button type="button" class="ly-btn" data-ly-move="-1" aria-label="Arkaya al" title="Arkaya al">${icon('chevronDown')}</button></li>`).join('')}</ul>
-          <p class="xsmall muted mt-2">Üstteki katman önde görünür. Gizli katman dışa aktarılmaz; kilitli katman tuvalde tıklanmaz.</p>` : '<p class="small muted">Bu slaytta katman yok.</p>'}`;
+          <button type="button" class="ly-btn${l.locked ? ' on' : ''}" data-ly-lock aria-label="${l.locked ? 'Kilidi aç' : 'Kilitle'}" title="${l.locked ? 'Kilidi aç' : 'Kilitle'}">${icon(l.locked ? 'lock' : 'unlock')}</button></li>`;
+      const parts = []; const seen = new Set();
+      for (const l of list) {
+        if (l.group) {
+          if (seen.has(l.group)) continue;
+          seen.add(l.group);
+          const members = list.filter(x => x.group === l.group);
+          if (members.length > 1) {
+            parts.push(`<li class="ly-group${members.every(m => sel.has(m.id)) ? ' on' : ''}" data-ly-group="${esc(l.group)}" draggable="true"><span class="ly-grip" aria-hidden="true">⋮⋮</span>${icon('group')}<button type="button" class="ly-name" data-ly-gpick>Grup · ${members.length} öğe</button><button type="button" class="ly-btn" data-ly-ungroup title="Grubu çöz" aria-label="Grubu çöz">${icon('x')}</button></li>`);
+            members.forEach(m => parts.push(row(m, true)));
+            continue;
+          }
+        }
+        parts.push(row(l, false));
+      }
+      box.innerHTML = `${head}${list.length ? `<div class="row mb-2 ly-tools"><button type="button" class="btn btn-sm btn-ghost" data-ly-tool="group" title="Ctrl+G">${icon('group')}Grupla</button><button type="button" class="btn btn-sm btn-ghost" data-ly-tool="front" title="En öne">${icon('chevronUp')}Öne</button><button type="button" class="btn btn-sm btn-ghost" data-ly-tool="back" title="En arkaya">${icon('chevronDown')}Arkaya</button></div>
+          <ul class="ly-list" role="list" id="ly-list">${parts.join('')}</ul>
+          <p class="xsmall muted mt-2">Sürükleyerek sırala; üstteki önde görünür. Shift+tık ile çoklu seç. Gizli katman dışa aktarılmaz, kilitli katman tuvalde tıklanmaz.</p>` : '<p class="small muted">Bu slaytta katman yok.</p>'}`;
+      drawLayerThumbs(box);
       return;
     }
     if (panel === 'metin') {
@@ -804,13 +908,22 @@ async function renderEditor(view, brand, id, models) {
       return;
     }
     if (panel === 'zemin') {
-      const bi = slide().bgImage;
-      box.innerHTML = `${head}<div class="field"><label for="slide-bg">Zemin rengi</label><div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${c === slide().bg ? 'on' : ''}" style="background:${esc(c)}" data-bg-color="${esc(c)}" aria-label="${esc(c)}"></button>`).join('')}<input type="color" id="slide-bg" value="${esc(slide().bg)}" aria-label="Slayt zemin rengi"></div></div>
+      const sl = slide(); const bi = sl.bgImage; const g = sl.bgGradient;
+      box.innerHTML = `${head}<div class="field"><span class="field-label">Zemin rengi</span><div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${!g && String(c).toLowerCase() === String(sl.bg).toLowerCase() ? 'on' : ''}" style="background:${esc(c)}" data-bg-color="${esc(c)}" aria-label="${esc(c)}" title="${esc(c)}"></button>`).join('')}
+          <button type="button" class="cp-trigger" data-cp-bg title="Renk seçici ve gradyan"><span class="cp-trigger-sw" style="background:${g ? gradCss(g) : esc(sl.bg)}"></span><span>${g ? 'Gradyan' : esc(String(sl.bg).toUpperCase())}</span></button></div></div>
+        <h4 class="ed-sub">Hazır zeminler</h4>
+        <div class="bg-presets">${BG_PRESETS.map((p, i) => `<button type="button" class="bg-preset" data-bg-preset="${i}" style="background:${p.g ? gradCss(p.g) : p.c}" title="${esc(p.n)}" aria-label="${esc(p.n)}"></button>`).join('')}</div>
         <h4 class="ed-sub">Zemin görseli</h4>
         ${bi ? `<div class="seg mb-2">${[['cover', 'Kapla'], ['contain', 'Sığdır']].map(([k, v]) => `<button type="button" data-bg-fit="${k}" class="${bi.fit === k ? 'active' : ''}">${v}</button>`).join('')}</div>
+          <label class="small" for="bg-zoom">Ölçek</label><input type="range" id="bg-zoom" min="100" max="300" step="5" value="${bi.zoom || 100}" data-bg-img="zoom">
+          <label class="small" for="bg-ox">Yatay konum</label><input type="range" id="bg-ox" min="-50" max="50" step="1" value="${bi.ox || 0}" data-bg-img="ox">
+          <label class="small" for="bg-oy">Dikey konum</label><input type="range" id="bg-oy" min="-50" max="50" step="1" value="${bi.oy || 0}" data-bg-img="oy">
           <label class="small" for="bg-dim">Karartma</label><input type="range" id="bg-dim" min="0" max="80" step="5" value="${bi.dim || 0}">
           <div class="row mt-2"><button type="button" class="btn btn-sm" data-bg-image>Değiştir</button><button type="button" class="btn btn-sm btn-ghost" data-bg-remove>Kaldır</button></div>`
-        : `<button type="button" class="btn btn-sm" data-bg-image>${icon('image')}Kütüphaneden zemin görseli seç</button>`}`;
+        : `<button type="button" class="btn btn-sm" data-bg-image>${icon('image')}Kütüphaneden zemin görseli seç</button>`}
+        <h4 class="ed-sub">Bütün sayfalar</h4>
+        <div class="stack-sm">${data.slides.length > 1 ? `<button type="button" class="btn btn-sm" data-bg-all>${icon('grid')}Bu zemini bütün sayfalara uygula</button>` : ''}
+        <label class="chip-check"><input type="checkbox" id="bg-pin" ${data.bgPin ? 'checked' : ''}><span>Zemini sabitle (yeni sayfalar bu zeminle açılır)</span></label></div>`;
       return;
     }
     if (panel === 'ai') {
@@ -882,7 +995,24 @@ async function renderEditor(view, brand, id, models) {
     const c = $('#stage');
     let drag = null;
     const point = e => { const r = c.getBoundingClientRect(); return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) }; };
+    // Sağ tık: tıklanan katman seçilir (çoklu seçimdeyse seçim korunur), bağlam menüsü açılır
+    const openCtxAt = (cx, cy) => {
+      const p = point({ clientX: cx, clientY: cy });
+      const hit = hitTest(c, slide(), p.x, p.y);
+      if (hit && !(multi && multi.includes(hit.id))) {
+        if (hit.group && groupIds(hit.group).length > 1) { setSelected(null); multi = groupIds(hit.group); } else { multi = null; setSelected(hit.id); }
+        redraw();
+      } else if (!hit) { multi = null; setSelected(null); redraw(); }
+      layerMenu(cx, cy);
+    };
+    c.addEventListener('contextmenu', e => { e.preventDefault(); if (drag) drag = null; openCtxAt(e.clientX, e.clientY); });
+    // Dokunmatik: uzun basınca aynı menü
+    let press = null;
+    c.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch') return; const sx = e.clientX; const sy = e.clientY; press = setTimeout(() => { press = null; drag = null; openCtxAt(sx, sy); }, 550); }, true);
+    const cancelPress = e => { if (press && (e.type !== 'pointermove' || Math.hypot(e.movementX || 0, e.movementY || 0) > 4)) { clearTimeout(press); press = null; } };
+    c.addEventListener('pointermove', cancelPress, true); c.addEventListener('pointerup', cancelPress, true); c.addEventListener('pointercancel', cancelPress, true);
     c.addEventListener('pointerdown', e => {
+      if (e.button === 2) return; // sağ tık sürükleme başlatmaz
       const p = point(e);
       // Seçili katmanın tutamacından tutulduysa boyutlandırma
       const sel = layer();
@@ -903,6 +1033,11 @@ async function renderEditor(view, brand, id, models) {
         multi = cur.includes(hit.id) ? cur.filter(x => x !== hit.id) : [...cur, hit.id];
         if (multi.length < 2) { const one = multi[0] || null; multi = null; setSelected(one); return redraw(); }
         setSelected(null); multi = multi.slice(); c.focus(); return quick();
+      }
+      // Gruptaki bir katmana tıklanınca bütün grup seçilir (Alt ile tek katman)
+      if (hit && hit.group && !e.altKey && !(multi && multi.includes(hit.id))) {
+        const g = groupIds(hit.group);
+        if (g.length > 1) { setSelected(null); multi = g; }
       }
       // Çoklu seçimdeki bir katmandan tutulursa hepsi birlikte taşınır
       if (multi && hit && multi.includes(hit.id)) {
@@ -937,7 +1072,7 @@ async function renderEditor(view, brand, id, models) {
       const l = layer();
       if (!l || l.locked) return;
       const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-      if (k) { e.preventDefault(); const s = e.shiftKey ? 10 : 1; l.x += k[0] * s; l.y += k[1] * s; markDirty(); redraw(); }
+      if (k) { e.preventDefault(); const s = e.shiftKey ? 10 : 1; l.x += k[0] * s; l.y += k[1] * s; markDirty(false, `${l.id}:move`); redraw(); }
       if (e.key === 'Delete') { slide().layers = slide().layers.filter(x => x.id !== l.id); setSelected(null); markDirty(); redraw(); }
       if (e.key === 'Escape') { setSelected(null); redraw(); }
     });
@@ -995,6 +1130,119 @@ async function renderEditor(view, brand, id, models) {
 
   const closeMenus = () => view.querySelectorAll('[data-drop]').forEach(d => { d.hidden = true; });
   const addLayer = l => { slide().layers.push(l); setSelected(l.id); markDirty(); redraw(); };
+  // Gruplar: aynı "group" değerini taşıyan katmanlar birlikte seçilir ve taşınır
+  const groupIds = g => slide().layers.filter(l => l.group === g).map(l => l.id);
+  const selIds = () => multi || (selected ? [selected] : []);
+  function groupSel() {
+    const ids = selIds();
+    if (ids.length < 2) return toast('Gruplamak için en az iki katman seç (Shift+tık ya da Ctrl+A).', 'info', 2500);
+    const g = 'g' + uid();
+    slide().layers.forEach(l => { if (ids.includes(l.id)) l.group = g; });
+    multi = ids; setSelected(null); markDirty(); redraw();
+    toast(`${ids.length} katman gruplandı. Gruptaki tek katmanı seçmek için Alt+tık.`, 'success', 2500);
+  }
+  function ungroup() {
+    const ids = selIds();
+    const gs = new Set(slide().layers.filter(l => ids.includes(l.id) && l.group).map(l => l.group));
+    if (!gs.size) return toast('Seçili katmanlarda grup yok.', 'info', 1800);
+    slide().layers.forEach(l => { if (gs.has(l.group)) delete l.group; });
+    markDirty(); redraw(); toast('Grup çözüldü.', 'success', 1800);
+  }
+  // Katman sırası: öne/arkaya (bir adım ya da en uca)
+  function reorder(dir) {
+    const ids = selIds(); if (!ids.length) return;
+    const arr = slide().layers;
+    const picked = arr.filter(l => ids.includes(l.id)); const rest = arr.filter(l => !ids.includes(l.id));
+    if (dir === 'front') slide().layers = [...rest, ...picked];
+    else if (dir === 'back') slide().layers = [...picked, ...rest];
+    else {
+      const idx = arr.findIndex(l => ids.includes(l.id));
+      if (dir === 'up') { const last = arr.map((l, i) => (ids.includes(l.id) ? i : -1)).filter(i => i >= 0).pop(); if (last >= arr.length - 1) return; const nxt = arr[last + 1]; slide().layers = arr.filter(l => l !== nxt); slide().layers.splice(slide().layers.findIndex(l => ids.includes(l.id)), 0, nxt); }
+      else { if (idx <= 0) return; const prv = arr[idx - 1]; slide().layers = arr.filter(l => l !== prv); const lastSel = slide().layers.map((l, i) => (ids.includes(l.id) ? i : -1)).filter(i => i >= 0).pop(); slide().layers.splice(lastSel + 1, 0, prv); }
+    }
+    markDirty(); redraw();
+  }
+  // Yeni sayfa: türüne göre mevcut sayfalardan yerleşim alınır; sabitlenen öğeler (pin) ve zemin korunur
+  function newPage(kind) {
+    if (data.slides.length >= 10) return toast('En fazla 10 slayt olabilir.', 'info');
+    const clone = s => { const c = JSON.parse(JSON.stringify(s)); delete c.frame; c.layers.forEach(l => { l.id = uid(); }); return c; };
+    const n = data.slides.length;
+    let page;
+    if (kind === 'kapak') page = clone(data.slides[0]);
+    else if (kind === 'kapanis') page = clone(data.slides[n - 1]);
+    else if (kind === 'bilgi') page = clone(data.slides[n >= 3 ? Math.min(current === 0 || current === n - 1 ? 1 : current, n - 2) : current]);
+    else if (kind === 'cogalt') page = clone(slide());
+    else {
+      const cur = slide();
+      page = { bg: cur.bg, layers: cur.layers.filter(l => l.pin).map(l => Object.assign(JSON.parse(JSON.stringify(l)), { id: uid() })) };
+      if (cur.bgImage) page.bgImage = JSON.parse(JSON.stringify(cur.bgImage));
+      if (cur.bgGradient) page.bgGradient = JSON.parse(JSON.stringify(cur.bgGradient));
+    }
+    // Zemin sabitlendiyse her yeni sayfa bu sayfanın zeminiyle açılır
+    if (data.bgPin) { const cur = slide(); page.bg = cur.bg; if (cur.bgGradient) page.bgGradient = JSON.parse(JSON.stringify(cur.bgGradient)); else delete page.bgGradient; if (cur.bgImage) page.bgImage = JSON.parse(JSON.stringify(cur.bgImage)); else delete page.bgImage; }
+    data.slides.splice(current + 1, 0, page); current++; setSelected(null); multi = null; markDirty(); shell();
+    toast({ kapak: 'Kapak sayfası eklendi.', bilgi: 'Bilgi sayfası eklendi.', kapanis: 'Kapanış sayfası eklendi.', cogalt: 'Sayfa çoğaltıldı.' }[kind] || 'Sayfa eklendi; sabitlenen öğeler ve zemin korundu.', 'success', 2000);
+  }
+  // Sağ tık / uzun dokunma menüsü
+  function ctxMenu(x, y, items) {
+    document.querySelectorAll('.ctx-menu').forEach(m => m.remove());
+    const m = document.createElement('div');
+    m.className = 'ctx-menu'; m.setAttribute('role', 'menu');
+    m.innerHTML = items.map(it => (it === '-' ? '<hr>' : `<button type="button" role="menuitem" data-ctx="${it[0]}" ${it[3] ? 'disabled' : ''}>${it[1]}${it[2] ? `<span class="ed-hint">${it[2]}</span>` : ''}</button>`)).join('');
+    document.body.appendChild(m);
+    const r = m.getBoundingClientRect();
+    m.style.left = `${Math.min(x, innerWidth - r.width - 8)}px`; m.style.top = `${Math.min(y, innerHeight - r.height - 8)}px`;
+    const close = ev => { if (ev && ev.type === 'keydown' && ev.key !== 'Escape') return; m.remove(); document.removeEventListener('mousedown', outside, true); document.removeEventListener('keydown', close, true); };
+    const outside = ev => { if (!m.contains(ev.target)) close(); };
+    setTimeout(() => { document.addEventListener('mousedown', outside, true); document.addEventListener('keydown', close, true); }, 0);
+    m.addEventListener('click', ev => { const b = ev.target.closest('[data-ctx]'); if (!b) return; close(); runCtx(b.dataset.ctx); });
+    const first = m.querySelector('button:not([disabled])'); if (first) first.focus();
+  }
+  function layerMenu(x, y) {
+    const ids = selIds(); const one = layer();
+    const grouped = slide().layers.some(l => ids.includes(l.id) && l.group);
+    const anyLocked = slide().layers.some(l => ids.includes(l.id) && l.locked);
+    const anyPin = slide().layers.some(l => ids.includes(l.id) && l.pin);
+    if (!ids.length) return ctxMenu(x, y, [['paste', 'Yapıştır', 'Ctrl+V', !clip], ['all', 'Tümünü seç', 'Ctrl+A'], '-', ['page-dup', 'Sayfayı çoğalt'], ['page-new', 'Yeni boş sayfa (sabit öğelerle)']]);
+    ctxMenu(x, y, [['copy', 'Kopyala', 'Ctrl+C'], ['paste', 'Yapıştır', 'Ctrl+V', !clip], ['dup', 'Çoğalt', 'Ctrl+D'], ['del', 'Sil', 'Delete'], '-',
+      ['front', 'En öne getir'], ['up', 'Bir öne'], ['down', 'Bir arkaya'], ['back', 'En arkaya gönder'], '-',
+      ['lock', anyLocked ? 'Kilidi aç' : 'Kilitle'], ['pin', anyPin ? 'Yeni sayfalarda tekrarlama' : 'Her yeni sayfada tekrarla'],
+      ids.length > 1 ? ['group', 'Grupla', 'Ctrl+G'] : null, grouped ? ['ungroup', 'Grubu çöz', 'Ctrl+Shift+G'] : null,
+      one && data.slides.length > 1 ? ['all-slides', 'Tüm slaytlara uygula'] : null].filter(Boolean));
+  }
+  function runCtx(a) {
+    if (a.startsWith('pt-')) return newPage(a.slice(3));
+    const ids = selIds();
+    const items = slide().layers.filter(l => ids.includes(l.id));
+    if (a === 'copy') { clip = JSON.parse(JSON.stringify(items.length > 1 ? items : items[0])); return toast('Kopyalandı; Ctrl+V ile yapıştır.', 'info', 1500); }
+    if (a === 'paste') return clip && pasteLayer(clip);
+    if (a === 'dup') return pasteLayer(JSON.parse(JSON.stringify(items.length > 1 ? items : items[0])));
+    if (a === 'del') { slide().layers = slide().layers.filter(l => !ids.includes(l.id)); multi = null; setSelected(null); markDirty(); return redraw(); }
+    if (['front', 'back', 'up', 'down'].includes(a)) return reorder(a);
+    if (a === 'lock') { const on = !items.some(l => l.locked); items.forEach(l => { if (on) l.locked = true; else delete l.locked; }); if (on) { multi = null; setSelected(null); } markDirty(); return redraw(); }
+    if (a === 'pin') { const on = !items.some(l => l.pin); items.forEach(l => { if (on) l.pin = true; else delete l.pin; }); markDirty(); toast(on ? 'Yeni boş sayfalarda aynı yerde tekrarlanacak.' : 'Tekrarlama kaldırıldı.', 'success', 2200); return redraw(); }
+    if (a === 'group') return groupSel();
+    if (a === 'ungroup') return ungroup();
+    if (a === 'all') { setSelected(null); multi = slide().layers.map(l => l.id); return quick(); }
+    if (a === 'all-slides') return applyAll();
+    if (a === 'page-dup') return newPage('cogalt');
+    if (a === 'page-new') return newPage('bos');
+    if (a.startsWith('pg-')) { pageAction(a.slice(3)); view._ctxPage = null; }
+  }
+  // Sayfa menüsü (slayt şeridinde sağ tık): çoğalt, kopyala, yapıştır, taşı, sil
+  let pageClip = null;
+  function pageAction(a) {
+    const i = view._ctxPage != null ? view._ctxPage : current;
+    if (a === 'dup' || a === 'paste') {
+      if (data.slides.length >= 10) return toast('En fazla 10 slayt olabilir.', 'info');
+      const src = a === 'dup' ? data.slides[i] : pageClip; if (!src) return;
+      const c = JSON.parse(JSON.stringify(src)); c.layers.forEach(l => { l.id = uid(); });
+      data.slides.splice(i + 1, 0, c); current = i + 1;
+    } else if (a === 'copy') { pageClip = JSON.parse(JSON.stringify(data.slides[i])); return toast('Sayfa kopyalandı; sağ tık → Sayfayı yapıştır.', 'info', 1800); }
+    else if (a === 'left' || a === 'right') { const j = i + (a === 'left' ? -1 : 1); if (j < 0 || j >= data.slides.length) return; [data.slides[i], data.slides[j]] = [data.slides[j], data.slides[i]]; current = j; }
+    else if (a === 'del') { if (data.slides.length <= 1 || !confirm('Bu sayfa silinsin mi?')) return; data.slides.splice(i, 1); current = Math.max(0, Math.min(current, data.slides.length - 1)); }
+    setSelected(null); multi = null; markDirty(); shell();
+  }
 
   // 11.8 Tüm slaytlara uygula: seçili katmanın karşılığı öbür slaytlarda bulunur ve aynı hâle getirilir.
   // Yazı: aynı roldeki yazının stili (metni değil). Görsel: aynı kaynaklı (değiştirildiyse eski kaynaklı) ya da aynı yerdeki
@@ -1029,7 +1277,8 @@ async function renderEditor(view, brand, id, models) {
   // Ctrl+C / Ctrl+X katmanı kopyalar / keser, Ctrl+V yapıştırır; panoda görsel varsa (ör. ekrandan kırpılan) tasarıma
   // görsel olarak eklenir. Ctrl+Z geri al, Ctrl+Y ya da Ctrl+Shift+Z yinele, Ctrl+D çoğalt, Delete sil.
   let clip = null;
-  const typing = el => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  // Yalnızca yazı girilen alanlar "yazıyor" sayılır; renk, kaydırıcı, seçim, kutucuk ve sayı alanında kısayollar çalışır
+  const typing = el => el && (el.isContentEditable || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && ['text', 'search', 'email', 'url', 'tel', 'password', ''].includes(el.type || '')));
   const alive = () => view.isConnected && $('#stage');
   const pasteLayer = l => {
     // Çoklu kopya: hepsi birlikte yapıştırılır ve seçili kalır
@@ -1061,6 +1310,8 @@ async function renderEditor(view, brand, id, models) {
     const k = e.key.toLowerCase();
     if (mod && k === 'z' && !e.shiftKey) { e.preventDefault(); return undo(); }
     if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); return redo(); }
+    // Ctrl+G grupla, Ctrl+Shift+G grubu çöz
+    if (mod && k === 'g') { e.preventDefault(); return e.shiftKey ? ungroup() : groupSel(); }
     // Ctrl+A: slayttaki bütün katmanları seç
     if (mod && k === 'a') {
       e.preventDefault();
@@ -1114,7 +1365,9 @@ async function renderEditor(view, brand, id, models) {
     if (t.id === 'pc-caption') { data.caption = t.value; markDirty(); return; }
     if (t.id === 'pc-tags') { data.hashtags = t.value.split(/[\s,]+/).filter(Boolean).map(h => h.replace(/^#?/, '#')); markDirty(); return; }
     if (t.id === 'slide-bg') { slide().bg = t.value; markDirty(); quick(); return; }
-    if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(); quick(); return; }
+    if (t.id === 'bg-dim' && slide().bgImage) { slide().bgImage.dim = Number(t.value); markDirty(false, 'bgdim'); quick(); return; }
+    if (t.dataset.bgImg && slide().bgImage) { slide().bgImage[t.dataset.bgImg] = Number(t.value); markDirty(false, 'bgimg:' + t.dataset.bgImg); quick(); return; }
+    if (t.id === 'bg-pin') { if (t.checked) data.bgPin = true; else delete data.bgPin; markDirty(); return; }
     if (t.id === 'ed-zoom') { zoom = Number(t.value); $('#ed-zoom-val').textContent = `%${zoom}`; fit(); return; }
     if (t.id === 'ed-stock-q') { clearTimeout(view._stockT); view._stockT = setTimeout(() => { stock.q = t.value; stock.limit = 120; drawStock(); }, 200); return; }
     if (t.id === 'ed-stock-color') { stock.color = t.value; clearTimeout(view._stockT); view._stockT = setTimeout(drawStock, 150); return; }
@@ -1131,6 +1384,7 @@ async function renderEditor(view, brand, id, models) {
     const l = layer();
     if (!prop || !l) return;
     l[prop] = ['text', 'font', 'color', 'role', 'shadowColor', 'strokeColor', 'bgColor'].includes(prop) ? t.value : Number(t.value);
+    view._propKey = `${l.id}:${prop}`;
     const vl = $(`[data-val="${prop}"]`); if (vl) vl.textContent = `${t.value}${t.dataset.unit || ''}`;
     if (prop === 'maxH' && !(l.maxH > 0)) delete l.maxH;
     // Doldurulacak bir kutu seçilince yüksekliği şimdiki hâlinden alınır: uzun metin buna sığdırılır
@@ -1140,7 +1394,7 @@ async function renderEditor(view, brand, id, models) {
       const mh = $('#lp-maxh'); if (mh) mh.value = l.maxH;
     }
     if (l.type === 'qr' && prop === 'w') l.h = l.w;
-    markDirty();
+    markDirty(false, view._propKey);
     quick();
   };
   // Gölge/çizgi açılınca renk seçicisi görünsün diye panel yeniden çizilir
@@ -1179,13 +1433,26 @@ async function renderEditor(view, brand, id, models) {
       if (t.closest('[data-ly-lock]')) { if (l.locked) delete l.locked; else l.locked = true; markDirty(); return redraw(); }
       const mv = t.closest('[data-ly-move]');
       if (mv) { const arr = slide().layers; const i = arr.indexOf(l); const j = i + Number(mv.dataset.lyMove); if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; markDirty(); return redraw(); }
-      // Seçim: liste yeniden çizilmez (çift tıklayıp adlandırma bozulmasın), yalnızca işaret güncellenir
-      if (t.closest('[data-ly-pick]')) { multi = null; setSelected(l.id); view.querySelectorAll('.ly-row').forEach(r => r.classList.toggle('on', r === ly)); drawProps(); quick(); fit(); return; }
+      // Seçim: liste yeniden çizilmez (çift tıklayıp adlandırma bozulmasın), yalnızca işaret güncellenir; Shift ile çoklu
+      if (t.closest('[data-ly-pick]')) {
+        if (e.shiftKey) { const cur = selIds(); multi = cur.includes(l.id) ? cur.filter(x => x !== l.id) : [...cur, l.id]; if (multi.length < 2) { const one = multi[0] || null; multi = null; setSelected(one); } else setSelected(null); }
+        else { multi = null; setSelected(l.id); }
+        const ids = selIds(); view.querySelectorAll('.ly-row').forEach(r => r.classList.toggle('on', ids.includes(r.dataset.ly)));
+        drawProps(); quick(); fit(); return;
+      }
       return;
     }
+    const lg = t.closest('[data-ly-group]');
+    if (lg) {
+      if (t.closest('[data-ly-ungroup]')) { setSelected(null); multi = groupIds(lg.dataset.lyGroup); return ungroup(); }
+      setSelected(null); multi = groupIds(lg.dataset.lyGroup); return redraw();
+    }
+    const lt = t.closest('[data-ly-tool]');
+    if (lt) { const a = lt.dataset.lyTool; return a === 'group' ? groupSel() : reorder(a); }
     const s = t.closest('[data-slide]');
     if (s) { current = Number(s.dataset.slide); setSelected(null); if (panel === 'zemin') drawPanelBody(); return redraw(); }
-    if (t.closest('[data-slide-add]')) { data.slides.splice(current + 1, 0, { bg: (brand.colors.backgrounds || [])[0] || '#ffffff', layers: [] }); current++; setSelected(null); markDirty(); return shell(); }
+    const sa = t.closest('[data-slide-add]');
+    if (sa) { const r = sa.getBoundingClientRect(); return ctxMenu(r.left, r.top - 230, [['pt-kapak', 'Kapak sayfası', 'ilk sayfanın düzeni'], ['pt-bilgi', 'Bilgi sayfası', 'ara sayfa düzeni'], ['pt-kapanis', 'Kapanış sayfası', 'son sayfanın düzeni'], ['pt-cogalt', 'Bu sayfayı çoğalt'], ['pt-bos', 'Boş sayfa', 'zemin + sabit öğeler']]); }
     if (t.closest('[data-slide-dup]')) { const copy = JSON.parse(JSON.stringify(slide())); copy.layers.forEach(l => { l.id = uid(); }); data.slides.splice(current + 1, 0, copy); current++; markDirty(); return shell(); }
     if (t.closest('[data-slide-del]')) { if (!confirm('Bu slayt silinsin mi?')) return; data.slides.splice(current, 1); current = Math.max(0, current - 1); setSelected(null); markDirty(); return shell(); }
     const mv = t.closest('[data-slide-move]');
@@ -1226,7 +1493,7 @@ async function renderEditor(view, brand, id, models) {
     const bc = t.closest('[data-brand-color]');
     if (bc) { const l = layer(); if (l && l.type !== 'image') l.color = bc.dataset.brandColor; else slide().bg = bc.dataset.brandColor; markDirty(); return redraw(); }
     const bgc = t.closest('[data-bg-color]');
-    if (bgc) { slide().bg = bgc.dataset.bgColor; markDirty(); drawPanelBody(); return redraw(); }
+    if (bgc) { slide().bg = bgc.dataset.bgColor; delete slide().bgGradient; markDirty(); drawPanelBody(); return redraw(); }
     const tpl = t.closest('[data-apply-tpl]');
     if (tpl) {
       const tt = ($('#ed-panel-body')._tpls || []).find(x => x.id === tpl.dataset.applyTpl);
@@ -1235,7 +1502,30 @@ async function renderEditor(view, brand, id, models) {
       data.slides[current] = copy; setSelected(null); markDirty(); return redraw();
     }
     const sw = t.closest('[data-swatch]');
-    if (sw && layer()) { layer()[sw.dataset.swatch] = sw.dataset.color; markDirty(); return redraw(); }
+    if (sw && layer()) { layer()[sw.dataset.swatch] = sw.dataset.color; if (sw.dataset.swatch === 'color') delete layer().gradient; markDirty(); return redraw(); }
+    // Renk seçici (özellik paneli): canlı önizleme, art arda değişiklik tek geri alma adımı
+    const cp = t.closest('[data-cp]');
+    if (cp && layer()) {
+      const l = layer(); const key = cp.dataset.cp;
+      const label = () => { const g = key === 'color' && l.gradient; cp.querySelector('.cp-trigger-sw').style.background = g ? gradCss(g) : l[key]; cp.lastElementChild.textContent = g ? 'Gradyan' : String(l[key]).toUpperCase(); };
+      return openColorPicker(cp, { value: l[key] || '#000000', gradient: key === 'color' ? l.gradient : null, allowGradient: key === 'color' && l.type === 'shape', brandColors: palette, title: { color: 'Renk', highlight: 'Vurgu rengi', shadowColor: 'Gölge rengi', strokeColor: 'Çizgi rengi', bgColor: 'Kutu rengi' }[key] || 'Renk',
+        onChange: h => { l[key] = h; if (key === 'color') delete l.gradient; markDirty(false, `${l.id}:${key}`); quick(); label(); },
+        onGradient: g => { if (g) l.gradient = g; else delete l.gradient; markDirty(false, `${l.id}:grad`); quick(); label(); } });
+    }
+    const cpb = t.closest('[data-cp-bg]');
+    if (cpb) {
+      const s = slide();
+      return openColorPicker(cpb, { value: s.bg, gradient: s.bgGradient, allowGradient: true, brandColors: palette, title: 'Zemin',
+        onChange: h => { s.bg = h; delete s.bgGradient; markDirty(false, 'bg'); quick(); cpb.querySelector('.cp-trigger-sw').style.background = h; cpb.lastElementChild.textContent = h.toUpperCase(); },
+        onGradient: g => { if (g) s.bgGradient = g; else delete s.bgGradient; markDirty(false, 'bggrad'); quick(); cpb.querySelector('.cp-trigger-sw').style.background = g ? gradCss(g) : s.bg; cpb.lastElementChild.textContent = g ? 'Gradyan' : s.bg.toUpperCase(); } });
+    }
+    const bgp = t.closest('[data-bg-preset]');
+    if (bgp) { const pr = BG_PRESETS[Number(bgp.dataset.bgPreset)]; const s = slide(); if (pr.g) { s.bgGradient = JSON.parse(JSON.stringify(pr.g)); s.bg = pr.g.stops[0].c; } else { s.bg = pr.c; delete s.bgGradient; } markDirty(); drawPanelBody(); return redraw(); }
+    if (t.closest('[data-bg-all]')) {
+      const s = slide();
+      data.slides.forEach(o => { if (o === s) return; o.bg = s.bg; if (s.bgGradient) o.bgGradient = JSON.parse(JSON.stringify(s.bgGradient)); else delete o.bgGradient; if (s.bgImage) o.bgImage = JSON.parse(JSON.stringify(s.bgImage)); else delete o.bgImage; });
+      markDirty(); drawList(); return toast('Zemin bütün sayfalara uygulandı.', 'success', 2000);
+    }
     const al = t.closest('[data-align]');
     if (al && layer()) { layer().align = al.dataset.align; markDirty(); return redraw(); }
     const ord = t.closest('[data-order]');
@@ -1256,6 +1546,8 @@ async function renderEditor(view, brand, id, models) {
       const a = act.dataset.act;
       try {
         if (a === 'save') return await save(act);
+        if (a === 'undo') return undo();
+        if (a === 'redo') return redo();
         if (a === 'rename') {
           const name = prompt('Tasarımın adı', post.title);
           if (!name || !name.trim()) return;

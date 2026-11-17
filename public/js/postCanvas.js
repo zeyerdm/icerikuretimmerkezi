@@ -128,22 +128,41 @@ export function handlesOf(ctx, l) {
   return pts;
 }
 
+// Gradyan dolgusu (kutu içinde): açı derece, 0 = soldan sağa
+export function gradientFill(ctx, g, x, y, w, h) {
+  let gr;
+  if (g.type === 'radial') gr = ctx.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, Math.hypot(w, h) / 2);
+  else {
+    const a = (g.angle || 0) * Math.PI / 180; const cx = x + w / 2; const cy = y + h / 2;
+    const r = Math.abs(w / 2 * Math.cos(a)) + Math.abs(h / 2 * Math.sin(a));
+    gr = ctx.createLinearGradient(cx - Math.cos(a) * r, cy - Math.sin(a) * r, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  }
+  g.stops.forEach(s => gr.addColorStop(Math.max(0, Math.min(1, s.p / 100)), s.c));
+  return gr;
+}
+export const gradientCss = g => (g.type === 'radial' ? `radial-gradient(circle, ${g.stops.map(s => `${s.c} ${s.p}%`).join(', ')})` : `linear-gradient(${(g.angle || 0) + 90}deg, ${g.stops.map(s => `${s.c} ${s.p}%`).join(', ')})`);
+
 export function drawSlide(canvas, slide, format, { selectedId = null, handles = false, guides = [], showHidden = false } = {}) {
   const selSet = new Set([].concat(selectedId || [])); // tek katman ya da Ctrl+A ile çoklu seçim
   canvas.width = format.w;
   canvas.height = format.h;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = slide.bg || '#ffffff';
+  ctx.clearRect(0, 0, format.w, format.h);
+  ctx.fillStyle = slide.bgGradient ? gradientFill(ctx, slide.bgGradient, 0, 0, format.w, format.h) : (slide.bg || '#ffffff');
   ctx.fillRect(0, 0, format.w, format.h);
   // Zemin görseli: kapla (taşan kırpılır) ya da sığdır; üstüne isteğe bağlı karartma
   if (slide.bgImage) {
     const p = imageCache.get(slide.bgImage.src);
     const img = p && p.resolved;
     if (img) {
-      const k = (slide.bgImage.fit === 'contain' ? Math.min : Math.max)(format.w / img.naturalWidth, format.h / img.naturalHeight);
+      const z = (slide.bgImage.zoom || 100) / 100;
+      const k = (slide.bgImage.fit === 'contain' ? Math.min : Math.max)(format.w / img.naturalWidth, format.h / img.naturalHeight) * z;
       const w = img.naturalWidth * k;
       const h = img.naturalHeight * k;
-      ctx.drawImage(img, (format.w - w) / 2, (format.h - h) / 2, w, h);
+      // Kaydırma: taşan kısım içinde yüzde olarak (−50 sol/üst, +50 sağ/alt)
+      const ox = ((slide.bgImage.ox || 0) / 100) * Math.max(0, w - format.w) * 2;
+      const oy = ((slide.bgImage.oy || 0) / 100) * Math.max(0, h - format.h) * 2;
+      ctx.drawImage(img, (format.w - w) / 2 - ox / 2, (format.h - h) / 2 - oy / 2, w, h);
     }
     if (slide.bgImage.dim) { ctx.fillStyle = `rgba(0,0,0,${slide.bgImage.dim / 100})`; ctx.fillRect(0, 0, format.w, format.h); }
   }
@@ -154,7 +173,7 @@ export function drawSlide(canvas, slide, format, { selectedId = null, handles = 
     ctx.globalAlpha = (l.opacity != null ? Math.max(0, Math.min(1, l.opacity / 100)) : 1) * (l0.hidden ? 0.25 : 1);
     if (l.shadow > 0) { ctx.shadowColor = l.shadowColor || 'rgba(0,0,0,0.45)'; ctx.shadowBlur = l.shadow; ctx.shadowOffsetX = l.shadowX != null ? l.shadowX : 0; ctx.shadowOffsetY = l.shadowY != null ? l.shadowY : Math.round(l.shadow / 3); }
     if (l.type === 'shape') {
-      ctx.fillStyle = l.color;
+      ctx.fillStyle = l.gradient ? gradientFill(ctx, l.gradient, l.x, l.y, l.w, l.h) : l.color;
       const r = Math.min(l.radius || 0, l.w / 2, l.h / 2);
       ctx.beginPath();
       if (l.shape === 'circle') ctx.ellipse(l.x + l.w / 2, l.y + l.h / 2, l.w / 2, l.h / 2, 0, 0, Math.PI * 2);
