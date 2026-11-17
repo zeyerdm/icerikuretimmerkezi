@@ -809,7 +809,13 @@ async function renderEditor(view, brand, id, models) {
     if (!keepProps) drawProps();
     if (panel === 'katmanlar' || panel === 'kontrol') drawPanelBody();
   }
-  const quick = () => { const c = $('#stage'); if (c) drawSlide(c, slide(), format(), { selectedId: multi || selected, handles: true, showHidden: true, guides }); };
+  // Hızlı yeniden çizim; vektör öğenin rengi/boyutu değiştiyse yeni hâli yüklenince bir kez daha çizilir
+  const quick = () => {
+    const c = $('#stage'); if (!c) return;
+    const s = slide(); const opts = () => ({ selectedId: multi || selected, handles: true, showHidden: true, guides });
+    drawSlide(c, s, format(), opts());
+    if (s.layers.some(l => l.type === 'vector')) resolveImages(s).then(() => { const c2 = $('#stage'); if (c2 && slide() === s) drawSlide(c2, s, format(), opts()); });
+  };
 
   function drawList() {
     const list = $('#slide-list');
@@ -849,7 +855,7 @@ async function renderEditor(view, brand, id, models) {
     const range = (key, label, value, min, max, step, unit = '') => `<div class="field"><label for="lp-${key}">${label}: <span data-val="${key}">${value}${unit}</span></label><input type="range" id="lp-${key}" min="${min}" max="${max}" step="${step}" data-prop="${key}" data-unit="${unit}" value="${value}"></div>`;
     // Hızlı renkler + seçili rengi gösteren ayrı düğme (açınca renk seçici; şekilde gradyan da)
     const swatches = (key, value) => { const g = key === 'color' && l.type === 'shape' && l.gradient; return `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${!g && String(c).toLowerCase() === String(value).toLowerCase() ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}" title="${esc(c)}"></button>`).join('')}<button type="button" class="cp-trigger" data-cp="${key}" title="Renk seçici"><span class="cp-trigger-sw" style="background:${g ? gradCss(g) : esc(value)}"></span><span>${g ? 'Gradyan' : esc(String(value).toUpperCase())}</span></button></div>`; };
-    p.innerHTML = `${data.slides.length > 1 ? `<button type="button" class="btn btn-sm w-full mb-3" data-apply-all title="${l.type === 'text' ? 'Yazı stili (font, boyut, renk, hizalama, konum) aynı roldeki yazılara uygulanır; yazının kendisi değişmez' : 'Aynı görsel/şekil öbür slaytlarda da bu hâle gelir; olmayan slayta eklenir'}">${icon('grid')}Tüm slaytlara uygula</button>` : ''}<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
+    p.innerHTML = `${data.slides.length > 1 ? `<button type="button" class="btn btn-sm w-full mb-3" data-apply-all title="${l.type === 'text' ? 'Yazı stili (font, boyut, renk, hizalama, konum) aynı roldeki yazılara uygulanır; yazının kendisi değişmez' : 'Aynı görsel/şekil öbür slaytlarda da bu hâle gelir; olmayan slayta eklenir'}">${icon('grid')}Tüm slaytlara uygula</button>` : ''}<div class="ed-props-head"><h3>${l.type === 'text' ? 'Metin' : l.type === 'image' ? 'Görsel' : l.type === 'vector' ? 'Öğe' : l.type === 'qr' ? 'QR kod' : l.shape === 'circle' ? 'Daire' : 'Şekil'}</h3>
       <div class="row"><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="-1" aria-label="Geri gönder" title="Geri gönder">${icon('chevronLeft')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-order="1" aria-label="Öne getir" title="Öne getir">${icon('chevronRight')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-dup aria-label="Çoğalt" title="Çoğalt">${icon('plus')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-layer-del aria-label="Katmanı sil" title="Sil">${icon('trash')}</button><button type="button" class="btn btn-sm icon-btn btn-ghost" data-deselect aria-label="Kapat" title="Kapat">${icon('x')}</button></div></div>
       <div class="stack-sm">
       ${l.type === 'text' ? `
@@ -886,6 +892,11 @@ async function renderEditor(view, brand, id, models) {
         <div class="field"><label for="lp-qw">Boyut</label><input class="input" id="lp-qw" type="number" min="80" max="2000" data-prop="w" value="${l.w}"></div>
         <div class="field"><span class="field-label">Renk (koyu renk seç; zemin her zaman beyaz kalır)</span>${swatches('color', l.color || '#000000')}</div>
         <p class="xsmall muted">Paylaşmadan önce telefon kamerasıyla okutup dene.</p>`
+      : l.type === 'vector' ? `
+        <div class="form-grid"><div class="field"><label for="lp-vw">Genişlik</label><input class="input" id="lp-vw" type="number" min="4" max="4000" data-prop="w" value="${l.w}"></div>
+          <div class="field"><label for="lp-vh">Yükseklik</label><input class="input" id="lp-vh" type="number" min="4" max="4000" data-prop="h" value="${l.h}"></div></div>
+        ${l.recolor ? `<div class="field"><span class="field-label">Renk</span>${swatches('color', l.color || '#1b1f3b')}</div>` : '<p class="xsmall muted">Çok renkli öğe: renkleri değiştirilemez, vektör olarak kalır.</p>'}
+        <label class="chip-check"><input type="checkbox" data-flag="flipX" ${l.flipX ? 'checked' : ''}><span>Aynala</span></label>`
       : l.type === 'image' ? `
         <div class="form-grid"><div class="field"><label for="lp-iw">Genişlik</label><input class="input" id="lp-iw" type="number" min="10" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-ih">Yükseklik</label><input class="input" id="lp-ih" type="number" min="10" max="4000" data-prop="h" value="${l.h}"></div></div>
@@ -911,6 +922,7 @@ async function renderEditor(view, brand, id, models) {
           ${l.shape === 'circle' ? '' : `<div class="field"><label for="lp-r">Köşe</label><input class="input" id="lp-r" type="number" min="0" max="1000" data-prop="radius" value="${l.radius || 0}"></div>`}</div>
         <label class="chip-check"><input type="checkbox" data-bubble ${l.role === 'bubble' ? 'checked' : ''}><span>Maskotun konuşma balonu (konuşma yoksa gizlenir)</span></label>
         <div class="field"><span class="field-label">Renk</span>${swatches('color', l.color)}</div>`}
+      <div class="field"><label for="lp-rot">Döndür: <span data-val="rot">${l.rot || 0}°</span></label><div class="row"><input type="range" id="lp-rot" min="-180" max="180" step="1" data-prop="rot" data-unit="°" value="${l.rot || 0}" class="grow"><button type="button" class="btn btn-sm btn-ghost" data-rot="-90" title="90° sola">↺</button><button type="button" class="btn btn-sm btn-ghost" data-rot="90" title="90° sağa">↻</button><button type="button" class="btn btn-sm btn-ghost" data-rot="0" title="Sıfırla">0°</button></div></div>
       <div class="field"><label for="lp-op">Saydamlık: ${l.opacity != null ? l.opacity : 100}%</label><input type="range" id="lp-op" min="10" max="100" step="5" data-prop="opacity" value="${l.opacity != null ? l.opacity : 100}"></div>
       <div class="form-grid"><div class="field"><label for="lp-x">X</label><input class="input" id="lp-x" type="number" data-prop="x" value="${l.x}"></div><div class="field"><label for="lp-y">Y</label><input class="input" id="lp-y" type="number" data-prop="y" value="${l.y}"></div></div>
       </div>`;
@@ -1184,7 +1196,7 @@ async function renderEditor(view, brand, id, models) {
       if (north) l.y = Math.round(o.y + b.h - b.h * k);
       return;
     }
-    const keep = l.type === 'qr' || ((l.type === 'image') !== shift);
+    const keep = l.type === 'qr' || ((l.type === 'image' || l.type === 'vector') !== shift);
     let w = Math.max(12, o.w + sx); let hh = Math.max(12, o.h + sy);
     if (keep && h.length === 2) { const k = Math.max(w / o.w, hh / o.h); w = o.w * k; hh = o.h * k; }
     if (l.type === 'qr') hh = w;
@@ -1422,6 +1434,7 @@ async function renderEditor(view, brand, id, models) {
     if (!ids.length) return ctxMenu(x, y, [['paste', 'Yapıştır', 'Ctrl+V', !clip], ['all', 'Tümünü seç', 'Ctrl+A'], '-', ['page-dup', 'Sayfayı çoğalt'], ['page-new', 'Yeni boş sayfa (sabit öğelerle)']]);
     ctxMenu(x, y, [['copy', 'Kopyala', 'Ctrl+C'], ['paste', 'Yapıştır', 'Ctrl+V', !clip], ['dup', 'Çoğalt', 'Ctrl+D'], ['del', 'Sil', 'Delete'], '-',
       ['front', 'En öne getir'], ['up', 'Bir öne'], ['down', 'Bir arkaya'], ['back', 'En arkaya gönder'], '-',
+      ['rot90', '90° sağa döndür'], '-',
       ['lock', anyLocked ? 'Kilidi aç' : 'Kilitle'], ['pin', anyPin ? 'Yeni sayfalarda tekrarlama' : 'Her yeni sayfada tekrarla'],
       ids.length > 1 ? ['group', 'Grupla', 'Ctrl+G'] : null, grouped ? ['ungroup', 'Grubu çöz', 'Ctrl+Shift+G'] : null,
       one && data.slides.length > 1 ? ['all-slides', 'Tüm slaytlara uygula'] : null].filter(Boolean));
@@ -1437,6 +1450,7 @@ async function renderEditor(view, brand, id, models) {
     if (['front', 'back', 'up', 'down'].includes(a)) return reorder(a);
     if (a === 'lock') { const on = !items.some(l => l.locked); items.forEach(l => { if (on) l.locked = true; else delete l.locked; }); if (on) { multi = null; setSelected(null); } markDirty(); return redraw(); }
     if (a === 'pin') { const on = !items.some(l => l.pin); items.forEach(l => { if (on) l.pin = true; else delete l.pin; }); markDirty(); toast(on ? 'Yeni boş sayfalarda aynı yerde tekrarlanacak.' : 'Tekrarlama kaldırıldı.', 'success', 2200); return redraw(); }
+    if (a === 'rot90') { items.forEach(l => { const r = ((((l.rot || 0) + 90) + 180) % 360 + 360) % 360 - 180; if (r) l.rot = r; else delete l.rot; }); markDirty(); return redraw(); }
     if (a === 'group') return groupSel();
     if (a === 'ungroup') return ungroup();
     if (a === 'all') { setSelected(null); multi = slide().layers.map(l => l.id); return quick(); }
@@ -1792,6 +1806,8 @@ async function renderEditor(view, brand, id, models) {
     if (t.closest('[data-layer-dup]') && layer()) { const c = Object.assign(JSON.parse(JSON.stringify(layer())), { id: uid() }); c.x += 30; c.y += 30; return addLayer(c); }
     if (t.closest('[data-layer-del]')) { slide().layers = slide().layers.filter(x => x.id !== selected); setSelected(null); markDirty(); return redraw(); }
     if (t.closest('[data-deselect]')) { setSelected(null); return redraw(); }
+    const rt = t.closest('[data-rot]');
+    if (rt) { for (const l of slide().layers.filter(x => selIds().includes(x.id))) { const v = Number(rt.dataset.rot); let r = v === 0 ? 0 : ((l.rot || 0) + v); r = ((r + 180) % 360 + 360) % 360 - 180; if (r) l.rot = r; else delete l.rot; } markDirty(); drawProps(); return redraw(); }
     if (t.closest('[data-fx-reset]') && layer()) { const lr = layer(); ['fit', 'radius', 'circle', 'flipX', 'brightness', 'contrast', 'saturate', 'grayscale', 'blur', 'shadow', 'shadowColor'].forEach(k => delete lr[k]); markDirty(); return redraw(); }
     if (t.closest('[data-replace-image]') && layer()) return pickAsset(a => { const l = layer(); Object.assign(l, { prevSrc: l.prevSrc || l.src, prevAssetId: l.prevAssetId || l.assetId, src: a.url, assetId: a.id }); markDirty(); redraw(); });
     if (t.closest('[data-apply-all]') && layer()) return applyAll();

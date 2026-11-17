@@ -19,11 +19,24 @@ export function loadImage(src) {
   return imageCache.get(src);
 }
 
+// Vektör öğe: tek renkli öğe "recolor" ise istenen renge boyanır; çizim boyutu SVG'ye yazılır (keskin kalsın)
+export function vectorUrl(l) {
+  let svg = String(l.svg || '');
+  if (l.color) {
+    svg = svg.replace(/currentColor/g, l.color);
+    if (l.recolor) svg = svg.replace(/(fill|stroke)="#(?:000|000000|2D2A32|1b1f3b)"/gi, `$1="${l.color}"`);
+  }
+  const w = Math.max(8, Math.round(l.w)); const h = Math.max(8, Math.round(l.h));
+  svg = svg.replace(/<svg\b([^>]*)>/, (m, a) => `<svg${a.replace(/\s(width|height)="[^"]*"/g, '')} width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet">`);
+  if (!/xmlns=/.test(svg)) svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 export async function prepareSlide(slide) {
   const fonts = [...new Set(slide.layers.filter(l => l.type === 'text').map(l => l.font))];
   await loadFonts(fonts);
   try { await Promise.all(fonts.flatMap(f => [400, 700].map(w => document.fonts.load(`${w} 40px "${f}"`, 'AaZz ğüşıöç ĞÜŞİÖÇ 0123')))); } catch { /* yedek yazı tipi */ }
-  await Promise.all([...slide.layers.filter(l => l.type === 'image').map(l => loadImage(l.src)), slide.bgImage ? loadImage(slide.bgImage.src) : null]);
+  await Promise.all([...slide.layers.filter(l => l.type === 'image').map(l => loadImage(l.src)), ...slide.layers.filter(l => l.type === 'vector').map(l => loadImage(vectorUrl(l))), slide.bgImage ? loadImage(slide.bgImage.src) : null]);
 }
 
 export function wrapLines(ctx, text, width) {
@@ -179,6 +192,8 @@ export function drawSlide(canvas, slide, format, { selectedId = null, handles = 
     if (l0.hidden && !showHidden) continue; // gizli katman: çizilmez, dışa aktarılmaz
     const l = fitText(ctx, l0);
     ctx.save();
+    // Döndürme: katman kendi kutusunun merkezi etrafında döner
+    if (l.rot) { const rb = layerBox(ctx, l); const cx = rb.x + rb.w / 2; const cy = rb.y + rb.h / 2; ctx.translate(cx, cy); ctx.rotate(l.rot * Math.PI / 180); ctx.translate(-cx, -cy); }
     ctx.globalAlpha = (l.opacity != null ? Math.max(0, Math.min(1, l.opacity / 100)) : 1) * (l0.hidden ? 0.25 : 1);
     if (l.shadow > 0) { ctx.shadowColor = l.shadowColor || 'rgba(0,0,0,0.45)'; ctx.shadowBlur = l.shadow; ctx.shadowOffsetX = l.shadowX != null ? l.shadowX : 0; ctx.shadowOffsetY = l.shadowY != null ? l.shadowY : Math.round(l.shadow / 3); }
     if (l.type === 'shape') {
@@ -189,6 +204,10 @@ export function drawSlide(canvas, slide, format, { selectedId = null, handles = 
       else if (ctx.roundRect) ctx.roundRect(l.x, l.y, l.w, l.h, r);
       else ctx.rect(l.x, l.y, l.w, l.h);
       ctx.fill();
+    } else if (l.type === 'vector') {
+      const p = imageCache.get(vectorUrl(l));
+      const img = p && p.resolved;
+      if (img) { if (l.flipX) { ctx.translate(l.x * 2 + l.w, 0); ctx.scale(-1, 1); } ctx.drawImage(img, l.x, l.y, l.w, l.h); }
     } else if (l.type === 'qr') {
       const mx = qrOf(l.text || '');
       if (mx) drawQr(ctx, mx, l.x, l.y, l.w, l.color || '#000000', '#ffffff');
@@ -241,6 +260,7 @@ export function drawSlide(canvas, slide, format, { selectedId = null, handles = 
     if (selSet.has(l.id)) {
       const b = layerBox(ctx, l);
       ctx.save();
+      if (l.rot) { const cx = b.x + b.w / 2; const cy = b.y + b.h / 2; ctx.translate(cx, cy); ctx.rotate(l.rot * Math.PI / 180); ctx.translate(-cx, -cy); }
       ctx.strokeStyle = '#5b55e6';
       ctx.lineWidth = 4;
       ctx.setLineDash([14, 10]);
@@ -265,7 +285,7 @@ export function drawSlide(canvas, slide, format, { selectedId = null, handles = 
 // Görseller yüklendikten sonra eşzamanlı çizim için önbelleğe "resolved" yazılır
 export async function resolveImages(slide) {
   await prepareSlide(slide);
-  const srcs = [...slide.layers.filter(l => l.type === 'image').map(l => l.src), ...(slide.bgImage ? [slide.bgImage.src] : [])];
+  const srcs = [...slide.layers.filter(l => l.type === 'image').map(l => l.src), ...slide.layers.filter(l => l.type === 'vector').map(vectorUrl), ...(slide.bgImage ? [slide.bgImage.src] : [])];
   await Promise.all(srcs.map(async src => { const p = imageCache.get(src); if (p) p.resolved = await p; }));
 }
 

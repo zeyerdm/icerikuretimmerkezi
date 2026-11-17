@@ -13,7 +13,16 @@ export const KIND_DEFAULTS = { carousel: { format: '4:5', content: 'carousel' },
 export const POST_FORMATS = { '4:5': { w: 1080, h: 1350, label: 'Dikey 4:5' }, '1:1': { w: 1080, h: 1080, label: 'Kare 1:1' }, '9:16': { w: 1080, h: 1920, label: 'Story 9:16' }, '16:9': { w: 1280, h: 720, label: 'YouTube 16:9' } };
 const MAX_SLIDES = 10;
 const MAX_LAYERS = 30;
-const LAYER_TYPES = ['text', 'image', 'shape', 'qr'];
+const LAYER_TYPES = ['text', 'image', 'shape', 'qr', 'vector'];
+// Öğe kütüphanesindeki (markadan bağımsız) dosyalar da görsel katmanı olabilir
+const ELEMENT_SRC = /^\/api\/elements\/[A-Za-z0-9-]+\/file$/;
+// Vektör öğe (SVG): betik, olay özniteliği, dış bağlantı ve gömülü belge içeremez
+export function safeSvg(svg) {
+  const s = String(svg || '').trim();
+  if (!s.startsWith('<svg') || s.length > 100000) return null;
+  if (/<script|<foreignObject|<iframe|<image|<!ENTITY|<\?xml-stylesheet|javascript:|\son[a-z]+\s*=|(?:xlink:)?href\s*=\s*["'](?!#)/i.test(s)) return null;
+  return s;
+}
 const ASSET_SRC = /^\/api\/brands\/[A-Za-z0-9-]+\/assets\/[A-Za-z0-9-]+\/file$/;
 
 // Açık renk üzerinde koyu, koyu renk üzerinde beyaz yazı
@@ -240,6 +249,8 @@ function cleanLayer(l) {
   if (l.opacity != null && Number(l.opacity) < 100) out.opacity = num(l.opacity, 0, 100, 100);
   // Katmanlar paneli: gizli, kilitli, özel ad
   if (l.hidden) out.hidden = true;
+  // Döndürme (derece, merkez etrafında)
+  { const r = Math.round(Number(l.rot) || 0) % 360; if (r) out.rot = r > 180 ? r - 360 : r < -180 ? r + 360 : r; }
   if (l.locked) out.locked = true;
   if (polish(l.name)) out.name = polish(l.name).slice(0, 40);
   // Grup (birlikte seçilir/taşınır) ve "her yeni sayfada tekrarla"
@@ -265,7 +276,7 @@ function cleanLayer(l) {
     col('bgColor'); fx('bgPad', 0, 120); fx('bgRadius', 0, 200);
   } else if (l.type === 'image') {
     // Yalnızca bu uygulamadaki varlık dosyaları (dış adresten görsel çekilmez)
-    if (!ASSET_SRC.test(String(l.src || ''))) throw badRequest('Görsel katmanı kütüphanedeki bir dosya olmalı.');
+    if (!ASSET_SRC.test(String(l.src || '')) && !ELEMENT_SRC.test(String(l.src || ''))) throw badRequest('Görsel katmanı kütüphanedeki bir dosya olmalı.');
     Object.assign(out, { src: l.src, assetId: l.assetId ? String(l.assetId).slice(0, 40) : null, w: num(l.w, 10, 4000, 300), h: num(l.h, 10, 4000, 300) });
     if (l.align === 'left' || l.align === 'right') out.align = l.align; // kutu içinde sola/sağa yaslı (logo)
     if (['logo', 'mascot', 'main'].includes(l.role)) out.role = l.role; // şablonda "maskot yeri": her postta poza göre değişir
@@ -274,6 +285,15 @@ function cleanLayer(l) {
     fx('radius', 0, 2000); if (l.circle) out.circle = true; if (l.flipX) out.flipX = true;
     fx('brightness', 0, 200); fx('contrast', 0, 200); fx('saturate', 0, 200); fx('grayscale', 0, 100); fx('blur', 0, 30);
     fx('shadow', 0, 80); col('shadowColor');
+  } else if (l.type === 'vector') {
+    // SVG öğe: vektör kalır; "recolor" ise tek renkli öğe istenen renge boyanır
+    const svg = safeSvg(l.svg);
+    if (!svg) throw badRequest('Geçersiz ya da güvensiz SVG öğesi.');
+    Object.assign(out, { svg, w: num(l.w, 4, 4000, 300), h: num(l.h, 4, 4000, 300) });
+    if (HEX.test(l.color || '')) out.color = l.color;
+    if (l.recolor) out.recolor = true;
+    if (/^[\w:.-]{1,80}$/.test(String(l.elementId || ''))) out.elementId = String(l.elementId);
+    if (l.flipX) out.flipX = true;
   } else if (l.type === 'qr') {
     // QR kod: metin/link kare olarak çizilir (beyaz sessiz bölge her zaman eklenir, okunabilirlik için)
     const text = String(l.text || '').trim().slice(0, 200);
@@ -301,7 +321,7 @@ export function cleanData(data, brandId) {
       const clean = layers.map(cleanLayer);
       // Başka markanın dosyası kullanılamaz
       const own = src => src.startsWith(`/api/brands/${brandId}/`);
-      if (clean.some(l => l.type === 'image' && !own(l.src))) throw badRequest('Yalnızca bu markanın kütüphanesindeki görseller kullanılabilir.');
+      if (clean.some(l => l.type === 'image' && !own(l.src) && !ELEMENT_SRC.test(l.src))) throw badRequest('Yalnızca bu markanın kütüphanesindeki görseller kullanılabilir.');
       const out = { bg: HEX.test((s && s.bg) || '') ? s.bg : '#ffffff', layers: clean };
       if (s && (s.frame === 'acilis' || s.frame === 'kapanis')) out.frame = s.frame; // 11.12 sabit açılış/kapanış
       // Zemin görseli (kütüphaneden): kaplar ya da sığar; üstüne isteğe bağlı karartma
