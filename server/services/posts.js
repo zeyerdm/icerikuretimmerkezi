@@ -314,6 +314,7 @@ export function cleanData(data, brandId) {
       return out;
     }),
     ...(data.bgPin ? { bgPin: true } : {}),
+    ...(data.mascotSpot && Number.isFinite(Number(data.mascotSpot.x)) ? { mascotSpot: { x: Math.round(Number(data.mascotSpot.x)), y: Math.round(Number(data.mascotSpot.y) || 0), w: Math.max(10, Math.round(Number(data.mascotSpot.w) || 300)), h: Math.max(10, Math.round(Number(data.mascotSpot.h) || 300)) } } : {}),
     caption: String(data.caption || '').slice(0, 3000),
     hashtags: (Array.isArray(data.hashtags) ? data.hashtags : []).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 10)
   };

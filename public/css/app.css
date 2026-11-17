@@ -1991,3 +1991,7 @@ body.editor-mode .radial-fab { display: none; }
 .bg-presets { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .bg-preset { aspect-ratio: 1; border-radius: 8px; border: 1px solid rgba(0,0,0,.12); cursor: pointer; }
 .cp-pop .row { flex-wrap: wrap; } .cp-pop .row label { min-width: 0; flex: 1 1 120px; } .cp-pop input[type=range] { width: 100%; }
+.pose-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.pose { aspect-ratio: 1; border: 2px solid var(--line, #e5e7eb); border-radius: 10px; background: #f6f6f8; padding: 3px; cursor: pointer; }
+.pose.on { border-color: var(--brand, #5b55e6); }
+.pose img { width: 100%; height: 100%; object-fit: contain; }

@@ -670,6 +670,7 @@ async function renderEditor(view, brand, id, models) {
     const p = $('#layer-panel');
     const l = layer();
     if (!l) { p.innerHTML = ''; return; }
+    if (l.type === 'image' && l.role === 'mascot') setTimeout(fillPoses, 0);
     const range = (key, label, value, min, max, step, unit = '') => `<div class="field"><label for="lp-${key}">${label}: <span data-val="${key}">${value}${unit}</span></label><input type="range" id="lp-${key}" min="${min}" max="${max}" step="${step}" data-prop="${key}" data-unit="${unit}" value="${value}"></div>`;
     // Hızlı renkler + seçili rengi gösteren ayrı düğme (açınca renk seçici; şekilde gradyan da)
     const swatches = (key, value) => { const g = key === 'color' && l.type === 'shape' && l.gradient; return `<div class="swatch-row">${palette.map(c => `<button type="button" class="swatch-btn ${!g && String(c).toLowerCase() === String(value).toLowerCase() ? 'on' : ''}" style="background:${esc(c)}" data-swatch="${key}" data-color="${esc(c)}" aria-label="${esc(c)}" title="${esc(c)}"></button>`).join('')}<button type="button" class="cp-trigger" data-cp="${key}" title="Renk seçici"><span class="cp-trigger-sw" style="background:${g ? gradCss(g) : esc(value)}"></span><span>${g ? 'Gradyan' : esc(String(value).toUpperCase())}</span></button></div>`; };
@@ -723,6 +724,9 @@ async function renderEditor(view, brand, id, models) {
           ${range('shadow', 'Gölge', l.shadow || 0, 0, 60, 1)}
           <button type="button" class="btn btn-sm btn-ghost" data-fx-reset>Ayarları sıfırla</button>
         </div></details>
+        ${l.role === 'mascot' ? `<div class="field"><span class="field-label">Maskot pozu</span><div class="pose-grid" id="lp-poses"><span class="xsmall muted">Pozlar yükleniyor…</span></div></div>
+          <div class="stack-sm">${data.slides.length > 1 ? `<button type="button" class="btn btn-sm" data-mascot-all>${icon('grid')}Bu konumu bütün sayfalarda kullan</button>` : ''}
+          <label class="chip-check"><input type="checkbox" data-flag="pin" ${l.pin ? 'checked' : ''}><span>Yeni sayfalarda aynı yerde tekrarla</span></label></div>` : ''}
         <div class="field"><label for="lp-irole">Şablonda bu görsel</label><select class="select" id="lp-irole" data-prop="role">${IMAGE_ROLES.map(([k, v]) => `<option value="${k}" ${(l.role || '') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
         <button type="button" class="btn btn-sm" data-replace-image>Görseli değiştir</button>`
       : `<div class="form-grid"><div class="field"><label for="lp-sw">Genişlik</label><input class="input" id="lp-sw" type="number" min="1" max="4000" data-prop="w" value="${l.w}"></div>
@@ -771,6 +775,14 @@ async function renderEditor(view, brand, id, models) {
   }
 
   // Katman küçük önizlemeleri: katman tek başına çizilir, kapladığı alan 44 px kareye sığdırılır
+  // Maskot pozları (seçili maskotun pozunu değiştirmek için)
+  async function fillPoses() {
+    const box = $('#lp-poses'); const l = layer();
+    if (!box || !l) return;
+    const list = (await assets()).filter(a => a.category === 'mascot');
+    box.innerHTML = list.length ? list.map(a => `<button type="button" class="pose ${a.url === l.src ? 'on' : ''}" data-pose="${esc(a.id)}" title="${esc(a.label || 'Poz')}"><img src="${esc(a.thumbUrl || a.url)}" alt="${esc(a.label || '')}"></button>`).join('') : '<span class="xsmall muted">Kütüphanede maskot pozu yok.</span>';
+  }
+
   async function drawLayerThumbs(box) {
     const s = slide();
     await resolveImages(s);
@@ -1352,7 +1364,21 @@ async function renderEditor(view, brand, id, models) {
   };
   document.addEventListener('keydown', onKey, true);
   document.addEventListener('paste', onPaste, true);
-  const addAssetLayer = a => { const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, ...(a.category === 'mascot' ? { role: 'mascot' } : a.category === 'logo' ? { role: 'logo' } : {}), x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
+  // Maskot: seçili bir maskot varsa yalnızca pozu değişir (yer ve boyut aynı); yoksa son kullanılan maskot yerine,
+  // o da yoksa sağ alt köşeye yerleşir
+  const mascotSpot = () => {
+    const near = [slide(), ...data.slides].flatMap(s => s.layers).find(l => l.type === 'image' && l.role === 'mascot');
+    if (near) return { x: near.x, y: near.y, w: near.w, h: near.h };
+    if (data.mascotSpot) return data.mascotSpot;
+    const F = format(); return { x: F.w - 470, y: F.h - 540, w: 450, h: 520 };
+  };
+  const placeMascot = a => {
+    const cur = layer();
+    if (cur && cur.type === 'image' && cur.role === 'mascot') { cur.src = a.url; cur.assetId = a.id; markDirty(); drawProps(); return redraw(); }
+    const sp = mascotSpot();
+    addLayer(Object.assign({ id: uid(), type: 'image', role: 'mascot', src: a.url, assetId: a.id }, sp));
+  };
+  const addAssetLayer = a => { if (a.category === 'mascot') return placeMascot(a); const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, ...(a.category === 'mascot' ? { role: 'mascot' } : a.category === 'logo' ? { role: 'logo' } : {}), x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
   async function save(btn) {
     post = (await busy(btn, () => api.savePost(brand.id, post.id, { data }))).post;
     data = JSON.parse(JSON.stringify(post.data)); dirty = false;
@@ -1511,6 +1537,15 @@ async function renderEditor(view, brand, id, models) {
       return openColorPicker(cp, { value: l[key] || '#000000', gradient: key === 'color' ? l.gradient : null, allowGradient: key === 'color' && l.type === 'shape', brandColors: palette, title: { color: 'Renk', highlight: 'Vurgu rengi', shadowColor: 'Gölge rengi', strokeColor: 'Çizgi rengi', bgColor: 'Kutu rengi' }[key] || 'Renk',
         onChange: h => { l[key] = h; if (key === 'color') delete l.gradient; markDirty(false, `${l.id}:${key}`); quick(); label(); },
         onGradient: g => { if (g) l.gradient = g; else delete l.gradient; markDirty(false, `${l.id}:grad`); quick(); label(); } });
+    }
+    const pose = t.closest('[data-pose]');
+    if (pose && layer()) { const a = (await assets()).find(x => x.id === pose.dataset.pose); if (a) { const l = layer(); l.src = a.url; l.assetId = a.id; markDirty(); fillPoses(); return redraw(); } }
+    if (t.closest('[data-mascot-all]') && layer()) {
+      // Maskot olmayan sayfalara aynı konum ve boyutta eklenir, olanlarda yeri eşitlenir (poz korunur)
+      const m = layer(); let n = 0;
+      data.slides.forEach(s => { if (s === slide()) return; const ex = s.layers.find(x => x.type === 'image' && x.role === 'mascot'); if (ex) Object.assign(ex, { x: m.x, y: m.y, w: m.w, h: m.h }); else { s.layers.push(Object.assign(JSON.parse(JSON.stringify(m)), { id: uid() })); } n++; });
+      data.mascotSpot = { x: m.x, y: m.y, w: m.w, h: m.h };
+      markDirty(); drawList(); return toast(`Maskot ${n} sayfada aynı konuma yerleşti.`, 'success', 2200);
     }
     const cpb = t.closest('[data-cp-bg]');
     if (cpb) {
