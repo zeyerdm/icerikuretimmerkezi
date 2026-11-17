@@ -12,13 +12,28 @@ const clamp = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ?
 const hex = (v, d) => (HEX.test(String(v || '')) ? String(v).toLowerCase() : d);
 const font = (v, d) => FONT_OPTIONS.find(f => f.toLowerCase() === String(v || '').toLowerCase()) || d;
 
-function analysisPrompt(brand, count = 1) {
+// Referansın tasarım türü: carousel 3 slayt (kapak, içerik, kapanış), diğerleri tek tasarım
+export const REF_TYPES = {
+  carousel: { label: 'Carousel / çoklu gönderi', format: '4:5', kind: 'carousel' },
+  tekli: { label: 'Tekli Instagram gönderisi', format: '4:5', kind: 'post' },
+  kapak: { label: 'Reels kapağı', format: '9:16', kind: 'kapak' },
+  story: { label: 'Story tasarımı', format: '9:16', kind: 'story' },
+  diger: { label: 'Diğer', format: null, kind: 'post' }
+};
+const TYPE_TASK = {
+  carousel: 'Bir carousel için 3 slayt yerleşimi üret: "kapak" (güçlü giriş, kaydırma isteği uyandıran merak ettirici hook, net görsel hiyerarşi; büyük vurucu başlık, kısa alt başlık), "icerik" (ana bilginin aktarıldığı, kolay okunan, görsel-metin dengesi kurulmuş ve bütün ara slaytlarda aynen tekrar edecek düzen: slayt numarası, başlık, açıklama; okuyucuyu bir sonraki slayta taşıyan akış) ve "kapanis" (içeriği tamamlayan güçlü sonuç ya da özet; istenirse soru veya harekete çağrı). Üçü aynı zemini, renkleri, fontları, logo yerini ve maskot yerleşimini paylaşsın; kopuk değil, tek bir hikâyenin bölümleri gibi görünsün. Görselde yalnızca kapak varsa iç ve kapanış slaytlarını aynı dille sen tasarla.',
+  tekli: 'Tek bir Instagram gönderisi (4:5) için TEK slayt yerleşimi üret (part: "tek"): güçlü başlık, kısa açıklama, gerekiyorsa görsel alanı ve harekete çağrı; tek bakışta anlaşılır görsel hiyerarşi.',
+  kapak: 'Bir Reels kapağı (9:16) için TEK slayt yerleşimi üret (part: "tek"): profil ızgarasında da okunacak çok büyük, kısa başlık; üst %14 ve alt %20 boş (arayüz) kalsın; karakter/görsel alanı ortada.',
+  story: 'Bir Instagram story (9:16) için TEK slayt yerleşimi üret (part: "tek"): üst %14 ve alt %18 boş; etkileşim (anket/soru) için alan bırak; kısa başlık ve tek mesaj.',
+  diger: 'Görseldeki tasarımın türüne uygun TEK slayt yerleşimi üret (part: "tek"); oranı görselden çıkar.'
+};
+function analysisPrompt(brand, count = 1, type = 'carousel', combine = true) {
   return [
     'TASARIM REFERANSI ANALİZİ',
-    count > 1
-      ? `Ekte ${count} görsel var: beğenilen sosyal medya tasarımı örnekleri (bazıları aynı carousel'in slaytları olabilir). '${brand.name}' markası için hepsine bakıp EN İYİ, en tutarlı tasarım dilini seç ve sentezle.`
-      : `Ekteki görsel bir sosyal medya tasarımı örneği. '${brand.name}' markası için bu tasarımın görsel dilini ve yerleşimini çıkar.`,
-    'Bir carousel için 3 slayt yerleşimi üret: "kapak" (büyük vurucu başlık, kısa alt başlık), "icerik" (bütün ara slaytlarda aynen tekrar edecek düzen: slayt numarası, başlık, açıklama) ve "kapanis" (özet ya da harekete çağrı). Üçü aynı zemini, renkleri, fontları ve logo yerini paylaşsın; görsel bir bütün olsun. Görselde yalnızca kapak varsa iç ve kapanış slaytlarını aynı dille sen tasarla.',
+    count > 1 && combine
+      ? `Ekte ${count} görsel var: beğenilen sosyal medya tasarımı örnekleri (bazıları aynı carousel'in slaytları olabilir). '${brand.name}' markası için hepsinin ORTAK tasarım dilini analiz et ve en iyi yaklaşımı sentezle; hiçbirini doğrudan kopyalama, farklı tasarım kararlarını karıştırıp dağınık bir sonuç üretme.`
+      : `Ekteki görsel bir sosyal medya tasarımı örneği. '${brand.name}' markası için bu tasarımın görsel dilini ve yerleşimini çıkar; kopyalama, uyarla.`,
+    TYPE_TASK[type] || TYPE_TASK.carousel,
     'Maskot/karakter varsa image role "mascot" ver; yanına konuşma balonu (shape role "bubble", beyaz yuvarlak kutu) ve içine text role "speech" koy.',
     'Metin rolleri: title (başlık), body (açıklama), speech (maskot konuşması), num (slayt numarası, ör. "02"), page (ör. "/ 06"), topic (konu etiketi), cta (buton yazısı), text (her slaytta aynı kalan sabit yazı). Başlıkta vurgulanacak kelimeyi *yıldız* içine al ve "highlight" alanına vurgu rengini yaz.',
     'Görseldeki yazıları ve başka markaya ait logo/isimleri KOPYALAMA; metin bloklarına yalnızca rolünü anlatan kısa Türkçe yer tutucu yaz (ör. "Başlık buraya", "Kısa açıklama").',
@@ -105,19 +120,24 @@ export function createDesignRefService({ db, ai, brands, assets }) {
   }
 
   return {
-    async analyze(brandId, { assetId, assetIds, modelRef = null, name = '' } = {}) {
+    async analyze(brandId, { assetId, assetIds, modelRef = null, name = '', type = 'carousel', combine = true } = {}) {
       const b = brands.get(brandId);
-      // Toplu referans: en fazla 6 görsel birlikte incelenir, en iyi tasarım dili seçilir
-      const ids = [...new Set((Array.isArray(assetIds) && assetIds.length ? assetIds : [assetId]).filter(Boolean).map(String))].slice(0, 6);
+      const tp = REF_TYPES[type] ? type : 'carousel';
+      // Toplu referans: en fazla 6 görsel birlikte incelenir; tekli gönderide "tek referanstan" seçilirse yalnız ilki
+      let ids = [...new Set((Array.isArray(assetIds) && assetIds.length ? assetIds : [assetId]).filter(Boolean).map(String))].slice(0, 6);
+      if (tp !== 'carousel' && !combine) ids = ids.slice(0, 1);
       if (!ids.length) throw badRequest('Önce bir referans görsel seç.');
       const images = ids.map(x => {
         const f = assets.visionFile(b.id, x);
         if (!/^image\/(png|jpeg|webp|gif)$/.test(f.mime)) throw badRequest('Bu dosya türü okunamıyor.');
         return { mime: f.mime, data: fs.readFileSync(f.path) };
       });
-      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: analysisPrompt(b, images.length), json: true, modelRef, temperature: 0.3, images });
+      const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: analysisPrompt(b, images.length, tp, combine !== false), json: true, modelRef, temperature: 0.3, images });
       const o = r.output || {};
+      // Oran türe göre sabitlenir (koordinatlar bu orana göre hesaplanır); tek tasarım türlerinde yalnız ilk slayt
+      if (REF_TYPES[tp].format) o.format = REF_TYPES[tp].format;
       const data = toPostData(o, b);
+      if (tp !== 'carousel') data.slides = data.slides.slice(0, 1);
       const analysis = {
         summary: polish(o.summary).slice(0, 400), mood: polish(o.mood).slice(0, 80),
         palette: (Array.isArray(o.palette) ? o.palette : []).map(p => ({ hex: hex(p && p.hex, null), role: polish(p && p.role).slice(0, 20) })).filter(p => p.hex).slice(0, 8),
@@ -130,8 +150,8 @@ export function createDesignRefService({ db, ai, brands, assets }) {
       // 11.10: ad verilmezse sıradaki "Şablon N"
       const tplName = polish(name).slice(0, 80) || `Şablon ${db.prepare('SELECT COUNT(*) AS n FROM post_templates WHERE brand_id = ?').get(b.id).n + 1}`;
       // Kapak + içerik + kapanış → carousel şablonu (ara slayt istenen sayıda tekrar eder)
-      const kind = data.slides.length > 1 ? 'carousel' : data.format === '9:16' ? 'story' : 'post';
-      db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(tplId, b.id, tplName, kind, JSON.stringify(Object.assign({ reference: { assetId: ids[0], assetIds: ids, analysis } }, data)), now());
+      const kind = tp === 'carousel' ? (data.slides.length > 1 ? 'carousel' : 'post') : tp === 'diger' ? (data.format === '9:16' ? 'story' : 'post') : REF_TYPES[tp].kind;
+      db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(tplId, b.id, tplName, kind, JSON.stringify(Object.assign({ reference: { assetId: ids[0], assetIds: ids, type: tp, analysis } }, data)), now());
       brands.logActivity(b.id, 'design.analyzed', `Tasarım referansı şablona çevrildi: ${tplName}`);
       return { analysis, template: { id: tplId, name: tplName, kind, kindLabel: POST_KINDS[kind], slides: data.slides.length }, ai: { model: r.servedRef || r.ref, modelLabel: ai.labelOf(r.servedRef || r.ref), cost: r.cost, ms: r.ms, fallbackUsed: Boolean(r.fallbackUsed) } };
     }

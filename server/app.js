@@ -750,7 +750,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // --- Tasarım referansı analizi ---
   api.post('/brands/:brandId/design-ref', route(async (req, res) => {
     const b = req.body || {};
-    res.status(201).json(await designRef.analyze(req.brand.id, { assetId: b.assetId, assetIds: b.assetIds, modelRef: mr(b), name: b.name }));
+    res.status(201).json(await designRef.analyze(req.brand.id, { assetId: b.assetId, assetIds: b.assetIds, modelRef: mr(b), name: b.name, type: b.type || 'carousel', combine: b.combine !== false }));
   }));
 
   // --- Prompt Studio ---

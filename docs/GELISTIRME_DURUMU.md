@@ -14,7 +14,7 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 | 4 | A4 | Renk seçici, gradyan, zemin düzenleme | ✅ |
 | 5 | A5a | Maskot yerleşimi: otomatik / ben yerleştireceğim / kullanma; poz değiştirme; konum korunur | ✅ |
 | 6 | E | Çoklu yapay zekâ API platform seçimi (OpenRouter ve alternatifleri; resmî kaynaklardan fiyat; 10 $/ay bütçe; karar). Yalnızca rapor, kod yok | ✅ rapor: docs/AI_PLATFORM_KARARI.md (onay bekliyor) |
-| 7 | A5b | Referanstan şablon: tasarım türü seçimi (tekli / carousel / Reels kapağı / story / diğer), tekli için tek referans ya da hepsini birlikte; carousel hikâye akışı | ⏳ |
+| 7 | A5b | Referanstan şablon: tasarım türü seçimi (tekli / carousel / Reels kapağı / story / diğer), tekli için tek referans ya da hepsini birlikte; carousel hikâye akışı | ✅ |
 | 8 | C1-C2 | Mevcut sistemin teknik analizi + dört deponun kaynak kod incelemesi, 17 özellikte karşılaştırma, lisans değerlendirmesi (docs/ENTEGRASYON_ANALIZI.md) | ⏳ |
 | 9 | B1+C4 | Akıllı şablon değişkenleri ve alan kimlikleri (MAIN_TITLE, SUB_TITLE, DESCRIPTION, MAIN_IMAGE, LOGO, CTA, MASCOT); değiştirilebilir / sabit seçimi | ⏳ |
 | 10 | B5+B9 | Şablon versiyonlama (V1, V2...), marka şablon paketleri, şablonun markası/versiyonu/kullanıldığı içerikler | ⏳ |
@@ -45,3 +45,4 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 - A3: Katmanlarda küçük önizleme, sürükle-bırak, grup başlığı altında toplanma, Shift+tık çoklu seçim, Grupla / Öne / Arkaya düğmeleri, "sabit" etiketi.
 - A4: Kendi renk seçicimiz (public/js/colorPicker.js): seçili renk ayrı büyük önizlemede; HEX/RGB/HSL, doygunluk alanı + ton çubuğu, damlalık, marka renkleri, son kullanılanlar, kayıtlı paletler; şekil ve zeminde gradyan. Zemin panelinde hazır zeminler, görsel ölçek ve konum, bütün sayfalara uygula, zemini sabitle.
 - A5a: Üretimde maskot seçeneği (otomatik / ben yerleştireceğim / kullanma) hızlı üretim satırında ve "Havuzdan" penceresinde; otomatik değilse maskot, balon ve konuşma kutuları çıkarılır ve modele poz sorulmaz. Düzenleyicide seçili maskotun pozu kütüphaneden değişir (yer ve boyut aynı); yeni maskot önceki maskotun yerine, yoksa sağ alta yerleşir; "Bu konumu bütün sayfalarda kullan" ve "Yeni sayfalarda tekrarla".
+- A5b: Referans penceresinde önce tasarım türü (carousel / tekli / Reels kapağı / story / diğer). Tekli ve diğer türlerde "Tek referanstan ilham al" ya da "Seçtiklerimi birlikte değerlendir"; tekli modda tek seçim tutulur, çok referansta uyarı çıkar. Carousel isteminde kapak hook'u, bilgi sayfalarının akışı ve kapanış tek hikâye olarak istenir. Sunucuda tür oranı (4:5 / 9:16) koordinatlar hesaplanmadan sabitlenir; tek tasarım türlerinde tek slayt; şablon türü buna göre (post / kapak / story).

@@ -391,6 +391,13 @@ async function renderGrid(view, brand) {
 // ------------------------------------------------------------ Tasarım referansı → şablon
 // Örnek tasarım (kütüphanedeki "Tasarım referansı" görselleri ya da yeni yüklenen) görseli okuyabilen modelle incelenir;
 // renk paleti, font önerisi ve yerleşim çıkarılıp düzenlenebilir şablon olarak kaydedilir.
+const REF_DESC = {
+  carousel: 'Model seçtiklerinin ortak tasarım dilini çıkarır ve 3 yapı kurar: <b>kapak</b> (güçlü hook, kaydırma isteği), bütün ara sayfalarda tekrar eden <b>bilgi sayfası</b> ve <b>kapanış</b> (sonuç, istenirse çağrı). Üçü tek hikâyenin parçaları gibi aynı dili paylaşır. Metinler kopyalanmaz; logo, maskot ve balon yerlerine markanın kendi görselleri konur.',
+  tekli: 'Tek bir 4:5 gönderi tasarımı kurulur. Mümkünse tek referans seç: çok referans tasarım kararlarını karıştırabilir.',
+  kapak: 'Reels kapağı (9:16) kurulur: ızgarada da okunacak büyük başlık; üst ve alt arayüz alanı boş bırakılır.',
+  story: 'Story (9:16) tasarımı kurulur: tek mesaj, etkileşim için boş alan.',
+  diger: 'Görselin türüne uygun tek tasarım kurulur; oran görselden çıkarılır.'
+};
 const refCard = (a, on) => `<div class="asset-wrap"><button type="button" class="asset asset-pick ${on ? 'is-picked' : ''}" data-ref-pick="${esc(a.id)}"><div class="thumb"><img src="${esc(a.thumbUrl || a.url)}" alt=""></div><div class="meta small">${esc(a.label || 'Referans')}</div></button>
   <button type="button" class="asset-del" data-ref-del="${esc(a.id)}" aria-label="${esc(a.label || 'Referans')} referansını sil" title="Sil">${icon('trash')}</button></div>`;
 async function referenceFlow(brand, models, refresh) {
@@ -398,13 +405,26 @@ async function referenceFlow(brand, models, refresh) {
   try { refs = (await api.assets(brand.id, 'reference')).assets; } catch (err) { return toast(err.message, 'error'); }
   // Birden çok referans seçilebilir: hepsi birlikte incelenir, en iyi tasarım dili seçilir (en fazla 6)
   const picked = new Set(refs[0] ? [refs[0].id] : []);
+  // Önce tasarım türü: carousel 3 yapı (kapak, içerik, kapanış), diğerleri tek tasarım
+  let type = 'carousel';
+  let combine = true;
+  const single = () => type !== 'carousel' && !combine;
   const syncPick = () => {
+    // "Tek referanstan ilham al" modunda yalnızca bir seçim tutulur
+    if (single() && picked.size > 1) { const first = [...picked][picked.size - 1]; picked.clear(); picked.add(first); }
     m.form.querySelectorAll('[data-ref-pick]').forEach(x => { x.classList.toggle('is-picked', picked.has(x.dataset.refPick)); x.setAttribute('aria-pressed', String(picked.has(x.dataset.refPick))); });
-    m.form.querySelector('#ref-count').textContent = picked.size ? `${picked.size} referans seçili${picked.size > 1 ? ': hepsine bakılıp en iyi tasarım dili seçilir' : ''}` : 'Referans seçilmedi';
+    m.form.querySelector('#ref-count').textContent = picked.size ? `${picked.size} referans seçili${picked.size > 1 ? ': ortak tasarım dili analiz edilir, hiçbiri birebir kopyalanmaz' : ''}` : 'Referans seçilmedi';
+    m.form.querySelector('#ref-warn').hidden = !(type !== 'carousel' && combine && picked.size > 2);
+    m.form.querySelector('#ref-mode').hidden = type === 'carousel';
+    m.form.querySelector('#ref-desc').innerHTML = REF_DESC[type];
   };
   const m = openModal({
     title: 'Referanstan şablon', submitLabel: 'İncele ve şablona çevir',
-    body: `<p class="small muted mb-3">Beğendiğin tasarımların ekran görüntülerini seç ya da toplu yükle (tıklayarak birden çok seçebilirsin). Model hepsine bakıp en iyi tasarım dilini seçer ve 3 slaytlık şablon kurar: <b>kapak</b>, her ara slaytta tekrar eden <b>içerik</b> ve <b>kapanış</b>. Metinler kopyalanmaz; logo, maskot ve konuşma balonu yerlerine markanın kendi görselleri konur.</p>
+    body: `<div class="field"><span class="field-label">1. Referans ne tür bir tasarım?</span><div class="chips" role="radiogroup">${[['carousel', 'Carousel / çoklu gönderi'], ['tekli', 'Tekli gönderi'], ['kapak', 'Reels kapağı'], ['story', 'Story'], ['diger', 'Diğer']].map(([k, v]) => `<button type="button" role="radio" class="chip ${k === 'carousel' ? 'active' : ''}" aria-checked="${k === 'carousel'}" data-ref-type="${k}">${v}</button>`).join('')}</div></div>
+      <div class="field mt-2" id="ref-mode" hidden><span class="field-label">Çalışma biçimi</span><div class="seg seg-sm" role="radiogroup"><button type="button" role="radio" data-ref-combine="0">Tek referanstan ilham al</button><button type="button" role="radio" class="active" data-ref-combine="1">Seçtiklerimi birlikte değerlendir</button></div></div>
+      <p class="small muted mt-2 mb-3" id="ref-desc"></p>
+      <p class="notice small mb-2" id="ref-warn" hidden>Tek gönderide çok sayıda referans tasarım kararlarını karıştırabilir. En iyi sonuç için 1-2 referans seç ya da "Tek referanstan ilham al".</p>
+      <span class="field-label">2. Referansları seç</span>
       <div class="asset-grid" id="ref-grid">${refs.map(a => refCard(a, picked.has(a.id))).join('')}</div>
       <p class="small strong mt-2" id="ref-count" role="status"></p>
       <p class="xsmall muted mt-1" id="ref-empty" ${refs.length ? 'hidden' : ''}>Henüz referans yok; aşağıdan yükle.</p>
@@ -417,12 +437,16 @@ async function referenceFlow(brand, models, refresh) {
     onSubmit: async (fd, form) => {
       if (!picked.size) throw new Error('Önce en az bir referans görsel seç ya da yükle.');
       if (picked.size > 6) throw new Error('En fazla 6 referans birlikte incelenebilir.');
-      const res = await busyTimer(form.querySelector('[type=submit]'), () => api.analyzeDesign(brand.id, { assetIds: [...picked], name: fd.get('name'), model: form.querySelector('#ref-model').value || null }), 'İnceliyor');
+      const res = await busyTimer(form.querySelector('[type=submit]'), () => api.analyzeDesign(brand.id, { assetIds: [...picked], type, combine, name: fd.get('name'), model: form.querySelector('#ref-model').value || null }), 'İnceliyor');
       showResult(res);
     }
   });
   syncPick();
   m.form.addEventListener('click', async e => {
+    const rt = e.target.closest('[data-ref-type]');
+    if (rt) { e.preventDefault(); type = rt.dataset.refType; m.form.querySelectorAll('[data-ref-type]').forEach(b => { b.classList.toggle('active', b === rt); b.setAttribute('aria-checked', String(b === rt)); }); if (type === 'carousel') combine = true; m.form.querySelectorAll('[data-ref-combine]').forEach(b => b.classList.toggle('active', (b.dataset.refCombine === '1') === combine)); return syncPick(); }
+    const rc = e.target.closest('[data-ref-combine]');
+    if (rc) { e.preventDefault(); combine = rc.dataset.refCombine === '1'; m.form.querySelectorAll('[data-ref-combine]').forEach(b => b.classList.toggle('active', b === rc)); return syncPick(); }
     const del = e.target.closest('[data-ref-del]');
     if (del) {
       e.preventDefault();
