@@ -446,7 +446,9 @@ export async function previewPost(brand, post) {
   const F = fmts[data.format] || fmts['4:5'];
   const tag = i => (data.slides.length < 2 ? 'Tek sayfa' : i === 0 ? 'Kapak' : i === data.slides.length - 1 ? 'Kapanış' : `İç sayfa ${i}`);
   const m = openModal({ title: `Önizleme: ${post.title}`, submitLabel: 'Bütün tasarımı düzenle',
-    body: `<p class="small muted mb-2">Sayfaları sürükleyerek sıralayabilir, sorunları görebilir, bir sayfaya tıklayıp düzenleyicide açabilirsin.</p><div id="pv-sum" class="ck-sum"></div><div class="pv-grid" id="pv-grid"></div>
+    body: `<p class="small muted mb-2">Sayfaları sürükleyerek sıralayabilir, sorunları görebilir, bir sayfaya tıklayıp düzenleyicide açabilirsin.</p>
+      ${post.work ? `<details class="pv-work mb-2"><summary class="small"><b>Yapay zekâ ne yaptı, sistem ne yaptı?</b>${post.ai ? ` <span class="xsmall muted">· ${esc(aiNote(post.ai))}</span>` : ''}</summary><ul>${post.work.map(w => `<li><span class="pv-by pv-${w.by}">${w.by === 'ai' ? 'Yapay zekâ' : 'Sistem'}</span>${esc(w.label)}</li>`).join('')}</ul></details>` : ''}
+      <div id="pv-sum" class="ck-sum"></div><div class="pv-grid" id="pv-grid"></div>
       <div class="row mt-3"><button type="button" class="btn btn-sm btn-ghost" data-pv-close>Kaydet ve listeye dön</button></div>`,
     onSubmit: async () => { await persist(); go(base(brand) + '/' + post.id); } });
   m.form.closest('.modal').classList.add('modal-xl');

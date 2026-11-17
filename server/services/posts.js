@@ -552,7 +552,15 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     const r = { id: newId(), brand_id: b.id, title: w.title, kind: tpl.kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
     db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
     brands.logActivity(b.id, 'post.created', `"${tpl.name}" şablonuyla hazırlandı: ${w.title}`);
-    return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), template: { id: tpl.id, name: tpl.name, version: tpl.version || 1 } });
+    // Hangi işi yapay zekâ, hangisini sistem yaptı (maliyet ve hız şeffaflığı)
+    const work = [
+      { by: 'ai', label: `Metinleri yazdı (${w.texts.length} sayfa${fields.length ? `, ek alanlar: ${fields.map(f => f.key).join(', ')}` : ''}), tek istek` },
+      { by: 'sistem', label: `"${tpl.name}" V${tpl.version || 1} yerleşimi, renkleri ve yazı tipleri olduğu gibi kullanıldı` },
+      ...(tpl.kind === 'carousel' && fitted.length !== tslides.length ? [{ by: 'sistem', label: `Şablon ${tslides.length} sayfadan ${fitted.length} sayfaya uyarlandı (kapak + iç sayfalar + kapanış)` }] : []),
+      ...(mascot ? [{ by: 'sistem', label: 'Maskot pozları yapay zekânın önerisine göre kütüphaneden seçildi' }] : []),
+      { by: 'sistem', label: 'Sayfa numaraları, konu etiketi, açılış/kapanış slaytları ve kutuya sığdırma' }
+    ];
+    return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), work, template: { id: tpl.id, name: tpl.name, version: tpl.version || 1 } });
   }
 
   return {
@@ -577,7 +585,8 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       const r = { id: newId(), brand_id: b.id, title: w.title, kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
       db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
       brands.logActivity(b.id, 'post.created', `${POST_KINDS[kind]} hazırlandı: ${w.title}`);
-      return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r) });
+      const work = [{ by: 'ai', label: `Metinleri yazdı (${w.texts.length} sayfa), tek istek` }, { by: 'sistem', label: 'Marka yerleşimi: renkler, yazı tipleri, logo ve maskot markanın kimliğinden' }];
+      return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), work });
     },
 
     createBlank(brandId, { title = 'Yeni post', kind = 'post', format = null, templateId = null } = {}) {
