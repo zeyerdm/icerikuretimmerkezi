@@ -279,6 +279,7 @@ function cleanLayer(l) {
     if (!ASSET_SRC.test(String(l.src || '')) && !ELEMENT_SRC.test(String(l.src || ''))) throw badRequest('Görsel katmanı kütüphanedeki bir dosya olmalı.');
     Object.assign(out, { src: l.src, assetId: l.assetId ? String(l.assetId).slice(0, 40) : null, w: num(l.w, 10, 4000, 300), h: num(l.h, 10, 4000, 300) });
     if (l.align === 'left' || l.align === 'right') out.align = l.align; // kutu içinde sola/sağa yaslı (logo)
+    if (/^[\w:.-]{1,80}$/.test(String(l.elementId || ''))) out.elementId = String(l.elementId);
     if (['logo', 'mascot', 'main'].includes(l.role)) out.role = l.role; // şablonda "maskot yeri": her postta poza göre değişir
     // Görsel ayarları: kutuyu doldur (taşanı kırp), köşe, daire, ayna, filtreler, gölge
     if (l.fit === 'cover') out.fit = 'cover';
@@ -294,6 +295,7 @@ function cleanLayer(l) {
     if (l.recolor) out.recolor = true;
     if (/^[\w:.-]{1,80}$/.test(String(l.elementId || ''))) out.elementId = String(l.elementId);
     if (l.flipX) out.flipX = true;
+    if (l.fit === 'cover') out.fit = 'cover'; // desen/doku: kutuyu kaplar
   } else if (l.type === 'qr') {
     // QR kod: metin/link kare olarak çizilir (beyaz sessiz bölge her zaman eklenir, okunabilirlik için)
     const text = String(l.text || '').trim().slice(0, 200);

@@ -47,7 +47,7 @@ export function checkDesign(data, brand, F, lock = {}) {
         if (l.role === 'body' && ((lock.bodyMin && l.size < lock.bodyMin) || (lock.bodyMax && l.size > lock.bodyMax))) add('warn', 'size', `Açıklama boyutu marka kuralının dışında (${l.size}px).`, { type: 'size', size: Math.min(lock.bodyMax || l.size, Math.max(lock.bodyMin || l.size, l.size)) });
         if (l.role === 'label' && /alanı$/.test(l.text || '')) add('warn', 'missing', `Eksik görsel: "${l.text}". Kütüphaneden görsel ekle.`, null);
       }
-      if (lock.colors && palette.length && ['text', 'shape'].includes(l.type) && HEX.test(l.color || '') && !l.gradient && dist(nearest(l.color, palette), l.color) > 40) add('warn', 'color', `Marka dışı renk: ${l.color}.`, { type: 'color', color: nearest(l.color, palette) });
+      if (lock.colors && palette.length && (['text', 'shape'].includes(l.type) || (l.type === 'vector' && l.recolor)) && HEX.test(l.color || '') && !l.gradient && dist(nearest(l.color, palette), l.color) > 40) add('warn', 'color', `Marka dışı renk: ${l.color}.`, { type: 'color', color: nearest(l.color, palette) });
       if (m && l.type !== 'shape' && (b.x < m || b.y < m || b.x + b.w > F.w - m || b.y + b.h > F.h - m) && !(l.type === 'image' && l.role === 'mascot')) add('info', 'margin', `Kenar boşluğu (${m}px) dışında.`, { type: 'inside' });
       if (l.type === 'image' && l.role === 'main') add('info', 'image', 'Ana görsel her içerikte değiştirilmeli (MAIN_IMAGE).', null);
     });

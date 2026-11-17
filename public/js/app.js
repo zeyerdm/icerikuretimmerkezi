@@ -27,6 +27,7 @@ import { initPalette, openPalette } from './palette.js';
 import { initRadial } from './radial.js';
 import { initDrafts, draftsOnRoute } from './drafts.js';
 import { renderErrors, initClientErrors } from './views/errors.js';
+import { renderElementsAdmin, renderLicenses } from './views/elementsAdmin.js';
 import { initInspiration } from './inspiration.js';
 import { renderTrash, initTrashUndo } from './views/trash.js';
 import { renderDesk } from './views/desk.js';
@@ -118,7 +119,7 @@ const BRAND_GROUPS = [['yonetim', 'Marka yönetimi'], ['uretim', 'İçerik üret
 const GROUP_KEY = 'ium.nav.closed';
 function closedGroups() { try { return JSON.parse(localStorage.getItem(GROUP_KEY) || '[]'); } catch { return []; } }
 
-const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', errors: 'Hata günlüğü', desk: 'Çalışma masası', trash: 'Çöp kutusu', newBrand: 'Yeni marka', ai: 'Yapay zekâ' };
+const CENTER_TITLES = { center: 'Genel bakış', brands: 'Markalar', calendar: 'İçerik Takvimi', tasks: 'Görevler', notes: 'Notlar', analytics: 'Analizler', settings: 'Ayarlar', errors: 'Hata günlüğü', elementsAdmin: 'Öğe kütüphanesi', licenses: 'Lisanslar', desk: 'Çalışma masası', trash: 'Çöp kutusu', newBrand: 'Yeni marka', ai: 'Yapay zekâ' };
 
 export function parseRoute(hash = location.hash || '#/') {
   let m;
@@ -149,6 +150,8 @@ export function parseRoute(hash = location.hash || '#/') {
   }
   if (hash === '#/marka/yeni') return { layer: 'center', page: 'newBrand' };
   if (hash === '#/ayarlar/hatalar') return { layer: 'center', page: 'errors' };
+  if (hash === '#/ayarlar/ogeler') return { layer: 'center', page: 'elementsAdmin' };
+  if (hash === '#/ayarlar/lisanslar' || hash === '#/lisanslar') return { layer: 'center', page: 'licenses' };
   if ((m = hash.match(/^#\/ai(?:\/(modeller|harcama))?$/))) return { layer: 'center', page: 'ai', tab: m[1] || 'karsilastir' };
   // Görevler ve Notlar tam sayfa olarak da açılır (eski bağlantılar); menüde Çalışma masası altında
   if (hash === '#/takvim') return { layer: 'center', page: 'desk' }; // takvim artık Çalışma masasının ortasında
@@ -219,7 +222,7 @@ export function renderChrome() {
   const pageLabel = brand ? ((BRAND_NAV.find(n => n.page === r.page) || {}).label || '') : (CENTER_TITLES[r.page] || '');
   const crumbs = brand
     ? `<a href="#/">Yönetim Merkezi</a><span>›</span><a href="#/m/${esc(brand.id)}">${esc(brand.name)}</a>${r.page !== 'home' ? `<span>›</span><b>${esc(pageLabel)}</b>` : ''}`
-    : `<a href="#/">Yönetim Merkezi</a>${{ ai: '<span>›</span><a href="#/ayarlar">Ayarlar</a>', errors: '<span>›</span><a href="#/ayarlar">Ayarlar</a>', tasks: '<span>›</span><a href="#/masa">Çalışma masası</a>', notes: '<span>›</span><a href="#/masa">Çalışma masası</a>' }[r.page] || ''}${r.page !== 'center' && pageLabel ? `<span>›</span><b>${esc(pageLabel)}</b>` : ''}`;
+    : `<a href="#/">Yönetim Merkezi</a>${{ ai: '<span>›</span><a href="#/ayarlar">Ayarlar</a>', errors: '<span>›</span><a href="#/ayarlar">Ayarlar</a>', elementsAdmin: '<span>›</span><a href="#/ayarlar">Ayarlar</a>', licenses: '<span>›</span><a href="#/ayarlar">Ayarlar</a>', tasks: '<span>›</span><a href="#/masa">Çalışma masası</a>', notes: '<span>›</span><a href="#/masa">Çalışma masası</a>' }[r.page] || ''}${r.page !== 'center' && pageLabel ? `<span>›</span><b>${esc(pageLabel)}</b>` : ''}`;
   document.getElementById('topbar').innerHTML = `
     <nav class="crumbs" aria-label="Konum">${crumbs}</nav>
     <div class="spacer"></div>
@@ -312,6 +315,8 @@ export async function route() {
     else if (r.page === 'analytics') await renderAnalytics(view, {});
     else if (r.page === 'settings') await renderSettings(view);
     else if (r.page === 'errors') await renderErrors(view);
+    else if (r.page === 'elementsAdmin') await renderElementsAdmin(view);
+    else if (r.page === 'licenses') await renderLicenses(view);
     else if (r.page === 'ai') await renderAi(view, r.tab);
     else view.innerHTML = emptyState({ icon: 'search', title: 'Sayfa bulunamadı', action: '<a class="btn btn-sm" href="#/">Yönetim Merkezine dön</a>', card: true });
   } catch (err) {

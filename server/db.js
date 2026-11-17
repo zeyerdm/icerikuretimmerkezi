@@ -608,6 +608,32 @@ const MIGRATIONS = [
     updated_at TEXT NOT NULL
   );
   CREATE INDEX idx_gen_jobs ON gen_jobs(brand_id, batch_id, status);
+  `,
+  // 42: Global öğe kütüphanesi (yönetim paneli): lisans bilgisi zorunlu, SVG metni ya da görsel dosyası
+  `
+  CREATE TABLE elements (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'diger',
+    tags TEXT NOT NULL DEFAULT '[]',
+    kind TEXT NOT NULL,
+    svg TEXT NOT NULL DEFAULT '',
+    file TEXT NOT NULL DEFAULT '',
+    view_box TEXT NOT NULL DEFAULT '0 0 100 100',
+    recolor INTEGER NOT NULL DEFAULT 0,
+    width INTEGER NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 0,
+    size INTEGER NOT NULL DEFAULT 0,
+    license TEXT NOT NULL,
+    author TEXT NOT NULL DEFAULT '',
+    attribution TEXT NOT NULL DEFAULT '',
+    source_url TEXT NOT NULL DEFAULT '',
+    pack TEXT NOT NULL DEFAULT '',
+    published INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_elements ON elements(published, category);
   `
 ];
 

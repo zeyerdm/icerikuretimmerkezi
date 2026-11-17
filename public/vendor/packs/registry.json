@@ -1,0 +1,710 @@
+{
+ "version": 1,
+ "packs": [
+  {
+   "id": "temel",
+   "name": "Kreatifhane temel öğeler",
+   "file": "temel.json",
+   "format": "items",
+   "recolor": true,
+   "source": "Kreatifhane (özgün)",
+   "url": "",
+   "license": {
+    "spdx": "LicenseRef-Kreatifhane",
+    "title": "Kreatifhane özgün çizim",
+    "holder": "Kreatifhane",
+    "commercial": true,
+    "attribution": false
+   },
+   "count": 113
+  },
+  {
+   "id": "iconpark",
+   "name": "IconPark ikonları",
+   "file": "iconpark.json",
+   "format": "items",
+   "recolor": true,
+   "source": "IconPark (ByteDance), @iconify-json/icon-park 1.2.4",
+   "url": "https://github.com/bytedance/IconPark",
+   "license": {
+    "spdx": "Apache-2.0",
+    "title": "Apache License 2.0",
+    "holder": "Bytedance Inc.",
+    "commercial": true,
+    "attribution": false,
+    "noticeFile": "LICENSE-Apache-2.0.txt"
+   },
+   "count": 2575
+  },
+  {
+   "id": "sosyal",
+   "name": "Sosyal medya logoları",
+   "file": "sosyal.json",
+   "format": "items",
+   "recolor": true,
+   "source": "Simple Icons, @iconify-json/simple-icons 1.2.103",
+   "url": "https://github.com/simple-icons/simple-icons",
+   "license": {
+    "spdx": "CC0-1.0",
+    "title": "CC0 1.0 (kamu malı)",
+    "holder": "Simple Icons katkıcıları",
+    "commercial": true,
+    "attribution": false,
+    "note": "Logolar ilgili şirketlerin ticari markasıdır; yalnızca o platformu belirtmek için kullan, logoyu değiştirme."
+   },
+   "count": 44
+  },
+  {
+   "id": "tabler",
+   "name": "Tabler ikonları",
+   "file": "icons.json",
+   "format": "legacy-icon",
+   "recolor": true,
+   "source": "Tabler Icons, @iconify-json/tabler 1.2.46",
+   "url": "https://github.com/tabler/tabler-icons",
+   "license": {
+    "spdx": "MIT",
+    "title": "MIT",
+    "holder": "Paweł Kuna",
+    "commercial": true,
+    "attribution": false,
+    "noticeFile": "LICENSES.txt"
+   },
+   "count": 5491
+  },
+  {
+   "id": "emoji",
+   "name": "Fluent Emoji (düz)",
+   "file": "emoji.json",
+   "format": "legacy-emoji",
+   "recolor": false,
+   "source": "Microsoft Fluent Emoji Flat, @iconify-json/fluent-emoji-flat 1.2.6",
+   "url": "https://github.com/microsoft/fluentui-emoji",
+   "license": {
+    "spdx": "MIT",
+    "title": "MIT",
+    "holder": "Microsoft Corporation",
+    "commercial": true,
+    "attribution": false,
+    "noticeFile": "LICENSES.txt"
+   },
+   "count": 1578
+  },
+  {
+   "id": "stickers",
+   "name": "Çıkartmalar",
+   "file": "stickers.json",
+   "format": "legacy-sticker",
+   "recolor": false,
+   "source": "Canvix çıkartma paketi (yazılar Türkçeleştirildi)",
+   "url": "https://github.com/ashiqhussainmir/canvix",
+   "license": {
+    "spdx": "MIT",
+    "title": "MIT",
+    "holder": "Ashiq Hussain Mir",
+    "commercial": true,
+    "attribution": false,
+    "noticeFile": "LICENSES.txt"
+   },
+   "count": 126
+  }
+ ],
+ "categories": [
+  {
+   "id": "sekiller",
+   "name": "Şekiller",
+   "subs": [
+    {
+     "id": "temel:sekiller",
+     "pack": "temel",
+     "group": "sekiller",
+     "name": "Geometrik şekiller",
+     "count": 26
+    },
+    {
+     "id": "iconpark:grafik-sekiller",
+     "pack": "iconpark",
+     "group": "grafik-sekiller",
+     "name": "Grafik şekiller",
+     "count": 18
+    },
+    {
+     "id": "iconpark:soyut",
+     "pack": "iconpark",
+     "group": "soyut",
+     "name": "Soyut",
+     "count": 121
+    }
+   ],
+   "count": 165
+  },
+  {
+   "id": "oklar",
+   "name": "Oklar",
+   "subs": [
+    {
+     "id": "temel:oklar",
+     "pack": "temel",
+     "group": "oklar",
+     "name": "Oklar",
+     "count": 14
+    },
+    {
+     "id": "iconpark:oklar",
+     "pack": "iconpark",
+     "group": "oklar",
+     "name": "İkon oklar",
+     "count": 137
+    }
+   ],
+   "count": 151
+  },
+  {
+   "id": "cizgiler",
+   "name": "Çizgiler",
+   "subs": [
+    {
+     "id": "temel:cizgiler",
+     "pack": "temel",
+     "group": "cizgiler",
+     "name": "Çizgiler ve ayraçlar",
+     "count": 10
+    }
+   ],
+   "count": 10
+  },
+  {
+   "id": "cerceveler",
+   "name": "Çerçeveler",
+   "subs": [
+    {
+     "id": "temel:cerceveler",
+     "pack": "temel",
+     "group": "cerceveler",
+     "name": "Çerçeveler",
+     "count": 12
+    }
+   ],
+   "count": 12
+  },
+  {
+   "id": "balonlar",
+   "name": "Konuşma balonları",
+   "subs": [
+    {
+     "id": "temel:balonlar",
+     "pack": "temel",
+     "group": "balonlar",
+     "name": "Konuşma balonları",
+     "count": 9
+    }
+   ],
+   "count": 9
+  },
+  {
+   "id": "etiketler",
+   "name": "Etiketler ve rozetler",
+   "subs": [
+    {
+     "id": "temel:etiketler",
+     "pack": "temel",
+     "group": "etiketler",
+     "name": "Etiketler",
+     "count": 8
+    },
+    {
+     "id": "temel:rozetler",
+     "pack": "temel",
+     "group": "rozetler",
+     "name": "Rozetler",
+     "count": 8
+    }
+   ],
+   "count": 16
+  },
+  {
+   "id": "susler",
+   "name": "Dekoratif süsler",
+   "subs": [
+    {
+     "id": "temel:susler",
+     "pack": "temel",
+     "group": "susler",
+     "name": "Süsler",
+     "count": 12
+    }
+   ],
+   "count": 12
+  },
+  {
+   "id": "desenler",
+   "name": "Desenler ve dokular",
+   "subs": [
+    {
+     "id": "temel:desenler",
+     "pack": "temel",
+     "group": "desenler",
+     "name": "Arka plan desenleri",
+     "count": 10
+    },
+    {
+     "id": "temel:dokular",
+     "pack": "temel",
+     "group": "dokular",
+     "name": "Dokular",
+     "count": 4
+    }
+   ],
+   "count": 14
+  },
+  {
+   "id": "ikonlar",
+   "name": "İkonlar",
+   "subs": [
+    {
+     "id": "iconpark:hayvanlar",
+     "pack": "iconpark",
+     "group": "hayvanlar",
+     "name": "Hayvanlar",
+     "count": 36
+    },
+    {
+     "id": "iconpark:bebek-ve-cocuk",
+     "pack": "iconpark",
+     "group": "bebek-ve-cocuk",
+     "name": "Bebek ve çocuk",
+     "count": 47
+    },
+    {
+     "id": "iconpark:temel",
+     "pack": "iconpark",
+     "group": "temel",
+     "name": "Temel",
+     "count": 55
+    },
+    {
+     "id": "iconpark:yapi-ve-arac",
+     "pack": "iconpark",
+     "group": "yapi-ve-arac",
+     "name": "Yapı ve araç",
+     "count": 70
+    },
+    {
+     "id": "iconpark:grafikler",
+     "pack": "iconpark",
+     "group": "grafikler",
+     "name": "Grafikler",
+     "count": 68
+    },
+    {
+     "id": "iconpark:giyim",
+     "pack": "iconpark",
+     "group": "giyim",
+     "name": "Giyim",
+     "count": 72
+    },
+    {
+     "id": "iconpark:iletisim",
+     "pack": "iconpark",
+     "group": "iletisim",
+     "name": "İletişim",
+     "count": 27
+    },
+    {
+     "id": "iconpark:arayuz",
+     "pack": "iconpark",
+     "group": "arayuz",
+     "name": "Arayüz",
+     "count": 8
+    },
+    {
+     "id": "iconpark:baglanti",
+     "pack": "iconpark",
+     "group": "baglanti",
+     "name": "Bağlantı",
+     "count": 52
+    },
+    {
+     "id": "iconpark:burclar",
+     "pack": "iconpark",
+     "group": "burclar",
+     "name": "Burçlar",
+     "count": 12
+    },
+    {
+     "id": "iconpark:veri",
+     "pack": "iconpark",
+     "group": "veri",
+     "name": "Veri",
+     "count": 24
+    },
+    {
+     "id": "iconpark:duzenleme",
+     "pack": "iconpark",
+     "group": "duzenleme",
+     "name": "Düzenleme",
+     "count": 364
+    },
+    {
+     "id": "iconpark:enerji",
+     "pack": "iconpark",
+     "group": "enerji",
+     "name": "Enerji",
+     "count": 32
+    },
+    {
+     "id": "iconpark:yiyecek-ve-icecek",
+     "pack": "iconpark",
+     "group": "yiyecek-ve-icecek",
+     "name": "Yiyecek ve içecek",
+     "count": 121
+    },
+    {
+     "id": "iconpark:oyun",
+     "pack": "iconpark",
+     "group": "oyun",
+     "name": "Oyun",
+     "count": 36
+    },
+    {
+     "id": "iconpark:eller",
+     "pack": "iconpark",
+     "group": "eller",
+     "name": "Eller",
+     "count": 66
+    },
+    {
+     "id": "iconpark:cihazlar",
+     "pack": "iconpark",
+     "group": "cihazlar",
+     "name": "Cihazlar",
+     "count": 223
+    },
+    {
+     "id": "iconpark:saglik",
+     "pack": "iconpark",
+     "group": "saglik",
+     "name": "Sağlık",
+     "count": 70
+    },
+    {
+     "id": "iconpark:sanayi",
+     "pack": "iconpark",
+     "group": "sanayi",
+     "name": "Sanayi",
+     "count": 26
+    },
+    {
+     "id": "iconpark:yasam",
+     "pack": "iconpark",
+     "group": "yasam",
+     "name": "Yaşam",
+     "count": 25
+    },
+    {
+     "id": "iconpark:guzellik",
+     "pack": "iconpark",
+     "group": "guzellik",
+     "name": "Güzellik",
+     "count": 46
+    },
+    {
+     "id": "iconpark:olcum",
+     "pack": "iconpark",
+     "group": "olcum",
+     "name": "Ölçüm",
+     "count": 13
+    },
+    {
+     "id": "iconpark:para-ve-finans",
+     "pack": "iconpark",
+     "group": "para-ve-finans",
+     "name": "Para ve finans",
+     "count": 80
+    },
+    {
+     "id": "iconpark:muzik",
+     "pack": "iconpark",
+     "group": "muzik",
+     "name": "Müzik",
+     "count": 57
+    },
+    {
+     "id": "iconpark:ofis",
+     "pack": "iconpark",
+     "group": "ofis",
+     "name": "Ofis",
+     "count": 215
+    },
+    {
+     "id": "iconpark:islem",
+     "pack": "iconpark",
+     "group": "islem",
+     "name": "İşlem",
+     "count": 31
+    },
+    {
+     "id": "iconpark:diger",
+     "pack": "iconpark",
+     "group": "diger",
+     "name": "Diğer",
+     "count": 67
+    },
+    {
+     "id": "iconpark:guvenlik",
+     "pack": "iconpark",
+     "group": "guvenlik",
+     "name": "Güvenlik",
+     "count": 18
+    },
+    {
+     "id": "iconpark:spor",
+     "pack": "iconpark",
+     "group": "spor",
+     "name": "Spor",
+     "count": 84
+    },
+    {
+     "id": "iconpark:zaman",
+     "pack": "iconpark",
+     "group": "zaman",
+     "name": "Zaman",
+     "count": 17
+    },
+    {
+     "id": "iconpark:seyahat",
+     "pack": "iconpark",
+     "group": "seyahat",
+     "name": "Seyahat",
+     "count": 101
+    },
+    {
+     "id": "iconpark:hava-durumu",
+     "pack": "iconpark",
+     "group": "hava-durumu",
+     "name": "Hava durumu",
+     "count": 16
+    },
+    {
+     "id": "tabler:*",
+     "pack": "tabler",
+     "group": "*",
+     "name": "Tabler (çizgi ikonlar)",
+     "count": 5491
+    }
+   ],
+   "count": 7670
+  },
+  {
+   "id": "karakterler",
+   "name": "İnsanlar ve karakterler",
+   "subs": [
+    {
+     "id": "iconpark:insanlar",
+     "pack": "iconpark",
+     "group": "insanlar",
+     "name": "İnsanlar",
+     "count": 50
+    },
+    {
+     "id": "iconpark:karakterler",
+     "pack": "iconpark",
+     "group": "karakterler",
+     "name": "Karakterler",
+     "count": 33
+    },
+    {
+     "id": "iconpark:yuz-ifadeleri",
+     "pack": "iconpark",
+     "group": "yuz-ifadeleri",
+     "name": "Yüz ifadeleri",
+     "count": 37
+    }
+   ],
+   "count": 120
+  },
+  {
+   "id": "emoji",
+   "name": "Emoji",
+   "subs": [
+    {
+     "id": "emoji:Smileys & Emotion",
+     "pack": "emoji",
+     "group": "Smileys & Emotion",
+     "name": "Yüzler ve duygular",
+     "count": 169
+    },
+    {
+     "id": "emoji:People & Body",
+     "pack": "emoji",
+     "group": "People & Body",
+     "name": "İnsanlar",
+     "count": 342
+    },
+    {
+     "id": "emoji:Animals & Nature",
+     "pack": "emoji",
+     "group": "Animals & Nature",
+     "name": "Hayvanlar ve doğa",
+     "count": 152
+    },
+    {
+     "id": "emoji:Food & Drink",
+     "pack": "emoji",
+     "group": "Food & Drink",
+     "name": "Yiyecek ve içecek",
+     "count": 136
+    },
+    {
+     "id": "emoji:Activities",
+     "pack": "emoji",
+     "group": "Activities",
+     "name": "Etkinlikler",
+     "count": 86
+    },
+    {
+     "id": "emoji:Travel & Places",
+     "pack": "emoji",
+     "group": "Travel & Places",
+     "name": "Seyahat ve yerler",
+     "count": 215
+    },
+    {
+     "id": "emoji:Objects",
+     "pack": "emoji",
+     "group": "Objects",
+     "name": "Nesneler",
+     "count": 259
+    },
+    {
+     "id": "emoji:Symbols",
+     "pack": "emoji",
+     "group": "Symbols",
+     "name": "Semboller",
+     "count": 219
+    }
+   ],
+   "count": 1578
+  },
+  {
+   "id": "cikartmalar",
+   "name": "Çıkartmalar",
+   "subs": [
+    {
+     "id": "stickers:faces",
+     "pack": "stickers",
+     "group": "faces",
+     "name": "Yüzler",
+     "count": 12
+    },
+    {
+     "id": "stickers:hands",
+     "pack": "stickers",
+     "group": "hands",
+     "name": "Eller",
+     "count": 10
+    },
+    {
+     "id": "stickers:hearts",
+     "pack": "stickers",
+     "group": "hearts",
+     "name": "Kalpler",
+     "count": 12
+    },
+    {
+     "id": "stickers:stars",
+     "pack": "stickers",
+     "group": "stars",
+     "name": "Yıldızlar",
+     "count": 12
+    },
+    {
+     "id": "stickers:celebrate",
+     "pack": "stickers",
+     "group": "celebrate",
+     "name": "Kutlama",
+     "count": 12
+    },
+    {
+     "id": "stickers:business",
+     "pack": "stickers",
+     "group": "business",
+     "name": "İş",
+     "count": 12
+    },
+    {
+     "id": "stickers:arrows",
+     "pack": "stickers",
+     "group": "arrows",
+     "name": "Oklar ve işaretler",
+     "count": 12
+    },
+    {
+     "id": "stickers:nature",
+     "pack": "stickers",
+     "group": "nature",
+     "name": "Doğa",
+     "count": 12
+    },
+    {
+     "id": "stickers:food",
+     "pack": "stickers",
+     "group": "food",
+     "name": "Yiyecek ve içecek",
+     "count": 12
+    },
+    {
+     "id": "stickers:frames",
+     "pack": "stickers",
+     "group": "frames",
+     "name": "Çerçeve ve rozetler",
+     "count": 10
+    },
+    {
+     "id": "stickers:travel",
+     "pack": "stickers",
+     "group": "travel",
+     "name": "Seyahat",
+     "count": 10
+    }
+   ],
+   "count": 126
+  },
+  {
+   "id": "sosyal",
+   "name": "Sosyal medya",
+   "subs": [
+    {
+     "id": "sosyal:sosyal",
+     "pack": "sosyal",
+     "group": "sosyal",
+     "name": "Platform logoları",
+     "count": 44
+    }
+   ],
+   "count": 44
+  }
+ ],
+ "skipped": [
+  {
+   "name": "OpenMoji",
+   "reason": "CC BY-SA 4.0: türev çalışmaların aynı lisansla paylaşılması gerekir."
+  },
+  {
+   "name": "unDraw",
+   "reason": "Lisansı illüstrasyonların başka bir kütüphane ya da araçta toplu olarak dağıtılmasını yasaklıyor."
+  },
+  {
+   "name": "SVG Repo",
+   "reason": "Her öğenin lisansı farklı; toplu alım lisans süzgecinden geçemez. Tek tek, lisansı kontrol edilerek yönetim panelinden eklenebilir."
+  },
+  {
+   "name": "Noto Emoji",
+   "reason": "Apache-2.0, uygun; ancak 24 MB. Fluent Emoji zaten var."
+  },
+  {
+   "name": "Lottie animasyonları",
+   "reason": "Düzenleyicide Lottie oynatıcı yok; çalışmayan öğe gösterilmez."
+  }
+ ]
+}

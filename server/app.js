@@ -23,6 +23,7 @@ import { createPostService } from './services/posts.js';
 import { createPromptService } from './services/prompts.js';
 import { createPresetService } from './services/promptPresets.js';
 import { createGenQueue } from './services/genQueue.js';
+import { createElementService, MAX_ELEMENT_BYTES } from './services/elements.js';
 import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
@@ -140,6 +141,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const reels = createReelsService({ db, ai, brands, workspace, patterns });
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const queue = createGenQueue({ db, brands, posts, ideas, autostart: queueAutostart });
+  const elements = createElementService(db, path.join(dataDir, 'uploads', 'elements'));
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
@@ -802,6 +804,24 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.get('/brands/:brandId/prompts/:id/versions/:vid', (req, res) => res.json({ version: prompts.version(req.brand.id, req.params.id, req.params.vid) }));
   api.post('/brands/:brandId/prompts/:id/restore', (req, res) => res.json({ prompt: prompts.restore(req.brand.id, req.params.id, (req.body || {}).versionId) }));
+
+  // --- Global öğe kütüphanesi (yönetim paneli) ---
+  const elMeta = q => ({ name: q.name, category: q.category, tags: q.tags, pack: q.pack, published: q.published, license: q.license, author: q.author, attribution: q.attribution, sourceUrl: q.sourceUrl });
+  api.get('/elements', (req, res) => res.json({ elements: elements.list({ all: req.query.all === '1' }), categories: elements.categories, licenses: elements.licenses }));
+  api.get('/elements/licenses', (req, res) => res.json({ custom: elements.licenseSummary() }));
+  api.post('/elements', express.raw({ type: () => true, limit: MAX_ELEMENT_BYTES }), (req, res) => res.status(201).json({ element: elements.create(req.body, elMeta(req.query)) }));
+  api.post('/elements/import', express.raw({ type: () => true, limit: '30mb' }), (req, res) => res.status(201).json(elements.importZip(req.body, elMeta(req.query))));
+  api.patch('/elements/:id', (req, res) => res.json({ element: elements.update(req.params.id, req.body || {}) }));
+  api.delete('/elements/:id', (req, res) => res.json(elements.remove(req.params.id)));
+  api.post('/elements/packs/:action', (req, res) => res.json(elements.packAction((req.body || {}).pack, req.params.action)));
+  api.get('/elements/:id/file', (req, res) => {
+    const f = elements.file(req.params.id);
+    res.setHeader('Content-Type', f.mime);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (f.svg) { res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox"); return res.send(f.svg); }
+    res.sendFile(f.path);
+  });
 
   // --- Varlık kütüphanesi ---
   api.get('/brands/:brandId/assets', (req, res) => {

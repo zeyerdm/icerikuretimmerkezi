@@ -137,6 +137,14 @@ export const api = {
   uploadAssetPack: (id, file, category, pack) =>
     request('POST', `${b(id)}/asset-packs?category=${encodeURIComponent(category)}&pack=${encodeURIComponent(pack)}`, file, { 'Content-Type': 'application/zip' }),
   assetPacks: id => request('GET', b(id) + '/asset-packs'),
+  // Global öğe kütüphanesi (yönetim paneli)
+  elements: (all = false) => request('GET', `/api/elements${all ? '?all=1' : ''}`),
+  elementLicenses: () => request('GET', '/api/elements/licenses'),
+  uploadElement: (file, meta) => request('POST', `/api/elements?${new URLSearchParams(meta)}`, file, { 'Content-Type': file.type || 'application/octet-stream' }),
+  importElements: (file, meta) => request('POST', `/api/elements/import?${new URLSearchParams(meta)}`, file, { 'Content-Type': 'application/zip' }),
+  updateElement: (id, body) => request('PATCH', `/api/elements/${encodeURIComponent(id)}`, body),
+  deleteElement: id => request('DELETE', `/api/elements/${encodeURIComponent(id)}`),
+  elementPack: (pack, action) => request('POST', `/api/elements/packs/${action}`, { pack }),
   deleteAssetPack: (id, pack) => request('DELETE', `${b(id)}/asset-packs?pack=${encodeURIComponent(pack)}`),
   analyzeAsset: (id, assetId, body = {}) => request('POST', `${b(id)}/assets/${assetId}/analyze`, body),
   search: q => request('GET', '/api/search?q=' + encodeURIComponent(q)),

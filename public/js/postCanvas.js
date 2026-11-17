@@ -27,7 +27,7 @@ export function vectorUrl(l) {
     if (l.recolor) svg = svg.replace(/(fill|stroke)="#(?:000|000000|2D2A32|1b1f3b)"/gi, `$1="${l.color}"`);
   }
   const w = Math.max(8, Math.round(l.w)); const h = Math.max(8, Math.round(l.h));
-  svg = svg.replace(/<svg\b([^>]*)>/, (m, a) => `<svg${a.replace(/\s(width|height)="[^"]*"/g, '')} width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet">`);
+  svg = svg.replace(/<svg\b([^>]*)>/, (m, a) => `<svg${a.replace(/\s(width|height)="[^"]*"/g, '')} width="${w}" height="${h}" preserveAspectRatio="xMidYMid ${l.fit === 'cover' ? 'slice' : 'meet'}">`);
   if (!/xmlns=/.test(svg)) svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

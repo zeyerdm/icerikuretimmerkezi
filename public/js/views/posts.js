@@ -10,7 +10,8 @@ import { reviewBox } from './review.js';
 import { canvasesToPdf } from '../pdf.js';
 import { openColorPicker, gradCss } from '../colorPicker.js';
 import { checkDesign, applyFix } from '../designCheck.js';
-import { STOCK_KINDS, loadStock, itemsOf, searchItems, svgUrl, svgToPng } from '../stockPacks.js';
+import { svgUrl } from '../stockPacks.js';
+import { loadRegistry, itemsFor, allItems, search as searchEls, usage as elUsage, markUsed, toggleFav, byIds, ratioOf, previewSvg, loadCustom } from '../elements.js';
 
 // Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
 // Şablon alanları: her alanın kimliği (MAIN_TITLE gibi) görünür; aynı alan birden çok kutuda ve sayfada olabilir
@@ -640,6 +641,7 @@ async function renderEditor(view, brand, id, models) {
   const slide = () => data.slides[current];
   const layer = () => slide().layers.find(l => l.id === selected) || null;
   const $ = s => view.querySelector(s);
+  const $$ = s => [...view.querySelectorAll(s)];
 
   function shell() {
     view.innerHTML = `
@@ -934,33 +936,66 @@ async function renderEditor(view, brand, id, models) {
     ? `<div class="ed-asset-grid">${list.map(a => `<button type="button" class="ed-asset" data-add-asset="${esc(a.id)}" title="${esc(a.label || a.categoryLabel)}"><img src="${esc(a.thumbUrl || a.url)}" alt="${esc(a.label || '')}" loading="lazy"></button>`).join('')}</div>`
     : `<p class="small muted">${empty}</p>`);
 
-  // Hazır paket ızgarası: en fazla 120 öğe gösterilir (arayınca daralır), "Daha fazla" ile artar
-  const stock = { kind: 'sticker', pack: '', q: '', color: brand.colors.primary || '#1b1f3b', limit: 120 };
-  async function drawStock() {
-    const grid = $('#ed-stock');
-    if (!grid) return;
-    let data;
-    try { data = await loadStock(stock.kind); } catch (err) { grid.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; return; }
-    if (!$('#ed-stock')) return;
-    const pk = $('#ed-stock-packs');
-    pk.innerHTML = data.packs.length > 1 ? `<div class="chips mb-2"><button type="button" class="chip ${!stock.pack ? 'active' : ''}" data-stock-pack="">Tümü</button>${data.packs.map(p => `<button type="button" class="chip ${stock.pack === p.id ? 'active' : ''}" data-stock-pack="${esc(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : '';
-    const all = searchItems(itemsOf(stock.kind, data, stock.pack), stock.q);
-    const shown = all.slice(0, stock.limit);
-    grid.innerHTML = shown.length ? `${shown.map(it => `<button type="button" class="ed-stock-item" data-stock-id="${esc(it.id)}" title="${esc(it.name)}" aria-label="${esc(it.name)} ekle"><img src="${svgUrl(it.svg(stock.color))}" alt="" loading="lazy"></button>`).join('')}
-      ${all.length > shown.length ? `<button type="button" class="btn btn-sm btn-ghost ed-stock-more" data-stock-more>Daha fazla (${all.length - shown.length})</button>` : ''}` : '<p class="small muted">Sonuç yok. Başka bir kelime dene.</p>';
-    grid._items = shown;
-  }
-  async function addStock(it) {
-    const label = (stock.kind === 'icon' ? `${it.name} ${stock.color}` : it.name).slice(0, 80);
-    const pack = `Hazır · ${it.pack}`.slice(0, 60);
-    let a = (await assets()).find(x => x.category === 'sticker' && x.pack === pack && x.label === label);
-    if (!a) {
-      toast('Ekleniyor…', 'info', 1200);
-      const file = await svgToPng(it.svg(stock.color), 512, it.id);
-      a = (await api.uploadAsset(brand.id, file, 'sticker', label, pack)).asset;
-      assetCache = null;
+  // Öğeler paneli: kategori ağacı, Türkçe arama, son kullanılanlar, favoriler, popüler ve yeni öğeler
+  const el = { view: 'home', cat: null, sub: null, q: '', color: brand.colors.primary || '#1b1f3b', limit: 120 };
+  const elMap = new Map();
+  const elCell = it => { elMap.set(it.id, it); const fav = elUsage().fav.includes(it.id); const src = it.svg ? svgUrl(previewSvg(it, el.color)) : esc(it.url);
+    return `<div class="el-cell"><button type="button" class="el-item" data-el="${esc(it.id)}" draggable="true" title="${esc(it.name)}" aria-label="${esc(it.name)} ekle"><img src="${src}" alt="" loading="lazy" draggable="false"></button><button type="button" class="el-fav ${fav ? 'on' : ''}" data-el-fav="${esc(it.id)}" aria-pressed="${fav}" aria-label="${fav ? 'Favorilerden çıkar' : 'Favorilere ekle'}" title="${fav ? 'Favorilerden çıkar' : 'Favorilere ekle'}">★</button></div>`; };
+  const elGrid = (list, more) => (list.length ? `<div class="el-grid">${list.map(elCell).join('')}</div>${more ? `<button type="button" class="btn btn-sm btn-ghost mt-2" data-el-more>Daha fazla (${more})</button>` : ''}` : '<p class="small muted">Sonuç yok. Başka bir kelime dene.</p>');
+  async function drawElements() {
+    const box = $('#ed-el'); if (!box) return;
+    let reg;
+    try { reg = await loadRegistry(); } catch (err) { box.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; return; }
+    const custom = await loadCustom(api);
+    const cats = [...reg.categories];
+    if (custom.length) {
+      const groups = [...new Map(custom.map(it => [it.group, it.custom.categoryLabel || it.group])).entries()];
+      cats.unshift({ id: 'custom', name: 'Yüklenen öğeler', count: custom.length, subs: [{ id: 'custom:*', pack: 'custom', group: '*', name: 'Tümü' }, ...groups.map(([g, n]) => ({ id: `custom:${g}`, pack: 'custom', group: g, name: n }))] });
     }
-    addAssetLayer(a);
+    let html = '';
+    try {
+      if (el.view === 'search' && el.q.trim()) {
+        box.innerHTML = '<p class="small muted">Aranıyor…</p>';
+        const res = searchEls(await allItems(api), el.q);
+        html = `<p class="xsmall muted mb-2">${res.length} sonuç</p>${elGrid(res.slice(0, el.limit), Math.max(0, res.length - el.limit))}`;
+      } else if (el.view === 'cat' && el.cat) {
+        const cat = cats.find(c => c.id === el.cat) || cats[0];
+        const sub = cat.subs.find(x => x.id === el.sub) || null;
+        const lists = await Promise.all((sub ? [sub] : cat.subs).map(x => itemsFor(x, api).catch(() => [])));
+        const all = lists.flat();
+        html = `<div class="row mb-2"><button type="button" class="btn btn-sm btn-ghost" data-el-home>← Kategoriler</button><strong class="grow">${esc(cat.name)}</strong></div>
+          ${cat.subs.length > 1 ? `<div class="chips mb-2"><button type="button" class="chip ${!sub ? 'active' : ''}" data-el-sub="">Tümü</button>${cat.subs.map(x => `<button type="button" class="chip ${sub && sub.id === x.id ? 'active' : ''}" data-el-sub="${esc(x.id)}">${esc(x.name)}</button>`).join('')}</div>` : ''}
+          ${elGrid(all.slice(0, el.limit), Math.max(0, all.length - el.limit))}`;
+      } else {
+        const u = elUsage();
+        const recent = await byIds(u.recent.slice(0, 12), api);
+        const favs = await byIds(u.fav.slice(0, 24), api);
+        const popular = await byIds(Object.entries(u.count).sort((x, y) => y[1] - x[1]).slice(0, 12).map(x => x[0]), api);
+        const fresh = [...custom].sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt))).slice(0, 12);
+        const strip = (title, list) => (list.length ? `<h4 class="ed-sub">${title}</h4>${elGrid(list)}` : '');
+        html = `${strip('Son kullanılanlar', recent)}${strip('Favoriler', favs)}${strip('En çok kullanılanlar', popular)}${strip('Yeni eklenenler', fresh)}
+          <h4 class="ed-sub">Kategoriler</h4>
+          <div class="el-cats">${cats.map(c => `<button type="button" class="el-cat" data-el-cat="${esc(c.id)}"><span>${esc(c.name)}</span><small>${c.count || ''}</small></button>`).join('')}</div>`;
+      }
+    } catch (err) { html = `<p class="small muted">${esc(err.message)}</p>`; }
+    const host = $('#ed-el'); if (!host) return;
+    host.innerHTML = html;
+    host.ondragstart = e => { const b = e.target.closest('[data-el]'); if (!b) return; e.dataTransfer.setData('text/x-element', b.dataset.el); e.dataTransfer.effectAllowed = 'copy'; };
+  }
+  // Öğeyi tuvale ekler (at: tuval koordinatı; yoksa ortaya)
+  function addElement(it, at) {
+    const F = format(); markUsed(it.id);
+    const isPattern = /^temel:(desenler|dokular)-/.test(it.id);
+    if (!it.svg) { // yüklenen PNG/WebP/GIF öğe: görsel katmanı
+      const s = 300; const x = at ? at.x - s / 2 : F.w / 2 - s / 2; const y = at ? at.y - s / 2 : F.h / 2 - s / 2;
+      return addLayer({ id: uid(), type: 'image', src: it.url, elementId: it.id, name: it.name.slice(0, 40), x: Math.round(x), y: Math.round(y), w: s, h: s });
+    }
+    const r = ratioOf(it.vb);
+    const w = isPattern ? F.w : 300; const h = isPattern ? F.h : Math.round(300 * r);
+    const l = { id: uid(), type: 'vector', svg: it.svg(), w, h, elementId: it.id, name: it.name.slice(0, 40), color: el.color, ...(it.recolor ? { recolor: true } : {}),
+      x: isPattern ? 0 : Math.round(at ? at.x - w / 2 : F.w / 2 - w / 2), y: isPattern ? 0 : Math.round(at ? at.y - h / 2 : F.h / 2 - h / 2) };
+    if (isPattern) { Object.assign(l, { fit: 'cover', opacity: 20 }); slide().layers.unshift(l); setSelected(l.id); markDirty(); return redraw(); }
+    addLayer(l);
   }
 
   // Katman küçük önizlemeleri: katman tek başına çizilir, kapladığı alan 44 px kareye sığdırılır
@@ -1090,19 +1125,21 @@ async function renderEditor(view, brand, id, models) {
       const list = await assets();
       const stickers = list.filter(a => a.category === 'sticker');
       const packs = [...new Set(stickers.map(a => a.pack).filter(Boolean))];
-      box.innerHTML = `${head}<h4 class="ed-sub">Şekiller</h4>
+      const sw = [...new Set([brand.colors.primary, ...(brand.colors.secondary || []), brand.colors.heading, '#ffffff', '#111111'].filter(c => /^#[0-9a-f]{6}$/i.test(c || '')))];
+      box.innerHTML = `${head}
+        <div class="row mb-2"><input class="input input-sm grow" id="ed-el-q" type="search" placeholder="Öğe ara (ör. kalp, ok, çerçeve, kahve)" value="${esc(el.q)}" aria-label="Öğe ara"></div>
+        <div class="row mb-2 el-colors" role="group" aria-label="Öğe rengi"><span class="xsmall muted">Renk</span>${sw.map(c => `<button type="button" class="sw ${el.color === c ? 'on' : ''}" data-el-color="${esc(c)}" style="background:${esc(c)}" title="${esc(c)}" aria-label="Renk ${esc(c)}"></button>`).join('')}<input type="color" id="ed-el-color" value="${esc(el.color)}" aria-label="Özel renk" title="Özel renk"></div>
+        <p class="xsmall muted mb-2">Tek renkli öğelerin rengi değişir. Tıkla ya da tuvale sürükle.</p>
+        <div id="ed-el"><p class="small muted">Yükleniyor…</p></div>
+        <h4 class="ed-sub mt-3">Basit şekil</h4>
         <div class="ed-shapes"><button type="button" data-add="shape" title="Dikdörtgen"><span class="sh rect"></span></button><button type="button" data-add="shape" data-preset="rounded" title="Yuvarlak köşe"><span class="sh rounded"></span></button><button type="button" data-add="circle" title="Daire"><span class="sh circle"></span></button><button type="button" data-add="shape" data-preset="line" title="Çizgi"><span class="sh line"></span></button></div>
         <h4 class="ed-sub">QR kod</h4>
         <div class="row mb-3"><input class="input input-sm" id="ed-qr-text" placeholder="Link ya da metin (ör. kampanya sayfası)" maxlength="200" aria-label="QR kod metni"><button type="button" class="btn btn-sm" data-add="qr">${icon('plus')}Ekle</button></div>
-        <h4 class="ed-sub">Hazır paketler</h4>
-        <div class="seg seg-sm mb-2" role="group" aria-label="Paket türü">${STOCK_KINDS.map(([k, v]) => `<button type="button" class="${stock.kind === k ? 'active' : ''}" data-stock-kind="${k}">${v}</button>`).join('')}</div>
-        <div class="row mb-2"><input class="input input-sm grow" id="ed-stock-q" placeholder="Ara (ör. kalp, roket, kahve)" value="${esc(stock.q)}" aria-label="Pakette ara">${stock.kind === 'icon' ? `<input type="color" id="ed-stock-color" value="${esc(stock.color)}" aria-label="İkon rengi" title="İkon rengi">` : ''}</div>
-        <div id="ed-stock-packs"></div>
-        <div id="ed-stock" class="ed-stock-grid"><p class="small muted">Yükleniyor…</p></div>
         <h4 class="ed-sub mt-3">Kütüphanedeki sticker'lar</h4>
         ${packs.length ? `<div class="chips mb-2"><button type="button" class="chip active" data-sticker-pack="">Tümü</button>${packs.map(p => `<button type="button" class="chip" data-sticker-pack="${esc(p)}">${esc(p)}</button>`).join('')}</div>` : ''}
-        <div id="ed-stickers">${assetGrid(stickers, `Henüz sticker yok. <a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> paket olarak yükleyebilirsin.`)}</div>`;
-      drawStock();
+        <div id="ed-stickers">${assetGrid(stickers, `Henüz sticker yok. <a class="link" href="#/m/${esc(brand.id)}/kutuphane">Kütüphaneye</a> paket olarak yükleyebilirsin.`)}</div>
+        <p class="xsmall muted mt-3"><a class="link" href="#/ayarlar/ogeler">Öğe yükle</a> · <a class="link" href="#/ayarlar/lisanslar">Lisanslar</a></p>`;
+      drawElements();
       return;
     }
     if (panel === 'marka') {
@@ -1223,6 +1260,9 @@ async function renderEditor(view, brand, id, models) {
     const c = $('#stage');
     let drag = null;
     const point = e => { const r = c.getBoundingClientRect(); return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) }; };
+    // Öğeler panelinden sürükle-bırak
+    c.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('text/x-element')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+    c.addEventListener('drop', e => { const id = e.dataTransfer.getData('text/x-element'); const it = id && elMap.get(id); if (!it) return; e.preventDefault(); const p = point(e); const F = format(); addElement(it, { x: p.x * (F.w / c.width), y: p.y * (F.h / c.height) }); });
     // Sağ tık: tıklanan katman seçilir (çoklu seçimdeyse seçim korunur), bağlam menüsü açılır
     const openCtxAt = (cx, cy) => {
       const p = point({ clientX: cx, clientY: cy });
@@ -1619,8 +1659,8 @@ async function renderEditor(view, brand, id, models) {
       const lf = layer(); if (v.length >= 2) lf.field = v; else delete lf.field;
       markDirty(false, `${lf.id}:field`); return;
     }
-    if (t.id === 'ed-stock-q') { clearTimeout(view._stockT); view._stockT = setTimeout(() => { stock.q = t.value; stock.limit = 120; drawStock(); }, 200); return; }
-    if (t.id === 'ed-stock-color') { stock.color = t.value; clearTimeout(view._stockT); view._stockT = setTimeout(drawStock, 150); return; }
+    if (t.id === 'ed-el-q') { clearTimeout(view._stockT); view._stockT = setTimeout(() => { el.q = t.value; el.limit = 120; el.view = el.q.trim() ? 'search' : 'home'; drawElements(); }, 250); return; }
+    if (t.id === 'ed-el-color') { el.color = t.value; clearTimeout(view._stockT); view._stockT = setTimeout(drawElements, 150); return; }
     // Efekt kutucukları
     if (t.matches('[data-flag]') && layer()) {
       const lf = layer(); const f = t.dataset.flag;
@@ -1682,13 +1722,18 @@ async function renderEditor(view, brand, id, models) {
       try { brand.designLock = (await api.setDesignLock(brand.id, body)).designLock; toast('Marka tasarım kuralları kaydedildi.', 'success'); drawPanelBody(); } catch (err) { toast(err.message, 'error'); }
       return;
     }
-    const sk = t.closest('[data-stock-kind]');
-    if (sk) { stock.kind = sk.dataset.stockKind; stock.pack = ''; stock.q = ''; stock.limit = 120; return drawPanelBody(); }
-    const sp2 = t.closest('[data-stock-pack]');
-    if (sp2) { stock.pack = sp2.dataset.stockPack; stock.limit = 120; return drawStock(); }
-    if (t.closest('[data-stock-more]')) { stock.limit += 240; return drawStock(); }
-    const si = t.closest('[data-stock-id]');
-    if (si) { const it = ($('#ed-stock')._items || []).find(x => x.id === si.dataset.stockId); if (it) { try { await addStock(it); } catch (err) { toast(err.message, 'error'); } } return; }
+    const ec = t.closest('[data-el-cat]');
+    if (ec) { el.view = 'cat'; el.cat = ec.dataset.elCat; el.sub = null; el.limit = 120; return drawElements(); }
+    const es = t.closest('[data-el-sub]');
+    if (es) { el.sub = es.dataset.elSub || null; el.limit = 120; return drawElements(); }
+    if (t.closest('[data-el-home]')) { el.view = 'home'; el.cat = null; el.q = ''; const q = $('#ed-el-q'); if (q) q.value = ''; return drawElements(); }
+    if (t.closest('[data-el-more]')) { el.limit += 240; return drawElements(); }
+    const eco = t.closest('[data-el-color]');
+    if (eco) { el.color = eco.dataset.elColor; $$('[data-el-color]').forEach(b => b.classList.toggle('on', b === eco)); const ci = $('#ed-el-color'); if (ci) ci.value = el.color; return drawElements(); }
+    const ef = t.closest('[data-el-fav]');
+    if (ef) { const on = toggleFav(ef.dataset.elFav); ef.classList.toggle('on', on); ef.setAttribute('aria-pressed', on); toast(on ? 'Favorilere eklendi.' : 'Favorilerden çıkarıldı.', 'success', 1200); return; }
+    const ei = t.closest('[data-el]');
+    if (ei) { const it = elMap.get(ei.dataset.el); if (it) addElement(it); return; }
     const ly = t.closest('[data-ly]');
     if (ly) {
       const l = slide().layers.find(x => x.id === ly.dataset.ly);
