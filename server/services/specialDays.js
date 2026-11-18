@@ -1,7 +1,65 @@
 // Türkiye'nin özel günleri ve dönemleri (içerik planlama için). Sabit tarihli günler her yıl için üretilir;
 // "ayın n. pazarı" gibi günler hesaplanır; dini bayramlar ay takvimine bağlı olduğu için yıl yıl tabloda tutulur
 // (Diyanet takvimine göre; tablo dışındaki yıllar için bayram gösterilmez, uydurulmaz).
-export const DAY_CATEGORIES = { resmi: 'Resmî / millî', dini: 'Dinî', ticari: 'Ticari', dunya: 'Dünya günü', donem: 'Dönem' };
+export const DAY_CATEGORIES = { resmi: 'Resmî / millî', anma: 'Anma günü', dini: 'Dinî', ticari: 'Ticari', sektor: 'Markana özel', dunya: 'Dünya günü', donem: 'Dönem' };
+export const IMPORTANCE = { yuksek: 'Çok önemli', orta: 'Önemli', dusuk: 'Bilgi' };
+// Çok önemli günler (adla); anma günlerinde ticari içerik paylaşılmaz
+const MAJOR = new Set(['Yılbaşı', 'Sevgililer Günü', 'Ulusal Egemenlik ve Çocuk Bayramı', "Atatürk'ü Anma, Gençlik ve Spor Bayramı", 'Zafer Bayramı', 'Cumhuriyet Bayramı', 'Öğretmenler Günü', 'Anneler Günü', 'Babalar Günü', 'Black Friday (Efsane Cuma)', 'Ramazan Bayramı', 'Kurban Bayramı', 'Yılbaşı Gecesi']);
+const MOURNING = new Set(["Atatürk'ü Anma Günü", 'Demokrasi ve Millî Birlik Günü']);
+
+// Sektöre özel günler: markanın sektörü / açıklaması bu kelimelerden birini içeriyorsa takvimde "Markana özel" görünür.
+// date: 'AA-GG' ya da (y) => 'YYYY-AA-GG'; end: dönem bitişi
+const SECTORS = [
+  { id: 'teknoloji', label: 'Yazılım ve teknoloji', words: ['yazilim', 'software', 'teknoloji', 'bilisim', 'kod', 'developer', 'gelistirici', 'siber', 'saas', 'uygulama', 'web', 'dijital', 'yapay zeka', 'ai ', 'startup', 'girisim', 'devops', 'veri'],
+    days: [
+      ['01-28', 'Veri Gizliliği Günü', 'Kullanıcı verisini nasıl koruduğunuzu anlatın; gizlilik ipuçları'],
+      [y => nthWeekday(y, 2, 2, 2), 'Güvenli İnternet Günü', 'Güvenli internet kullanımı ipuçları, aileler ve gençler için rehber'],
+      ['03-14', 'Pi Günü', 'Matematik/algoritma esprisi, mühendislik kültürü'],
+      ['03-31', 'Dünya Yedekleme Günü', '"Yedeğini aldın mı?" hatırlatması, yedekleme ipuçları'],
+      [y => nthWeekday(y, 5, 4, 1), 'Dünya Şifre Günü', 'Güçlü şifre ve iki adımlı doğrulama ipuçları'],
+      ['05-04', 'May the 4th (Bilim kurgu günü)', 'Ekipten bilim kurgu esprileri, eğlenceli paylaşım'],
+      ['05-17', 'Dünya Telekomünikasyon ve Bilgi Toplumu Günü', 'Dijital dönüşüm, erişilebilirlik'],
+      [y => key(new Date(y, 0, 256, 12)), 'Programcılar Günü', 'Yılın 256. günü: geliştiricilere teşekkür, ekip tanıtımı, kod esprileri'],
+      ['10-01', 'Siber Güvenlik Farkındalık Ayı ve Hacktoberfest', 'Ay boyunca güvenlik ipuçları serisi; açık kaynak katkıları', y => `${y}-10-31`],
+      [y => nthWeekday(y, 10, 2, 2), 'Ada Lovelace Günü', 'Teknolojide kadınlar; ilham veren hikâyeler'],
+      ['11-30', 'Bilgisayar Güvenliği Günü', 'Güvenlik kontrol listesi, kullanıcılara hatırlatma'],
+      ['12-09', 'Bilgisayar Bilimi Eğitim Haftası', 'Kodlamaya giriş içerikleri, öğrencilere kaynak önerisi', y => `${y}-12-15`]
+    ] },
+  { id: 'egitim', label: 'Eğitim', words: ['egitim', 'okul', 'kurs', 'universite', 'ogrenci', 'akademi', 'ders', 'dershane', 'kolej', 'ogretmen'],
+    days: [
+      ['01-24', 'Uluslararası Eğitim Günü', 'Eğitimin değeri, öğrenci başarı hikâyeleri'],
+      ['09-08', 'Dünya Okuma Yazma Günü', 'Okuma alışkanlığı, kitap önerileri'],
+      ['10-05', 'Dünya Öğretmenler Günü', 'Eğitmen ekibini tanıtın, teşekkür paylaşımı']
+    ] },
+  { id: 'yemek', label: 'Kahve, yiyecek ve içecek', words: ['kahve', 'kafe', 'cafe', 'restoran', 'yemek', 'gida', 'pastane', 'firin', 'lokanta', 'mutfak', 'icecek', 'cay'],
+    days: [
+      ['02-09', 'Dünya Pizza Günü', 'Menüden öne çıkan lezzet, kampanya'],
+      ['10-01', 'Dünya Kahve Günü', 'Kahve kültürü, günün kahvesi, kampanya'],
+      ['10-16', 'Dünya Gıda Günü', 'Yerel üretici, israfı önleme'],
+      ['12-05', 'Dünya Türk Kahvesi Günü', 'Türk kahvesi geleneği, fal esprisi, ikram kampanyası']
+    ] },
+  { id: 'saglik', label: 'Sağlık ve spor', words: ['saglik', 'klinik', 'hastane', 'eczane', 'doktor', 'dis ', 'fitness', 'spor', 'diyet', 'beslenme', 'pilates', 'yoga'],
+    days: [
+      ['04-06', 'Uluslararası Spor Günü', 'Hareket çağrısı, mini antrenman'],
+      ['04-07', 'Dünya Sağlık Günü', 'Sağlıklı yaşam ipuçları'],
+      ['06-21', 'Dünya Yoga Günü', 'Kısa esneme rutini, ders duyurusu']
+    ] },
+  { id: 'hayvan', label: 'Evcil hayvan', words: ['pet', 'veteriner', 'hayvan', 'mama', 'kedi', 'kopek'],
+    days: [['08-08', 'Dünya Kedi Günü', 'Takipçilerin kedi fotoğrafları'], ['08-26', 'Dünya Köpek Günü', 'Sahiplendirme çağrısı'], ['10-04', 'Dünya Hayvanları Koruma Günü', 'Barınaklara destek, bakım ipuçları']] },
+  { id: 'cevre', label: 'Çevre ve sürdürülebilirlik', words: ['cevre', 'surdurulebilir', 'organik', 'enerji', 'geri donusum', 'dogal', 'eko'],
+    days: [['03-22', 'Dünya Su Günü', 'Su tasarrufu ipuçları'], ['04-22', 'Dünya Günü', 'Sürdürülebilirlik adımlarınız'], ['06-05', 'Dünya Çevre Günü', 'Çevre dostu uygulamalar']] },
+  { id: 'kitap', label: 'Kitap ve yayın', words: ['kitap', 'yayin', 'kutuphane', 'kirtasiye'],
+    days: [['04-23', 'Dünya Kitap ve Telif Hakları Günü', 'Kitap önerileri, okuma kampanyası']] },
+  { id: 'eticaret', label: 'E-ticaret ve perakende', words: ['e-ticaret', 'eticaret', 'magaza', 'alisveris', 'perakende', 'butik', 'online satis', 'moda', 'giyim', 'kozmetik'],
+    days: [['11-11', '11.11 İndirim Günü', 'Tek günlük indirim, geri sayım'], [y => addDays(lastWeekday(y, 11, 5), 3), 'Cyber Monday', 'Black Friday sonrası çevrim içi indirim']] }
+];
+const foldTr = s => String(s || '').toLocaleLowerCase('tr').replace(/[çğıöşü]/g, c => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' })[c]);
+// Markanın sektörüne uyan sektör listesi (sektör, açıklama ve hedef kitle metninden)
+export function sectorsOf(brand) {
+  const t = ` ${foldTr([brand && brand.sector, brand && brand.description, brand && brand.audience].filter(Boolean).join(' '))} `;
+  return SECTORS.filter(x => x.words.some(w => t.includes(w)));
+}
+
 
 // [ay, gün, ad, kategori, içerik ipucu]
 const FIXED = [
@@ -70,15 +128,28 @@ function forYear(y) {
 }
 
 // [from, to] aralığına (YYYY-MM-DD, iki ucu dahil) değen günler; dönemler başlangıç-bitişleriyle
-export function specialDays(from, to) {
+export function specialDays(from, to, { brands = [] } = {}) {
   const a = String(from).slice(0, 10);
   const b = String(to).slice(0, 10);
   const years = [];
   for (let y = Number(a.slice(0, 4)); y <= Number(b.slice(0, 4)); y++) years.push(y);
-  return years.flatMap(forYear)
+  const sector = [];
+  for (const br of brands) for (const sec of sectorsOf(br)) for (const y of years) for (const [d, name, tip, end] of sec.days) {
+    const date = typeof d === 'function' ? d(y) : `${y}-${d}`;
+    const ex = sector.find(x => x.date === date && x.name === name);
+    if (ex) { if (!ex.brands.includes(br.name)) ex.brands.push(br.name); continue; }
+    sector.push({ date, ...(end ? { end: end(y) } : {}), name, category: 'sektor', tip, sector: sec.label, brands: [br.name] });
+  }
+  // Markanın sektörüne uyan genel günler (ör. kahve markasına Dünya Kahve Günü) tekrar edilmez: sektör kaydı öne geçer
+  const general = years.flatMap(forYear).filter(g => !sector.some(x => x.date === g.date && x.name === g.name));
+  return [...general, ...sector]
     .filter(d => (d.end || d.date) >= a && d.date <= b)
-    .map(d => Object.assign(d, { categoryLabel: DAY_CATEGORIES[d.category] }))
-    .sort((x, y) => x.date.localeCompare(y.date));
+    .map(d => {
+      if (MOURNING.has(d.name)) d.category = 'anma';
+      const importance = d.category === 'sektor' || MAJOR.has(d.name) ? 'yuksek' : d.category === 'donem' ? 'dusuk' : 'orta';
+      return Object.assign(d, { categoryLabel: DAY_CATEGORIES[d.category], importance, importanceLabel: IMPORTANCE[importance] });
+    })
+    .sort((x, y) => x.date.localeCompare(y.date) || (x.end ? 1 : 0) - (y.end ? 1 : 0));
 }
 
 // Asistan ve üretim istemleri için: önümüzdeki günlerdeki özel günler (dönemler hariç tutulmaz)

@@ -186,7 +186,7 @@ export const api = {
   saveFact: (id, fid, body) => request('PUT', `${b(id)}/memory/facts/${fid}`, body),
   deleteFact: (id, fid) => request('DELETE', `${b(id)}/memory/facts/${fid}`),
   identityDraft: body => request('POST', '/api/identity-draft', body),
-  specialDays: (from, to) => request('GET', `/api/special-days?from=${from}&to=${to}`),
+  specialDays: (from, to, brandId = '') => request('GET', `/api/special-days?from=${from}&to=${to}${brandId ? `&brandId=${encodeURIComponent(brandId)}` : ''}`),
   performance: brandId => request('GET', '/api/performance' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
   // 8.9: sunucu tekrarlanan alanları "lookup" ile bir kez gönderir; burada her içeriğe geri eklenir
   dashboard: brandId => request('GET', '/api/dashboard' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')).then(d => {

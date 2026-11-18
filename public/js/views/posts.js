@@ -81,11 +81,11 @@ export async function renderPosts(view, brand, sub) {
     <section class="card mb-4 gen-queue" id="gen-queue" hidden></section>
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
     ${posts.length ? `<div class="post-grid">${posts.map(p => `
-      <a class="card post-card" href="${base(brand)}/${esc(p.id)}">
+      <div class="post-card-wrap"><a class="card post-card" href="${base(brand)}/${esc(p.id)}">
         <div class="post-thumb"><canvas data-thumb="${esc(p.id)}" aria-hidden="true"></canvas></div>
         <div class="strong truncate">${esc(p.title)}</div>
         <div class="xsmall muted">${esc(p.kindLabel)} · ${p.data.slides.length} slayt · ${timeAgo(p.updatedAt)}</div>
-      </a>`).join('')}</div>`
+      </a><button type="button" class="post-del" data-del-post="${esc(p.id)}" aria-label="${esc(p.title)} tasarımını sil" title="Tasarımı sil (çöp kutusuna gider)">${icon('trash')}</button></div>`).join('')}</div>`
       : emptyState({ icon: 'palette', title: 'Henüz tasarım yok', text: 'Bir konu yaz; carousel slaytları marka renkleri, fontları, logosu ve maskotuyla hazırlansın. Sonra her şeyi düzenleyebilirsin.', action: aiReady ? `<button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : '', card: true })}`;
 
   if (templates.length) {
@@ -171,6 +171,16 @@ export async function renderPosts(view, brand, sub) {
     } catch (err) { toast(err.message, 'error'); }
   });
   view.onclick = async e => {
+    // Kendi tasarımını sil: çöp kutusuna gider, bildirimdeki "Geri al" ile döner (hazır şablonlarda silme yok)
+    const dp = e.target.closest('[data-del-post]');
+    if (dp) {
+      e.preventDefault();
+      const p = posts.find(x => x.id === dp.dataset.delPost);
+      if (!p || !confirm(`"${p.title}" tasarımı silinsin mi? Çöp kutusundan geri alabilirsin.`)) return;
+      try { await api.deletePost(brand.id, p.id); dp.closest('.post-card-wrap').remove(); posts.splice(posts.indexOf(p), 1); if (!posts.length) route(); }
+      catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     // 10.8: şablonu fikir türü ve kategorileriyle eşleştir
     const mt = e.target.closest('[data-match-tpl]');
     if (mt) {

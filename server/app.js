@@ -395,7 +395,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const from = re.test(String(req.query.from)) ? String(req.query.from) : new Date().toISOString().slice(0, 10);
     const to = re.test(String(req.query.to)) ? String(req.query.to) : from;
     if (to < from || Number(to.slice(0, 4)) - Number(from.slice(0, 4)) > 2) throw badRequest('Tarih aralığı geçersiz.');
-    res.json({ days: specialDays(from, to), categories: DAY_CATEGORIES });
+    // Markanın sektörüne özel günler: marka verilmişse yalnızca o marka, verilmemişse bütün markalar
+    const list = req.query.brandId ? [brands.get(String(req.query.brandId))] : brands.list();
+    res.json({ days: specialDays(from, to, { brands: list }), categories: DAY_CATEGORIES });
   });
 
   api.get('/performance', (req, res) => res.json(workspace.performance({ brandId: req.query.brandId ? String(req.query.brandId) : null })));

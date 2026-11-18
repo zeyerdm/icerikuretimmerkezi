@@ -222,3 +222,25 @@ test('Arayüz: Öğeler paneli, sürükle-bırak, favori, AI hızlı düzen ve �
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
 });
+
+test('Arayüz: kendi tasarımı silinir (çöp kutusuna gider), hazır şablonlarda silme düğmesi yok', { skip }, async () => {
+  const s = await startServer();
+  const b = (await s.request('POST', '/api/brands', { name: 'Silme' })).data.brand;
+  const p1 = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Silinecek', kind: 'post' })).data.post;
+  await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Kalacak', kind: 'post' });
+  const browser = await chromium.launch();
+  const page = await (await browser.newContext({ viewport: { width: 1400, height: 950 } })).newPage();
+  const problems = [];
+  page.on('pageerror', e => problems.push(e.message));
+  try {
+    await page.goto(`${s.base}/#/m/${b.id}/post`);
+    await page.locator('.post-card-wrap').nth(1).waitFor();
+    assert.equal(await page.locator('.tpl-card [data-del-post]').count(), 0, 'şablon kartlarında tasarım silme yok');
+    page.once('dialog', d => d.accept());
+    await page.locator(`[data-del-post="${p1.id}"]`).click({ force: true });
+    await page.waitForFunction(() => document.querySelectorAll('.post-card-wrap').length === 1);
+    const list = (await s.request('GET', `/api/brands/${b.id}/posts`)).data.posts;
+    assert.deepEqual(list.map(p => p.title), ['Kalacak']);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await s.stop(); }
+});
