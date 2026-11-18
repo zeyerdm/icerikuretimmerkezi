@@ -2160,3 +2160,26 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .fi-design small { color: var(--muted); font-size: 12px; }
 .fi-design.on { border: 2px solid var(--brand); background: color-mix(in srgb, var(--brand) 6%, #fff); }
 .fi-more summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--muted); }
+/* ---- Bugün göze çarpsın: diğer günler sakin ve soluk, bugün marka renginde dolu ---- */
+.cal-card .sp-day.sp-resmi, .cal-card .sp-day.sp-ticari, .cal-card .sp-day.sp-dini, .cal-card .sp-day.sp-sektor, .cal-card .sp-day.sp-dunya, .cal-card .sp-day.sp-anma { border-color: var(--line); }
+.cal-card .sp-day.sp-resmi { background: #fdf6f6; } .cal-card .sp-day.sp-ticari { background: #fdf9ef; } .cal-card .sp-day.sp-dini { background: #f4faf7; }
+.cal-card .sp-day.sp-sektor { background: #f2faf8; } .cal-card .sp-day.sp-dunya { background: #f5f7fd; } .cal-card .sp-day.sp-anma { background: #f6f6f7; }
+.cal-card .cal-special.imp-yuksek.cat-resmi { background: #fbe5e5; color: #9b2c2c; }
+.cal-card .cal-special.imp-yuksek.cat-ticari { background: #fbf0d6; color: #7a4a00; }
+.cal-card .cal-special.imp-yuksek.cat-dini { background: #e0f2ea; color: #145c40; }
+.cal-card .cal-special.imp-yuksek.cat-sektor { background: #dcf1ec; color: #0b5a50; }
+.cal-card .cal-special > .cs-cd { background: rgba(0,0,0,.08); color: inherit; }
+.cal-card .cal-month .cal-cell.today, .cal-card .sp-day.today, .cal-card .cw-col.today {
+  background: var(--brand); border: 0; color: var(--on-brand, #fff);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--brand) 45%, transparent), 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent);
+  transform: scale(1.03); z-index: 1; position: relative;
+}
+.cal-card .cal-month .cal-cell.today:hover { background: var(--brand); }
+.cal-card .cal-cell.today .cal-num { background: var(--on-brand, #fff); color: var(--brand-deep, var(--brand)); font-size: 15px; width: 30px; height: 30px; }
+.cal-card .cal-cell.today .cal-today-tag { color: var(--on-brand, #fff); font-size: 12px; }
+.cal-card .cal-cell.today .cal-item, .cal-card .cal-cell.today .cal-special, .cal-card .cw-col.today .cw-item, .cal-card .cw-col.today .cal-special { background: rgba(255,255,255,.94); color: var(--ink, #1b1f3b); }
+.cal-card .cal-cell.today .cal-more { color: var(--on-brand, #fff); }
+.cal-card .cw-col.today .cw-head span, .cal-card .cw-col.today .cw-head b { color: var(--on-brand, #fff); background: none; }
+.cal-card .cw-col.today .cw-add { color: var(--on-brand, #fff); border-color: rgba(255,255,255,.6); }
+@media (prefers-reduced-motion: reduce) { .cal-card .cal-month .cal-cell.today { transform: none; } }
+.cal-card .cw-col.today .cw-head b { background: #fff; color: var(--ink, #1b1f3b); border-radius: 8px; padding: 0 8px; }
