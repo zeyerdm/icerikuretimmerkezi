@@ -660,6 +660,11 @@ const MIGRATIONS = [
     created_at TEXT NOT NULL,
     PRIMARY KEY (brand_id, month)
   );
+  `,
+  // 44: Tasarım arşivi ve markanın sabit metin havuzları (CTA, kapanış cümlesi, maskot konuşması)
+  `
+  ALTER TABLE posts ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE brands ADD COLUMN text_pools TEXT NOT NULL DEFAULT '{}';
   `
 ];
 

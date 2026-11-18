@@ -74,6 +74,13 @@ export function cleanDesignLock(o) {
   };
 }
 
+// Sabit metin havuzları: post üretiminde bu alanlar yapay zekâya gitmeden havuzdan sırayla dolar
+export const POOL_KEYS = { cta: 'Buton / CTA', closing: 'Kapanış cümlesi', speech: 'Maskot konuşması' };
+export function cleanPools(o) {
+  o = o && typeof o === 'object' ? o : {};
+  return Object.fromEntries(Object.keys(POOL_KEYS).map(k => [k, [...new Set((Array.isArray(o[k]) ? o[k] : String(o[k] || '').split('\n')).map(x => String(x).trim().slice(0, 120)).filter(Boolean))].slice(0, 60)]));
+}
+
 export function toBrand(row) {
   if (!row) return null;
   return {
@@ -94,6 +101,7 @@ export function toBrand(row) {
     colors: Object.assign({ primary: '', secondary: [], backgrounds: [], heading: '', body: '' }, parseJson(row.colors, {})),
     fonts: Object.assign({ heading: '', body: '' }, parseJson(row.fonts, {})),
     designLock: cleanDesignLock(parseJson(row.design_lock, {})),
+    textPools: cleanPools(parseJson(row.text_pools, {})),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -155,6 +163,12 @@ export function createBrandService(db, ownerId) {
     },
 
     // Marka tasarım kilidi (ayrı uç nokta: kimlik formunu etkilemez)
+    setTextPools(brandId, body = {}) {
+      const b = this.get(brandId);
+      const pools = cleanPools(Object.assign({}, b.textPools, body));
+      db.prepare('UPDATE brands SET text_pools = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(pools), new Date().toISOString(), b.id);
+      return pools;
+    },
     setDesignLock(brandId, body = {}) {
       const b = this.get(brandId);
       const lock = cleanDesignLock(Object.assign({}, b.designLock, body));

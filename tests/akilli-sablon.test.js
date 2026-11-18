@@ -169,3 +169,39 @@ test('Varsayılan şablon: eşleşen şablon yoksa fikirden üretim varsayılan 
     assert.equal(r.data.post.data.slides[0].layers[0].text, 'Başlık 1', 'metin AI\'dan');
   } finally { await s.stop(); }
 });
+
+test('Referans şablonu: bölünmüş başlık satırlara paylaşılır, yer tutucu açıklama ve buton dolar; sabit havuzlar AI\'ya gitmez; kendi tasarımından üretim', async () => {
+  const provider = fakeProvider([{ title: 'API', caption: 'c', hashtags: [], slides: [{ title: 'API Nedir ve *Neden* Önemli', body: 'Uygulamaların konuşma dili.', cta: 'Hemen öğren', speech: 'AI konuşması', pose: '' }] }]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Ref' })).data.brand;
+    const post = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Ana tasarım', kind: 'post' })).data.post;
+    await s.request('PUT', `/api/brands/${b.id}/posts/${post.id}`, { data: { format: '4:5', slides: [{ bg: '#0b132b', layers: [
+      T('a', 'Başlık buraya', { y: 100 }), T('b', 'Vurgulu başlık', { y: 200, highlight: '#ff6a13' }), T('c', 'Alt başlık devamı', { y: 300 }),
+      T('d', 'Açıklama metni buraya', { role: 'text', y: 500, size: 30 }), T('e', 'Buton metni', { role: 'cta', y: 600, size: 30 })
+    ] }] } });
+    // 1) Havuz yokken: başlık üç kutuya bölünür, açıklama ve buton AI metniyle dolar
+    const idea = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'API nedir', format: 'post', category: 'egitici' })).data.idea;
+    let r = await s.request('POST', `/api/brands/${b.id}/posts/from-idea`, { ideaId: idea.id, designId: post.id });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const L = Object.fromEntries(r.data.post.data.slides[0].layers.map(l => [l.id, l.text]));
+    assert.notEqual(L.a, L.b, 'başlık kopyalanmaz');
+    assert.equal([L.a, L.b, L.c].join(' ').replace(/\*/g, ''), 'API Nedir ve Neden Önemli');
+    assert.match(L.b, /^\*.+\*$/, 'vurgulu kutu vurgulu yazılır');
+    assert.equal(L.d, 'Uygulamaların konuşma dili.'); assert.equal(L.e, 'Hemen öğren');
+    assert.match(provider.calls[0].prompt, /BUTON/);
+    assert.equal(r.data.post.data.template, undefined, 'tasarımdan üretim şablon güncellemesine bağlanmaz');
+    // 2) Havuz varken: buton havuzdan, AI'dan buton istenmez
+    await s.request('PUT', `/api/brands/${b.id}/text-pools`, { cta: 'Kaydet ve paylaş\nTakip et', speech: ['Kaydırarak incele'] });
+    const idea2 = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'REST nedir', format: 'post', category: 'egitici' })).data.idea;
+    r = await s.request('POST', `/api/brands/${b.id}/posts/from-idea`, { ideaId: idea2.id, designId: post.id });
+    const e2 = r.data.post.data.slides[0].layers.find(l => l.id === 'e').text;
+    assert.ok(['Kaydet ve paylaş', 'Takip et'].includes(e2), e2);
+    assert.doesNotMatch(provider.calls.at(-1).prompt, /BUTON/);
+    assert.ok(r.data.post.work.some(w => /Sabit havuzdan: buton metni/.test(w.label)));
+    assert.deepEqual((await s.request('GET', `/api/brands/${b.id}`)).data.brand.textPools.speech, ['Kaydırarak incele']);
+    // Arşivleme
+    r = await s.request('PUT', `/api/brands/${b.id}/posts/${post.id}/archive`, { archived: true });
+    assert.equal(r.data.post.archived, true);
+  } finally { await s.stop(); }
+});
