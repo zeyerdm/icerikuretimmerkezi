@@ -70,3 +70,7 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 - İşlem bitti bildirimi (public/js/notify.js): 4 saniyeden uzun süren her düğme işi ve toplu üretim kuyruğu bitince ses (fx.js); sekme arka plandaysa masaüstü bildirimi ve yanıp sönen sekme başlığı. İzin ilk uzun işte bir kez istenir.
 - Varsayılan şablon: şablon kartında "★ Varsayılan yap". Fikirden üretim, toplu üretim ve hızlı üretim, eşleşen şablon yoksa varsayılan şablonu kullanır; AI yalnızca şablon alanlarının metnini yazar.
 - "Metinleri içeriğe göre kontrol et" (AI paneli ve Kontrol paneli): yazım, anlam, tutarsız bilgi, akış ve yer tutucu metin; yalnızca hatalı metinler önizlemeyle düzeltilir.
+- Şablon doldurma düzeltmesi: başlık birden çok kutuya bölünmüşse (referanstan gelen şablonlar) kelimeler kutulara paylaştırılır, vurgulu kutu vurgulu yazılır; "Açıklama metni buraya", "Buton metni" gibi yer tutucu kalmış kutular rolüne göre dolar; tasarımda buton varsa AI'dan CTA istenir.
+- Havuzdan fikir penceresi: 1) büyük fikir kartı 2) "Hangi tasarım?" seçimi (şablonlar ve kendi tasarımların, varsayılan ★ seçili) 3) maskot, slayt ve model katlanır bölümde. Kendi tasarımından üretim (designId) yerleşimi aynen kullanır.
+- Sabit metin havuzları (Post stüdyosu → Sabit metinler): buton/CTA, kapanış cümlesi (yeni alan rolü CLOSING), maskot konuşması. Havuz doluysa o alanlar AI'ya gitmeden sırayla dolar; AI yalnız başlık ve içeriği yazar. Göç 44.
+- Tasarım kartı menüsüne Arşivle / Arşivden çıkar; arşivlenenler listenin altında ayrı bölümde.

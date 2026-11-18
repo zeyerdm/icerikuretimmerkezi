@@ -145,6 +145,8 @@ export const api = {
   setPerfActive: (id, month, active) => request('PUT', `${b(id)}/perf/${month}/active`, { active }),
   openrouterCredits: () => request('GET', '/api/ai/openrouter/credits'),
   setTemplateDefault: (id, tid, on) => request('PUT', `${b(id)}/post-templates/${tid}/default`, { on }),
+  archivePost: (id, pid, archived) => request('PUT', `${b(id)}/posts/${pid}/archive`, { archived }),
+  setTextPools: (id, body) => request('PUT', `${b(id)}/text-pools`, body),
   postAiEdit: (id, body) => request('POST', `${b(id)}/posts/ai-edit`, body),
   // Global öğe kütüphanesi (yönetim paneli)
   elements: (all = false) => request('GET', `/api/elements${all ? '?all=1' : ''}`),

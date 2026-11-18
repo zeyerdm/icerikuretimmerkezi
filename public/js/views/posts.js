@@ -16,8 +16,8 @@ import { loadRegistry, itemsFor, allItems, search as searchEls, usage as elUsage
 
 // Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
 // Şablon alanları: her alanın kimliği (MAIN_TITLE gibi) görünür; aynı alan birden çok kutuda ve sayfada olabilir
-const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Ana başlık · MAIN_TITLE'], ['subtitle', 'Alt başlık · SUB_TITLE'], ['body', 'Açıklama · DESCRIPTION'], ['stat', 'İstatistik / sayı · STAT'], ['item', 'Madde · ITEM'], ['cta', 'Buton yazısı · CTA'], ['speech', 'Maskot konuşması · SPEECH'], ['topic', 'Konu etiketi · TOPIC'], ['num', 'Slayt numarası · PAGE_NUMBER'], ['page', 'Slayt sayısı (/ 06) · PAGE_TOTAL'], ['custom', 'Özel alan (kendi adın)']];
-const FILL_ROLES = ['title', 'subtitle', 'body', 'stat', 'item', 'cta', 'speech', 'custom'];
+const TEXT_ROLES = [['text', 'Sabit yazı (değişmez)'], ['title', 'Ana başlık · MAIN_TITLE'], ['subtitle', 'Alt başlık · SUB_TITLE'], ['body', 'Açıklama · DESCRIPTION'], ['stat', 'İstatistik / sayı · STAT'], ['item', 'Madde · ITEM'], ['cta', 'Buton yazısı · CTA'], ['closing', 'Kapanış cümlesi · CLOSING'], ['speech', 'Maskot konuşması · SPEECH'], ['topic', 'Konu etiketi · TOPIC'], ['num', 'Slayt numarası · PAGE_NUMBER'], ['page', 'Slayt sayısı (/ 06) · PAGE_TOTAL'], ['custom', 'Özel alan (kendi adın)']];
+const FILL_ROLES = ['title', 'subtitle', 'body', 'stat', 'item', 'cta', 'closing', 'speech', 'custom'];
 // Hazır zeminler: düz renkler ve gradyanlar
 const BG_PRESETS = [
   { n: 'Gece', c: '#0b1020' }, { n: 'Krem', c: '#fff1e6' }, { n: 'Kağıt', c: '#f4f1ea' }, { n: 'Pastel pembe', c: '#fbe4ee' }, { n: 'Adaçayı', c: '#6d8a86' }, { n: 'Siyah', c: '#111111' },
@@ -33,7 +33,7 @@ const BG_PRESETS = [
 const MASCOT_OPTS = [['auto', 'Maskot: otomatik yerleştir'], ['manual', 'Maskot: ben yerleştireceğim'], ['none', 'Maskot: kullanma']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
 const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri · MASCOT (poz konuya göre seçilir)'], ['logo', 'Logo · LOGO'], ['main', 'Ana görsel · MAIN_IMAGE (her içerikte değiştirilecek)']];
 // Şablonun hangi alanları her postta doluyor (kartta gösterilir)
-const ROLE_NAMES = { title: 'Ana başlık', subtitle: 'Alt başlık', body: 'Açıklama', stat: 'İstatistik', item: 'Madde', cta: 'Buton', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri', main: 'Ana görsel' };
+const ROLE_NAMES = { title: 'Ana başlık', subtitle: 'Alt başlık', body: 'Açıklama', stat: 'İstatistik', item: 'Madde', cta: 'Buton', closing: 'Kapanış cümlesi', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri', main: 'Ana görsel' };
 // Katmanlar panelindeki ad: verilen ad, yoksa yazının başı ya da türü
 function layerName(l) {
   if (l.name) return l.name;
@@ -84,13 +84,27 @@ export async function renderPosts(view, brand, sub) {
     </form>` : ''}
     <section class="card mb-4 gen-queue" id="gen-queue" hidden></section>
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
-    ${posts.length ? `<div class="post-grid">${posts.map(p => `
+    ${posts.length ? `${[[posts.filter(p => !p.archived), ''], [posts.filter(p => p.archived), 'Arşivlenen tasarımlar']].filter(([l]) => l.length).map(([list, head]) => `${head ? `<details class="post-archive mt-4"><summary class="ed-sub">${head} (${list.length})</summary>` : ''}<div class="post-grid">${list.map(p => `
       <div class="post-card-wrap"><a class="card post-card" href="${base(brand)}/${esc(p.id)}">
         <div class="post-thumb"><canvas data-thumb="${esc(p.id)}" aria-hidden="true"></canvas></div>
         <div class="strong truncate">${esc(p.title)}</div>
         <div class="xsmall muted">${esc(p.kindLabel)} · ${p.data.slides.length} slayt · ${timeAgo(p.updatedAt)}</div>
-      </a><button type="button" class="post-menu-btn" data-post-menu="${esc(p.id)}" aria-haspopup="menu" aria-label="${esc(p.title)}: işlemler" title="İşlemler">⋯</button></div>`).join('')}</div>`
+      </a><button type="button" class="post-menu-btn" data-post-menu="${esc(p.id)}" aria-haspopup="menu" aria-label="${esc(p.title)}: işlemler" title="İşlemler">⋯</button></div>`).join('')}</div>${head ? '</details>' : ''}`).join('')}`
       : emptyState({ icon: 'palette', title: 'Henüz tasarım yok', text: 'Bir konu yaz; carousel slaytları marka renkleri, fontları, logosu ve maskotuyla hazırlansın. Sonra her şeyi düzenleyebilirsin.', action: aiReady ? `<button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : '', card: true })}`;
+
+  // Sabit metin havuzları: buton, kapanış cümlesi ve maskot konuşması AI'ya gitmeden havuzdan sırayla dolar
+  const tp = brand.textPools || { cta: [], closing: [], speech: [] };
+  view.insertAdjacentHTML('beforeend', `<section class="card mt-4" id="text-pools"><details ${tp.cta.length + tp.closing.length + tp.speech.length ? '' : 'open'}><summary class="card-head"><h3>Sabit metinler <span class="small muted">yapay zekâya gitmez</span></h3><span class="small muted">${tp.cta.length + tp.closing.length + tp.speech.length} cümle</span></summary>
+    <p class="small muted mb-3">Şablondaki <b>Buton yazısı</b>, <b>Kapanış cümlesi</b> ve <b>Maskot konuşması</b> kutuları her postta buradan sırayla dolar; yapay zekâ yalnızca başlık ve içeriği yazar. Her satıra bir cümle. Boş bırakılan havuz için yapay zekâ yazar.</p>
+    <form id="pool-form" class="form-grid">
+      ${[['cta', 'Buton / CTA', 'Kaydet ve paylaş\nHemen dene\nProfildeki linke tıkla'], ['closing', 'Kapanış cümlesi', 'Daha fazlası için takipte kal.\nSoruların varsa yoruma yaz.'], ['speech', 'Maskot konuşması', 'Kaydırarak incele 👀\nBunu bilmiyordun değil mi?\nKaydetmeyi unutma!']].map(([k, l, ph]) => `<div class="field"><label for="pool-${k}">${l} <span class="xsmall muted">${tp[k].length}</span></label><textarea class="textarea" id="pool-${k}" name="${k}" rows="5" placeholder="${ph}">${esc(tp[k].join('\n'))}</textarea></div>`).join('')}
+      <div class="full"><button class="btn btn-primary btn-sm" type="submit">${icon('check')}Havuzları kaydet</button></div>
+    </form></details></section>`);
+  view.querySelector('#pool-form').addEventListener('submit', async e => {
+    e.preventDefault(); const f = new FormData(e.target);
+    try { const r = await busy(e.target.querySelector('[type=submit]'), () => api.setTextPools(brand.id, { cta: f.get('cta'), closing: f.get('closing'), speech: f.get('speech') })); brand.textPools = r.textPools; toast('Sabit metinler kaydedildi. Sonraki üretimlerde bu alanlar havuzdan dolar.', 'success'); }
+    catch (err) { toast(err.message, 'error'); }
+  });
 
   if (templates.length) {
     view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Şablonlar (tasarımların)</h3><span class="small muted">${templates.length}</span></div>
@@ -187,12 +201,14 @@ export async function renderPosts(view, brand, sub) {
       const id = pm.dataset.postMenu;
       const menu = document.createElement('div');
       menu.className = 'post-menu'; menu.setAttribute('role', 'menu');
-      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
+      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" data-arch-post="${esc(id)}">${icon('archive')}${(posts.find(x => x.id === id) || {}).archived ? 'Arşivden çıkar' : 'Arşivle'}</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
       pm.parentElement.appendChild(menu);
       const close = ev => { if (!menu.contains(ev.target) && ev.target !== pm) { menu.remove(); document.removeEventListener('click', close, true); } };
       setTimeout(() => document.addEventListener('click', close, true), 0);
       return;
     }
+    const arc = e.target.closest('[data-arch-post]');
+    if (arc) { const p = posts.find(x => x.id === arc.dataset.archPost); if (!p) return; try { await api.archivePost(brand.id, p.id, !p.archived); toast(p.archived ? 'Arşivden çıkarıldı.' : 'Arşivlendi. Listenin altındaki "Arşivlenen tasarımlar" bölümünde.', 'success'); route(); } catch (err) { toast(err.message, 'error'); } return; }
     const dup = e.target.closest('[data-dup-post]');
     if (dup) {
       const p = posts.find(x => x.id === dup.dataset.dupPost); if (!p) return;
@@ -233,7 +249,7 @@ export async function renderPosts(view, brand, sub) {
       });
       return;
     }
-    if (e.target.closest('[data-from-idea]')) return fromIdeaFlow(brand, models, templates);
+    if (e.target.closest('[data-from-idea]')) return fromIdeaFlow(brand, models, templates, posts);
     const useTpl = e.target.closest('[data-use-tpl]');
     if (useTpl) {
       const t = templates.find(x => x.id === useTpl.dataset.useTpl);
@@ -334,19 +350,27 @@ export async function renderPosts(view, brand, sub) {
 // ------------------------------------------------------------ 10.8 Fikir havuzundan tasarım
 // Kullanılmamış bir fikir rastgele seçilir (tür seçilebilir, varsayılan Post); "Başka fikir" yenisini çeker. Tasarım, fikre
 // eşleşen şablonla (ya da seçilen şablonla, yoksa marka yerleşimiyle) hazırlanır; fikir "kullanıldı" olur.
-async function fromIdeaFlow(brand, models, templates) {
+async function fromIdeaFlow(brand, models, templates, designs = []) {
   const seen = [];
   let idea = null;
   const m = openModal({
     title: 'Havuzdan fikir çek', submitLabel: 'Tasarımı üret',
-    body: `<div class="form-grid">
-      <div class="field"><label for="fi-format">Fikir türü</label><select class="select" id="fi-format" name="format">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-      <div class="field"><label for="fi-tpl">Şablon</label><select class="select" id="fi-tpl" name="templateId"><option value="">Eşleşen şablon (otomatik)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}">${esc(t.name)} · ${esc(t.kindLabel)}</option>`).join('')}</select></div>
-      <div class="field"><label for="fi-mascot">Maskot</label><select class="select" id="fi-mascot" name="mascot">${MASCOT_OPTS}</select></div>
-      <div class="field"><label for="fi-slides">Slayt (carousel şablonunda)</label><select class="select" id="fi-slides" name="slides"><option value="">Şablondaki kadar</option>${[3, 4, 5, 6, 7, 8].map(n => `<option>${n}</option>`).join('')}</select></div>
-      <div class="field full"><span class="field-label">Seçilen fikir</span><div class="pool-pick" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></div>
-      <div class="field"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
-      <p class="full fi-status" id="fi-status" role="status" hidden></p>
+    body: `<div class="fi-wrap">
+      <section class="fi-step"><div class="fi-step-head"><span class="fi-n">1</span><b>Fikir</b><select class="select input-sm w-auto ml-auto" id="fi-format" name="format" aria-label="Fikir türü">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)} fikirleri</option>`).join('')}</select></div>
+        <div class="pool-pick fi-hero" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></section>
+      <section class="fi-step"><div class="fi-step-head"><span class="fi-n">2</span><b>Hangi tasarım?</b><span class="xsmall muted">Yerleşim sabit kalır, yapay zekâ yalnız metni yazar</span></div>
+        <div class="fi-designs" role="radiogroup" aria-label="Tasarım">
+          ${(() => { const tpls = templates.filter(t => !t.match.frame); const def = tpls.find(t => t.match.isDefault); const opt = (val, name, sub, on) => `<label class="fi-design ${on ? 'on' : ''}"><input type="radio" name="design" value="${esc(val)}" ${on ? 'checked' : ''}><span><b>${esc(name)}</b><small>${esc(sub)}</small></span></label>`;
+            return [opt('', 'Fikre uyan şablon', def ? `eşleşme yoksa ★ ${def.name}` : 'eşleşme yoksa marka yerleşimi', !def),
+              ...tpls.map(t => opt(`t:${t.id}`, `${t.match.isDefault ? '★ ' : ''}${t.name}`, `Şablon · ${t.kindLabel} · V${t.version || 1}`, t.match.isDefault)),
+              ...designs.filter(d => !d.archived).slice(0, 12).map(d => opt(`p:${d.id}`, d.title, `Tasarımım · ${d.kindLabel}`, false))].join(''); })()}
+        </div></section>
+      <details class="fi-more"><summary>Maskot, slayt sayısı ve model</summary><div class="form-grid mt-2">
+        <div class="field"><label for="fi-mascot">Maskot</label><select class="select" id="fi-mascot" name="mascot">${MASCOT_OPTS}</select></div>
+        <div class="field"><label for="fi-slides">Slayt (carousel)</label><select class="select" id="fi-slides" name="slides"><option value="">Tasarımdaki kadar</option>${[3, 4, 5, 6, 7, 8].map(n => `<option>${n}</option>`).join('')}</select></div>
+        <div class="field full"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
+      </div></details>
+      <p class="fi-status" id="fi-status" role="status" hidden></p>
     </div>`,
     onSubmit: async (fd, form) => {
       if (!idea) throw new Error('Önce bir fikir çek.');
@@ -360,7 +384,8 @@ async function fromIdeaFlow(brand, models, templates) {
       form.querySelectorAll('[data-fi-again], #fi-format').forEach(el => { el.disabled = true; });
       let r;
       try {
-        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: fd.get('templateId') || null, slides: Number(fd.get('slides')) || null, mascot: fd.get('mascot') || 'auto', model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
+        const dv = String(fd.get('design') || '');
+        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: dv.startsWith('t:') ? dv.slice(2) : null, designId: dv.startsWith('p:') ? dv.slice(2) : null, slides: Number(fd.get('slides')) || null, mascot: fd.get('mascot') || 'auto', model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
       } finally {
         clearInterval(timer);
         status.hidden = true;
@@ -385,6 +410,7 @@ async function fromIdeaFlow(brand, models, templates) {
         <button type="button" class="btn btn-sm" data-fi-again>Başka fikir</button>`;
     } catch (err) { box.innerHTML = `<span class="small">${esc(err.message)}</span>`; }
   };
+  m.form.addEventListener('change', e => { if (e.target.name === 'design') m.form.querySelectorAll('.fi-design').forEach(x => x.classList.toggle('on', x.contains(e.target))); });
   m.form.addEventListener('click', async e => {
     if (e.target.closest('[data-fi-again]')) return pull();
     const del = e.target.closest('[data-fi-del]');
