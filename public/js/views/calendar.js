@@ -15,6 +15,11 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   let mode = embedded ? 'hafta' : 'ay';
   try { const v = localStorage.getItem(prefKey); if (v === 'hafta' || v === 'ay') mode = v; } catch { /* tercih okunamazsa varsayılan */ }
   if (initialMode) mode = initialMode;
+  // Takvim boyutu: küçük / orta / büyük / ekrana sığdır (tam sayfada varsayılan); tercih hatırlanır
+  const SIZES = embedded ? [['kucuk', 'Küçük'], ['orta', 'Orta'], ['buyuk', 'Büyük']] : [['kucuk', 'Küçük'], ['orta', 'Orta'], ['buyuk', 'Büyük'], ['sigdir', 'Ekrana sığdır']];
+  let size = embedded ? 'orta' : 'sigdir';
+  try { const v = localStorage.getItem(prefKey + '.size'); if (SIZES.some(([k]) => k === v)) size = v; } catch { /* varsayılan */ }
+  const ROOM = { kucuk: 1, orta: 2, sigdir: 2, buyuk: 4 };
   let cursor = startOfDay(new Date());
   let brandFilter = brand ? brand.id : '';
   let items = [];
@@ -78,14 +83,15 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const cells = Array.from({ length: 42 }, (_, i) => addDays(from, i));
     // 8.17: ızgara rolü satır yapısı istediği için kullanılmaz; her gün odaklanabilir, adıyla okunan bir düğmedir
     return `<div class="cal-month" role="group" aria-label="${esc(title())}">
-      ${TR_DAYS_SHORT.map(d => `<div class="cal-dow" aria-hidden="true">${d}</div>`).join('')}
+      ${TR_DAYS_SHORT.map((d, i) => `<div class="cal-dow ${today.getMonth() === cursor.getMonth() && today.getFullYear() === cursor.getFullYear() && (today.getDay() + 6) % 7 === i ? 'today-dow' : ''}" aria-hidden="true"><span>${d}</span></div>`).join('')}
       ${cells.map(day => {
         const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
         const out = day.getMonth() !== cursor.getMonth();
-        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
+        const top = daySpecials(day).find(x => !x.end || x.date === iso(day));
+        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)} imp-${esc(top.importance || 'orta')}` : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
           <div class="cal-num-row"><div class="cal-num">${day.getDate()}</div>${sameDay(day, today) ? '<span class="cal-today-tag">Bugün</span>' : ''}</div>
           ${(() => { // hücre sabit yükseklikte: özel günler + içerikler en çok 2 satır, fazlası "+n daha"
-            const sp = daySpecials(day).slice(0, 2); const room = (embedded ? 3 : 2) - sp.length; const shown = list.length <= room ? list.length : Math.max(0, room - 1);
+            const sp = daySpecials(day).slice(0, size === 'kucuk' ? 1 : 2); const room = ROOM[size] - sp.length; const shown = list.length <= room ? list.length : Math.max(0, room - 1);
             return `${sp.map(spChip).join('')}${list.slice(0, shown).map(chip).join('')}${list.length > shown ? `<button class="cal-more" data-more="${day.getTime()}">+${list.length - shown} daha</button>` : ''}`; })()}
         </div>`;
       }).join('')}
@@ -97,8 +103,9 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const today = new Date();
     return `<div class="cal-week">${Array.from({ length: 7 }, (_, i) => addDays(from, i)).map((day, i) => {
       const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
-      return `<div class="cw-col ${sameDay(day, today) ? 'today' : ''}" data-day="${day.getTime()}">
-        <div class="cw-head"><span>${TR_DAYS_SHORT[i]}</span><b>${day.getDate()}</b>${sameDay(day, today) ? '<span class="cal-today-tag">Bugün</span>' : ''}</div>
+      const top = daySpecials(day).find(x => !x.end || x.date === iso(day));
+      return `<div class="cw-col ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)}` : ''}" data-day="${day.getTime()}">
+        <div class="cw-head"><span>${TR_DAYS_SHORT[i]}</span><b>${day.getDate()}</b></div>
         <div class="cw-body">${daySpecials(day).map(spChip).join('')}${list.map(c => `<button class="cw-item status-${esc(c.status)}" data-item="${esc(c.id)}" draggable="true" style="--item-color:${esc(c.brandColor || '#7d6bf0')}">
             <span class="ci-time">${timeStr(c.scheduledAt)}</span><b>${esc(c.title)}</b>
             <span class="cw-meta">${brand ? '' : esc(c.brandName) + ' · '}${esc(c.typeLabel)}</span><span class="st">${esc(c.statusLabel)}</span></button>`).join('')}
@@ -119,7 +126,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
         desc: brand ? esc(brand.name) + ' markasının planlanan ve yayınlanan içerikleri. Bir güne tıklayarak içerik planla.' : 'Bütün markaların planlanan gönderileri. Boş bir güne tıklayarak içerik planla.',
         actions: `<a class="btn" href="${brand ? `/api/brands/${esc(brand.id)}/calendar.ics` : '/api/export/calendar.ics'}" download title="Google Takvim: Ayarlar → İçe aktar · Outlook: Dosya → Aç ve Dışarı Aktar → İçeri Aktar">${icon('download')}Takvime aktar (.ics)</a><button class="btn" data-week-plan>${icon('calendar')}Haftalık plan</button><button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
       })}
-      <div class="card cal-card${embedded ? ' desk-cal-card' : ''}">
+      <div class="card cal-card${embedded ? ' desk-cal-card' : ''} cal-size-${size}">
         <div class="cal-toolbar">
           <div class="row">
             <button class="btn icon-btn" data-nav="-1" aria-label="Önceki">${icon('chevronLeft')}</button>
@@ -131,6 +138,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
             ${embedded ? `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>` : ''}
             ${brand ? '' : `<select class="select w-auto" id="cal-brand" aria-label="Marka filtresi"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`}
             <label class="check"><input type="checkbox" id="cal-special" ${showSpecial ? 'checked' : ''}> Özel günler</label>
+            ${mode === 'ay' ? `<select class="select w-auto input-sm" id="cal-size" aria-label="Takvim boyutu" title="Takvim boyutu">${SIZES.map(([k, v]) => `<option value="${k}" ${size === k ? 'selected' : ''}>Boyut: ${v}</option>`).join('')}</select>` : ''}
             <div class="seg" role="tablist" aria-label="Görünüm">
               <button role="tab" data-mode="ay" class="${mode === 'ay' ? 'active' : ''}" aria-selected="${mode === 'ay'}">Aylık</button>
               <button role="tab" data-mode="hafta" class="${mode === 'hafta' ? 'active' : ''}" aria-selected="${mode === 'hafta'}">Haftalık</button>
@@ -152,6 +160,8 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
       try { localStorage.setItem(SPECIAL_PREF, showSpecial ? '1' : '0'); } catch { /* tercih kaydedilemezse sorun değil */ }
       draw().catch(err => toast(err.message, 'error'));
     });
+    const sz = view.querySelector('#cal-size');
+    if (sz) sz.addEventListener('change', () => { size = sz.value; try { localStorage.setItem(prefKey + '.size', size); } catch { /* tercih kaydedilemezse sorun değil */ } draw().catch(err => toast(err.message, 'error')); });
     const sel = view.querySelector('#cal-brand');
     if (sel) sel.addEventListener('change', () => { brandFilter = sel.value; draw().catch(err => toast(err.message, 'error')); });
   }

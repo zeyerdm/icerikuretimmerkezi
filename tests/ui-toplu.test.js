@@ -298,8 +298,8 @@ test('T.29 marka sayfaları: akordeon gruplar ve tercihin hatırlanması, açık
     // Kapalı gruptaki sayfaya gidilince o grup açılır
     await page.goto(srv.base + `/#/m/${a.id}/kutuphane`);
     await page.waitForFunction(() => document.querySelector('[data-nav-group="varlik"]').getAttribute('aria-expanded') === 'true');
-    // Bütün modüllere menüden erişilir
-    for (const href of ['', '/kimlik', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane', '/video']) {
+    // Bütün modüllere menüden erişilir (Video ve altyazı, Reels ve video bölümünün sekmesi)
+    for (const href of ['', '/kimlik', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane']) {
       assert.equal(await page.locator(`.sidebar a[href="#/m/${a.id}${href}"]`).count(), 1, `menüde ${href || 'ana sayfa'} yok`);
     }
 

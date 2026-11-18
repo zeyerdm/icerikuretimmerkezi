@@ -235,9 +235,11 @@ test('Arayüz: kendi tasarımı silinir (çöp kutusuna gider), hazır şablonla
   try {
     await page.goto(`${s.base}/#/m/${b.id}/post`);
     await page.locator('.post-card-wrap').nth(1).waitFor();
-    assert.equal(await page.locator('.tpl-card [data-del-post]').count(), 0, 'şablon kartlarında tasarım silme yok');
+    assert.equal(await page.locator('.tpl-card [data-post-menu]').count(), 0, 'şablon kartlarında tasarım menüsü yok');
     page.once('dialog', d => d.accept());
-    await page.locator(`[data-del-post="${p1.id}"]`).click({ force: true });
+    await page.locator(`[data-post-menu="${p1.id}"]`).click(); // kartın sol üstündeki ⋯ menüsü
+    assert.equal(await page.locator('.post-menu [role=menuitem]').count(), 3, 'Aç, Çoğalt, Sil');
+    await page.locator(`.post-menu [data-del-post="${p1.id}"]`).click();
     await page.waitForFunction(() => document.querySelectorAll('.post-card-wrap').length === 1);
     const list = (await s.request('GET', `/api/brands/${b.id}/posts`)).data.posts;
     assert.deepEqual(list.map(p => p.title), ['Kalacak']);

@@ -85,7 +85,7 @@ export async function renderPosts(view, brand, sub) {
         <div class="post-thumb"><canvas data-thumb="${esc(p.id)}" aria-hidden="true"></canvas></div>
         <div class="strong truncate">${esc(p.title)}</div>
         <div class="xsmall muted">${esc(p.kindLabel)} · ${p.data.slides.length} slayt · ${timeAgo(p.updatedAt)}</div>
-      </a><button type="button" class="post-del" data-del-post="${esc(p.id)}" aria-label="${esc(p.title)} tasarımını sil" title="Tasarımı sil (çöp kutusuna gider)">${icon('trash')}</button></div>`).join('')}</div>`
+      </a><button type="button" class="post-menu-btn" data-post-menu="${esc(p.id)}" aria-haspopup="menu" aria-label="${esc(p.title)}: işlemler" title="İşlemler">⋯</button></div>`).join('')}</div>`
       : emptyState({ icon: 'palette', title: 'Henüz tasarım yok', text: 'Bir konu yaz; carousel slaytları marka renkleri, fontları, logosu ve maskotuyla hazırlansın. Sonra her şeyi düzenleyebilirsin.', action: aiReady ? `<button class="btn btn-primary" data-new>${icon('sparkle')}Konudan üret</button>` : '', card: true })}`;
 
   if (templates.length) {
@@ -171,6 +171,30 @@ export async function renderPosts(view, brand, sub) {
     } catch (err) { toast(err.message, 'error'); }
   });
   view.onclick = async e => {
+    // Tasarım kartı menüsü (⋯): aç, çoğalt, sil (yalnızca kendi tasarımlarında; hazır şablonlarda yok)
+    const pm = e.target.closest('[data-post-menu]');
+    if (pm) {
+      e.preventDefault();
+      document.querySelectorAll('.post-menu').forEach(x => x.remove());
+      const id = pm.dataset.postMenu;
+      const menu = document.createElement('div');
+      menu.className = 'post-menu'; menu.setAttribute('role', 'menu');
+      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
+      pm.parentElement.appendChild(menu);
+      const close = ev => { if (!menu.contains(ev.target) && ev.target !== pm) { menu.remove(); document.removeEventListener('click', close, true); } };
+      setTimeout(() => document.addEventListener('click', close, true), 0);
+      return;
+    }
+    const dup = e.target.closest('[data-dup-post]');
+    if (dup) {
+      const p = posts.find(x => x.id === dup.dataset.dupPost); if (!p) return;
+      try {
+        const { post: np } = await api.createPost(brand.id, { blank: true, title: `${p.title} (kopya)`.slice(0, 120), kind: p.kind });
+        await api.savePost(brand.id, np.id, { data: p.data });
+        toast('Tasarım çoğaltıldı.', 'success'); route();
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     // Kendi tasarımını sil: çöp kutusuna gider, bildirimdeki "Geri al" ile döner (hazır şablonlarda silme yok)
     const dp = e.target.closest('[data-del-post]');
     if (dp) {
