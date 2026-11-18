@@ -15,9 +15,11 @@ async function copy(text, msg) {
   try { await navigator.clipboard.writeText(text); toast(msg, 'success'); } catch { toast('Kopyalanamadı; metni seçip Ctrl+C ile kopyala.', 'error'); }
 }
 
+export function reelsTabs(brand, active) { return tabs(brand, active); }
 function tabs(brand, active) {
-  return `<div class="tabs" role="tablist">${[['havuz', 'Fikir havuzu', base(brand)], ['liste', 'Senaryolar', base(brand) + '/liste'], ['kaliplar', 'Kalıp arşivi', base(brand) + '/kaliplar']].map(([id, label, href]) =>
-    `<button role="tab" data-href="${href}" class="${active === id ? 'active' : ''}" aria-selected="${active === id}">${label}</button>`).join('')}</div>`;
+  // Reels ve video tek bölüm: fikir havuzu, senaryolar, kalıplar ve video düzenleme / altyazı
+  return `<div class="tabs" role="tablist">${[['havuz', 'Fikir havuzu', base(brand)], ['liste', 'Senaryolar', base(brand) + '/liste'], ['kaliplar', 'Kalıp arşivi', base(brand) + '/kaliplar'], ['video', 'Video ve altyazı', `#/m/${encodeURIComponent(brand.id)}/video`]].map(([id, label, href]) =>
+    `<a role="tab" href="${href}" class="${active === id ? 'active' : ''}" aria-selected="${active === id}">${label}</a>`).join('')}</div>`;
 }
 
 export async function renderReels(view, brand, sub) {
@@ -27,7 +29,7 @@ export async function renderReels(view, brand, sub) {
   if (sub && sub !== 'liste' && sub !== 'kaliplar') return renderDetail(view, brand, sub, models);
   const meta = state.meta.reels;
   const head = pageHead({
-    title: 'Reels', desc: `${esc(brand.name)} için Reels fikir havuzu ve saniye saniye senaryolar. Senaryodan Flow/Veo prompt'u, başlık görseli ve altyazı çıkar.`,
+    title: 'Reels ve video', desc: `${esc(brand.name)} için Reels fikir havuzu ve saniye saniye senaryolar. Senaryodan Flow/Veo prompt'u, başlık görseli ve altyazı çıkar.`,
     actions: `<button class="btn" data-settings>${icon('settings')}Reels ayarları</button>${aiReady ? `<button class="btn btn-primary" data-new>${icon('plus')}Yeni senaryo</button>` : ''}`
   });
   const notice = aiReady ? '' : `<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Fikirleri elle ekleyebilirsin; senaryo yazdırmak ve havuzu genişletmek için bir yapay zekâ sağlayıcısı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>`;

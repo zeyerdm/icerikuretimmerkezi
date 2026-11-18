@@ -253,6 +253,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     }
   }));
   api.delete('/ai/keys/:provider', (req, res) => { ai.clearApiKey(String(req.params.provider)); res.json(aiOverview()); });
+  api.get('/ai/openrouter/credits', route(async (req, res) => res.json({ credits: await ai.openrouterCredits() })));
   api.get('/ai/models/:provider', route(async (req, res) => res.json({ models: await ai.listModels(String(req.params.provider)) })));
   api.put('/ai/tasks', (req, res) => { ai.setTasks(req.body && req.body.tasks); res.json(aiOverview()); });
   api.put('/ai/budget', (req, res) => { ai.setBudget(req.body || {}); res.json(aiOverview()); });

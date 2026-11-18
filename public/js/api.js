@@ -143,6 +143,7 @@ export const api = {
   analyzePerf: (id, month, body) => request('POST', `${b(id)}/perf/${month}/analyze`, body),
   applyPerf: (id, month, body) => request('POST', `${b(id)}/perf/${month}/apply`, body),
   setPerfActive: (id, month, active) => request('PUT', `${b(id)}/perf/${month}/active`, { active }),
+  openrouterCredits: () => request('GET', '/api/ai/openrouter/credits'),
   postAiEdit: (id, body) => request('POST', `${b(id)}/posts/ai-edit`, body),
   // Global öğe kütüphanesi (yönetim paneli)
   elements: (all = false) => request('GET', `/api/elements${all ? '?all=1' : ''}`),

@@ -2105,3 +2105,10 @@ body.editor-mode .radial-fab { display: none; }
 .perf-idea { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; font-size: 13px; }
 .perf-idea.done { opacity: .6; }
 .perf-ideas { margin-top: 12px; }
+.menu-dd { position: relative; }
+.menu-dd > summary { list-style: none; cursor: pointer; }
+.menu-dd > summary::-webkit-details-marker { display: none; }
+.menu-dd-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 280px; background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.12); padding: 6px; display: grid; gap: 2px; }
+.menu-dd-list button { display: grid; gap: 2px; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; font: inherit; }
+.menu-dd-list button:hover { background: var(--brand-soft, #f3f0ff); }
+.chip-link { text-decoration: none; border-style: dashed; }

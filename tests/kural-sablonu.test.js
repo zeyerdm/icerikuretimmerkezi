@@ -103,6 +103,7 @@ test('Arayüz: hazır örnekle kural şablonu kaydedilir, üretimde seçili geli
   page.on('pageerror', e => problems.push(e.message));
   try {
     await page.goto(`${s.base}/#/m/${b.id}/prompt`);
+    await page.locator('.menu-dd > summary').click(); // Kütüphanem menüsü
     await page.locator('[data-rules]').click();
     await page.locator('[data-rl-example]').click();
     await page.locator('#rl-stat', { hasText: 'bölüm başlığı' }).waitFor();

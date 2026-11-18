@@ -240,7 +240,7 @@ test('10.3b menü sırası; 10.9 YouTube kapağı çekim seçimi (en çok 3); 11
     await page.goto(`${srv.base}/#/m/${b.id}/youtube`);
     await page.locator('[data-pick-shot]').first().waitFor();
     const labels = await page.locator('.sidebar [data-nav-group="uretim"] ~ * a, .sidebar a').allInnerTexts();
-    const order = ['Takvim', 'İçerik fikirleri', 'Post stüdyosu', 'Prompt Studio', 'Reels', 'YouTube kapağı', 'Video ve altyazı', 'Kampanya kanvası', 'Arşiv'];
+    const order = ['Takvim', 'İçerik fikirleri', 'Post stüdyosu', 'Prompt Studio', 'Reels ve video', 'YouTube kapağı', 'Kampanya kanvası', 'Arşiv'];
     const idx = order.map(o => labels.findIndex(l => l.trim() === o));
     assert.ok(idx.every((v, i) => v >= 0 && (i === 0 || v > idx[i - 1])), `menü sırası: ${labels.join(', ')}`);
     const boxes = page.locator('[data-pick-shot]');

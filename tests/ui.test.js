@@ -570,8 +570,8 @@ test('Reels: havuza fikir ekle, genişlet, senaryo yaz, tek sahneyi yeniden yaz,
   try {
     const brand = (await srv.request('POST', '/api/brands', { name: 'Kahve Evi' })).data.brand;
     await page.goto(srv.base + `/#/m/${brand.id}/reels`);
-    await page.getByRole('heading', { name: 'Reels', exact: true }).waitFor();
-    assert.ok(await page.getByRole('link', { name: 'Reels', exact: true }).isVisible(), 'menüde Reels yok');
+    await page.getByRole('heading', { name: 'Reels ve video', exact: true }).waitFor();
+    assert.ok(await page.getByRole('link', { name: 'Reels ve video', exact: true }).isVisible(), 'menüde Reels yok');
 
     await page.getByRole('button', { name: 'Reels ayarları' }).click();
     await page.getByLabel('Konuşan karakterin adı *').fill('Kahveci');

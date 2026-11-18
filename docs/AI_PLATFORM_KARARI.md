@@ -1,6 +1,8 @@
 # Çoklu yapay zekâ API platformu: değerlendirme ve karar
 
-Tarih: Kasım 2026. Bu bir karar raporudur; kod değişikliği içermez.
+Tarih: Kasım 2026. Karar kullanıcı tarafından onaylandı (18 Kasım 2026).
+
+**Uygulananlar:** Yalnızca OpenRouter anahtarı varken işlere aşağıdaki tablodaki modeller kendiliğinden atanır (metin DeepSeek, fikir ve denetim Gemini Flash, çeviri Gemini Flash Lite; yedek olarak Flash Lite). OpenRouter isteklerinde çıktı üst sınırı 8.000 token. Harcama ekranında OpenRouter'ın kendi kalan kredisi gösterilir.
 
 ## Kaynaklar hakkında not
 

@@ -276,7 +276,21 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     return { done: true, buffer, cost };
   }
 
+  // OpenRouter'ın kendi bakiye bilgisi (yüklenen kredi ve harcanan); anahtar yoksa null
+  async function openrouterCredits() {
+    const key = getKey('openrouter');
+    if (!key) return null;
+    try {
+      const res = await (fetchImpl || fetch)('https://openrouter.ai/api/v1/credits', { headers: { Authorization: `Bearer ${key}` } });
+      if (!res.ok) return { error: `OpenRouter bakiyesi okunamadı (${res.status}).` };
+      const d = ((await res.json()) || {}).data || {};
+      const total = Number(d.total_credits) || 0; const used = Number(d.total_usage) || 0;
+      return { total, used, remaining: Math.max(0, Math.round((total - used) * 10000) / 10000) };
+    } catch { return { error: 'OpenRouter\'a ulaşılamadı.' }; }
+  }
+
   return {
+    openrouterCredits,
     providers,
     tasks: TASKS,
     videoOverview,
