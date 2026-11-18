@@ -7,6 +7,7 @@ import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { drawTitle, ensureTitleFonts, titleBlob, downloadBlob, safeName } from '../titlePng.js';
 import { reviewBox } from './review.js';
+import { reelsTabs } from './reelsTabs.js';
 
 const fmt = s => { const v = Math.max(0, Number(s) || 0); const w = Math.floor(v); return `${String(Math.floor(w / 60)).padStart(2, '0')}:${String(w % 60).padStart(2, '0')}${v - w >= 0.5 ? '.5' : ''}`; };
 const base = brand => `#/m/${encodeURIComponent(brand.id)}/reels`;
@@ -15,12 +16,7 @@ async function copy(text, msg) {
   try { await navigator.clipboard.writeText(text); toast(msg, 'success'); } catch { toast('Kopyalanamadı; metni seçip Ctrl+C ile kopyala.', 'error'); }
 }
 
-export function reelsTabs(brand, active) { return tabs(brand, active); }
-function tabs(brand, active) {
-  // Reels ve video tek bölüm: fikir havuzu, senaryolar, kalıplar ve video düzenleme / altyazı
-  return `<div class="tabs" role="tablist">${[['havuz', 'Fikir havuzu', base(brand)], ['liste', 'Senaryolar', base(brand) + '/liste'], ['kaliplar', 'Kalıp arşivi', base(brand) + '/kaliplar'], ['video', 'Video ve altyazı', `#/m/${encodeURIComponent(brand.id)}/video`]].map(([id, label, href]) =>
-    `<a role="tab" href="${href}" class="${active === id ? 'active' : ''}" aria-selected="${active === id}">${label}</a>`).join('')}</div>`;
-}
+const tabs = reelsTabs;
 
 export async function renderReels(view, brand, sub) {
   view.onclick = null;

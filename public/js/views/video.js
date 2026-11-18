@@ -4,7 +4,7 @@
 // tarayıcıda) ya da WebM olur. Altyazı .srt metninden ya da markanın bir Reels senaryosundan alınır.
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState } from '../ui.js';
-import { reelsTabs } from './reels.js';
+import { reelsTabs } from './reelsTabs.js';
 import { downloadBlob, safeName } from '../titlePng.js';
 
 const RATIOS = { orijinal: 'Orijinal oran', '9:16': '9:16 Reels / story', '1:1': '1:1 kare', '4:5': '4:5 gönderi', '16:9': '16:9 yatay' };
