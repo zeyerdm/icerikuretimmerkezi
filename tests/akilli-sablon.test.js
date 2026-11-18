@@ -205,3 +205,28 @@ test('Referans şablonu: bölünmüş başlık satırlara paylaşılır, yer tut
     assert.equal(r.data.post.archived, true);
   } finally { await s.stop(); }
 });
+
+test('Fikirden üretim eski akışta: seçilen sayfa kadar carousel, kapak kanca, gelişme, kapanış; tek görsel tasarımdan da kurulur', async () => {
+  const five = { title: 'T', caption: 'c', hashtags: [], slides: ['Kanca', 'Madde bir', 'Madde iki', 'Madde üç', 'Sonuç'].map(t => ({ title: t, body: `${t} açıklama`, cta: 'Kaydet' })) };
+  const provider = fakeProvider([five]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Akış' })).data.brand;
+    const post = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Ana tasarım', kind: 'post' })).data.post;
+    await s.request('PUT', `/api/brands/${b.id}/posts/${post.id}`, { data: { format: '4:5', slides: [{ bg: '#0b132b', layers: [T('a', 'Başlık buraya'), T('e', 'Buton metni', { role: 'cta', y: 600, size: 30 })] }] } });
+    const idea = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Başarısız teknoloji projeleri', format: 'post', category: 'egitici' })).data.idea;
+    let r = await s.request('POST', `/api/brands/${b.id}/posts/from-idea`, { ideaId: idea.id, designId: post.id, slides: 5 });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const p = r.data.post;
+    assert.equal(p.kind, 'carousel'); assert.equal(p.data.slides.length, 5);
+    const prompt = provider.calls[0].prompt;
+    assert.match(prompt, /5 slaytlık/); assert.match(prompt, /KANCA/); assert.match(prompt, /GELİŞME/); assert.match(prompt, /KAPANIŞ/);
+    const cta = p.data.slides.map(sl => sl.layers.find(l => l.id === 'e' || l.role === 'cta').text);
+    assert.equal(cta[0], 'Kaydırarak incele →'); assert.equal(cta[2], 'Devamı →'); assert.equal(cta[4], 'Kaydet');
+    assert.deepEqual(p.data.slides.map(sl => sl.layers.find(l => l.role === 'title').text), ['Kanca', 'Madde bir', 'Madde iki', 'Madde üç', 'Sonuç']);
+    // Şablon yokken de carousel
+    const idea2 = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Yazılımda ilk hatalar', format: 'post', category: 'egitici' })).data.idea;
+    r = await s.request('POST', `/api/brands/${b.id}/posts/from-idea`, { ideaId: idea2.id, slides: 5 });
+    assert.equal(r.data.post.kind, 'carousel'); assert.equal(r.data.post.data.slides.length, 5);
+  } finally { await s.stop(); }
+});

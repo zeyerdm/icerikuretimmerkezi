@@ -2183,3 +2183,6 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .cal-card .cw-col.today .cw-add { color: var(--on-brand, #fff); border-color: rgba(255,255,255,.6); }
 @media (prefers-reduced-motion: reduce) { .cal-card .cal-month .cal-cell.today { transform: none; } }
 .cal-card .cw-col.today .cw-head b { background: #fff; color: var(--ink, #1b1f3b); border-radius: 8px; padding: 0 8px; }
+.fi-count { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.fi-count .fi-design { justify-content: center; }
+@media (max-width: 560px) { .fi-count { grid-template-columns: repeat(2, 1fr); } }
