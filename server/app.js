@@ -24,6 +24,7 @@ import { createPromptService } from './services/prompts.js';
 import { createPresetService } from './services/promptPresets.js';
 import { createGenQueue } from './services/genQueue.js';
 import { createElementService, MAX_ELEMENT_BYTES } from './services/elements.js';
+import { createPerfService } from './services/perf.js';
 import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
@@ -142,6 +143,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const queue = createGenQueue({ db, brands, posts, ideas, autostart: queueAutostart });
   const elements = createElementService(db, path.join(dataDir, 'uploads', 'elements'));
+  const perf = createPerfService({ db, ai, brands, assets });
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
@@ -251,6 +253,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     }
   }));
   api.delete('/ai/keys/:provider', (req, res) => { ai.clearApiKey(String(req.params.provider)); res.json(aiOverview()); });
+  api.get('/ai/openrouter/credits', route(async (req, res) => res.json({ credits: await ai.openrouterCredits() })));
   api.get('/ai/models/:provider', route(async (req, res) => res.json({ models: await ai.listModels(String(req.params.provider)) })));
   api.put('/ai/tasks', (req, res) => { ai.setTasks(req.body && req.body.tasks); res.json(aiOverview()); });
   api.put('/ai/budget', (req, res) => { ai.setBudget(req.body || {}); res.json(aiOverview()); });
@@ -395,7 +398,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const from = re.test(String(req.query.from)) ? String(req.query.from) : new Date().toISOString().slice(0, 10);
     const to = re.test(String(req.query.to)) ? String(req.query.to) : from;
     if (to < from || Number(to.slice(0, 4)) - Number(from.slice(0, 4)) > 2) throw badRequest('Tarih aralığı geçersiz.');
-    res.json({ days: specialDays(from, to), categories: DAY_CATEGORIES });
+    // Markanın sektörüne özel günler: marka verilmişse yalnızca o marka, verilmemişse bütün markalar
+    const list = req.query.brandId ? [brands.get(String(req.query.brandId))] : brands.list();
+    res.json({ days: specialDays(from, to, { brands: list }), categories: DAY_CATEGORIES });
   });
 
   api.get('/performance', (req, res) => res.json(workspace.performance({ brandId: req.query.brandId ? String(req.query.brandId) : null })));
@@ -680,6 +685,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/brands/:brandId/post-templates/:tid/pack', (req, res) => res.json({ template: posts.setTemplatePack(req.brand.id, req.params.tid, req.body || {}) }));
   api.get('/brands/:brandId/post-templates/:tid/usage', (req, res) => res.json({ posts: posts.templateUsage(req.brand.id, req.params.tid) }));
   api.put('/brands/:brandId/post-templates/:tid', (req, res) => res.json({ template: posts.renameTemplate(req.brand.id, req.params.tid, req.body || {}) }));
+  api.put('/brands/:brandId/post-templates/:tid/default', (req, res) => res.json({ template: posts.setTemplateDefault(req.brand.id, req.params.tid, (req.body || {}).on !== false) }));
   api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
   // Toplu üretim kuyruğu
   api.get('/brands/:brandId/gen-jobs', (req, res) => res.json({ jobs: queue.list(req.brand.id, { batchId: req.query.batch || null }), batches: queue.batches(req.brand.id), statuses: queue.statuses }));
@@ -805,6 +811,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.get('/brands/:brandId/prompts/:id/versions/:vid', (req, res) => res.json({ version: prompts.version(req.brand.id, req.params.id, req.params.vid) }));
   api.post('/brands/:brandId/prompts/:id/restore', (req, res) => res.json({ prompt: prompts.restore(req.brand.id, req.params.id, (req.body || {}).versionId) }));
+
+  // --- Aylık performans ve AI önerileri ---
+  api.get('/brands/:brandId/perf/:month', (req, res) => res.json({ ...perf.get(req.brand.id, req.params.month), kinds: perf.kinds, metrics: perf.metrics }));
+  api.post('/brands/:brandId/perf/:month/entries', (req, res) => res.status(201).json({ entry: perf.addEntry(req.brand.id, req.params.month, req.body || {}) }));
+  api.put('/brands/:brandId/perf-entries/:id', (req, res) => res.json({ entry: perf.updateEntry(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/perf-entries/:id', (req, res) => res.json(perf.removeEntry(req.brand.id, req.params.id)));
+  api.post('/brands/:brandId/perf/:month/analyze', route(async (req, res) => res.json({ report: await perf.analyze(req.brand.id, req.params.month, { modelRef: mr(req.body || {}) }) })));
+  api.post('/brands/:brandId/perf/:month/apply', (req, res) => res.json(perf.apply(req.brand.id, req.params.month, req.body || {}, ideas)));
+  api.put('/brands/:brandId/perf/:month/active', (req, res) => res.json({ report: perf.setActive(req.brand.id, req.params.month, Boolean((req.body || {}).active)) }));
 
   // --- Global öğe kütüphanesi (yönetim paneli) ---
   const elMeta = q => ({ name: q.name, category: q.category, tags: q.tags, pack: q.pack, published: q.published, license: q.license, author: q.author, attribution: q.attribution, sourceUrl: q.sourceUrl });

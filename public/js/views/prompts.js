@@ -38,11 +38,18 @@ export async function renderPrompts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Prompt Studio', desc: `${esc(brand.name)} için görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı prompt'ları. Marka kimliği her prompt'a otomatik eklenir.`,
-      actions: `<button class="btn btn-primary" data-builder>${icon('sparkle')}Şablon oluşturucu</button><button class="btn" data-rules>${icon('notes')}Kural şablonları</button><button class="btn" data-recipes>${icon('star')}Tariflerden ekle</button><button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
+      actions: `<button class="btn btn-primary" data-builder>${icon('sparkle')}Şablon oluşturucu</button>
+        <details class="menu-dd"><summary class="btn">${icon('notes')}Kütüphanem</summary><div class="menu-dd-list" role="menu">
+          <button type="button" role="menuitem" data-rules><b>Kural şablonlarım</b><span class="xsmall muted">Bu markanın uzun prompt iskeletleri</span></button>
+          <button type="button" role="menuitem" data-recipes><b>Tariflerim</b><span class="xsmall muted">Kaydettiğin hazır prompt'lar; başka markadan da kopyalanır</span></button>
+        </div></details>
+        <button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
     })}
     <section class="card mb-4">
-      <div class="card-head"><h3>Yeni prompt</h3></div>
-      <div class="chips mb-3" role="radiogroup" aria-label="Prompt türü">${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip ${k === kind ? 'active' : ''}" role="radio" aria-checked="${k === kind}" data-kind="${k}">${esc(v.label)}</button>`).join('')}</div>
+      <div class="tabs mb-3" role="tablist" aria-label="Prompt Studio"><button type="button" role="tab" class="active" aria-selected="true" data-ps-tab="yeni">Yeni prompt</button><button type="button" role="tab" aria-selected="false" data-ps-tab="hizli">Hızlı görsel</button></div>
+      <div id="ps-pane-hizli" hidden><p class="small muted mb-2">İki soruyla tek parça AI görseli: prompt yazılır, Prompt Studio'ya kaydedilir ve görsel üretilir. Görsel kütüphaneye "AI görseli" olarak düşer; Post stüdyosunda Yüklemeler ya da Zemin panelinden kullanabilirsin.</p><div id="ps-tpl"></div></div>
+      <div id="ps-pane-yeni">
+      <div class="chips mb-3" role="radiogroup" aria-label="Prompt türü">${Object.entries(meta.kinds).filter(([k]) => k !== 'reels').map(([k, v]) => `<button type="button" class="chip ${k === kind ? 'active' : ''}" role="radio" aria-checked="${k === kind}" data-kind="${k}">${esc(v.label)}</button>`).join('')}<a class="chip chip-link" href="#/m/${esc(brand.id)}/reels" title="Reels senaryoları, sahne prompt'ları, altyazı ve seslendirme Reels ve video bölümünde">Reels → Reels ve video</a></div>
       <p class="small muted mb-3" id="ps-hint"></p>
       ${aiReady ? `
         <div class="pool-pick mb-2"><button type="button" class="btn btn-sm" data-pick-idea>${icon('idea')}Havuzdan fikir çek</button>
@@ -61,15 +68,15 @@ export async function renderPrompts(view, brand, sub) {
         <p class="xsmall muted mt-2 cost-hint" id="ps-cost"></p>
         <div id="ps-bs" class="mt-4"></div>`
       : '<div class="notice"><div><strong>AI bağlı değil.</strong> Prompt üretmek ve geliştirmek için bir sağlayıcı bağla; o zamana kadar kendi prompt\'larını elle kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
+      </div>
     </section>
     <section class="card">
       <div class="card-head"><h3>Kayıtlı prompt'lar</h3>
         <input class="input w-auto" type="search" id="ps-q" placeholder="Ara" aria-label="Prompt ara"></div>
-      <div class="chips mb-3" aria-label="Türe göre filtre"><button type="button" class="chip active" data-filter="">Tümü</button>${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip" data-filter="${k}">${esc(v.label)}</button>`).join('')}</div>
+      <div class="chips mb-3" aria-label="Türe göre filtre"><button type="button" class="chip active" data-filter="">Tümü</button>${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip" data-filter="${k}">${esc(k === 'reels' ? 'Reels (eski)' : v.label)}</button>`).join('')}</div>
       <div id="ps-list"></div>
-    </section>
-    <section class="card mt-4"><div class="card-head"><h3>Hazır görsel şablonları</h3></div><div id="ps-tpl"></div></section>`;
-  // 10.2: hazır görsel şablonları kütüphaneden buraya taşındı (üretim üretim ekranında)
+    </section>`;
+  // Hızlı görsel (eski adıyla hazır görsel şablonları): "Yeni prompt" kartında ikinci sekme
   templateBox(view.querySelector('#ps-tpl'), brand, () => loadList());
 
   // Kural şablonları: seçili türün şablonları; varsayılan olan önceden seçili
@@ -122,6 +129,9 @@ export async function renderPrompts(view, brand, sub) {
     if (e.target.id === 'ps-q') { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value.trim(); loadList(); }, 250); }
   };
   view.onclick = async e => {
+    const pst = e.target.closest('[data-ps-tab]');
+    if (pst) { const hz = pst.dataset.psTab === 'hizli'; view.querySelectorAll('[data-ps-tab]').forEach(b => { b.classList.toggle('active', b === pst); b.setAttribute('aria-selected', String(b === pst)); }); view.querySelector('#ps-pane-hizli').hidden = !hz; view.querySelector('#ps-pane-yeni').hidden = hz; return; }
+    if (e.target.closest('.menu-dd-list button')) { const d = e.target.closest('details'); if (d) d.open = false; }
     if (e.target.closest('[data-rules]')) return rulesModal(brand, meta, kind, loadRules);
     if (e.target.closest('[data-builder]')) return openRuleBuilder(brand, meta, { onSaved: loadRules });
     if (e.target.closest('[data-recipes]')) return openRecipes('prompt', brand, res => go(`#/m/${brand.id}/prompt/${res.prompt.id}`));

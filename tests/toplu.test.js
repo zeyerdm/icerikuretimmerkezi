@@ -201,3 +201,31 @@ test('T.36 aylık hedef: kaydetme, 0–200 sınırı, diğer alanlara dokunmama'
     assert.equal((await s.request('GET', '/api/brands')).data.brands.find(b => b.id === a.id).monthlyGoal, 8);
   } finally { await s.stop(); }
 });
+
+test('Özel günler: markanın sektörüne özel günler, önem derecesi, anma günü', async () => {
+  const dev = { name: 'DevOrtak', sector: 'Yazılım geliştirici topluluğu' };
+  const kafe = { name: 'Kahve Evi', sector: 'Kafe', description: 'Üçüncü dalga kahve' };
+  const sep = specialDays('2026-09-01', '2026-09-30', { brands: [dev] });
+  const prog = sep.find(d => d.name === 'Programcılar Günü');
+  assert.equal(prog.date, '2026-09-13', 'yılın 256. günü');
+  assert.equal(prog.category, 'sektor'); assert.equal(prog.importance, 'yuksek'); assert.deepEqual(prog.brands, ['DevOrtak']);
+  assert.equal(specialDays('2028-09-01', '2028-09-30', { brands: [dev] }).find(d => d.name === 'Programcılar Günü').date, '2028-09-12', 'artık yıl');
+  assert.ok(!specialDays('2026-09-01', '2026-09-30', { brands: [kafe] }).some(d => d.name === 'Programcılar Günü'), 'başka sektöre gösterilmez');
+  // Genel listede olan gün sektöre uyunca tek kayıt olur
+  const oct = specialDays('2026-10-01', '2026-10-01', { brands: [kafe] }).filter(d => d.name === 'Dünya Kahve Günü');
+  assert.equal(oct.length, 1); assert.equal(oct[0].category, 'sektor');
+  const nov = specialDays('2026-11-01', '2026-11-30');
+  assert.equal(nov.find(d => d.name === "Atatürk'ü Anma Günü").category, 'anma');
+  assert.equal(nov.find(d => d.name === 'Cumhuriyet Bayramı') || null, null);
+  assert.equal(nov.find(d => d.name === 'Öğretmenler Günü').importance, 'yuksek');
+  assert.equal(nov.find(d => d.name === 'Üniversite vize dönemi').importance, 'dusuk');
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Dev', sector: 'Yazılım' })).data.brand;
+    await s.request('POST', '/api/brands', { name: 'Kafe', sector: 'Kafe' });
+    const one = (await s.request('GET', `/api/special-days?from=2026-11-30&to=2026-11-30&brandId=${b.id}`)).data.days;
+    assert.ok(one.some(d => d.name === 'Bilgisayar Güvenliği Günü' && d.category === 'sektor'));
+    const all = (await s.request('GET', '/api/special-days?from=2026-12-05&to=2026-12-05')).data.days;
+    assert.ok(all.some(d => d.name === 'Dünya Türk Kahvesi Günü' && d.brands.includes('Kafe')), 'marka seçilmeyince bütün markaların sektör günleri');
+  } finally { await s.stop(); }
+});

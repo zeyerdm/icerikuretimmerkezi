@@ -3,6 +3,7 @@
 import { badRequest, notFound, newId, now, text, HEX, parseJson } from '../lib/http.js';
 import { parseFolder, folderUrl } from './drive.js';
 import { engagementRate } from './workspace.js';
+import { perfFocusText } from './perf.js';
 
 export const PROFILE_FIELDS = {
   name: { label: 'Marka adı', max: 80, required: true },
@@ -268,7 +269,8 @@ export function createBrandService(db, ownerId) {
         recentIdeas.length ? 'Daha önce üretilen fikirler (tekrar etme):\n' + recentIdeas.map(i => `- ${i.title} (${i.category})`).join('\n') : null,
         favIdeas.length ? 'Ekibin beğendiği fikirler (bu tarzı örnek al):\n' + favIdeas.map(i => `- ${i.title}`).join('\n') : null,
         best.length ? 'Paylaşım sonuçlarına göre EN ÇOK TUTAN içerikler (giriş cümlesi, tema ve yaklaşımlarından öğren; kopyalama):\n' + best.map(perfLine).join('\n') : null,
-        worst.length ? 'En az tutan içerikler (bu yaklaşımlardan kaçın):\n' + worst.map(perfLine).join('\n') : null
+        worst.length ? 'En az tutan içerikler (bu yaklaşımlardan kaçın):\n' + worst.map(perfLine).join('\n') : null,
+        perfFocusText(db, b.id) || null
       ].filter(Boolean).join('\n');
     }
   };

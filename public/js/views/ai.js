@@ -363,6 +363,13 @@ async function renderProviders(body, ov, view) {
 async function renderSpend(body, ov, view, month) {
   let u;
   try { u = await api.aiUsage(month); } catch (err) { body.innerHTML = errorNotice(err); return; }
+  // OpenRouter bağlıysa kendi kalan kredisi (sistemin kendi kayıtlarından bağımsız, gerçek bakiye)
+  api.openrouterCredits().then(({ credits: c }) => {
+    const box = body.querySelector('#or-credits'); if (!box || !c) return;
+    box.hidden = false;
+    box.innerHTML = c.error ? `<div class="kpi-icon">${icon('alert')}</div><div class="kpi-num">—</div><div class="kpi-label">OpenRouter bakiyesi</div><div class="kpi-sub">${esc(c.error)}</div>`
+      : `<div class="kpi-icon">${icon('chart')}</div><div class="kpi-num">${usd(c.remaining)}</div><div class="kpi-label">OpenRouter kalan kredi</div><div class="kpi-sub">Yüklenen ${usd(c.total)} · harcanan ${usd(c.used)}</div>`;
+  }).catch(() => {});
   const b = u.budget;
   const pct = b.monthlyUsd > 0 ? Math.min(100, Math.round((b.spent / b.monthlyUsd) * 100)) : 0;
   // Dar kartlara sığsın diye token sayısı adın altında
@@ -377,6 +384,7 @@ async function renderSpend(body, ov, view, month) {
       <div class="kpi k1"><div class="kpi-icon">${icon('chart')}</div><div class="kpi-num">${usd(u.total.cost)}</div><div class="kpi-label">${isCurrent ? 'Bu ay harcanan' : 'Harcanan'}</div><div class="kpi-sub">${esc(u.month)}</div></div>
       <div class="kpi k4"><div class="kpi-icon">${icon('sparkle')}</div><div class="kpi-num">${u.total.calls}</div><div class="kpi-label">AI çağrısı</div><div class="kpi-sub">${u.total.failed} tanesi hatalı</div></div>
       <div class="kpi ${b.warning ? 'k3' : 'k2'}"><div class="kpi-icon">${icon('alert')}</div><div class="kpi-num">${b.monthlyUsd > 0 ? usd(b.monthlyUsd) : 'Yok'}</div><div class="kpi-label">Aylık sınır</div><div class="kpi-sub">${b.monthlyUsd > 0 ? `%${b.percent} kullanıldı` : 'sınırsız'}</div></div>
+      <div class="kpi k2" id="or-credits" hidden></div>
     </div>
     <section class="card mt-5">
       <div class="card-head"><h3>Aylık sınır</h3>${b.blocked ? '<span class="pill pill-warn"><span class="dot"></span>Sınır doldu</span>' : b.warning ? '<span class="pill pill-warn"><span class="dot"></span>Sınıra yaklaşıldı</span>' : ''}</div>

@@ -103,9 +103,10 @@ export const BRAND_NAV = [
   { page: 'fikirler', path: '/fikirler', label: 'İçerik fikirleri', icon: 'idea', group: 'uretim' },
   { page: 'post', path: '/post', label: 'Post stüdyosu', icon: 'palette', group: 'uretim' },
   { page: 'prompt', path: '/prompt', label: 'Prompt Studio', icon: 'wand', group: 'uretim' },
-  { page: 'reels', path: '/reels', label: 'Reels', icon: 'film', group: 'uretim' },
+  { page: 'reels', path: '/reels', label: 'Reels ve video', icon: 'film', group: 'uretim' },
   { page: 'youtube', path: '/youtube', label: 'YouTube kapağı', icon: 'image', group: 'uretim' },
-  { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'uretim' },
+  // Video ve altyazı Reels bölümünün sekmesi: adres çalışır, menüde ayrı görünmez
+  { page: 'video', path: '/video', label: 'Video ve altyazı', icon: 'film', group: 'uretim', hidden: true },
   { page: 'kampanya', path: '/kampanya', label: 'Kampanya kanvası', icon: 'grid', group: 'uretim' },
   { page: 'arsiv', path: '/arsiv', label: 'Arşiv', icon: 'archive', group: 'uretim' },
   { page: 'kutuphane', path: '/kutuphane', label: 'Kütüphane', icon: 'image', group: 'varlik' },
@@ -185,7 +186,7 @@ export function renderChrome() {
     nav.innerHTML = BRAND_GROUPS.map(([g, label]) => {
       const open = g === activeGroup || !closed.includes(g);
       return `<div class="nav-sec ${open ? 'open' : ''}"><button type="button" class="nav-sec-head" data-nav-group="${g}" aria-expanded="${open}">${esc(label)}${icon('chevronDown')}</button>
-        <div class="nav-sec-body">${BRAND_NAV.filter(n => n.group === g).map(n => navLink(base + n.path, n.label, n.icon, r.page === n.page)).join('')}</div></div>`;
+        <div class="nav-sec-body">${BRAND_NAV.filter(n => n.group === g && !n.hidden).map(n => navLink(base + n.path, n.label, n.icon, r.page === n.page || (n.page === 'reels' && r.page === 'video'))).join('')}</div></div>`;
     }).join('');
     nav.onclick = e => {
       const h = e.target.closest('[data-nav-group]');

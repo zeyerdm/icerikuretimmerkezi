@@ -55,11 +55,14 @@ export const TASKS = {
 };
 
 // Ayar yapılmadıysa: anahtarı olan ilk sağlayıcının bu iş için önerilen modeli
-export const DEFAULT_ORDER = ['anthropic', 'openai', 'gemini'];
+export const DEFAULT_ORDER = ['anthropic', 'openai', 'gemini', 'openrouter'];
 export const RECOMMENDED = {
   anthropic: { fikir: 'claude-sonnet-5-5', yazim: 'claude-sonnet-5-5', ceviri: 'claude-haiku-5-5', denetim: 'claude-haiku-5-5' },
   openai: { fikir: 'gpt-5-mini', yazim: 'gpt-5', ceviri: 'gpt-5-mini', denetim: 'gpt-5-mini' },
-  gemini: { fikir: 'gemini-flash-latest', yazim: 'gemini-flash-latest', ceviri: 'gemini-flash-lite-latest', denetim: 'gemini-flash-latest' } // Pro ücretsiz anahtarlarda kotaya takılıyor
+  gemini: { fikir: 'gemini-flash-latest', yazim: 'gemini-flash-latest', ceviri: 'gemini-flash-lite-latest', denetim: 'gemini-flash-latest' }, // Pro ücretsiz anahtarlarda kotaya takılıyor
+  // Tek anahtar, düşük bütçe (docs/AI_PLATFORM_KARARI.md): metin DeepSeek, fikir ve denetim Gemini Flash, çeviri Flash Lite.
+  // Uzun kurallı video prompt'u gibi işler için Modeller ekranından Claude Sonnet atanabilir.
+  openrouter: { fikir: 'google/gemini-2.5-flash', yazim: 'deepseek/deepseek-chat', ceviri: 'google/gemini-2.5-flash-lite', denetim: 'google/gemini-2.5-flash' }
 };
 
 // Görsel üretim modelleri. refs: marka görseli (maskot) referans olarak gönderilebilir mi.

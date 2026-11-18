@@ -4,6 +4,7 @@
 // tarayıcıda) ya da WebM olur. Altyazı .srt metninden ya da markanın bir Reels senaryosundan alınır.
 import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState } from '../ui.js';
+import { reelsTabs } from './reelsTabs.js';
 import { downloadBlob, safeName } from '../titlePng.js';
 
 const RATIOS = { orijinal: 'Orijinal oran', '9:16': '9:16 Reels / story', '1:1': '1:1 kare', '4:5': '4:5 gönderi', '16:9': '16:9 yatay' };
@@ -42,7 +43,8 @@ export async function renderVideo(view, brand) {
 
   function draw() {
     view.innerHTML = `
-      ${pageHead({ title: 'Video ve altyazı', desc: 'Klipleri kes, sırayla birleştir, Reels oranına kırp ve altyazıyı videoya bas. İşlem bu tarayıcıda yapılır; dosyalar sunucuya yüklenmez. Kayıt gerçek zamanlıdır (çıktı süresi kadar sürer).' })}
+      ${pageHead({ title: 'Reels ve video', desc: 'Klipleri kes, sırayla birleştir, Reels oranına kırp ve altyazıyı videoya bas. İşlem bu tarayıcıda yapılır; dosyalar sunucuya yüklenmez. Kayıt gerçek zamanlıdır (çıktı süresi kadar sürer).' })}
+      ${reelsTabs(brand, 'video')}
       ${supported ? '' : '<div class="notice mb-4"><div><strong>Bu tarayıcı video kaydını desteklemiyor.</strong> Chrome, Edge ya da güncel Firefox ile aç.</div></div>'}
       <div class="vid-layout">
         <section class="card">

@@ -137,6 +137,14 @@ export const api = {
   uploadAssetPack: (id, file, category, pack) =>
     request('POST', `${b(id)}/asset-packs?category=${encodeURIComponent(category)}&pack=${encodeURIComponent(pack)}`, file, { 'Content-Type': 'application/zip' }),
   assetPacks: id => request('GET', b(id) + '/asset-packs'),
+  perf: (id, month) => request('GET', `${b(id)}/perf/${month}`),
+  addPerfEntry: (id, month, body) => request('POST', `${b(id)}/perf/${month}/entries`, body),
+  deletePerfEntry: (id, eid) => request('DELETE', `${b(id)}/perf-entries/${eid}`),
+  analyzePerf: (id, month, body) => request('POST', `${b(id)}/perf/${month}/analyze`, body),
+  applyPerf: (id, month, body) => request('POST', `${b(id)}/perf/${month}/apply`, body),
+  setPerfActive: (id, month, active) => request('PUT', `${b(id)}/perf/${month}/active`, { active }),
+  openrouterCredits: () => request('GET', '/api/ai/openrouter/credits'),
+  setTemplateDefault: (id, tid, on) => request('PUT', `${b(id)}/post-templates/${tid}/default`, { on }),
   postAiEdit: (id, body) => request('POST', `${b(id)}/posts/ai-edit`, body),
   // Global öğe kütüphanesi (yönetim paneli)
   elements: (all = false) => request('GET', `/api/elements${all ? '?all=1' : ''}`),
@@ -186,7 +194,7 @@ export const api = {
   saveFact: (id, fid, body) => request('PUT', `${b(id)}/memory/facts/${fid}`, body),
   deleteFact: (id, fid) => request('DELETE', `${b(id)}/memory/facts/${fid}`),
   identityDraft: body => request('POST', '/api/identity-draft', body),
-  specialDays: (from, to) => request('GET', `/api/special-days?from=${from}&to=${to}`),
+  specialDays: (from, to, brandId = '') => request('GET', `/api/special-days?from=${from}&to=${to}${brandId ? `&brandId=${encodeURIComponent(brandId)}` : ''}`),
   performance: brandId => request('GET', '/api/performance' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
   // 8.9: sunucu tekrarlanan alanları "lookup" ile bir kez gönderir; burada her içeriğe geri eklenir
   dashboard: brandId => request('GET', '/api/dashboard' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')).then(d => {

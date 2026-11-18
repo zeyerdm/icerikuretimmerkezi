@@ -7,6 +7,7 @@ import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { drawTitle, ensureTitleFonts, titleBlob, downloadBlob, safeName } from '../titlePng.js';
 import { reviewBox } from './review.js';
+import { reelsTabs } from './reelsTabs.js';
 
 const fmt = s => { const v = Math.max(0, Number(s) || 0); const w = Math.floor(v); return `${String(Math.floor(w / 60)).padStart(2, '0')}:${String(w % 60).padStart(2, '0')}${v - w >= 0.5 ? '.5' : ''}`; };
 const base = brand => `#/m/${encodeURIComponent(brand.id)}/reels`;
@@ -15,10 +16,7 @@ async function copy(text, msg) {
   try { await navigator.clipboard.writeText(text); toast(msg, 'success'); } catch { toast('Kopyalanamadı; metni seçip Ctrl+C ile kopyala.', 'error'); }
 }
 
-function tabs(brand, active) {
-  return `<div class="tabs" role="tablist">${[['havuz', 'Fikir havuzu', base(brand)], ['liste', 'Senaryolar', base(brand) + '/liste'], ['kaliplar', 'Kalıp arşivi', base(brand) + '/kaliplar']].map(([id, label, href]) =>
-    `<button role="tab" data-href="${href}" class="${active === id ? 'active' : ''}" aria-selected="${active === id}">${label}</button>`).join('')}</div>`;
-}
+const tabs = reelsTabs;
 
 export async function renderReels(view, brand, sub) {
   view.onclick = null;
@@ -27,7 +25,7 @@ export async function renderReels(view, brand, sub) {
   if (sub && sub !== 'liste' && sub !== 'kaliplar') return renderDetail(view, brand, sub, models);
   const meta = state.meta.reels;
   const head = pageHead({
-    title: 'Reels', desc: `${esc(brand.name)} için Reels fikir havuzu ve saniye saniye senaryolar. Senaryodan Flow/Veo prompt'u, başlık görseli ve altyazı çıkar.`,
+    title: 'Reels ve video', desc: `${esc(brand.name)} için Reels fikir havuzu ve saniye saniye senaryolar. Senaryodan Flow/Veo prompt'u, başlık görseli ve altyazı çıkar.`,
     actions: `<button class="btn" data-settings>${icon('settings')}Reels ayarları</button>${aiReady ? `<button class="btn btn-primary" data-new>${icon('plus')}Yeni senaryo</button>` : ''}`
   });
   const notice = aiReady ? '' : `<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Fikirleri elle ekleyebilirsin; senaryo yazdırmak ve havuzu genişletmek için bir yapay zekâ sağlayıcısı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>`;

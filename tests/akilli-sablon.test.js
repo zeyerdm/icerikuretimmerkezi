@@ -110,3 +110,62 @@ test('Toplu üretim kuyruğu: durdur, devam ettir, iptal', async () => {
     assert.equal((await s.request('POST', `/api/brands/${b.id}/gen-batches/${batchId}/uc`)).status, 404);
   } finally { await s.stop(); }
 });
+
+test('Aylık performans: içerik ve metrik girişi, AI önerisi, fikir havuzuna onaylı uygulama, odak marka hafızasına girer', async () => {
+  const provider = fakeProvider([p => (/AYLIK PERFORMANS/.test(p) ? null : { changes: [] }) || ({ summary: 'Eğitici Reels tuttu.', worked: ['Kısa ipucu'], weak: [], focus: ['Haftada 2 eğitici Reels'], design: ['Kapakta büyük başlık'], formats: [],
+    ideas: { add: [{ title: 'Git ipuçları serisi', description: 'd', format: 'reels', category: 'egitici', why: 'tuttu' }], revise: [{ id: (p.match(/\[([0-9a-f-]{36})\] Eski fikir/) || [])[1], title: 'Yeni başlık' }], archive: [{ id: 'yok', why: 'x' }] } })]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Perf' })).data.brand;
+    const old = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Eski fikir', category: 'egitici' })).data.idea;
+    assert.equal((await s.request('POST', `/api/brands/${b.id}/perf/2026-11/analyze`, {})).status, 400, 'kayıt yokken analiz yok');
+    let r = await s.request('POST', `/api/brands/${b.id}/perf/2026-11/entries`, { title: 'Kod ipucu Reels', kind: 'reels', metrics: { views: 12000, likes: 900, comments: 40, saves: 300, shares: 60, bad: 5 }, url: 'https://x.com/p' });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.entry.rate, 10.8); assert.equal(r.data.entry.metrics.bad, undefined);
+    assert.equal((await s.request('POST', `/api/brands/${b.id}/perf/2026-11/entries`, { title: 'x', url: 'javascript:1' })).status, 400);
+    assert.equal((await s.request('GET', `/api/brands/${b.id}/perf/2026-13`)).status, 400);
+    r = await s.request('POST', `/api/brands/${b.id}/perf/2026-11/analyze`, {});
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    const rep = r.data.report;
+    assert.deepEqual(rep.focus, ['Haftada 2 eğitici Reels']);
+    assert.equal(rep.ideas.revise[0].id, old.id); assert.equal(rep.ideas.archive.length, 0, 'havuzda olmayan id atılır');
+    r = await s.request('POST', `/api/brands/${b.id}/perf/2026-11/apply`, { add: [0], revise: [old.id] });
+    assert.deepEqual(r.data.done.add, ['Git ipuçları serisi']); assert.deepEqual(r.data.done.revise, ['Yeni başlık']);
+    r = await s.request('POST', `/api/brands/${b.id}/perf/2026-11/apply`, { add: [0] });
+    assert.equal(r.data.done.add.length, 0, 'aynı öneri iki kez uygulanmaz');
+    const pool = (await s.request('GET', `/api/brands/${b.id}/ideas`)).data.ideas.map(i => i.title);
+    assert.ok(pool.includes('Git ipuçları serisi') && pool.includes('Yeni başlık'));
+    // Odak açıkken sonraki üretimlerin istemine marka hafızasıyla girer; kapatınca girmez
+    const edit = () => s.request('POST', `/api/brands/${b.id}/posts/ai-edit`, { command: 'kisalt', texts: [{ id: 't', text: 'Bir metin', max: 20 }] });
+    await edit();
+    assert.match(provider.calls.at(-1).prompt, /Haftada 2 eğitici Reels/);
+    await s.request('PUT', `/api/brands/${b.id}/perf/2026-11/active`, { active: false });
+    await edit();
+    assert.doesNotMatch(provider.calls.at(-1).prompt, /Haftada 2 eğitici/);
+  } finally { await s.stop(); }
+});
+
+test('Varsayılan şablon: eşleşen şablon yoksa fikirden üretim varsayılan şablonla yapılır, AI yalnızca metni yazar', async () => {
+  const provider = fakeProvider([slidesOut(1)]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Varsayılan' })).data.brand;
+    const post = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Ş', kind: 'post' })).data.post;
+    await s.request('PUT', `/api/brands/${b.id}/posts/${post.id}`, { data: { format: '4:5', slides: [{ bg: '#123456', layers: [T('t1', 'Başlık', { field: 'MAIN_TITLE' })] }] } });
+    const t1 = (await s.request('POST', `/api/brands/${b.id}/posts/${post.id}/template`, { name: 'Ana' })).data.template;
+    const t2 = (await s.request('POST', `/api/brands/${b.id}/posts/${post.id}/template`, { name: 'İkinci' })).data.template;
+    let r = await s.request('PUT', `/api/brands/${b.id}/post-templates/${t1.id}/default`, { on: true });
+    assert.equal(r.data.template.match.isDefault, true);
+    await s.request('PUT', `/api/brands/${b.id}/post-templates/${t2.id}/default`, { on: true });
+    const list = (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates;
+    assert.deepEqual(list.filter(t => t.match.isDefault).map(t => t.id), [t2.id], 'markada tek varsayılan');
+    // Eşleştirme kaydı varsayılanlığı bozmaz
+    await s.request('PUT', `/api/brands/${b.id}/post-templates/${t2.id}/match`, { formats: [], categories: [] });
+    const idea = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Kahve rehberi', format: 'post', category: 'egitici' })).data.idea;
+    r = await s.request('POST', `/api/brands/${b.id}/posts/from-idea`, { ideaId: idea.id });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.template.id, t2.id);
+    assert.equal(r.data.post.data.slides[0].bg, '#123456', 'tasarım şablondan');
+    assert.equal(r.data.post.data.slides[0].layers[0].text, 'Başlık 1', 'metin AI\'dan');
+  } finally { await s.stop(); }
+});

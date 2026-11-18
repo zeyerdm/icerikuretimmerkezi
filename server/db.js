@@ -634,6 +634,32 @@ const MIGRATIONS = [
     updated_at TEXT NOT NULL
   );
   CREATE INDEX idx_elements ON elements(published, category);
+  `,
+  // 43: Aylık performans: en çok tutan içerikler (izlenme, etkileşim, ekran görüntüsü) ve AI'ın sonraki ay önerileri
+  `
+  CREATE TABLE perf_entries (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    month TEXT NOT NULL,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'post',
+    metrics TEXT NOT NULL DEFAULT '{}',
+    url TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    asset_ids TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_perf_entries ON perf_entries(brand_id, month);
+  CREATE TABLE perf_reports (
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    month TEXT NOT NULL,
+    data TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1,
+    applied TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (brand_id, month)
+  );
   `
 ];
 

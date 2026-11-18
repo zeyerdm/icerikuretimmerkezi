@@ -15,12 +15,18 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   let mode = embedded ? 'hafta' : 'ay';
   try { const v = localStorage.getItem(prefKey); if (v === 'hafta' || v === 'ay') mode = v; } catch { /* tercih okunamazsa varsayılan */ }
   if (initialMode) mode = initialMode;
+  // Takvim boyutu: küçük / orta / büyük / ekrana sığdır (tam sayfada varsayılan); tercih hatırlanır
+  const SIZES = embedded ? [['kucuk', 'Küçük'], ['orta', 'Orta'], ['buyuk', 'Büyük']] : [['kucuk', 'Küçük'], ['orta', 'Orta'], ['buyuk', 'Büyük'], ['sigdir', 'Ekrana sığdır']];
+  let size = embedded ? 'orta' : 'sigdir';
+  try { const v = localStorage.getItem(prefKey + '.size'); if (SIZES.some(([k]) => k === v)) size = v; } catch { /* varsayılan */ }
+  const ROOM = { kucuk: 1, orta: 2, sigdir: 2, buyuk: 4 };
   let cursor = startOfDay(new Date());
   let brandFilter = brand ? brand.id : '';
   let items = [];
   let root = null; // bu takvimin şu anki çizimi (bkz. alive)
   let unscheduled = [];
   let specials = [];
+  let upcoming = [];
   let showSpecial = true;
   try { showSpecial = localStorage.getItem(SPECIAL_PREF) !== '0'; } catch { /* varsayılan: göster */ }
 
@@ -33,14 +39,16 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
 
   async function load() {
     const { from, to } = range();
-    const [inRange, noDate, sd] = await Promise.all([
+    const [inRange, noDate, sd, up] = await Promise.all([
       api.contents({ from: from.toISOString(), to: to.toISOString(), brandId: brandFilter }),
       api.contents({ unscheduled: '1', brandId: brandFilter }),
-      showSpecial ? api.specialDays(iso(from), iso(addDays(to, -1))).catch(() => ({ days: [] })) : { days: [] }
+      showSpecial ? api.specialDays(iso(from), iso(addDays(to, -1)), brandFilter).catch(() => ({ days: [] })) : { days: [] },
+      showSpecial ? api.specialDays(iso(startOfDay(new Date())), iso(addDays(startOfDay(new Date()), 30)), brandFilter).catch(() => ({ days: [] })) : { days: [] }
     ]);
     items = inRange.contents;
     unscheduled = noDate.contents;
     specials = sd.days;
+    upcoming = up.days.filter(d => !d.end || d.date >= iso(startOfDay(new Date())));
   }
 
   const title = () => {
@@ -57,9 +65,17 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   const daySpecials = day => {
     const k = iso(day);
     const { from } = range();
-    return specials.filter(s => (!s.end && s.date === k) || (s.end && (s.date === k || (s.date < iso(from) && k === iso(from)))));
+    const rank = { yuksek: 0, orta: 1, dusuk: 2 };
+    return specials.filter(s => (!s.end && s.date === k) || (s.end && (s.date === k || (s.date < iso(from) && k === iso(from))))).sort((a, b) => (rank[a.importance] ?? 1) - (rank[b.importance] ?? 1));
   };
-  const spChip = s => `<button class="cal-special cat-${esc(s.category)}" data-special="${esc(s.date + '|' + s.name)}" title="${esc(`${s.name} · ${s.categoryLabel}${s.end ? ` · ${s.date} – ${s.end}` : ''}`)}">${s.end ? '◷' : '★'} ${esc(s.name)}</button>`;
+  // Geri sayım: bugün, yarın, n gün sonra (yalnızca önümüzdeki 14 gün)
+  const daysTo = date => Math.round((new Date(`${date}T12:00:00`) - startOfDay(new Date()).setHours(12)) / 86400000);
+  const countdown = s => { const n = daysTo(s.date); return n === 0 ? 'Bugün' : n === 1 ? 'Yarın' : n > 1 && n <= 14 ? `${n} gün sonra` : ''; };
+  const ICON = { sektor: '◆', anma: '▪', donem: '◷' };
+  const spChip = s => { const n = daysTo(s.date); const cd = s.end && n < 0 ? '' : n === 0 ? 'bugün' : n === 1 ? 'yarın' : n > 1 && n <= 14 ? `${n} gün` : '';
+    return `<button class="cal-special cat-${esc(s.category)} imp-${esc(s.importance || 'orta')}" data-special="${esc(s.date + '|' + s.name)}" title="${esc(`${s.name} · ${s.categoryLabel}${s.importanceLabel ? ' · ' + s.importanceLabel : ''}${s.brands ? ' · ' + s.brands.join(', ') : ''}${s.end ? ` · ${s.date} – ${s.end}` : ''}`)}">${ICON[s.category] || (s.end ? '◷' : '★')} <span class="cs-name">${esc(s.name)}</span>${cd ? `<span class="cs-cd">${cd}</span>` : ''}</button>`; };
+  const SP_LEGEND = [['sektor', 'Markana özel'], ['resmi', 'Resmî / millî'], ['ticari', 'Ticari'], ['dini', 'Dinî'], ['dunya', 'Dünya günü'], ['anma', 'Anma (ticari içerik yok)'], ['donem', 'Dönem']];
+  const upcomingHtml = () => (showSpecial && upcoming.length ? `<div class="cal-upcoming" aria-label="Yaklaşan özel günler"><b>Yaklaşan:</b>${upcoming.slice(0, 6).map(u => `<button class="cu-item cat-${esc(u.category)} imp-${esc(u.importance || 'orta')}" data-special-up="${esc(u.date + '|' + u.name)}"><span>${esc(u.name)}</span><em>${esc(countdown(u) || fmtDate(new Date(`${u.date}T12:00:00`), { day: 'numeric', month: 'short' }))}</em></button>`).join('')}</div>` : '');
 
   function monthGrid() {
     const { from } = range();
@@ -67,15 +83,16 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const cells = Array.from({ length: 42 }, (_, i) => addDays(from, i));
     // 8.17: ızgara rolü satır yapısı istediği için kullanılmaz; her gün odaklanabilir, adıyla okunan bir düğmedir
     return `<div class="cal-month" role="group" aria-label="${esc(title())}">
-      ${TR_DAYS_SHORT.map(d => `<div class="cal-dow" aria-hidden="true">${d}</div>`).join('')}
+      ${TR_DAYS_SHORT.map((d, i) => `<div class="cal-dow ${today.getMonth() === cursor.getMonth() && today.getFullYear() === cursor.getFullYear() && (today.getDay() + 6) % 7 === i ? 'today-dow' : ''}" aria-hidden="true"><span>${d}</span></div>`).join('')}
       ${cells.map(day => {
         const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
         const out = day.getMonth() !== cursor.getMonth();
-        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
-          <div class="cal-num">${day.getDate()}</div>
-          ${daySpecials(day).map(spChip).join('')}
-          ${list.slice(0, 3).map(chip).join('')}
-          ${list.length > 3 ? `<button class="cal-more" data-more="${day.getTime()}">+${list.length - 3} daha</button>` : ''}
+        const top = daySpecials(day).find(x => !x.end || x.date === iso(day));
+        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)} imp-${esc(top.importance || 'orta')}` : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
+          <div class="cal-num-row"><div class="cal-num">${day.getDate()}</div>${sameDay(day, today) ? '<span class="cal-today-tag">Bugün</span>' : ''}</div>
+          ${(() => { // hücre sabit yükseklikte: özel günler + içerikler en çok 2 satır, fazlası "+n daha"
+            const sp = daySpecials(day).slice(0, size === 'kucuk' ? 1 : 2); const room = ROOM[size] - sp.length; const shown = list.length <= room ? list.length : Math.max(0, room - 1);
+            return `${sp.map(spChip).join('')}${list.slice(0, shown).map(chip).join('')}${list.length > shown ? `<button class="cal-more" data-more="${day.getTime()}">+${list.length - shown} daha</button>` : ''}`; })()}
         </div>`;
       }).join('')}
     </div>`;
@@ -86,7 +103,8 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const today = new Date();
     return `<div class="cal-week">${Array.from({ length: 7 }, (_, i) => addDays(from, i)).map((day, i) => {
       const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
-      return `<div class="cw-col ${sameDay(day, today) ? 'today' : ''}" data-day="${day.getTime()}">
+      const top = daySpecials(day).find(x => !x.end || x.date === iso(day));
+      return `<div class="cw-col ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)}` : ''}" data-day="${day.getTime()}">
         <div class="cw-head"><span>${TR_DAYS_SHORT[i]}</span><b>${day.getDate()}</b></div>
         <div class="cw-body">${daySpecials(day).map(spChip).join('')}${list.map(c => `<button class="cw-item status-${esc(c.status)}" data-item="${esc(c.id)}" draggable="true" style="--item-color:${esc(c.brandColor || '#7d6bf0')}">
             <span class="ci-time">${timeStr(c.scheduledAt)}</span><b>${esc(c.title)}</b>
@@ -108,7 +126,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
         desc: brand ? esc(brand.name) + ' markasının planlanan ve yayınlanan içerikleri. Bir güne tıklayarak içerik planla.' : 'Bütün markaların planlanan gönderileri. Boş bir güne tıklayarak içerik planla.',
         actions: `<a class="btn" href="${brand ? `/api/brands/${esc(brand.id)}/calendar.ics` : '/api/export/calendar.ics'}" download title="Google Takvim: Ayarlar → İçe aktar · Outlook: Dosya → Aç ve Dışarı Aktar → İçeri Aktar">${icon('download')}Takvime aktar (.ics)</a><button class="btn" data-week-plan>${icon('calendar')}Haftalık plan</button><button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>`
       })}
-      <div class="card cal-card${embedded ? ' desk-cal-card' : ''}">
+      <div class="card cal-card${embedded ? ' desk-cal-card' : ''} cal-size-${size}">
         <div class="cal-toolbar">
           <div class="row">
             <button class="btn icon-btn" data-nav="-1" aria-label="Önceki">${icon('chevronLeft')}</button>
@@ -120,15 +138,18 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
             ${embedded ? `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>` : ''}
             ${brand ? '' : `<select class="select w-auto" id="cal-brand" aria-label="Marka filtresi"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`}
             <label class="check"><input type="checkbox" id="cal-special" ${showSpecial ? 'checked' : ''}> Özel günler</label>
+            ${mode === 'ay' ? `<select class="select w-auto input-sm" id="cal-size" aria-label="Takvim boyutu" title="Takvim boyutu">${SIZES.map(([k, v]) => `<option value="${k}" ${size === k ? 'selected' : ''}>Boyut: ${v}</option>`).join('')}</select>` : ''}
             <div class="seg" role="tablist" aria-label="Görünüm">
               <button role="tab" data-mode="ay" class="${mode === 'ay' ? 'active' : ''}" aria-selected="${mode === 'ay'}">Aylık</button>
               <button role="tab" data-mode="hafta" class="${mode === 'hafta' ? 'active' : ''}" aria-selected="${mode === 'hafta'}">Haftalık</button>
             </div>
           </div>
         </div>
+        ${upcomingHtml()}
         ${embedded ? '<div class="cal-scroll">' : ''}${mode === 'ay' ? monthGrid() : weekGrid()}
         <div class="cal-legend">${Object.entries(statuses).map(([k, v]) => `<span class="lg status-${k}"><i></i>${esc(v)}</span>`).join('')}
-          ${brand ? '' : '<span class="small muted">Renkli çizgi: içeriğin markası</span>'}</div>
+          ${brand ? '' : '<span class="small muted">Renkli çizgi: içeriğin markası</span>'}
+          ${showSpecial ? `<span class="lg-sep"></span>${SP_LEGEND.map(([k, v]) => `<span class="lg-sp cat-${k}"><i></i>${esc(v)}</span>`).join('')}` : ''}</div>
       ${embedded ? unschedHtml() + '</div>' : ''}</div>
       ${!embedded && unscheduled.length ? `<section class="card mt-5"><div class="card-head"><h3>Tarihsiz içerikler</h3><span class="small muted">${unscheduled.length}</span></div>
         <div class="unsched">${unscheduled.map(c => `<button class="ag-item status-${esc(c.status)}" data-item="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}"><span class="ag-title">${esc(c.title)}</span><span class="ag-meta">${esc(c.brandName)} · ${esc(c.typeLabel)} · <span class="st">${esc(c.statusLabel)}</span></span></button>`).join('')}</div></section>` : ''}`;
@@ -139,6 +160,8 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
       try { localStorage.setItem(SPECIAL_PREF, showSpecial ? '1' : '0'); } catch { /* tercih kaydedilemezse sorun değil */ }
       draw().catch(err => toast(err.message, 'error'));
     });
+    const sz = view.querySelector('#cal-size');
+    if (sz) sz.addEventListener('change', () => { size = sz.value; try { localStorage.setItem(prefKey + '.size', size); } catch { /* tercih kaydedilemezse sorun değil */ } draw().catch(err => toast(err.message, 'error')); });
     const sel = view.querySelector('#cal-brand');
     if (sel) sel.addEventListener('change', () => { brandFilter = sel.value; draw().catch(err => toast(err.message, 'error')); });
   }
@@ -158,6 +181,8 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const m = openModal({
       title: s.name, submitLabel: 'Bu güne içerik planla',
       body: `<p><span class="tag">${esc(s.categoryLabel)}</span> ${esc(fmtDate(day, { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' }))}${s.end ? ` – ${esc(fmtDate(new Date(`${s.end}T12:00:00`), { day: 'numeric', month: 'long' }))}` : ''}</p>
+        <p class="small mt-2">${s.importanceLabel ? `<span class="tag imp-tag imp-${esc(s.importance)}">${esc(s.importanceLabel)}</span> ` : ''}${countdown(s) ? `<b>${esc(countdown(s))}</b>` : ''}${s.sector ? ` · ${esc(s.sector)} sektörüne özel${s.brands ? ` (${esc(s.brands.join(', '))})` : ''}` : ''}</p>
+        ${s.category === 'anma' ? '<p class="small mt-2"><b>Anma günü:</b> ticari içerik ve kampanya paylaşma; sade bir anma paylaşımı yap.</p>' : ''}
         <p class="card-text mt-2"><b>İçerik ipucu:</b> ${esc(s.tip)}</p>
         ${s.category === 'dini' ? '<p class="xsmall muted mt-2">Dinî bayram tarihleri Diyanet takvimine göredir.</p>' : ''}
         ${brandId && state.brands.length ? `<div class="row mt-4">${brand ? '' : `<select class="select w-auto" id="sp-brand" aria-label="Marka">${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandId ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`}
@@ -187,6 +212,8 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const t = e.target;
     const sp = t.closest('[data-special]');
     if (sp) { const s = specials.find(x => `${x.date}|${x.name}` === sp.dataset.special); if (s) specialModal(s); return; }
+    const spu = t.closest('[data-special-up]');
+    if (spu) { const s = upcoming.find(x => `${x.date}|${x.name}` === spu.dataset.specialUp); if (s) specialModal(s); return; }
     const item = t.closest('[data-item]');
     if (item) {
       const c = items.concat(unscheduled).find(x => x.id === item.dataset.item);
