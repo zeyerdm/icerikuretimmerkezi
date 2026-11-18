@@ -24,6 +24,7 @@ import { createPromptService } from './services/prompts.js';
 import { createPresetService } from './services/promptPresets.js';
 import { createGenQueue } from './services/genQueue.js';
 import { createElementService, MAX_ELEMENT_BYTES } from './services/elements.js';
+import { createPerfService } from './services/perf.js';
 import { createImageService } from './services/images.js';
 import { createFeedbackService } from './services/feedback.js';
 import { createDataExportService } from './services/dataExport.js';
@@ -142,6 +143,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const posts = createPostService({ db, ai, brands, assets, workspace });
   const queue = createGenQueue({ db, brands, posts, ideas, autostart: queueAutostart });
   const elements = createElementService(db, path.join(dataDir, 'uploads', 'elements'));
+  const perf = createPerfService({ db, ai, brands, assets });
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
   const review = createReviewService({ ai, brands, memory });
   const promptIdentity = createPromptIdentityService({ db, brands });
@@ -807,6 +809,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.get('/brands/:brandId/prompts/:id/versions/:vid', (req, res) => res.json({ version: prompts.version(req.brand.id, req.params.id, req.params.vid) }));
   api.post('/brands/:brandId/prompts/:id/restore', (req, res) => res.json({ prompt: prompts.restore(req.brand.id, req.params.id, (req.body || {}).versionId) }));
+
+  // --- Aylık performans ve AI önerileri ---
+  api.get('/brands/:brandId/perf/:month', (req, res) => res.json({ ...perf.get(req.brand.id, req.params.month), kinds: perf.kinds, metrics: perf.metrics }));
+  api.post('/brands/:brandId/perf/:month/entries', (req, res) => res.status(201).json({ entry: perf.addEntry(req.brand.id, req.params.month, req.body || {}) }));
+  api.put('/brands/:brandId/perf-entries/:id', (req, res) => res.json({ entry: perf.updateEntry(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/perf-entries/:id', (req, res) => res.json(perf.removeEntry(req.brand.id, req.params.id)));
+  api.post('/brands/:brandId/perf/:month/analyze', route(async (req, res) => res.json({ report: await perf.analyze(req.brand.id, req.params.month, { modelRef: mr(req.body || {}) }) })));
+  api.post('/brands/:brandId/perf/:month/apply', (req, res) => res.json(perf.apply(req.brand.id, req.params.month, req.body || {}, ideas)));
+  api.put('/brands/:brandId/perf/:month/active', (req, res) => res.json({ report: perf.setActive(req.brand.id, req.params.month, Boolean((req.body || {}).active)) }));
 
   // --- Global öğe kütüphanesi (yönetim paneli) ---
   const elMeta = q => ({ name: q.name, category: q.category, tags: q.tags, pack: q.pack, published: q.published, license: q.license, author: q.author, attribution: q.attribution, sourceUrl: q.sourceUrl });

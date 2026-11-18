@@ -2090,3 +2090,18 @@ body.editor-mode .radial-fab { display: none; }
 .post-card-wrap:hover .post-del, .post-del:focus-visible { opacity: 1; }
 .post-del:hover { background: #b42318; color: #fff; }
 @media (hover: none) { .post-del { opacity: 1; } }
+.perf { border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: color-mix(in srgb, var(--rep, #7d6bf0) 4%, #fff); }
+.perf-table td { vertical-align: top; }
+.perf-shots { display: flex; gap: 6px; margin-top: 6px; }
+.perf-shots img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.perf-form { margin-top: 12px; }
+.perf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.perf-grid .perf-title { grid-column: span 3; }
+@media (max-width: 760px) { .perf-grid .perf-title { grid-column: 1 / -1; } }
+.perf-ai { margin-top: 12px; }
+.perf-report { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.perf-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 8px; }
+.perf-cols h4, .perf-ideas h4 { margin: 0 0 4px; font-size: 14px; }
+.perf-idea { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; font-size: 13px; }
+.perf-idea.done { opacity: .6; }
+.perf-ideas { margin-top: 12px; }
