@@ -924,8 +924,8 @@ body.editor-mode .view { max-width: none; padding: 0; margin: 0; }
 .lg-sp.cat-dunya i { background: #2a4fa0; } .lg-sp.cat-anma i { background: #2e2f36; } .lg-sp.cat-donem i { background: #b9a6ee; }
 .imp-tag.imp-yuksek { background: #c62828; color: #fff; }
 /* Ayın tamamı tek ekrana sığar: 6 satır, ekran yüksekliğine göre */
-.cal-month .cal-cell { min-height: 0; height: clamp(58px, calc((100vh - 420px) / 6), 118px); overflow: hidden; padding: 4px 5px; gap: 2px; }
-.cal-month .cal-num { font-size: 12px; }
+.cal-card:not(.desk-cal-card) .cal-month .cal-cell { min-height: 0; height: clamp(58px, calc((100vh - 420px) / 6), 118px); overflow: hidden; padding: 4px 5px; gap: 2px; }
+.cal-card:not(.desk-cal-card) .cal-month .cal-num { font-size: 12px; }
 .upcoming { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s-3); }
 .upcoming-day { display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; text-decoration: none; color: inherit; }
 .upcoming-day:hover { border-color: var(--brand); }

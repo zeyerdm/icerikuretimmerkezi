@@ -85,7 +85,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
         return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
           <div class="cal-num-row"><div class="cal-num">${day.getDate()}</div>${sameDay(day, today) ? '<span class="cal-today-tag">Bugün</span>' : ''}</div>
           ${(() => { // hücre sabit yükseklikte: özel günler + içerikler en çok 2 satır, fazlası "+n daha"
-            const sp = daySpecials(day).slice(0, 2); const room = 2 - sp.length; const shown = list.length <= room ? list.length : Math.max(0, room - 1);
+            const sp = daySpecials(day).slice(0, 2); const room = (embedded ? 3 : 2) - sp.length; const shown = list.length <= room ? list.length : Math.max(0, room - 1);
             return `${sp.map(spChip).join('')}${list.slice(0, shown).map(chip).join('')}${list.length > shown ? `<button class="cal-more" data-more="${day.getTime()}">+${list.length - shown} daha</button>` : ''}`; })()}
         </div>`;
       }).join('')}
