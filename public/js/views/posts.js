@@ -365,9 +365,10 @@ async function fromIdeaFlow(brand, models, templates, designs = []) {
               ...tpls.map(t => opt(`t:${t.id}`, `${t.match.isDefault ? '★ ' : ''}${t.name}`, `Şablon · ${t.kindLabel} · V${t.version || 1}`, t.match.isDefault)),
               ...designs.filter(d => !d.archived).slice(0, 12).map(d => opt(`p:${d.id}`, d.title, `Tasarımım · ${d.kindLabel}`, false))].join(''); })()}
         </div></section>
-      <details class="fi-more"><summary>Maskot, slayt sayısı ve model</summary><div class="form-grid mt-2">
+      <section class="fi-step"><div class="fi-step-head"><span class="fi-n">3</span><b>Kaç sayfa?</b><span class="xsmall muted">Kapak kanca, ortada gelişme, sonda kapanış</span></div>
+        <div class="fi-count" role="radiogroup" aria-label="Sayfa sayısı">${[['1', 'Tek görsel'], ['3', '3 sayfa'], ['5', '5 sayfa'], ['7', '7 sayfa']].map(([v, l]) => `<label class="fi-design ${v === '5' ? 'on' : ''}"><input type="radio" name="count" value="${v}" ${v === '5' ? 'checked' : ''}><span><b>${l}</b></span></label>`).join('')}</div></section>
+      <details class="fi-more"><summary>Maskot ve model</summary><div class="form-grid mt-2">
         <div class="field"><label for="fi-mascot">Maskot</label><select class="select" id="fi-mascot" name="mascot">${MASCOT_OPTS}</select></div>
-        <div class="field"><label for="fi-slides">Slayt (carousel)</label><select class="select" id="fi-slides" name="slides"><option value="">Tasarımdaki kadar</option>${[3, 4, 5, 6, 7, 8].map(n => `<option>${n}</option>`).join('')}</select></div>
         <div class="field full"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
       </div></details>
       <p class="fi-status" id="fi-status" role="status" hidden></p>
@@ -385,7 +386,7 @@ async function fromIdeaFlow(brand, models, templates, designs = []) {
       let r;
       try {
         const dv = String(fd.get('design') || '');
-        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: dv.startsWith('t:') ? dv.slice(2) : null, designId: dv.startsWith('p:') ? dv.slice(2) : null, slides: Number(fd.get('slides')) || null, mascot: fd.get('mascot') || 'auto', model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
+        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: dv.startsWith('t:') ? dv.slice(2) : null, designId: dv.startsWith('p:') ? dv.slice(2) : null, slides: Number(fd.get('count')) || null, mascot: fd.get('mascot') || 'auto', model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
       } finally {
         clearInterval(timer);
         status.hidden = true;
@@ -410,7 +411,7 @@ async function fromIdeaFlow(brand, models, templates, designs = []) {
         <button type="button" class="btn btn-sm" data-fi-again>Başka fikir</button>`;
     } catch (err) { box.innerHTML = `<span class="small">${esc(err.message)}</span>`; }
   };
-  m.form.addEventListener('change', e => { if (e.target.name === 'design') m.form.querySelectorAll('.fi-design').forEach(x => x.classList.toggle('on', x.contains(e.target))); });
+  m.form.addEventListener('change', e => { if (e.target.name === 'design' || e.target.name === 'count') m.form.querySelectorAll(`input[name="${e.target.name}"]`).forEach(x => x.closest('.fi-design').classList.toggle('on', x.checked)); });
   m.form.addEventListener('click', async e => {
     if (e.target.closest('[data-fi-again]')) return pull();
     const del = e.target.closest('[data-fi-del]');
