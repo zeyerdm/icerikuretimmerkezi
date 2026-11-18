@@ -107,7 +107,7 @@ test('10.8 / 11.10 / 11.12 post: şablon eşleşmesi, fikirden ve konudan şablo
     assert.equal(t2.name, 'Şablon 2');
     // Eşleşme: Post + Bilgilendirici
     const m = (await s.request('PUT', `${url}/post-templates/${t1.id}/match`, { formats: ['post', 'yok'], categories: ['bilgilendirici'] })).data.template;
-    assert.deepEqual(m.match, { formats: ['post'], categories: ['bilgilendirici'], frame: '', autoTitle: false });
+    assert.deepEqual(m.match, { formats: ['post'], categories: ['bilgilendirici'], frame: '', autoTitle: false, isDefault: false });
     const idea = (await s.request('POST', `${url}/ideas`, { title: 'Haftanın menüsü', category: 'bilgilendirici', format: 'post' })).data.idea;
     const r = await s.request('POST', `${url}/posts/from-idea`, { ideaId: idea.id });
     assert.equal(r.status, 201, JSON.stringify(r.data));
