@@ -685,6 +685,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/brands/:brandId/post-templates/:tid/pack', (req, res) => res.json({ template: posts.setTemplatePack(req.brand.id, req.params.tid, req.body || {}) }));
   api.get('/brands/:brandId/post-templates/:tid/usage', (req, res) => res.json({ posts: posts.templateUsage(req.brand.id, req.params.tid) }));
   api.put('/brands/:brandId/post-templates/:tid', (req, res) => res.json({ template: posts.renameTemplate(req.brand.id, req.params.tid, req.body || {}) }));
+  api.put('/brands/:brandId/post-templates/:tid/default', (req, res) => res.json({ template: posts.setTemplateDefault(req.brand.id, req.params.tid, (req.body || {}).on !== false) }));
   api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
   // Toplu üretim kuyruğu
   api.get('/brands/:brandId/gen-jobs', (req, res) => res.json({ jobs: queue.list(req.brand.id, { batchId: req.query.batch || null }), batches: queue.batches(req.brand.id), statuses: queue.statuses }));

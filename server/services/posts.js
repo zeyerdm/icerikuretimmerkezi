@@ -17,6 +17,7 @@ const LAYER_TYPES = ['text', 'image', 'shape', 'qr', 'vector'];
 // Öğe kütüphanesindeki (markadan bağımsız) dosyalar da görsel katmanı olabilir
 // A6 editör AI komutları (yalnızca metin değiştirir)
 export const AI_EDIT_COMMANDS = {
+  kontrol: 'Metinleri konuya ve birbirine göre analiz et: yazım ve dil bilgisi hatası, anlam hatası, yanlış ya da tutarsız bilgi, sayfalar arası akış kopukluğu, konuyla ilgisiz ya da yer tutucu kalmış metin (ör. "Başlık buraya"). Yalnızca hatalı olanları düzelt; doğru metinlere dokunma. note alanında bulduğun sorunları kısaca yaz.',
   kisalt: 'Metinleri kısalt; anlamı koru, gereksiz kelimeleri at.',
   kanca: 'Başlığı (ilk sayfa ve başlık alanları) daha güçlü bir kancaya çevir: merak uyandıran, net, kısa.',
   cta: 'Harekete geçirici (CTA) metinleri daha net ve davetkâr yap; CTA yoksa son sayfanın kısa metnini CTA yap.',
@@ -431,7 +432,9 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     categories: [...new Set((Array.isArray(m && m.categories) ? m.categories : []).map(String).filter(k => IDEA_CATEGORIES[k]))],
     // 11.12 sabit açılış / kapanış slaytı; autoTitle: başlık her postta konuya göre değişir
     frame: ['acilis', 'kapanis'].includes(m && m.frame) ? m.frame : '',
-    autoTitle: Boolean(m && m.autoTitle)
+    autoTitle: Boolean(m && m.autoTitle),
+    // Varsayılan şablon: fikrin türü/kategorisiyle eşleşen şablon yoksa üretim bununla yapılır (markada bir tane)
+    isDefault: Boolean(m && m.isDefault)
   });
   // 11.12: carousel'e markanın sabit açılış ve kapanış slaytları eklenir (şablonun ilk slaytı; başlık istenirse konuya göre)
   const withFrames = (brandId, data, kind, { title = '', cta = '' } = {}) => {
@@ -494,7 +497,10 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       const c = t.match.categories.includes(idea.category) ? 1 : 0;
       if (f + c > 0 && (!best || f + c > best.score)) best = { score: f + c, t };
     }
-    return best ? best.t : null;
+    if (best) return best.t;
+    // Eşleşen yoksa markanın varsayılan şablonu (fikir türüne uygunsa); o da yoksa otomatik yerleşim
+    const def = db.prepare('SELECT * FROM post_templates WHERE brand_id = ? ORDER BY created_at DESC').all(brandId).map(toTemplate).find(t => t.match.isDefault && !t.match.frame);
+    return def || null;
   };
   // Şablonun metin katmanlarına yeni metinler yerleşir; görseller, renkler ve yerleşim aynen kalır.
   // "Maskot yeri" işaretli görsel, yapay zekânın seçtiği poza uyan maskot görseliyle değişir (yer ve boyut aynı).
@@ -721,11 +727,25 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       post.data = pd;
       return { post, template: tpl ? { id: tpl.id, name: tpl.name } : null, warning: used && used.warning };
     },
+    setTemplateDefault(brandId, templateId, on = true) {
+      const b = brands.get(brandId);
+      const r = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
+      if (!r) throw notFound('Şablon bulunamadı.');
+      const m = cleanMatch(parseJson(r.match, {}));
+      if (m.frame && on) throw badRequest('Açılış/kapanış şablonu varsayılan olamaz.');
+      if (on) for (const o of db.prepare('SELECT * FROM post_templates WHERE brand_id = ? AND id <> ?').all(b.id, r.id)) {
+        const om = cleanMatch(parseJson(o.match, {})); if (om.isDefault) { om.isDefault = false; db.prepare('UPDATE post_templates SET match = ? WHERE id = ?').run(JSON.stringify(om), o.id); }
+      }
+      m.isDefault = Boolean(on);
+      db.prepare('UPDATE post_templates SET match = ? WHERE id = ?').run(JSON.stringify(m), r.id);
+      return toTemplate(db.prepare('SELECT * FROM post_templates WHERE id = ?').get(r.id));
+    },
     setTemplateMatch(brandId, templateId, body = {}) {
       const b = brands.get(brandId);
       const r = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
       if (!r) throw notFound('Şablon bulunamadı.');
       const m = cleanMatch(body);
+      m.isDefault = cleanMatch(parseJson(r.match, {})).isDefault; // varsayılanlık ayrı işlemle değişir
       if (m.frame) {
         for (const o of db.prepare('SELECT * FROM post_templates WHERE brand_id = ? AND id <> ?').all(b.id, r.id)) {
           const om = cleanMatch(parseJson(o.match, {}));

@@ -144,3 +144,28 @@ test('Aylık performans: içerik ve metrik girişi, AI önerisi, fikir havuzuna 
     assert.doesNotMatch(provider.calls.at(-1).prompt, /Haftada 2 eğitici/);
   } finally { await s.stop(); }
 });
+
+test('Varsayılan şablon: eşleşen şablon yoksa fikirden üretim varsayılan şablonla yapılır, AI yalnızca metni yazar', async () => {
+  const provider = fakeProvider([slidesOut(1)]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Varsayılan' })).data.brand;
+    const post = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Ş', kind: 'post' })).data.post;
+    await s.request('PUT', `/api/brands/${b.id}/posts/${post.id}`, { data: { format: '4:5', slides: [{ bg: '#123456', layers: [T('t1', 'Başlık', { field: 'MAIN_TITLE' })] }] } });
+    const t1 = (await s.request('POST', `/api/brands/${b.id}/posts/${post.id}/template`, { name: 'Ana' })).data.template;
+    const t2 = (await s.request('POST', `/api/brands/${b.id}/posts/${post.id}/template`, { name: 'İkinci' })).data.template;
+    let r = await s.request('PUT', `/api/brands/${b.id}/post-templates/${t1.id}/default`, { on: true });
+    assert.equal(r.data.template.match.isDefault, true);
+    await s.request('PUT', `/api/brands/${b.id}/post-templates/${t2.id}/default`, { on: true });
+    const list = (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates;
+    assert.deepEqual(list.filter(t => t.match.isDefault).map(t => t.id), [t2.id], 'markada tek varsayılan');
+    // Eşleştirme kaydı varsayılanlığı bozmaz
+    await s.request('PUT', `/api/brands/${b.id}/post-templates/${t2.id}/match`, { formats: [], categories: [] });
+    const idea = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Kahve rehberi', format: 'post', category: 'egitici' })).data.idea;
+    r = await s.request('POST', `/api/brands/${b.id}/posts/from-idea`, { ideaId: idea.id });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.template.id, t2.id);
+    assert.equal(r.data.post.data.slides[0].bg, '#123456', 'tasarım şablondan');
+    assert.equal(r.data.post.data.slides[0].layers[0].text, 'Başlık 1', 'metin AI\'dan');
+  } finally { await s.stop(); }
+});

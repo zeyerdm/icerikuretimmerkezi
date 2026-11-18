@@ -67,3 +67,6 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 - Onaylanan kararlar: OpenRouter (otomatik model ataması, istek üst sınırı, bakiye); Hızlı görsel sekmesi; Kütüphanem menüsü (kural şablonları + tarifler); Prompt Studio'dan Reels türü kaldırıldı (eski kayıtlar "Reels (eski)").
 - Reels ile Video ve altyazı tek bölüm: menüde "Reels ve video", Video ve altyazı bu bölümün sekmesi.
 - Bekleyen: konuşmadan otomatik altyazı (cevap gelmedi).
+- İşlem bitti bildirimi (public/js/notify.js): 4 saniyeden uzun süren her düğme işi ve toplu üretim kuyruğu bitince ses (fx.js); sekme arka plandaysa masaüstü bildirimi ve yanıp sönen sekme başlığı. İzin ilk uzun işte bir kez istenir.
+- Varsayılan şablon: şablon kartında "★ Varsayılan yap". Fikirden üretim, toplu üretim ve hızlı üretim, eşleşen şablon yoksa varsayılan şablonu kullanır; AI yalnızca şablon alanlarının metnini yazar.
+- "Metinleri içeriğe göre kontrol et" (AI paneli ve Kontrol paneli): yazım, anlam, tutarsız bilgi, akış ve yer tutucu metin; yalnızca hatalı metinler önizlemeyle düzeltilir.

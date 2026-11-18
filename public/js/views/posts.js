@@ -11,6 +11,7 @@ import { canvasesToPdf } from '../pdf.js';
 import { openColorPicker, gradCss } from '../colorPicker.js';
 import { checkDesign, applyFix } from '../designCheck.js';
 import { svgUrl } from '../stockPacks.js';
+import { notifyDone } from '../notify.js';
 import { loadRegistry, itemsFor, allItems, search as searchEls, usage as elUsage, markUsed, toggleFav, byIds, ratioOf, previewSvg, loadCustom } from '../elements.js';
 
 // Şablon alanları: post üretilirken bu rollerdeki kutular yeni metinle dolar, gerisi aynen kalır
@@ -65,6 +66,9 @@ export async function renderPosts(view, brand, sub) {
   let lastTpl = '';
   try { lastTpl = localStorage.getItem(tplKey) || ''; } catch { /* gizli pencere */ }
   if (!templates.some(t => t.id === lastTpl && !t.match.frame)) lastTpl = '';
+  // Varsayılan şablon seçili gelir: AI yalnızca metni yazar, tasarım sabit kalır
+  const defTpl = templates.find(t => t.match.isDefault && !t.match.frame);
+  if (!lastTpl && defTpl) lastTpl = defTpl.id;
   view.innerHTML = `
     ${pageHead({
       title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
@@ -94,10 +98,10 @@ export async function renderPosts(view, brand, sub) {
       ${[...new Set(templates.map(t => t.pack || ''))].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'tr')).map(pk => `${pk || templates.some(t => t.pack) ? `<h4 class="tpl-pack-head">${pk ? `${icon('grid')}${esc(pk)}` : 'Pakete eklenmemiş'}</h4>` : ''}
       <div class="post-grid">${templates.filter(t => (t.pack || '') === pk).map(t => `<div class="post-card tpl-card">
         <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
-        <div class="strong truncate">${esc(t.name)} <span class="badge" title="Şablon versiyonu">V${t.version || 1}</span></div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt · ${t.usedIn ? `<button type="button" class="link-btn" data-tpl-usage="${esc(t.id)}">${t.usedIn} içerikte kullanıldı</button>` : 'henüz kullanılmadı'}</div>
+        <div class="strong truncate">${esc(t.name)} <span class="badge" title="Şablon versiyonu">V${t.version || 1}</span>${t.match.isDefault ? ' <span class="badge badge-def" title="Eşleşen şablon yoksa üretim bununla yapılır">★ Varsayılan</span>' : ''}</div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt · ${t.usedIn ? `<button type="button" class="link-btn" data-tpl-usage="${esc(t.id)}">${t.usedIn} içerikte kullanıldı</button>` : 'henüz kullanılmadı'}</div>
         <div class="xsmall ${tplFields(t).length ? '' : 'text-warn'} mt-1">${tplFields(t).length ? `Dolan alanlar: ${esc(tplFields(t).join(', '))}` : 'İşaretli alan yok: düzenleyicide kutulara rol ver'}</div>
         ${t.match.frame ? `<span class="tag mt-1">${t.match.frame === 'acilis' ? 'Sabit açılış slaytı' : 'Sabit kapanış slaytı'}</span>` : ''}<div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
-        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button><button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost" data-tpl-versions="${esc(t.id)}">Versiyonlar</button><button class="btn btn-sm btn-ghost" data-tpl-pack="${esc(t.id)}">Paket</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
+        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button>${t.match.frame ? '' : `<button class="btn btn-sm btn-ghost" data-tpl-default="${esc(t.id)}" data-on="${t.match.isDefault ? '0' : '1'}">${t.match.isDefault ? 'Varsayılanı kaldır' : '★ Varsayılan yap'}</button>`}<button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost" data-tpl-versions="${esc(t.id)}">Versiyonlar</button><button class="btn btn-sm btn-ghost" data-tpl-pack="${esc(t.id)}">Paket</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
       </div>`).join('')}</div>`).join('')}</section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
@@ -151,7 +155,11 @@ export async function renderPosts(view, brand, sub) {
           <span class="row q-ctl">${bt.waiting ? `<button type="button" class="btn btn-sm btn-ghost" data-q-act="pause" data-q-batch="${esc(bt.batchId)}">Durdur</button>` : ''}${bt.paused ? `<button type="button" class="btn btn-sm" data-q-act="resume" data-q-batch="${esc(bt.batchId)}">Devam et</button>` : ''}${bt.waiting || bt.paused ? `<button type="button" class="btn btn-sm btn-ghost" data-q-act="cancel" data-q-batch="${esc(bt.batchId)}">Bekleyenleri iptal et</button>` : ''}</span></summary>
         <ul class="q-jobs">${mine.map(j => `<li><span class="q-st q-${j.status}">${esc(j.statusLabel)}</span><span class="grow truncate">${esc(j.ideaTitle)}${j.error ? ` <span class="xsmall danger-text">· ${esc(j.error)}</span>` : ''}</span>
           ${j.postId ? `<a class="btn btn-sm btn-ghost" href="${base(brand)}/${esc(j.postId)}">Aç</a><button type="button" class="btn btn-sm btn-ghost" data-q-preview="${esc(j.postId)}">Önizle</button>` : ''}${['hata', 'durduruldu', 'yeniden'].includes(j.status) ? `<button type="button" class="btn btn-sm btn-ghost" data-q-retry="${esc(j.id)}">Yeniden dene</button>` : ''}</li>`).join('')}</ul></details>`; }).join('')}`;
-    if (batches.some(bt => bt.waiting || bt.working)) setTimeout(drawQueue, 3000);
+    const busyNow = batches.some(bt => bt.waiting || bt.working);
+    // Kuyruk çalışırken izlendiyse bitince ses ve (sekme arka plandaysa) masaüstü bildirimi
+    if (view._qBusy && !busyNow) { const last = batches[0]; notifyDone('Toplu üretim bitti', { body: `${last.done}/${last.total} tasarım hazır${last.failed ? `, ${last.failed} hata` : ''}.`, ok: !last.failed }); }
+    view._qBusy = busyNow;
+    if (busyNow) setTimeout(drawQueue, 3000);
   }
   drawQueue();
   // Hızlı üret (eski sistemdeki gibi tek satır): kart düzeninde carousel, varsayılan model; metin akarak gelir
@@ -206,6 +214,8 @@ export async function renderPosts(view, brand, sub) {
       return;
     }
     // 10.8: şablonu fikir türü ve kategorileriyle eşleştir
+    const td = e.target.closest('[data-tpl-default]');
+    if (td) { try { await api.setTemplateDefault(brand.id, td.dataset.tplDefault, td.dataset.on === '1'); toast(td.dataset.on === '1' ? 'Varsayılan şablon: fikirden ve konudan üretimde bu tasarım kullanılır, AI yalnızca metni yazar.' : 'Varsayılan kaldırıldı.', 'success'); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); } return; }
     const mt = e.target.closest('[data-match-tpl]');
     if (mt) {
       const t = templates.find(x => x.id === mt.dataset.matchTpl);
@@ -1096,6 +1106,7 @@ async function renderEditor(view, brand, id, models) {
       const lv = { error: 'Hata', warn: 'Uyarı', info: 'Öneri' };
       const fixable = issues.filter(i => i.fix);
       box.innerHTML = `${head}<div class="ck-sum">${['error', 'warn', 'info'].map(k => `<span class="ck-pill ck-${k}">${issues.filter(i => i.level === k).length} ${lv[k].toLocaleLowerCase('tr')}</span>`).join('')}</div>
+        ${aiReady ? `<button type="button" class="btn btn-sm w-full mb-2" data-ai-cmd="kontrol">${icon('sparkle')}Metinleri içeriğe göre kontrol et (AI)</button><div id="ai-result" class="mb-2"></div>` : ''}
         ${issues.length ? `${fixable.length ? `<button type="button" class="btn btn-sm w-full mb-2" data-ck-fixall>${icon('check')}Düzeltilebilenleri düzelt (${fixable.length})</button>` : ''}
         <ul class="ck-list">${issues.map((it, i) => `<li class="ck-item ck-${it.level}"><span class="ck-dot" aria-hidden="true"></span><div class="grow"><div class="small">${esc(it.msg)}</div><div class="xsmall muted">Sayfa ${it.slide + 1} · ${lv[it.level]}</div></div>
           <div class="row"><button type="button" class="btn btn-sm btn-ghost" data-ck-go="${i}">Git</button>${it.fix ? `<button type="button" class="btn btn-sm" data-ck-fix="${i}">Düzelt</button>` : ''}${aiReady && ['overflow', 'shrunk'].includes(it.code) ? `<button type="button" class="btn btn-sm" data-ai-short="${i}">${icon('sparkle')}Kısalt (AI)</button>` : ''}</div></li>`).join('')}</ul>`
@@ -1227,7 +1238,7 @@ async function renderEditor(view, brand, id, models) {
       return;
     }
     if (panel === 'ai') {
-      const cmds = [['kisalt', 'Kısalt'], ['kanca', 'Daha güçlü kanca'], ['cta', "CTA'yı güçlendir"], ['samimi', 'Daha samimi'], ['resmi', 'Daha resmi'], ['sade', 'Sadeleştir'], ['yazim', 'Yazımı düzelt']];
+      const cmds = [['kontrol', '✓ Metinleri içeriğe göre kontrol et'], ['kisalt', 'Kısalt'], ['kanca', 'Daha güçlü kanca'], ['cta', "CTA'yı güçlendir"], ['samimi', 'Daha samimi'], ['resmi', 'Daha resmi'], ['sade', 'Sadeleştir'], ['yazim', 'Yazımı düzelt']];
       box.innerHTML = `${head}
         <h4 class="ed-sub">Hızlı düzen (AI'sız)</h4>
         <div class="chips mb-3">
@@ -1289,7 +1300,7 @@ async function renderEditor(view, brand, id, models) {
   async function runAi(cmd, btn, only = null) {
     const free = cmd === 'serbest' ? ($('#ai-free') || {}).value || '' : '';
     if (cmd === 'serbest') { const it = intentOf(free); if (it && quickCmd(it)) return; }
-    const texts = aiTexts(only ? 'all' : aiScope, cmd, only);
+    const texts = aiTexts(only || cmd === 'kontrol' ? 'all' : aiScope, cmd, only);
     if (!texts.length) return toast(aiScope === 'sel' && !only ? 'Önce tuvalde bir metin seç.' : 'Değiştirilecek metin yok.', 'info');
     const modelRef = ($('#pw-model') || {}).value || null;
     try {

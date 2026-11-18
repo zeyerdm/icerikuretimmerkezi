@@ -2146,3 +2146,4 @@ body.editor-mode .radial-fab { display: none; }
 @media (max-width: 760px) { .cal-card .cal-month { gap: 3px; } .cal-card .cal-month .cal-cell { padding: 3px; border-radius: 8px; } .cal-card .cal-dow span { padding: 2px 4px; } }
 html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .post-menu svg { width: 16px; height: 16px; flex: none; }
+.badge-def { background: var(--brand); color: var(--on-brand, #fff); }

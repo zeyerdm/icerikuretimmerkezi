@@ -1,3 +1,4 @@
+import { timed } from './notify.js';
 // Arayüz yardımcıları: güvenli HTML, bildirimler, ikonlar, marka teması
 import { sound } from './fx.js';
 export function esc(value) {
@@ -217,7 +218,8 @@ export async function busy(btn, fn) {
     if (!badge) { badge = document.createElement('span'); badge.className = 'bt-time'; btn.appendChild(badge); }
     badge.textContent = s + ' sn';
   }, 500);
-  try { return await fn(); } finally {
+  const label = (btn.textContent || '').replace(/\d+ sn$/, '').trim().slice(0, 60) || 'İşlem';
+  try { return await timed(label, fn); } finally {
     clearInterval(tick);
     if (badge) badge.remove();
     if (btn.isConnected) { btn.classList.remove('is-loading'); btn.disabled = false; btn.removeAttribute('aria-busy'); }

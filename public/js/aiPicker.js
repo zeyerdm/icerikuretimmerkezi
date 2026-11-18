@@ -1,3 +1,4 @@
+import { timed } from './notify.js';
 // Üretim ekranlarındaki model seçici: varsayılan olarak işe atanmış model, istenirse o an bağlı herhangi bir model.
 // Seçim kalıcı atamayı değiştirmez; yalnızca o üretim için gönderilir.
 import { api, withSignal } from './api.js';
@@ -104,7 +105,8 @@ export async function busyTimer(btn, fn, verb = 'Yazıyor', { stop = true } = {}
     stopBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); ac.abort(); stopBtn.disabled = true; stopBtn.textContent = 'Durduruluyor…'; });
     btn.insertAdjacentElement('afterend', stopBtn);
   }
-  try { return await withSignal(ac.signal, fn); } finally {
+  const label = html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Yapay zekâ işi';
+  try { return await timed(label, () => withSignal(ac.signal, fn)); } finally {
     clearInterval(timer);
     if (stopBtn) stopBtn.remove();
     if (btn.isConnected) { btn.innerHTML = html; btn.disabled = false; delete btn.dataset.busy; btn.removeAttribute('aria-busy'); btn.classList.remove('is-timing'); }
