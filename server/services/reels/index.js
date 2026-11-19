@@ -2,7 +2,7 @@
 // Her AI işleminde o an seçilen model kullanılabilir; seçilmezse işin atanmış modeli (senaryo: metin yazımı,
 // havuz: fikir üretimi, çeviri: çeviri ve prompt) çalışır, geçici hatada işin yedek modeline geçilir.
 import { newId, now, text, badRequest, notFound, oneOf, parseJson, HttpError } from '../../lib/http.js';
-import { IDEA_CATEGORIES } from '../ideas.js';
+import { IDEA_CATEGORIES, markIdeaUsed } from '../ideas.js';
 import { TTS_VOICES } from '../ai/catalog.js';
 import { FORMATS, STYLES, STATUSES, TITLE_STYLES, LIMITS, normalizeScenario, checkQuality, flowPrompt, cleanVideoPrompt, buildSrt, scriptText,
   scenarioPrompt, rewriteTask, poolPrompt, translatePrompt, totalSeconds, polish, titleKeyword } from './rules.js';
@@ -128,10 +128,13 @@ export function createReelsService({ db, ai, brands, workspace, patterns = null 
     };
   }
 
-  async function create(brandId, { topic, poolId = null, format = null, modelRef = null, patternId = null } = {}) {
+  async function create(brandId, { topic, poolId = null, ideaId = null, format = null, modelRef = null, patternId = null } = {}) {
     const b = brands.get(brandId);
     const pool = poolId ? poolRow(b.id, poolId) : null;
-    const t = pool ? pool.text : text(topic, { field: 'Konu', max: 1000, required: true });
+    // Tek fikir havuzu: Reels senaryosu İçerik fikirlerindeki fikirden yazılır (fikir "kullanıldı" olur)
+    const idea = ideaId ? db.prepare('SELECT * FROM ideas WHERE id = ? AND brand_id = ?').get(String(ideaId), b.id) : null;
+    if (ideaId && !idea) throw notFound('Fikir bulunamadı.');
+    const t = idea ? idea.title + (idea.description ? ` — ${idea.description}` : '') : pool ? pool.text : text(topic, { field: 'Konu', max: 1000, required: true });
     if (format && !FORMATS[format]) throw badRequest('Geçersiz format.');
     const s = settings(b.id);
     const pattern = patterns ? patterns.promptBlock(b.id, patternId || null) : '';
@@ -143,6 +146,7 @@ export function createReelsService({ db, ai, brands, workspace, patterns = null 
     db.prepare('INSERT INTO reels (id, brand_id, pool_id, title, status, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(row.id, row.brand_id, row.pool_id, row.title, row.status, row.data, row.model, row.created_at, row.created_at);
     addVersion(row.id, data, 'İlk senaryo', row.model);
+    if (idea) markIdeaUsed(db, b.id, idea.id, 'reels');
     brands.logActivity(b.id, 'reels.created', `Reels senaryosu yazıldı: ${data.title}`);
     return Object.assign(detail(b.id, Object.assign(row, { updated_at: row.created_at })), { ai: aiMeta(r) });
   }

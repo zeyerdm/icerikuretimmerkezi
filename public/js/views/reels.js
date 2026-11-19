@@ -68,7 +68,7 @@ async function scenarioModal(brand, models, meta, { poolItem = null, patternId =
     </div>`,
     onSubmit: async (fd, form) => {
       const btn = form.querySelector('[type=submit]');
-      const res = await streamBusy(btn, st => api.createReels(brand.id, { topic: fd.get('topic'), poolId: poolItem ? poolItem.id : null, format: fd.get('format') || null, patternId: fd.get('patternId') || null, model: fd.get('model-pick-modal') || form.querySelector('#model-pick-modal').value || null }, st));
+      const res = await streamBusy(btn, st => api.createReels(brand.id, { topic: fd.get('topic'), poolId: poolItem && !poolItem.idea ? poolItem.id : null, ideaId: poolItem && poolItem.idea ? poolItem.id : null, format: fd.get('format') || null, patternId: fd.get('patternId') || null, model: fd.get('model-pick-modal') || form.querySelector('#model-pick-modal').value || null }, st));
       toast(aiNote(res.reels.ai), 'success', 6000);
       go(base(brand) + '/' + res.reels.id);
     }
@@ -79,98 +79,70 @@ async function scenarioModal(brand, models, meta, { poolItem = null, patternId =
 }
 
 // ------------------------------------------------------------ Fikir havuzu
+// Tek fikir havuzu: Reels fikirleri İçerik fikirlerinden gelir (türü "Reels" olanlar). Ayrı Reels havuzu yok.
 async function renderPool(view, brand, models, header, meta, aiReady) {
-  let pool = (await api.reelsPool(brand.id)).pool;
+  const load = async () => (await api.ideas(brand.id, '?format=reels&status=kullanilmamis')).ideas;
+  let ideas = await load();
   let filter = '';
-  let showDisliked = false;
   let picked = null;
-  const cats = meta.categories;
+  const cats = state.meta.ideaCategories;
+  const ideasHref = `#/m/${encodeURIComponent(brand.id)}/fikirler`;
 
   function draw() {
-    const visible = pool.filter(p => (!filter || p.category === filter) && (showDisliked || p.rating >= 0));
+    const visible = ideas.filter(p => !filter || p.category === filter);
     view.innerHTML = `${header}
+      <div class="notice notice-info mb-3"><div>Reels fikirleri tek fikir havuzundan gelir: <b>İçerik fikirleri</b>nde türü <b>Reels</b> olan, henüz kullanılmamış fikirler. Senaryosu yazılan fikir "kullanıldı" olur.</div><a class="btn btn-sm" href="${ideasHref}">İçerik fikirlerine git</a></div>
       <form class="card quick-row" id="pool-add">
-        <input class="input" name="text" placeholder="Yeni Reels fikri (tek cümle)" maxlength="300" aria-label="Fikir">
+        <input class="input" name="text" placeholder="Yeni Reels fikri (havuza Reels türüyle eklenir)" maxlength="200" aria-label="Fikir">
         <select class="select" name="category" aria-label="Kategori">${Object.entries(cats).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
         <button class="btn" type="submit">${icon('plus')}Ekle</button>
       </form>
       <div class="toolbar">
-        <div class="chips"><button class="chip ${!filter ? 'active' : ''}" data-cat="">Tümü (${pool.filter(p => p.rating >= 0).length})</button>${Object.entries(cats).map(([k, v]) => { const n = pool.filter(p => p.category === k && p.rating >= 0).length; return n ? `<button class="chip ${filter === k ? 'active' : ''}" data-cat="${k}">${esc(v)} (${n})</button>` : ''; }).join('')}</div>
-        <label class="check ml-auto"><input type="checkbox" id="show-disliked" ${showDisliked ? 'checked' : ''}> Beğenilmeyenleri göster</label>
+        <div class="chips"><button class="chip ${!filter ? 'active' : ''}" data-cat="">Tümü (${ideas.length})</button>${Object.entries(cats).map(([k, v]) => { const n = ideas.filter(p => p.category === k).length; return n ? `<button class="chip ${filter === k ? 'active' : ''}" data-cat="${k}">${esc(v)} (${n})</button>` : ''; }).join('')}</div>
+        <button class="btn btn-sm ml-auto" data-random ${visible.length ? '' : 'disabled'}>${icon('refresh')}Rastgele fikir seç</button>
       </div>
-      <section class="card mb-4">
-        <div class="row-between" style="flex-wrap:wrap">
-          <div class="row"><button class="btn" data-random ${visible.length ? '' : 'disabled'}>${icon('refresh')}Rastgele fikir seç</button>
-            ${aiReady ? `<button class="btn" data-expand>${icon('sparkle')}Havuzu genişlet (${filter ? '5 fikir, bu kategoride' : '5 fikir'})</button>` : ''}</div>
-          ${aiReady ? `<div class="row"><span class="small muted">Model:</span>${modelSelect(models, 'fikir', { id: 'pool-model' })}</div>` : ''}
-        </div>
-        ${picked ? `<div class="notice notice-info mt-3"><div><strong>Seçilen fikir:</strong> ${esc(picked.text)}</div>${aiReady ? `<button class="btn btn-sm btn-primary" data-write="${esc(picked.id)}">Senaryo yaz</button>` : ''}</div>` : ''}
-      </section>
+      ${picked ? `<div class="notice notice-info mb-3"><div><strong>Seçilen fikir:</strong> ${esc(picked.title)}</div>${aiReady ? `<button class="btn btn-sm btn-primary" data-write="${esc(picked.id)}">Senaryo yaz</button>` : ''}</div>` : ''}
       ${visible.length ? `<section class="card"><ul class="pool-list">${visible.map(p => `
-        <li class="pool-item ${p.rating < 0 ? 'is-disliked' : ''} ${picked && picked.id === p.id ? 'is-picked' : ''}" data-id="${esc(p.id)}">
-          <div class="grow"><div class="strong">${esc(p.text)}</div><div class="row mt-1"><span class="tag">${esc(p.categoryLabel)}</span>${p.source === 'ai' ? '<span class="xsmall muted">AI</span>' : ''}${p.scenarioId ? '<span class="xsmall muted">· senaryosu var</span>' : ''}</div></div>
+        <li class="pool-item ${picked && picked.id === p.id ? 'is-picked' : ''}" data-id="${esc(p.id)}">
+          <div class="grow"><div class="strong">${esc(p.title)}</div>${p.description ? `<div class="small muted">${esc(p.description)}</div>` : ''}<div class="row mt-1"><span class="tag">${esc(p.categoryLabel)}</span>${p.favorite ? '<span class="xsmall muted">★ favori</span>' : ''}</div></div>
           <div class="row pool-actions">
-            <button class="btn btn-sm btn-ghost icon-btn ${p.rating > 0 ? 'is-on' : ''}" data-rate="1" aria-pressed="${p.rating > 0}" aria-label="Beğen" title="Beğen: benzerleri örnek alınır">👍</button>
-            <button class="btn btn-sm btn-ghost icon-btn ${p.rating < 0 ? 'is-on' : ''}" data-rate="-1" aria-pressed="${p.rating < 0}" aria-label="Beğenme" title="Beğenme: bu tarzda fikir önerilmez">👎</button>
-            ${aiReady ? `<button class="btn btn-sm" data-similar>Benzer üret</button>` : ''}
-            ${p.scenarioId ? `<a class="btn btn-sm" href="${base(brand)}/${esc(p.scenarioId)}">Senaryoyu aç</a>` : (aiReady ? `<button class="btn btn-sm btn-primary" data-write="${esc(p.id)}">Senaryo yaz</button>` : '')}
-            <button class="btn btn-sm btn-ghost icon-btn" data-del aria-label="Sil">${icon('trash')}</button>
+            ${aiReady ? `<button class="btn btn-sm" data-similar>Benzer üret</button><button class="btn btn-sm btn-primary" data-write="${esc(p.id)}">Senaryo yaz</button>` : ''}
+            <button class="btn btn-sm btn-ghost icon-btn" data-del aria-label="Havuzdan sil">${icon('trash')}</button>
           </div></li>`).join('')}</ul></section>`
-        : emptyState({ icon: 'film', title: pool.length ? 'Bu filtrede fikir yok' : 'Reels fikir havuzu boş', text: pool.length ? 'Başka bir kategori seç.' : 'Yukarıdan fikir ekle ya da AI ile havuzu genişlet. Beğendiğin fikirler sonraki önerilere örnek olur.', card: true })}`;
-
+        : emptyState({ icon: 'film', title: ideas.length ? 'Bu filtrede fikir yok' : 'Havuzda kullanılmamış Reels fikri yok', text: ideas.length ? 'Başka bir kategori seç.' : 'Yukarıdan ekle ya da İçerik fikirlerinde türü "Reels" seçerek fikir üret.', action: `<a class="btn" href="${ideasHref}">İçerik fikirlerine git</a>`, card: true })}`;
     view.querySelector('#pool-add').addEventListener('submit', async e => {
       e.preventDefault();
       const fd = new FormData(e.target);
       if (!String(fd.get('text')).trim()) return e.target.text.focus();
-      try { const { item } = await busy(e.submitter, () => api.addReelsPool(brand.id, { text: fd.get('text'), category: fd.get('category') })); pool.unshift(item); toast('Fikir eklendi.', 'success'); draw(); }
+      try { const { idea } = await busy(e.submitter, () => api.createIdea(brand.id, { title: fd.get('text'), category: fd.get('category'), format: 'reels' })); ideas.unshift(idea); toast('Fikir havuza Reels türüyle eklendi.', 'success'); draw(); }
       catch (err) { toast(err.message, 'error'); }
     });
-    view.querySelector('#show-disliked').addEventListener('change', e => { showDisliked = e.target.checked; draw(); });
   }
 
   view.onclick = async e => {
-    const tab = e.target.closest('[data-href]');
-    if (tab) return go(tab.dataset.href);
     if (e.target.closest('[data-settings]')) return settingsModal(brand, meta);
     if (e.target.closest('[data-new]')) return scenarioModal(brand, models, meta);
     const cat = e.target.closest('[data-cat]');
     if (cat) { filter = cat.dataset.cat; picked = null; return draw(); }
     if (e.target.closest('[data-random]')) {
-      const list = pool.filter(p => (!filter || p.category === filter) && p.rating >= 0 && (!picked || p.id !== picked.id));
+      const list = ideas.filter(p => (!filter || p.category === filter) && (!picked || p.id !== picked.id));
       picked = list[Math.floor(Math.random() * list.length)] || picked;
       return draw();
     }
-    const model = () => (view.querySelector('#pool-model') || {}).value || null;
-    const exp = e.target.closest('[data-expand]');
-    if (exp) {
-      try {
-        const r = await busyTimer(exp, () => api.expandReelsPool(brand.id, { category: filter || null, model: model() }), 'Üretiyor');
-        pool = r.added.concat(pool); toast(`${r.added.length} yeni fikir eklendi · ${aiNote(r.ai)}`, 'success', 5000); draw();
-      } catch (err) { toast(err.message, 'error'); }
-      return;
-    }
     const write = e.target.closest('[data-write]');
-    if (write) return scenarioModal(brand, models, meta, { poolItem: pool.find(p => p.id === write.dataset.write) });
+    if (write) { const it = ideas.find(p => p.id === write.dataset.write); return scenarioModal(brand, models, meta, { poolItem: it && { id: it.id, text: it.title, idea: true } }); }
     const li = e.target.closest('[data-id]');
     if (!li) return;
-    const item = pool.find(p => p.id === li.dataset.id);
-    const rate = e.target.closest('[data-rate]');
-    if (rate) {
-      const v = Number(rate.dataset.rate);
-      try { const { item: up } = await api.updateReelsPool(brand.id, item.id, { rating: item.rating === v ? 0 : v }); Object.assign(item, up); draw(); } catch (err) { toast(err.message, 'error'); }
-      return;
-    }
+    const item = ideas.find(p => p.id === li.dataset.id);
     const sim = e.target.closest('[data-similar]');
     if (sim) {
-      try {
-        const r = await busyTimer(sim, () => api.expandReelsPool(brand.id, { similarTo: item.id, model: model() }), 'Üretiyor');
-        pool = r.added.concat(pool); toast(`${r.added.length} benzer fikir eklendi.`, 'success'); draw();
-      } catch (err) { toast(err.message, 'error'); }
+      try { const r = await busyTimer(sim, () => api.similarIdeas(brand.id, item.id, { count: 3 }), 'Üretiyor'); ideas = await load(); toast(`${(r.added || r.ideas || []).length || 'Yeni'} benzer fikir havuza eklendi.`, 'success'); draw(); }
+      catch (err) { toast(err.message, 'error'); }
       return;
     }
     if (e.target.closest('[data-del]')) {
-      if (!confirm('Bu fikir silinsin mi?')) return;
-      try { await api.deleteReelsPool(brand.id, item.id); pool = pool.filter(p => p.id !== item.id); if (picked && picked.id === item.id) picked = null; draw(); } catch (err) { toast(err.message, 'error'); }
+      if (!confirm('Bu fikir havuzdan silinsin mi? (Çöp kutusundan geri alınabilir)')) return;
+      try { await api.deleteIdea(brand.id, item.id); ideas = ideas.filter(p => p.id !== item.id); if (picked && picked.id === item.id) picked = null; draw(); } catch (err) { toast(err.message, 'error'); }
     }
   };
   draw();

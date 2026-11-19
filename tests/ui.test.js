@@ -564,7 +564,7 @@ function stage3Provider() {
   }]);
 }
 
-test('Reels: havuza fikir ekle, genişlet, senaryo yaz, tek sahneyi yeniden yaz, Türkçeyi düzeltip çevir, sürüme dön, telepromter, takvim', { skip }, async () => {
+test('Reels: tek havuza fikir ekle, senaryo yaz, tek sahneyi yeniden yaz, Türkçeyi düzeltip çevir, sürüme dön, telepromter, takvim', { skip }, async () => {
   const srv = await startServer({ aiProvider: stage3Provider() });
   const { browser, page, problems } = await open(srv);
   try {
@@ -581,11 +581,9 @@ test('Reels: havuza fikir ekle, genişlet, senaryo yaz, tek sahneyi yeniden yaz,
     await page.getByLabel('Fikir', { exact: true }).fill('Vize haftası kahve kuyruğu');
     await page.locator('#pool-add').getByRole('button', { name: 'Ekle' }).click();
     await page.locator('.pool-item').filter({ hasText: 'Vize haftası kahve kuyruğu' }).waitFor();
-    await page.getByRole('button', { name: /Havuzu genişlet/ }).click();
-    await page.getByText('AI fikri: kütüphane kahvesi').waitFor();
-    await page.locator('.pool-item').filter({ hasText: 'AI fikri' }).getByRole('button', { name: 'Beğenme' }).click();
-    await page.waitForTimeout(200);
-    assert.equal(await page.locator('.pool-item').filter({ hasText: 'AI fikri' }).count(), 0, 'beğenilmeyen gizlenmedi');
+    // Tek fikir havuzu: eklenen fikir İçerik fikirlerinde Reels türüyle durur
+    const pooled = (await srv.request('GET', `/api/brands/${brand.id}/ideas?format=reels`)).data.ideas;
+    assert.ok(pooled.some(i => i.title === 'Vize haftası kahve kuyruğu'), 'fikir ana havuzda');
 
     await page.locator('.pool-item').filter({ hasText: 'Vize haftası kahve kuyruğu' }).getByRole('button', { name: 'Senaryo yaz' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Senaryoyu yaz' }).click();

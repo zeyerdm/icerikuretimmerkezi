@@ -20,7 +20,7 @@ test('8.16 taslak ve takvime yazma: kaynaklar, özel gün, dolu gün, hedef notu
     await s.request('PATCH', `/api/brands/${b.id}`, { monthlyGoal: 12 });
     const idea = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Vize kahvesi kampanyası', category: 'guncel', description: 'Sınav haftasında indirim' })).data.idea;
     await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Barista tanıtımı', category: 'egitici' });
-    await s.request('POST', `/api/brands/${b.id}/reels/pool`, { text: 'Kahve kuyruğunda yaşanan komik an', category: 'guncel' });
+    await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Kahve kuyruğunda yaşanan komik an', category: 'guncel', format: 'reels' });
     // 23 Kasım 2026 Pazartesi; 24 Kasım Öğretmenler Günü. Salı günü zaten bir içerik var (İstanbul saatiyle 10:00)
     await s.request('POST', '/api/contents', { brandId: b.id, title: 'Var olan', type: 'post', scheduledAt: '2026-11-25T07:00:00.000Z' });
     assert.equal((await s.request('POST', `${url}/draft`, { weekStart: 'yok', count: 3 })).status, 400);

@@ -665,6 +665,14 @@ const MIGRATIONS = [
   `
   ALTER TABLE posts ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE brands ADD COLUMN text_pools TEXT NOT NULL DEFAULT '{}';
+  `,
+  // 45: Tek fikir havuzu: Reels fikir havuzundaki (beğenilmeyenler hariç) fikirler İçerik fikirlerine "Reels" türüyle taşınır
+  `
+  INSERT INTO ideas (id, brand_id, title, description, category, favorite, source, created_at, format)
+    SELECT lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6))),
+      p.brand_id, p.text, '', p.category, CASE WHEN p.rating > 0 THEN 1 ELSE 0 END, p.source, p.created_at, 'reels'
+    FROM reels_pool p
+    WHERE p.rating >= 0 AND NOT EXISTS (SELECT 1 FROM ideas i WHERE i.brand_id = p.brand_id AND lower(i.title) = lower(p.text));
   `
 ];
 

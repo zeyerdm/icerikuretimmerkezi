@@ -274,6 +274,13 @@ test('T.11 hatırlatmalar: özet sayıları ve zil rozeti, şerit günde bir kez
     // Özet penceresi
     await page.locator('#bell').click();
     await page.locator('.modal', { hasText: 'Bugünkü post' }).waitFor();
+    // Özet görüldü: rozet kalkar, sayfa yenilense de aynı işler için geri gelmez
+    assert.equal(await page.locator('.bell-badge').count(), 0);
+    await page.keyboard.press('Escape');
+    await page.reload();
+    await page.locator('#bell').waitFor();
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('.bell-badge').count(), 0, 'görülen işler için rozet geri gelmez');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
