@@ -31,6 +31,18 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 | 21 | A7 | Analiz raporları: hazır görsel şablonları, elle prompt / tarifler, Reels ve Prompt Studio ayrımı, video ve altyazı yetenekleri | ✅ |
 | 22 | Z | Toplu test, PR, rapor | ✅ |
 
+## Yapılacaklar (20 Kasım'dan itibaren, onaylandı)
+
+| Sıra | Konu | Ayrıntı | Durum |
+|---|---|---|---|
+| 1 | Reels açıklaması ve hashtag | Açıklama postlardaki gibi 1200-1800 karakter (ilk satır, değer katan paragraflar, yorum sorusu); tam 5 alakalı hashtag, sayısı kodla denetlenir | ⏳ |
+| 2 | Hız: düşünme süresi | Gemini / OpenRouter düşünen modellerde düşünme kapalı ya da az; iş başına Hızlı / Dengeli / Derin (varsayılan Hızlı, senaryo planı Dengeli); hızlı modda kalite tekrarı yerine uyarı | ⏳ |
+| 3 | Beğenilen Reels'ten öğrenme | "Marka örneği" Reels prompt'ları ve beğenilen / beğenilmeyen fikirler senaryo planına referans olarak girer | ⏳ |
+| 4 | Aylık rapordan Reels'e | En çok izlenen Reels'lerin tarzı senaryo planına "bu tarz tutuyor" olarak eklenir | ⏳ |
+| 5 | Toplu Reels üretimi | Havuzdan 3-5 Reels fikri seçilir, planları arka planda yazılır, bitince bildirim | ⏳ |
+
+Sonra konuşulacak: Reels serileri. Ertelenenler: koyu tema, TR/EN, 10.10 maddeleri.
+
 ## Bekleyen kararlar (en sonda tekrar sorulacak)
 
 - Lisans: son talimatta uygulama "ticari ve kapalı kaynak" olarak tanımlandı (önceden "ticari değiliz" denmişti). Buna göre AGPL (HyCanvas) ve görünür atıf şartlı (Doory) kod alınmaz; MIT kaynaklarda bildirim dosyası korunur.
