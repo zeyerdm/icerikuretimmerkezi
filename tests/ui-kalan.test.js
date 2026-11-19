@@ -194,6 +194,7 @@ test('T.30 kalan: AI düğmesinde geçen süre ("Yazıyor… N sn") ve uzun işl
   const { browser, page, problems } = await open(srv);
   try {
     await page.goto(`${srv.base}/#/m/${b.id}/prompt`);
+    await page.locator('[data-kind="gorsel"]').click(); // varsayılan Reels sahnelidir; burada tek prompt
     await page.locator('#ps-brief').fill('Uzun iş');
     const btn = page.locator('[data-create]');
     await btn.click();

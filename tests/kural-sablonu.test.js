@@ -90,6 +90,41 @@ test('Kural şablonları: kayıt, varsayılan, üretimde birebir kullanım, yeni
   } finally { await s.stop(); }
 });
 
+test('Reels ana kalıbı: kendi şablonun yoksa hazır Google Flow sahne şablonu ve Reels senaryo kuralları; kendi varsayılanın varsa o; hazır şablon değiştirilemez', async () => {
+  const { RULE_EXAMPLES } = await import('../public/js/ruleExamples.js');
+  const flow = RULE_EXAMPLES[0].body;
+  const scene = n => flow.replace(/\[[^\]\n]+\]/g, String(n));
+  const provider = fakeProvider([{ title: 'Kod Reels', scenes: [1, 2, 3, 4, 5, 6, 7].map(n => ({ title: 'S' + n, prompt: scene(n) })) }]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Flow' })).data.brand;
+    const p = (await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'reels', brief: 'Bilgisayarlar nasıl küçüldü?', scenes: 8 })).data.prompt;
+    const ask = provider.calls[0].prompt;
+    assert.ok(ask.includes(flow), 'hazır Flow şablonu birebir istemde');
+    assert.match(ask, /REELS SENARYO KURALLARI/);
+    assert.match(ask, /en çok 8 saniye/);
+    assert.match(ask, /6 sahnenin HER BİRİ/, 'Reels en çok 6 sahne');
+    assert.equal(p.scenes.length, 6);
+    assert.deepEqual(p.rule, { id: 'hazir-flow', name: 'Google Flow sahnesi (hazır)' });
+    assert.equal(p.quality.rule, true);
+    // Video türünde açıkça seçilebilir; görselde seçilemez
+    await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'video', brief: 'x', ruleId: 'hazir-flow' });
+    assert.ok(provider.calls.at(-1).prompt.includes(flow));
+    assert.equal((await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'gorsel', brief: 'x', ruleId: 'hazir-flow' })).status, 400);
+    // Kendi Reels şablonun varsayılan olunca o kullanılır (sabit kalınır)
+    const url = `/api/brands/${b.id}/prompt-rules`;
+    const mine = (await s.request('POST', url, { kind: 'reels', name: 'Benim Reels', body: BODY })).data.rule;
+    assert.equal(mine.isDefault, true);
+    const n0 = provider.calls.length;
+    await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'reels', brief: 'Kahve' });
+    assert.ok(provider.calls[n0].prompt.includes(BODY) && !provider.calls[n0].prompt.includes(flow));
+    assert.match(provider.calls[n0].prompt, /REELS SENARYO KURALLARI/);
+    // Hazır şablon düzenlenemez/silinemez
+    assert.equal((await s.request('PUT', `${url}/hazir-flow`, { name: 'x' })).status, 400);
+    assert.equal((await s.request('DELETE', `${url}/hazir-flow`)).status, 404);
+  } finally { await s.stop(); }
+});
+
 let chromium = null;
 try { chromium = createRequire(import.meta.url)('playwright').chromium; } catch { chromium = null; }
 
@@ -112,8 +147,9 @@ test('Arayüz: hazır örnekle kural şablonu kaydedilir, üretimde seçili geli
     await page.locator('#rl-list', { hasText: 'Dikey video sahnesi' }).waitFor();
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('.modal-backdrop'));
-    await page.locator('[data-kind="video"]').click();
+    await page.locator('[data-kind="reels"]').click(); // örnek şablon Reels türünde kaydedilir
     await page.waitForFunction(() => !document.querySelector('#ps-rule').hidden);
+    await page.selectOption('#ps-scenes', '0');
     assert.match(await page.locator('#ps-rule option:checked').textContent(), /Dikey video sahnesi/);
     await page.locator('#ps-brief').fill('Maskot kahve içiyor');
     await page.locator('[data-create]').click();
