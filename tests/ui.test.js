@@ -571,7 +571,7 @@ test('Reels: tek havuza fikir ekle, senaryo yaz, tek sahneyi yeniden yaz, Türk�
     const brand = (await srv.request('POST', '/api/brands', { name: 'Kahve Evi' })).data.brand;
     await page.goto(srv.base + `/#/m/${brand.id}/reels`);
     await page.getByRole('heading', { name: 'Reels ve video', exact: true }).waitFor();
-    assert.ok(await page.getByRole('link', { name: 'Reels ve video', exact: true }).isVisible(), 'menüde Reels yok');
+    assert.equal(await page.locator('.sidebar a', { hasText: 'Reels ve video' }).count(), 0, 'Reels şimdilik menüde yok (adresle açılır)');
 
     await page.getByRole('button', { name: 'Reels ayarları' }).click();
     await page.getByLabel('Konuşan karakterin adı *').fill('Kahveci');

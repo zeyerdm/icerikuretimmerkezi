@@ -13,6 +13,10 @@ function rgbToHsl(r, g, b) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r
 function hslToRgb(h, s, l) { s /= 100; l /= 100; const c = (1 - Math.abs(2 * l - 1)) * s; const x = c * (1 - Math.abs(((h / 60) % 2) - 1)); const m = l - c / 2; const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]; return [(r + m) * 255, (g + m) * 255, (b + m) * 255]; }
 const HEXRE = /^#[0-9a-f]{6}$/i;
 
+// Varsayılan tek renkler (Canva'daki gibi): siyahtan beyaza griler ve canlı tonlar
+const DEFAULTS = ['#000000', '#545454', '#737373', '#a6a6a6', '#d9d9d9', '#ffffff', '#ff3131', '#ff5757', '#ff66c4', '#cb6ce6', '#8c52ff', '#5e17eb', '#0097b2', '#0cc0df', '#5ce1e6', '#38b6ff', '#5271ff', '#004aad', '#00bf63', '#7ed957', '#c1ff72', '#ffde59', '#ffbd59', '#ff914d'];
+// Türkçe renk adıyla arama
+const NAMED = { siyah: ['#000000', '#1b1f3b'], beyaz: ['#ffffff', '#f8f8f8'], gri: ['#737373', '#a6a6a6', '#d9d9d9'], kırmızı: ['#ff3131', '#c62828', '#e53935'], pembe: ['#ff66c4', '#f48fb1', '#ec407a'], mor: ['#8c52ff', '#5e17eb', '#9c27b0'], lila: ['#cb6ce6', '#ce93d8'], mavi: ['#38b6ff', '#5271ff', '#004aad', '#1e88e5'], lacivert: ['#0b132b', '#1a237e', '#004aad'], turkuaz: ['#0cc0df', '#5ce1e6', '#00bcd4'], yeşil: ['#00bf63', '#7ed957', '#2e7d32'], sarı: ['#ffde59', '#fdd835', '#ffeb3b'], turuncu: ['#ff914d', '#ff6a13', '#fb8c00'], kahverengi: ['#795548', '#8d6e63', '#5d4037'], bej: ['#f5f0e6', '#e8dcc8'], krem: ['#fff8e7', '#f3e9d2'], altın: ['#d4af37', '#c9a227'], gümüş: ['#c0c0c0', '#b0b7bf'], bordo: ['#800020', '#7b1e3a'], haki: ['#8b8b5c', '#6b8e23'], mint: ['#98ff98', '#3eb489'], somon: ['#fa8072', '#ff8a65'] };
 const RECENT = 'ium.recentColors';
 const recent = () => { try { return JSON.parse(localStorage.getItem(RECENT) || '[]').filter(c => HEXRE.test(c)); } catch { return []; } };
 const pushRecent = c => { try { localStorage.setItem(RECENT, JSON.stringify([c, ...recent().filter(x => x !== c)].slice(0, 14))); } catch { /* gizli pencere */ } };
@@ -21,7 +25,7 @@ let palCache = null;
 export const gradCss = g => (g.type === 'radial' ? `radial-gradient(circle, ${g.stops.map(s => `${s.c} ${s.p}%`).join(', ')})` : `linear-gradient(${(g.angle || 0) + 90}deg, ${g.stops.map(s => `${s.c} ${s.p}%`).join(', ')})`);
 
 // anchor: açan düğme. onChange(hex) düz renkte, onGradient(g|null) gradyanda çağrılır
-export function openColorPicker(anchor, { value = '#000000', gradient = null, allowGradient = false, brandColors = [], title = 'Renk', onChange = () => {}, onGradient = () => {} }) {
+export function openColorPicker(anchor, { value = '#000000', gradient = null, allowGradient = false, brandColors = [], designColors = [], brandHref = '', title = 'Renk', onChange = () => {}, onGradient = () => {} }) {
   document.querySelectorAll('.cp-pop').forEach(p => p._close && p._close());
   let hsv = rgbToHsv(...hexToRgb(HEXRE.test(value) ? value : '#000000'));
   let mode = gradient && allowGradient ? 'grad' : 'solid';
@@ -38,27 +42,44 @@ export function openColorPicker(anchor, { value = '#000000', gradient = null, al
     if (y + pr.height > innerHeight - 8) y = Math.max(8, r.top - pr.height - 6);
     pop.style.left = `${Math.max(8, x)}px`; pop.style.top = `${y}px`;
   }
+  // Canva benzeri düzen: önce hazır renk listeleri; "+" ile gelişmiş seçici (alan, ton, HEX/RGB/HSL) açılır
+  let adv = false; let query = '';
+  const chip = (c, h) => `<button type="button" class="cp-chip${c.toLowerCase() === h ? ' on' : ''}" style="background:${c}" data-cp-pick="${c}" aria-label="${c}" title="${c}"></button>`;
+  const sec = (label, list, h, extra = '') => (list.length ? `<div class="cp-sec"><div class="cp-sec-h"><span>${label}</span>${extra}</div><div class="cp-sw">${list.map(c => chip(c, h)).join('')}</div></div>` : '');
   function render() {
     const h = hex(); const [r, g, b] = hexToRgb(h); const [hh, ss, ll] = rgbToHsl(r, g, b);
-    pop.innerHTML = `<div class="cp-head"><b>${esc(title)}</b>${allowGradient ? `<div class="seg seg-sm"><button type="button" class="${mode === 'solid' ? 'active' : ''}" data-cp-mode="solid">Düz renk</button><button type="button" class="${mode === 'grad' ? 'active' : ''}" data-cp-mode="grad">Gradyan</button></div>` : ''}<button type="button" class="btn btn-ghost icon-btn btn-sm" data-cp-close aria-label="Kapat">${icon('x')}</button></div>
-      ${mode === 'grad' ? `<div class="cp-grad-prev" style="background:${gradCss(grad)}"></div>
-        <div class="row mt-2"><div class="seg seg-sm"><button type="button" class="${grad.type === 'linear' ? 'active' : ''}" data-cp-gtype="linear">Doğrusal</button><button type="button" class="${grad.type === 'radial' ? 'active' : ''}" data-cp-gtype="radial">Dairesel</button></div>
-        ${grad.type === 'linear' ? `<label class="small grow">Açı: <span data-cp-angle-v>${grad.angle}°</span><input type="range" min="0" max="359" value="${grad.angle}" data-cp-angle aria-label="Gradyan açısı"></label>` : ''}</div>
-        <div class="cp-stops">${grad.stops.map((s, i) => `<div class="cp-stop ${i === stopIdx ? 'on' : ''}"><button type="button" class="cp-chip" style="background:${s.c}" data-cp-stop="${i}" aria-label="Durak ${i + 1}: ${s.c}"></button><input type="range" min="0" max="100" value="${s.p}" data-cp-stop-p="${i}" aria-label="Durak ${i + 1} konumu"><span class="xsmall">${s.p}%</span>${grad.stops.length > 2 ? `<button type="button" class="btn btn-ghost icon-btn btn-sm" data-cp-stop-del="${i}" aria-label="Durağı sil">${icon('x')}</button>` : ''}</div>`).join('')}
-          ${grad.stops.length < 5 ? `<button type="button" class="btn btn-sm btn-ghost" data-cp-stop-add>${icon('plus')}Durak ekle</button>` : ''}</div>
-        <p class="xsmall muted">Seçili durağın rengi aşağıdan değişir.</p>` : ''}
-      <div class="cp-sv" style="background:hsl(${Math.round(hsv[0])},100%,50%)"><div class="cp-sv-w"></div><div class="cp-sv-b"></div><span class="cp-dot" style="left:${hsv[1] * 100}%;top:${(1 - hsv[2]) * 100}%"></span></div>
+    const q = query.trim().toLocaleLowerCase('tr');
+    const qHex = (q.startsWith('#') ? q : '#' + q);
+    const found = q ? [...(HEXRE.test(qHex) ? [qHex] : []), ...Object.entries(NAMED).filter(([n]) => n.includes(q)).flatMap(([, cs]) => cs)] : [];
+    const advHtml = `<div class="cp-sv" style="background:hsl(${Math.round(hsv[0])},100%,50%)"><div class="cp-sv-w"></div><div class="cp-sv-b"></div><span class="cp-dot" style="left:${hsv[1] * 100}%;top:${(1 - hsv[2]) * 100}%"></span></div>
       <input type="range" class="cp-hue" min="0" max="359" value="${Math.round(hsv[0])}" data-cp-hue aria-label="Ton">
-      <div class="cp-now"><span class="cp-big" style="background:${h}" title="Seçili renk"></span><div><div class="xsmall muted">Seçili renk</div><b>${h.toUpperCase()}</b></div>${'EyeDropper' in window ? `<button type="button" class="btn btn-sm btn-ghost" data-cp-eye title="Ekrandan renk al">${icon('eye')}Damlalık</button>` : ''}</div>
       <div class="cp-inputs">
         <label>HEX<input class="input input-sm" data-cp-hex value="${h}" maxlength="7"></label>
         <label>R<input class="input input-sm" type="number" min="0" max="255" data-cp-rgb="0" value="${r}"></label><label>G<input class="input input-sm" type="number" min="0" max="255" data-cp-rgb="1" value="${g}"></label><label>B<input class="input input-sm" type="number" min="0" max="255" data-cp-rgb="2" value="${b}"></label>
         <label>H<input class="input input-sm" type="number" min="0" max="359" data-cp-hsl="0" value="${hh}"></label><label>S<input class="input input-sm" type="number" min="0" max="100" data-cp-hsl="1" value="${ss}"></label><label>L<input class="input input-sm" type="number" min="0" max="100" data-cp-hsl="2" value="${ll}"></label>
-      </div>
-      ${brandColors.length ? `<div class="cp-sec"><span class="xsmall muted">Marka renkleri</span><div class="cp-sw">${brandColors.map(c => `<button type="button" class="cp-chip${c.toLowerCase() === h ? ' on' : ''}" style="background:${c}" data-cp-pick="${c}" aria-label="${c}" title="${c}"></button>`).join('')}</div></div>` : ''}
-      ${recent().length ? `<div class="cp-sec"><span class="xsmall muted">Son kullanılanlar</span><div class="cp-sw">${recent().map(c => `<button type="button" class="cp-chip${c === h ? ' on' : ''}" style="background:${c}" data-cp-pick="${c}" aria-label="${c}" title="${c}"></button>`).join('')}</div></div>` : ''}
+      </div>`;
+    pop.innerHTML = `<div class="cp-head"><b>${esc(title)}</b><button type="button" class="btn btn-sm btn-ghost icon-btn" data-cp-close aria-label="Kapat">${icon('x')}</button></div>
+      ${allowGradient ? `<div class="seg seg-sm mb-2"><button type="button" class="${mode === 'solid' ? 'active' : ''}" data-cp-mode="solid">Düz renk</button><button type="button" class="${mode === 'grad' ? 'active' : ''}" data-cp-mode="grad">Gradyan</button></div>` : ''}
+      ${mode === 'grad' ? `<div class="cp-grad-prev" style="background:${gradCss(grad)}"></div>
+        <div class="row mt-2"><div class="seg seg-sm"><button type="button" class="${grad.type === 'linear' ? 'active' : ''}" data-cp-gtype="linear">Doğrusal</button><button type="button" class="${grad.type === 'radial' ? 'active' : ''}" data-cp-gtype="radial">Dairesel</button></div>
+        ${grad.type === 'linear' ? `<label class="small grow">Açı: <span data-cp-angle-v>${grad.angle}°</span><input type="range" min="0" max="359" value="${grad.angle}" data-cp-angle aria-label="Gradyan açısı"></label>` : ''}</div>
+        <div class="cp-stops">${grad.stops.map((s2, i) => `<div class="cp-stop ${i === stopIdx ? 'on' : ''}"><button type="button" class="cp-chip" style="background:${s2.c}" data-cp-stop="${i}" aria-label="Durak ${i + 1}: ${s2.c}"></button><input type="range" min="0" max="100" value="${s2.p}" data-cp-stop-p="${i}" aria-label="Durak ${i + 1} konumu"><span class="xsmall">${s2.p}%</span>${grad.stops.length > 2 ? `<button type="button" class="btn btn-ghost icon-btn btn-sm" data-cp-stop-del="${i}" aria-label="Durağı sil">${icon('x')}</button>` : ''}</div>`).join('')}
+          ${grad.stops.length < 5 ? `<button type="button" class="btn btn-sm btn-ghost" data-cp-stop-add>${icon('plus')}Durak ekle</button>` : ''}</div>
+        <p class="xsmall muted">Seçili durağın rengi aşağıdan değişir.</p>` : ''}
+      <div class="cp-search"><input class="input input-sm" data-cp-q value="${esc(query)}" placeholder="“mavi” ya da “#00c4cc” yaz" aria-label="Renk ara"></div>
+      ${q ? `<div class="cp-sec"><div class="cp-sec-h"><span>Sonuçlar</span></div>${found.length ? `<div class="cp-sw">${found.map(c => chip(c, h)).join('')}</div>` : '<span class="xsmall muted">Eşleşen renk yok.</span>'}</div>` : ''}
+      <div class="cp-sec"><div class="cp-sec-h"><span>${mode === 'grad' ? 'Durak rengi' : 'Yeni renk'}</span></div><div class="cp-sw">
+        <button type="button" class="cp-chip cp-add ${adv ? 'on' : ''}" data-cp-adv aria-label="Gelişmiş renk seçici" title="Gelişmiş seçici (HEX, RGB, HSL)">+</button>
+        ${'EyeDropper' in window ? `<button type="button" class="cp-chip cp-eye" data-cp-eye aria-label="Ekrandan renk al" title="Damlalık">${icon('eye')}</button>` : ''}
+        <span class="cp-chip cp-cur" style="background:${h}" title="Seçili renk ${h}"></span><b class="xsmall">${h.toUpperCase()}</b></div></div>
+      ${adv || mode === 'grad' ? advHtml : ''}
+      ${sec('Bu tasarımdaki renkler', [...new Set(designColors.filter(c => HEXRE.test(c)).map(c => c.toLowerCase()))].slice(0, 16), h)}
+      ${sec('Marka kiti', brandColors, h, brandHref ? `<a class="link xsmall" href="${esc(brandHref)}" data-cp-close>Düzenle</a>` : '')}
+      ${sec('Son kullanılanlar', recent(), h)}
+      ${sec('Varsayılan tek renkler', DEFAULTS, h)}
       <div class="cp-sec" data-cp-pals>${palCache ? palHtml(h) : '<span class="xsmall muted">Paletler yükleniyor…</span>'}</div>`;
     place();
+    const qi = pop.querySelector('[data-cp-q]'); if (qi && query) { qi.focus(); qi.setSelectionRange(query.length, query.length); }
   }
   const palHtml = h => (palCache.length ? `<span class="xsmall muted">Kayıtlı paletler</span>${palCache.map(p => `<div class="cp-pal"><span class="xsmall">${esc(p.name)}</span><div class="cp-sw">${p.colors.map(c => `<button type="button" class="cp-chip${c.toLowerCase() === h ? ' on' : ''}" style="background:${c}" data-cp-pick="${c}" aria-label="${c}" title="${c}"></button>`).join('')}</div></div>`).join('')}` : '');
   if (!palCache) api.promptPresets().then(p => { palCache = (p.palette || []).filter(x => Array.isArray(x.colors) && x.colors.length).map(x => ({ name: x.name, colors: x.colors })); const box = pop.querySelector('[data-cp-pals]'); if (box) box.innerHTML = palHtml(hex()); }).catch(() => { palCache = []; });
@@ -80,7 +101,8 @@ export function openColorPicker(anchor, { value = '#000000', gradient = null, al
   pop.addEventListener('pointerup', () => { if (svDrag) { svDrag = false; pushRecent(hex()); } });
   pop.addEventListener('input', e => {
     const t = e.target;
-    if (t.matches('[data-cp-hue]')) { hsv = [Number(t.value), hsv[1], hsv[2]]; emit(); pop.querySelector('.cp-sv').style.background = `hsl(${t.value},100%,50%)`; pop.querySelector('.cp-big').style.background = hex(); return; }
+    if (t.matches('[data-cp-q]')) { query = t.value; const v = query.trim(); const hx = v.startsWith('#') ? v : '#' + v; if (HEXRE.test(hx)) { hsv = rgbToHsv(...hexToRgb(hx.toLowerCase())); emit(true); } return render(); }
+    if (t.matches('[data-cp-hue]')) { hsv = [Number(t.value), hsv[1], hsv[2]]; emit(); pop.querySelector('.cp-sv').style.background = `hsl(${t.value},100%,50%)`; { const cur = pop.querySelector('.cp-cur'); if (cur) cur.style.background = hex(); } return; }
     if (t.matches('[data-cp-hex]')) { const v = t.value.startsWith('#') ? t.value : '#' + t.value; if (HEXRE.test(v)) setHex(v.toLowerCase(), false); return; }
     if (t.matches('[data-cp-rgb]')) { const v = [0, 1, 2].map(i => Number(pop.querySelector(`[data-cp-rgb="${i}"]`).value) || 0); hsv = rgbToHsv(...v); emit(true); return; }
     if (t.matches('[data-cp-hsl]')) { const v = [0, 1, 2].map(i => Number(pop.querySelector(`[data-cp-hsl="${i}"]`).value) || 0); hsv = rgbToHsv(...hslToRgb(...v)); emit(true); return; }
@@ -91,6 +113,7 @@ export function openColorPicker(anchor, { value = '#000000', gradient = null, al
   pop.addEventListener('click', async e => {
     const t = e.target;
     if (t.closest('[data-cp-close]')) return close();
+    if (t.closest('[data-cp-adv]')) { adv = !adv; return render(); }
     const pk = t.closest('[data-cp-pick]'); if (pk) return setHex(pk.dataset.cpPick.toLowerCase());
     const md = t.closest('[data-cp-mode]');
     if (md) { mode = md.dataset.cpMode; if (mode === 'solid') { onGradient(null); emit(true); } else { stopIdx = 0; hsv = rgbToHsv(...hexToRgb(grad.stops[0].c)); onGradient(JSON.parse(JSON.stringify(grad))); } return render(); }
