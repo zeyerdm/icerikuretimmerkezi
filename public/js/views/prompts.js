@@ -38,34 +38,37 @@ export async function renderPrompts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Prompt Studio', desc: `${esc(brand.name)} için görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı prompt'ları. Marka kimliği her prompt'a otomatik eklenir.`,
-      actions: `<button class="btn btn-primary" data-builder>${icon('sparkle')}Şablon oluşturucu</button>
-        <details class="menu-dd"><summary class="btn">${icon('notes')}Kütüphanem</summary><div class="menu-dd-list" role="menu">
+      actions: `<button class="btn" data-builder>${icon('sparkle')}Şablon oluşturucu</button>
+        <details class="menu-dd"><summary class="btn">${icon('notes')}Kütüphanem ▾</summary><div class="menu-dd-list" role="menu">
           <button type="button" role="menuitem" data-rules><b>Kural şablonlarım</b><span class="xsmall muted">Bu markanın uzun prompt iskeletleri</span></button>
           <button type="button" role="menuitem" data-recipes><b>Tariflerim</b><span class="xsmall muted">Kaydettiğin hazır prompt'lar; başka markadan da kopyalanır</span></button>
-        </div></details>
-        <button class="btn" data-manual>${icon('plus')}Elle prompt kaydet</button>`
+          <button type="button" role="menuitem" data-manual><b>Elle prompt kaydet</b><span class="xsmall muted">Başka yerde yazdığın prompt'u buraya ekle</span></button>
+        </div></details>`
     })}
     <section class="card mb-4">
       <div class="tabs mb-3" role="tablist" aria-label="Prompt Studio"><button type="button" role="tab" class="active" aria-selected="true" data-ps-tab="yeni">Yeni prompt</button><button type="button" role="tab" aria-selected="false" data-ps-tab="hizli">Hızlı görsel</button></div>
       <div id="ps-pane-hizli" hidden><p class="small muted mb-2">İki soruyla tek parça AI görseli: prompt yazılır, Prompt Studio'ya kaydedilir ve görsel üretilir. Görsel kütüphaneye "AI görseli" olarak düşer; Post stüdyosunda Yüklemeler ya da Zemin panelinden kullanabilirsin.</p><div id="ps-tpl"></div></div>
       <div id="ps-pane-yeni">
+      <div class="ps-step">Ne için prompt?</div>
       <div class="chips mb-3" role="radiogroup" aria-label="Prompt türü">${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip ${k === kind ? 'active' : ''}" role="radio" aria-checked="${k === kind}" data-kind="${k}">${esc(v.label)}</button>`).join('')}</div>
-      <p class="small muted mb-3" id="ps-hint"></p>
       ${aiReady ? `
-        <div class="pool-pick mb-2"><button type="button" class="btn btn-sm" data-pick-idea>${icon('idea')}Havuzdan fikir çek</button>
-<span class="tag" id="ps-pick-format" title="Fikir türü yukarıdaki prompt türünden gelir">${esc(state.meta.ideaFormats[POOL_OF[kind]] || 'Genel')} fikirleri</span>
-          <span class="small muted" id="ps-picked">İçerik fikirlerinden kullanılmamış bir fikir rastgele seçilir; istersen elle de yazabilirsin.</span></div>
-        <label class="sr-only" for="ps-brief">İstek</label>
-        <textarea class="textarea" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
-        <div class="row mt-3"><button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button>${modelSelect(models, 'yazim', { id: 'ps-model' })}
-          <select class="select w-auto" id="ps-scenes" aria-label="Sahne sayısı" title="Birbirinin devamı olan sahneler (7.8)"><option value="0">Tek prompt</option>${[2, 3, 4, 5].map(n => `<option value="${n}">${n} sahne</option>`).join('')}</select>
-          <select class="select w-auto" id="ps-tool" aria-label="Hedef araç" title="Prompt bu araca uygun biçimde yazılır (7.10)"></select>
-          <select class="select w-auto" id="ps-rule" aria-label="Kural şablonu" title="Prompt bu şablonun yapısına birebir uyar"></select>
-          <span class="spacer"></span><span class="small muted">Beyin fırtınası:</span>
-          <select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
-          <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
-          <button class="btn" data-brainstorm>${icon('grid')}Beyin fırtınası</button></div>
-        <p class="xsmall muted mt-2 cost-hint" id="ps-cost"></p>
+        <div class="ps-compose">
+          <div class="ps-compose-top"><span class="small muted grow" id="ps-hint"></span>
+            <button type="button" class="btn btn-sm" data-pick-idea id="ps-pick-btn" title="Fikir türü seçili prompt türünden gelir">${icon('idea')}Havuzdan fikir</button></div>
+          <div class="ps-picked small" id="ps-picked" hidden></div>
+          <label class="sr-only" for="ps-brief">İstek</label>
+          <textarea class="textarea ps-brief" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
+          <div class="ps-compose-foot">${modelSelect(models, 'yazim', { id: 'ps-model' })}
+            <select class="select w-auto" id="ps-scenes" aria-label="Sahne sayısı" title="Birbirinin devamı olan sahneler"><option value="0">Tek prompt</option>${[2, 3, 4, 5].map(n => `<option value="${n}">${n} sahne</option>`).join('')}</select>
+            <select class="select w-auto" id="ps-tool" aria-label="Hedef araç" title="Prompt bu araca uygun biçimde yazılır"></select>
+            <select class="select w-auto" id="ps-rule" aria-label="Kural şablonu" title="Prompt bu şablonun yapısına birebir uyar"></select>
+            <span class="spacer"></span><span class="xsmall muted cost-hint" id="ps-cost"></span>
+            <button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button></div>
+        </div>
+        <details class="ps-bs-dd mt-3"><summary class="small">${icon('grid')}Kararsız mısın? <b>Beyin fırtınası</b> ile aynı isteğe birkaç farklı konsept al</summary>
+          <div class="row mt-2"><select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
+            <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
+            <button class="btn" data-brainstorm>${icon('grid')}Beyin fırtınası</button></div></details>
         <div id="ps-bs" class="mt-4"></div>`
       : '<div class="notice"><div><strong>AI bağlı değil.</strong> Prompt üretmek ve geliştirmek için bir sağlayıcı bağla; o zamana kadar kendi prompt\'larını elle kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
       </div>
@@ -93,7 +96,8 @@ export async function renderPrompts(view, brand, sub) {
   const hint = () => {
     syncRules();
     const k = meta.kinds[kind];
-    view.querySelector('#ps-hint').textContent = `${k.hint}.${k.english ? ' Prompt önce Türkçe yazılır; hazır olunca tek tıkla İngilizceye çevrilir.' : ' Prompt Türkçe yazılır.'}`;
+    const hn = view.querySelector('#ps-hint');
+    if (hn) hn.textContent = `${k.hint}.${k.english ? ' Prompt önce Türkçe yazılır; hazır olunca tek tıkla İngilizceye çevrilir.' : ' Prompt Türkçe yazılır.'}`;
     const ts = view.querySelector('#ps-tool');
     if (ts) {
       const tools = Object.entries(k.tools || {});
@@ -139,7 +143,6 @@ export async function renderPrompts(view, brand, sub) {
     if (k) {
       kind = k.dataset.kind;
       view.querySelectorAll('[data-kind]').forEach(b => { b.classList.toggle('active', b === k); b.setAttribute('aria-checked', String(b === k)); });
-      const pf = view.querySelector('#ps-pick-format'); if (pf) pf.textContent = `${state.meta.ideaFormats[POOL_OF[kind]] || 'Genel'} fikirleri`;
       return hint();
     }
     const f = e.target.closest('[data-filter]');
@@ -193,14 +196,16 @@ export async function renderPrompts(view, brand, sub) {
       try {
         const { idea } = await busy(pick, () => api.randomIdea(brand.id, { format: POOL_OF[kind] || 'genel', exclude: pickedSeen }));
         const note = view.querySelector('#ps-picked');
-        if (!idea) { picked = null; note.innerHTML = `Bu türde kullanılmamış fikir kalmadı. <a class="link" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerine</a> fikir ekle ya da benzerlerini üret.`; return; }
+        note.hidden = false;
+        if (!idea) { picked = null; view.querySelector('#ps-pick-btn').hidden = false; note.innerHTML = `Bu türde kullanılmamış fikir kalmadı. <a class="link" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerine</a> fikir ekle.`; return; }
         picked = idea; pickedSeen.push(idea.id);
         view.querySelector('#ps-brief').value = idea.title + (idea.description ? `\n${idea.description}` : '');
-        note.innerHTML = `Fikir: <b>${esc(idea.title)}</b> <span class="tag">${esc(idea.formatLabel)}</span> <button type="button" class="btn btn-sm btn-ghost" data-pick-idea>Başka fikir</button><button type="button" class="btn btn-sm btn-ghost" data-pick-clear>Bırak</button>`;
+        view.querySelector('#ps-pick-btn').hidden = true;
+        note.innerHTML = `${icon('idea')}<span class="grow">Havuzdan gelen <b>${esc(idea.formatLabel)}</b> fikri; istersen metni değiştir</span><button type="button" class="btn btn-sm btn-ghost" data-pick-idea>Başka fikir</button><button type="button" class="btn btn-sm btn-ghost" data-pick-clear title="Fikri bırak; metin elle yazılmış sayılır">Bırak</button>`;
       } catch (err) { toast(err.message, 'error'); }
       return;
     }
-    if (e.target.closest('[data-pick-clear]')) { picked = null; view.querySelector('#ps-picked').textContent = 'Fikir bırakıldı; istek elle yazılmış sayılır.'; return; }
+    if (e.target.closest('[data-pick-clear]')) { picked = null; view.querySelector('#ps-picked').hidden = true; view.querySelector('#ps-pick-btn').hidden = false; return; }
     const create = e.target.closest('[data-create]');
     if (create) {
       const brief = view.querySelector('#ps-brief').value.trim();
