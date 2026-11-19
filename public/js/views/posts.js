@@ -123,13 +123,12 @@ export async function renderPosts(view, brand, sub) {
     view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Şablonlar (tasarımların)</h3><span class="small muted">${templates.length}</span></div>
       <p class="small muted mb-3">Tasarımı bir kez hazırla: düzenleyicide yazı kutularını <b>Başlık / Açıklama / Maskot konuşması</b> diye, maskot görselini <b>Maskot yeri</b> diye işaretle ve "Marka şablonu olarak kaydet". Post üretirken yukarıdan tasarımı seç; yapay zekâ yalnızca metni yazar ve maskotun pozunu seçer, yerleşim değişmez. Özel gün tasarımları da böyle eklenir.</p>
       ${[...new Set(templates.map(t => t.pack || ''))].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'tr')).map(pk => `${pk || templates.some(t => t.pack) ? `<h4 class="tpl-pack-head">${pk ? `${icon('grid')}${esc(pk)}` : 'Pakete eklenmemiş'}</h4>` : ''}
-      <div class="post-grid">${templates.filter(t => (t.pack || '') === pk).map(t => `<div class="post-card tpl-card">
+      <div class="post-grid">${templates.filter(t => (t.pack || '') === pk).map(t => `<div class="post-card-wrap"><div class="post-card tpl-card">
         <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
-        <div class="strong truncate">${esc(t.name)} <span class="badge" title="Şablon versiyonu">V${t.version || 1}</span>${t.match.isDefault ? ' <span class="badge badge-def" title="Eşleşen şablon yoksa üretim bununla yapılır">★ Varsayılan</span>' : ''}</div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt · ${t.usedIn ? `<button type="button" class="link-btn" data-tpl-usage="${esc(t.id)}">${t.usedIn} içerikte kullanıldı</button>` : 'henüz kullanılmadı'}</div>
-        <div class="xsmall ${tplFields(t).length ? '' : 'text-warn'} mt-1">${tplFields(t).length ? `Dolan alanlar: ${esc(tplFields(t).join(', '))}` : 'İşaretli alan yok: düzenleyicide kutulara rol ver'}</div>
-        ${t.match.frame ? `<span class="tag mt-1">${t.match.frame === 'acilis' ? 'Sabit açılış slaytı' : 'Sabit kapanış slaytı'}</span>` : ''}<div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
-        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button>${t.match.frame ? '' : `<button class="btn btn-sm btn-ghost" data-tpl-default="${esc(t.id)}" data-on="${t.match.isDefault ? '0' : '1'}">${t.match.isDefault ? 'Varsayılanı kaldır' : '★ Varsayılan yap'}</button>`}<button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost" data-tpl-versions="${esc(t.id)}">Versiyonlar</button><button class="btn btn-sm btn-ghost" data-tpl-pack="${esc(t.id)}">Paket</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
-      </div>`).join('')}</div>`).join('')}</section>`);
+        <div class="strong truncate" title="${esc(tplFields(t).length ? `Dolan alanlar: ${tplFields(t).join(', ')}` : 'İşaretli alan yok')}">${t.match.isDefault ? '<span class="badge badge-def" title="Eşleşen şablon yoksa üretim bununla yapılır">★</span> ' : ''}${esc(t.name)}</div>
+        <div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt${t.usedIn ? ` · <button type="button" class="link-btn" data-tpl-usage="${esc(t.id)}">${t.usedIn} içerik</button>` : ''}${t.match.frame ? ` · ${t.match.frame === 'acilis' ? 'sabit açılış' : 'sabit kapanış'}` : ''}${tplFields(t).length ? '' : ' · <span class="text-warn">alan işaretli değil</span>'}</div>
+        <button class="btn btn-sm mt-2 w-full" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button>
+      </div><button type="button" class="post-menu-btn" data-tpl-menu="${esc(t.id)}" aria-haspopup="menu" aria-label="${esc(t.name)}: şablon işlemleri" title="İşlemler">⋯</button></div>`).join('')}</div>`).join('')}</section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
       if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format]); });
@@ -251,6 +250,23 @@ export async function renderPosts(view, brand, sub) {
       return;
     }
     // 10.8: şablonu fikir türü ve kategorileriyle eşleştir
+    const tm = e.target.closest('[data-tpl-menu]');
+    if (tm) {
+      document.querySelectorAll('.post-menu').forEach(x => x.remove());
+      const t = templates.find(x => x.id === tm.dataset.tplMenu); if (!t) return;
+      const id = esc(t.id);
+      const menu = document.createElement('div'); menu.className = 'post-menu'; menu.setAttribute('role', 'menu');
+      menu.innerHTML = `${t.match.frame ? '' : `<button type="button" role="menuitem" data-tpl-default="${id}" data-on="${t.match.isDefault ? '0' : '1'}">★ ${t.match.isDefault ? 'Varsayılanı kaldır' : 'Varsayılan yap'}</button>`}
+        <button type="button" role="menuitem" data-rename-tpl="${id}">${icon('edit')}Adını değiştir</button>
+        <button type="button" role="menuitem" data-match-tpl="${id}">${icon('idea')}Fikirlerle eşleştir</button>
+        <button type="button" role="menuitem" data-tpl-versions="${id}">${icon('refresh')}Versiyonlar</button>
+        <button type="button" role="menuitem" data-tpl-pack="${id}">${icon('grid')}Pakete taşı</button>
+        <button type="button" role="menuitem" class="danger" data-del-tpl="${id}">${icon('trash')}Sil</button>`;
+      tm.parentElement.appendChild(menu);
+      const close = ev => { if (!menu.contains(ev.target) && ev.target !== tm) { menu.remove(); document.removeEventListener('click', close, true); } };
+      setTimeout(() => document.addEventListener('click', close, true), 0);
+      return;
+    }
     const td = e.target.closest('[data-tpl-default]');
     if (td) { try { await api.setTemplateDefault(brand.id, td.dataset.tplDefault, td.dataset.on === '1'); toast(td.dataset.on === '1' ? 'Varsayılan şablon: fikirden ve konudan üretimde bu tasarım kullanılır, AI yalnızca metni yazar.' : 'Varsayılan kaldırıldı.', 'success'); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); } return; }
     const mt = e.target.closest('[data-match-tpl]');
