@@ -40,6 +40,21 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 | 3 | Beğenilen Reels'ten öğrenme | "Marka örneği" Reels prompt'ları ve beğenilen / beğenilmeyen fikirler senaryo planına referans olarak girer | ⏳ |
 | 4 | Aylık rapordan Reels'e | En çok izlenen Reels'lerin tarzı senaryo planına "bu tarz tutuyor" olarak eklenir | ⏳ |
 | 5 | Toplu Reels üretimi | Havuzdan 3-5 Reels fikri seçilir, planları arka planda yazılır, bitince bildirim | ⏳ |
+| 6 | Reels "İngilizceye çevir" | Yalnız düğmeye basınca çevrilir (AI sürekli iki dil yazmaz); replikler ve kapak yazısı Türkçe kalır | ⏳ |
+| 7 | Post'ta kendi notların | Fikirle birlikte kendi maddelerini yazarsın; AI slaytları bu maddelerden kurar, özünü korur | ⏳ |
+| 8 | Karakter ve mekân sabitliği | Her sahne için ilk kare görseli prompt'u (Flow'da görselden video); karakter kitabı ve plandaki mekân / ışık her sahneye aynı ifadelerle girer | ⏳ |
+
+### Mevcut sistemde düzeltilecekler (yenilik değil, var olanın doğru çalışması)
+
+| Sıra | Sorun | Düzeltme | Durum |
+|---|---|---|---|
+| 9 | Asistan "Reels fikri ekle" eski Reels havuzuna yazıyor; tek havuza geçtiğimiz için bu fikirler hiçbir yerde görünmüyor, "havuzu aç" bağlantısı da eski sayfaya gidiyor | İçerik fikirlerine Reels türüyle yazılır, bağlantı İçerik fikirlerine gider | ⏳ |
+| 10 | Asistan "Reels senaryosu yaz" eski Reels bölümünde senaryo oluşturuyor | Prompt Studio'da senaryo planı yazar, oraya bağlantı verir | ⏳ |
+| 11 | Planlı Reels'te Uzat / Değiştir / Bir sahne daha: yeni sahne plana bakmıyor, kapak yazısı geri geliyor, "plana uyum" yanlış uyarı veriyor | Sahne işlemleri planı ve tek kapak kuralını korur; plan sahneyle birlikte güncellenir | ⏳ |
+| 12 | Erişilebilirlik taraması GitHub'da hiç çalışmıyor (axe-core bağımlılıklarda yok); güncel taramada asistan düğmesi ve marka kartlarında etiket uyumsuzluğu var | axe-core geliştirme bağımlılığı olur, bulunan sorunlar düzeltilir | ⏳ |
+| 13 | Kampanya kanvasına "Reels senaryosu" eklerken yalnız eski Reels senaryoları listeleniyor | Prompt Studio'daki Reels'ler de listelenir | ⏳ |
+| 14 | Çöp kutusunda Reels / kalıp geri yükleme bağlantıları eski sayfaya gidiyor | Doğru sayfaya gider | ⏳ |
+| 15 | Varsayılan 4 sahne × 8 sn = 32 sn: plan çoğu zaman "30 saniyeyi aşıyor" uyarısı veriyor | Varsayılan sahne sayısı ve süre hedefi uyumlu hâle gelir | ⏳ |
 
 Sonra konuşulacak: Reels serileri. Ertelenenler: koyu tema, TR/EN, 10.10 maddeleri.
 
