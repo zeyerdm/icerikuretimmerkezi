@@ -7,13 +7,14 @@ import { bookBlock } from './characterBook.js';
 import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { transaction } from '../db.js';
-import { polish } from './reels/rules.js';
+import { polish, LIMITS as REELS_LIMITS } from './reels/rules.js';
+import { RULE_EXAMPLES } from '../../public/js/ruleExamples.js';
 import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
 
 export const PROMPT_KINDS = {
   gorsel: { label: 'Görsel', english: true, hint: 'Midjourney, Imagen, DALL·E, Flux gibi görsel üreticiler için' },
   video: { label: 'Video', english: true, hint: 'Veo, Flow, Sora, Runway, Kling gibi video üreticiler için' },
-  reels: { label: 'Reels', english: false, hint: 'Bir sohbet modeline Reels fikri ya da senaryosu yazdırmak için' },
+  reels: { label: 'Reels', english: false, hint: 'Google Flow için saniye saniye, sahne sahne Reels senaryosu' },
   metin: { label: 'Metin', english: false, hint: 'Açıklama, blog, e-posta gibi metinleri yazdırmak için' },
   reklam: { label: 'Reklam', english: true, hint: 'Reklam görseli ya da kısa reklam videosu için' },
   urun: { label: 'Ürün fotoğrafı', english: true, hint: 'Stüdyo, yaşam tarzı ya da katalog ürün çekimi için' },
@@ -42,6 +43,24 @@ const IMAGE_KINDS = ['gorsel', 'urun', 'reklam', 'post', 'maskot'];
 const sceneList = v => (Array.isArray(v) ? v : []).map(s => ({ title: String((s && s.title) || '').trim().slice(0, 80), text: String((s && (s.text || s.prompt)) || '').trim().slice(0, 12000) })).filter(s => s.text).slice(0, MAX_SCENES);
 // Sahne metni zaten "SAHNE 2 — ..." diye başlıyorsa (kural şablonu) başlık ikinci kez eklenmez
 const joinScenes = (scenes, lang) => scenes.map((s, i) => (/^\s*(SAHNE|SCENE)\s*\d/i.test(s.text) ? s.text : `${lang === 'en' ? 'SCENE' : 'SAHNE'} ${i + 1}${s.title ? ' — ' + s.title : ''}\n${s.text}`)).join('\n\n');
+
+// Hazır Google Flow sahne şablonu: Reels'te kullanıcının varsayılan şablonu yoksa bu kullanılır (video ve maskotta da seçilebilir)
+export const BUILTIN_RULE_ID = 'hazir-flow';
+const FLOW_EX = RULE_EXAMPLES.find(x => x.id === 'sahne-916');
+const BUILTIN_RULE = { id: BUILTIN_RULE_ID, brand_id: '', kind: 'reels', name: 'Google Flow sahnesi (hazır)', body: FLOW_EX.body, lang: 'tr', is_default: 0, shared: 1, example: '', spec: '{}', builtin: true };
+const BUILTIN_KINDS = ['reels', 'video', 'maskot'];
+// Reels senaryo kuralları (Reels modülüyle aynı sınırlar): şablon doldurulurken bunlara da uyulur
+export const REELS_RULES = [
+  'REELS SENARYO KURALLARI (Google Flow\'da her sahne ayrı bir klip olarak üretilip birleştirilecek):',
+  `- Her sahne en çok ${REELS_LIMITS.maxScene} saniye (Flow'un tek klip sınırı), en az ${REELS_LIMITS.minScene} saniye; toplam genelde ${REELS_LIMITS.targetMax} saniyeyi geçmesin, kesin üst sınır ${REELS_LIMITS.maxTotal} saniye.`,
+  '- İlk 1-2 saniyede dikkat çekici bir olay (kanca); giriş, selamlama, tanıtım yok.',
+  '- Saniye saniye aksiyon 0\'dan başlar, aralıklar boşluksuz ve çakışmasız ilerler, son aralık sahnenin son saniyesinde biter.',
+  `- Karakter her sahnede konuşur; konuşma sahnenin en az %70'ini kaplar. Türkçe konuşma hızı saniyede yaklaşık ${REELS_LIMITS.speechRate} kelimedir: replik konuşma süresini doldurur ama aşmaz (8 saniyelik sahnede 12-16 kelime). Konuşmanın başladığı ve bittiği saniyeyi yaz.`,
+  '- Konuşmada geçen nesne ya da olay görüntüde somut olarak gösterilir; bilgi veren konularda en çarpıcı somut bilgi (rakam, süre, sonuç) söylenir, emin olunmayan bilgi uydurulmaz.',
+  '- Kamera 2-3 saniyede bir plan değiştirir (yakın, detay, geniş); \'yavaş\', \'ağır çekim\' gibi tempoyu düşüren ifadeler yok.',
+  '- Son sahne konunun asıl esprisini ya da en çarpıcı bilgisini açıkça söyleyerek biter; mümkünse son kare ilk sahneye bağlanır (döngü).',
+  '- Altyazı, ekranda konuşma metni, logo ve gerçek kişi/marka adı yok; karakter tasarımı bütün sahnelerde aynı kalır.'
+].join('\n');
 
 // Kural şablonu: kullanıcının kendi prompt yapısı. Başlıklar ve sabit cümleler aynen kalır, [köşeli] alanlar doldurulur.
 const PLACEHOLDER = /\[[^\]\n]+\]/g;
@@ -108,12 +127,15 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
   };
   // Ortak şablonlar (shared) bütün markalarda görünür ve kullanılır
-  const ruleOf = (brandId, id) => (id ? db.prepare('SELECT * FROM prompt_rules WHERE id = ? AND (brand_id = ? OR shared = 1)').get(String(id), brandId) || null : null);
+  const ruleOf = (brandId, id) => (id === BUILTIN_RULE_ID ? BUILTIN_RULE : id ? db.prepare('SELECT * FROM prompt_rules WHERE id = ? AND (brand_id = ? OR shared = 1)').get(String(id), brandId) || null : null);
   // ruleId: '' → türün varsayılan şablonu, 'none' → şablonsuz, kimlik → o şablon
   const pickRule = (brandId, kind, ruleId) => {
     if (ruleId === 'none') return null;
+    if (ruleId === BUILTIN_RULE_ID) { if (!BUILTIN_KINDS.includes(kind)) throw badRequest('Hazır Flow şablonu yalnız Reels, video ve maskot için.'); return BUILTIN_RULE; }
     if (ruleId) { const r0 = ruleOf(brandId, ruleId); if (!r0) throw notFound('Kural şablonu bulunamadı.'); if (r0.kind !== kind) throw badRequest('Bu kural şablonu başka bir prompt türü için.'); return r0; }
-    return db.prepare('SELECT * FROM prompt_rules WHERE (brand_id = ? OR shared = 1) AND kind = ? AND is_default = 1 ORDER BY brand_id = ? DESC LIMIT 1').get(brandId, kind, brandId) || null;
+    const def = db.prepare('SELECT * FROM prompt_rules WHERE (brand_id = ? OR shared = 1) AND kind = ? AND is_default = 1 ORDER BY brand_id = ? DESC LIMIT 1').get(brandId, kind, brandId) || null;
+    // Reels'in ana kalıbı: kendi varsayılan şablonun yoksa hazır Google Flow sahne şablonu
+    return def || (kind === 'reels' ? BUILTIN_RULE : null);
   };
   // Şablonlu kurallar: genel kemik ve "ekranda yazı yok" kuralı yerine kullanıcının şablonu geçerlidir
   function ruleRules(kind, rule, sceneCount = 0) {
@@ -127,6 +149,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       '- Madde işaretli satırların yapısını koru. Şablonda olmayan bölüm ekleme, olan bölümü çıkarma; açıklama ya da giriş cümlesi yazma.',
       `- Dil: ${rule.lang === 'en' ? 'İngilizce' : 'Türkçe'}. Gerçek kişi, ünlü ya da başka marka adı kullanma. Seslendirme veya kapak yazısı istenmişse metni tırnak içinde birebir yaz.`,
       rule.example ? `- ÖRNEK PROMPT (yalnızca ayrıntı düzeyi, üslup ve dil için referans; içeriğini kopyalama):\n<<<\n${String(rule.example).slice(0, 4000)}\n>>>` : '',
+      kind === 'reels' ? REELS_RULES : '',
       sceneCount >= 2 ? `- ${sceneCount} sahnenin HER BİRİ bu şablonun eksiksiz, ayrı bir kopyasıdır. Sahne numaralarını 1'den sırayla ver; "Sahne devamlılığı" gibi bölümlerde önceki ve sonraki sahneye açıkça bağla. Karakter, mekân ve ışık sahneler arasında tutarlı kalsın. Her sahnenin "prompt" alanı şablonun ilk satırından başlasın.` : '',
       '', 'ŞABLON:', '<<<', rule.body, '>>>'
     ].filter(Boolean).join('\n');
@@ -210,6 +233,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       'Gerçek kişi, ünlü ya da başka marka adı kullanma. Görsel/video prompt\'larında ekranda yazı, logo metni, altyazı isteme (yazı sonradan eklenir).',
       'Markanın renklerini, tonunu ve hedef kitlesini yansıt. Tek paragraf ya da kısa bölümler; açıklama, giriş cümlesi veya madde dışı yorum ekleme.',
       SKELETONS[kind] ? skeletonInstruction(kind, k.english ? lang : 'en') : '',
+      kind === 'reels' ? REELS_RULES : '',
       toolInstruction(kind, tool)
     ].filter(Boolean).join('\n');
   }
@@ -263,7 +287,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const lg = rule ? (PROMPT_KINDS[k].english && rule.lang === 'en' ? 'en' : 'tr') : PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
       const tl = validTool(k, tool) ? tool : '';
       const nScenes = Math.round(Number(sceneCount) || 0);
-      if (nScenes >= 2) return this.createScenes(b, k, want, Math.min(MAX_SCENES, nScenes), lg, modelRef, tl, rule);
+      if (nScenes >= 2) return this.createScenes(b, k, want, Math.min(k === 'reels' ? REELS_LIMITS.maxScenes : MAX_SCENES, nScenes), lg, modelRef, tl, rule);
       if (rule) return this.createWithRule(b, k, want, lg, modelRef, tl, rule);
       const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, tl), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '', 'Sadece şu JSON biçiminde yanıt ver:', SHAPE].join('\n');
@@ -384,7 +408,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         `GÖREV: Bu istek için birbirinin devamı olan ${n} sahne yaz. Her sahne kendi başına ${rule ? 'şablona birebir uyan' : 'kemiğe uyan'} tam bir prompt olsun; karakter, mekân, ışık ve stil sahneler arasında tutarlı kalsın; her sahne bir öncekinin bittiği yerden başlasın.`,
         '', 'Sadece şu JSON biçiminde yanıt ver:', shape].join('\n');
       let r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: rule ? 0.6 : 0.8 });
-      let scenes = sceneList(r.output && r.output.scenes);
+      let scenes = sceneList(r.output && r.output.scenes).slice(0, n); // fazla sahne gelirse istenen sayıda kesilir
       if (!scenes.length) throw badRequest('Model kullanılabilir sahne döndürmedi; tekrar dene.');
       let retried = false;
       // Şablon kontrolü: eksik bölüm ya da doldurulmamış [alan] varsa bir kez daha yazılır, daha iyisi tutulur
@@ -394,7 +418,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         if (q) {
           try {
             const r2 = await ai.run({ task: 'yazim', brandId: b.id, prompt: prompt + '\n\n' + retryInstruction(q), json: true, modelRef, temperature: 0.5 });
-            const s2 = sceneList(r2.output && r2.output.scenes);
+            const s2 = sceneList(r2.output && r2.output.scenes).slice(0, n);
             retried = true;
             if (s2.length && worst(s2) >= worst(scenes)) { r = Object.assign(r2, { cost: (r.cost || 0) + (r2.cost || 0) }); scenes = s2; }
           } catch { /* ilk sonuç kalır */ }
@@ -442,6 +466,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     },
     saveRule(brandId, ruleId, body = {}) {
       const b = brands.get(brandId);
+      if (ruleId === BUILTIN_RULE_ID) throw badRequest('Hazır şablon değiştirilemez; "Hazır örnek" ile kopyasını kaydedip düzenle.');
       const old = ruleId ? ruleOf(b.id, ruleId) : null;
       if (ruleId && !old) throw notFound('Kural şablonu bulunamadı.');
       const kind = oneOf(body.kind != null ? body.kind : old && old.kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
@@ -464,7 +489,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     },
     removeRule(brandId, ruleId) {
       const b = brands.get(brandId);
-      const r0 = ruleOf(b.id, ruleId);
+      const r0 = ruleId === BUILTIN_RULE_ID ? null : ruleOf(b.id, ruleId);
       if (!r0) throw notFound('Kural şablonu bulunamadı.');
       db.prepare('DELETE FROM prompt_rules WHERE id = ?').run(r0.id);
     },

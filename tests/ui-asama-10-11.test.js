@@ -172,6 +172,7 @@ test('10.7 Prompt Studio: havuzdan fikir çek isteği doldurur, "Başka fikir" y
   const { browser, page, problems } = await open(srv);
   try {
     await page.goto(`${srv.base}/#/m/${b.id}/prompt`);
+    await page.locator('[data-kind="gorsel"]').click(); // post fikirleri görsel türünden çekilir (varsayılan tür Reels)
     await page.locator('[data-pick-idea]').click();
     await page.waitForFunction(() => /post fikri/.test(document.querySelector('#ps-brief').value));
     const first = await page.locator('#ps-brief').inputValue();

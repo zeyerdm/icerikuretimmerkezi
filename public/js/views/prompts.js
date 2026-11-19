@@ -29,7 +29,8 @@ export async function renderPrompts(view, brand, sub) {
   if (sub) return renderDetail(view, brand, sub, models);
   const aiReady = models.ov.providers.some(p => p.configured);
   const meta = state.meta.prompts;
-  let kind = 'gorsel';
+  let kind = 'reels'; // Prompt Studio'nun ana odağı: Google Flow için Reels senaryosu
+  const kindList = Object.entries(meta.kinds).sort(([a], [b]) => (b === 'reels') - (a === 'reels'));
   let filter = '';
   let q = '';
   let picked = null;      // havuzdan çekilen fikir
@@ -37,7 +38,7 @@ export async function renderPrompts(view, brand, sub) {
 
   view.innerHTML = `
     ${pageHead({
-      title: 'Prompt Studio', desc: `${esc(brand.name)} için görsel, video, Reels, metin, reklam, ürün fotoğrafı, maskot animasyonu ve post tasarımı prompt'ları. Marka kimliği her prompt'a otomatik eklenir.`,
+      title: 'Prompt Studio', desc: `${esc(brand.name)} için Google Flow'da üretilecek Reels senaryoları: saniye saniye, sahne sahne, sabit şablona bağlı. Görsel, video, metin, reklam ve post prompt'ları da yazılır; marka kimliği her prompt'a otomatik eklenir.`,
       actions: `<button class="btn" data-builder>${icon('sparkle')}Şablon oluşturucu</button>
         <details class="menu-dd"><summary class="btn">${icon('notes')}Kütüphanem ▾</summary><div class="menu-dd-list" role="menu">
           <button type="button" role="menuitem" data-rules><b>Kural şablonlarım</b><span class="xsmall muted">Bu markanın uzun prompt iskeletleri</span></button>
@@ -50,7 +51,7 @@ export async function renderPrompts(view, brand, sub) {
       <div id="ps-pane-hizli" hidden><p class="small muted mb-2">İki soruyla tek parça AI görseli: prompt yazılır, Prompt Studio'ya kaydedilir ve görsel üretilir. Görsel kütüphaneye "AI görseli" olarak düşer; Post stüdyosunda Yüklemeler ya da Zemin panelinden kullanabilirsin.</p><div id="ps-tpl"></div></div>
       <div id="ps-pane-yeni">
       <div class="ps-step">Ne için prompt?</div>
-      <div class="chips mb-3" role="radiogroup" aria-label="Prompt türü">${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip ${k === kind ? 'active' : ''}" role="radio" aria-checked="${k === kind}" data-kind="${k}">${esc(v.label)}</button>`).join('')}</div>
+      <div class="chips mb-3" role="radiogroup" aria-label="Prompt türü">${kindList.map(([k, v]) => `<button type="button" class="chip ${k === kind ? 'active' : ''}" role="radio" aria-checked="${k === kind}" data-kind="${k}">${esc(v.label)}</button>`).join('')}</div>
       ${aiReady ? `
         <div class="ps-compose">
           <div class="ps-compose-top"><span class="small muted grow" id="ps-hint"></span>
@@ -59,7 +60,7 @@ export async function renderPrompts(view, brand, sub) {
           <label class="sr-only" for="ps-brief">İstek</label>
           <textarea class="textarea ps-brief" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
           <div class="ps-compose-foot">${modelSelect(models, 'yazim', { id: 'ps-model' })}
-            <select class="select w-auto" id="ps-scenes" aria-label="Sahne sayısı" title="Birbirinin devamı olan sahneler"><option value="0">Tek prompt</option>${[2, 3, 4, 5].map(n => `<option value="${n}">${n} sahne</option>`).join('')}</select>
+            <select class="select w-auto" id="ps-scenes" aria-label="Sahne sayısı" title="Birbirinin devamı olan sahneler"><option value="0">Tek sahne</option>${[2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === 4 ? 'selected' : ''}>${n} sahne</option>`).join('')}</select>
             <select class="select w-auto" id="ps-tool" aria-label="Hedef araç" title="Prompt bu araca uygun biçimde yazılır"></select>
             <select class="select w-auto" id="ps-rule" aria-label="Kural şablonu" title="Prompt bu şablonun yapısına birebir uyar"></select>
             <span class="spacer"></span><span class="xsmall muted cost-hint" id="ps-cost"></span>
@@ -89,9 +90,12 @@ export async function renderPrompts(view, brand, sub) {
     const sel = view.querySelector('#ps-rule');
     if (!sel) return;
     const mine = ruleList.filter(r => r.kind === kind);
-    sel.hidden = !mine.length;
+    // Hazır Google Flow sahne şablonu: Reels'te kendi varsayılanın yoksa seçili gelir; video ve maskotta da seçilebilir
+    const flowOk = ['reels', 'video', 'maskot'].includes(kind);
+    sel.hidden = !mine.length && !flowOk;
     const def = mine.find(r => r.isDefault);
-    sel.innerHTML = `<option value="none">Kural şablonu yok</option>${mine.map(r => `<option value="${esc(r.id)}" ${def && def.id === r.id ? 'selected' : ''}>Şablon: ${esc(r.name)}${r.isDefault ? ' (varsayılan)' : ''}</option>`).join('')}`;
+    const flowSel = kind === 'reels' && !def;
+    sel.innerHTML = `<option value="none">Kural şablonu yok</option>${flowOk ? `<option value="hazir-flow" ${flowSel ? 'selected' : ''}>Şablon: Google Flow sahnesi (hazır)</option>` : ''}${mine.map(r => `<option value="${esc(r.id)}" ${def && def.id === r.id ? 'selected' : ''}>Şablon: ${esc(r.name)}${r.isDefault ? ' (varsayılan)' : ''}</option>`).join('')}`;
   }
   const hint = () => {
     syncRules();
@@ -143,6 +147,8 @@ export async function renderPrompts(view, brand, sub) {
     if (k) {
       kind = k.dataset.kind;
       view.querySelectorAll('[data-kind]').forEach(b => { b.classList.toggle('active', b === k); b.setAttribute('aria-checked', String(b === k)); });
+      // Reels senaryosu varsayılan 4 sahne (her biri en çok 8 sn'lik Flow klibi); diğer türler tek prompt
+      const sc = view.querySelector('#ps-scenes'); if (sc) { sc.value = kind === 'reels' ? '4' : '0'; sc.dispatchEvent(new Event('change', { bubbles: true })); }
       return hint();
     }
     const f = e.target.closest('[data-filter]');

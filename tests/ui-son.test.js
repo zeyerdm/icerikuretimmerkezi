@@ -454,6 +454,7 @@ test('8.4 arayüz: prompt üretirken metin canlı akar; İptal üretimi keser ve
   const { browser, page, problems } = await open(srv);
   try {
     await page.goto(`${srv.base}/#/m/${b.id}/prompt`);
+    await page.locator('[data-kind="gorsel"]').click(); // varsayılan Reels (Flow şablonlu sahneler); burada tek görsel prompt'u
     await page.locator('#ps-brief').fill('Latte');
     gate = true; // ilk üretim bitmeden bekler (iptal denemesi)
     await page.locator('[data-create]').click();
@@ -487,6 +488,7 @@ test('8.5 arayüz: üretim öncesi tahmini tutar, sahne sayısıyla değişir; b
     assert.equal((await srv.request('PUT', '/api/ai/prices', { ref: 'fake:test', price: { input: 3, output: 15 } })).status, 200);
     await page.evaluate(() => location.reload());
     await hint.waitFor();
+    await page.locator('[data-kind="gorsel"]').click(); // Reels varsayılanı 4 sahnedir; tek prompt tutarı görsel türünde
     // 2.500 × 3 + 700 × 15 = 18.000 / 1e6 = 0,018 $
     assert.match(await hint.innerText(), /Tahmini tutar ~0,018 \$ \(eksik çıkarsa bir kez daha yazılır\)/);
     await page.selectOption('#ps-scenes', '3');

@@ -1,8 +1,8 @@
-// Kural şablonu için hazır örnek (kullanıcının dikey video sahne yapısı). Şablon ekranında tek tıkla doldurulur,
+// Kural şablonu için hazır örnek (kullanıcının Google Flow dikey video sahne yapısı; sunucu bunu Reels'in hazır şablonu olarak da kullanır). Şablon ekranında tek tıkla doldurulur,
 // sonra istendiği gibi düzenlenir. [Köşeli] alanları yapay zekâ doldurur; geri kalan her şey aynen kalır.
 export const RULE_EXAMPLES = [
   {
-    id: 'sahne-916', name: 'Dikey video sahnesi (9:16)', kind: 'video', lang: 'tr',
+    id: 'sahne-916', name: 'Dikey video sahnesi (9:16)', kind: 'reels', lang: 'tr',
     body: `SAHNE [NUMARASI] — [SAHNENİN AMACI]
 Video formatı ve süre:
 Dikey 9:16 video, [X] saniye. [Hızlı tempolu / enerjik / merak uyandırıcı / dramatik / mizahi] anlatım. Sahne boyunca akıcı, profesyonel ve sinematik animasyon.
