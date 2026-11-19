@@ -159,8 +159,9 @@ test('kurulum arayüzü: yeni marka → adım adım (dallanma, yükleme) → Mar
     await page.locator('.toast', { hasText: 'Kurulum tamamlandı' }).waitFor();
 
     // Marka dosyası: hepsi tek yerde
+    // Marka dosyası çizilmeden kontrol edilmesin (yük altında sayfa geç çizilebilir): her başlık görünene kadar beklenir
     for (const t of ['Marka', 'Kanallar ve içerikler', 'Ses ve dil', 'Logo, renk ve font', 'Maskot', 'Görsel dil', 'Video', 'Bilgiler']) {
-      assert.ok(await page.getByRole('heading', { name: t, exact: true }).isVisible(), t);
+      await page.getByRole('heading', { name: t, exact: true }).waitFor({ state: 'visible', timeout: 10000 });
     }
     assert.match(await page.locator('#ds-ses').innerText(), /ucuz/);
     assert.match(await page.locator('#ds-maskot').innerText(), /Çekirdek/);
