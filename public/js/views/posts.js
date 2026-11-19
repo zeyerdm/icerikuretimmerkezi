@@ -214,10 +214,18 @@ export async function renderPosts(view, brand, sub) {
       const id = pm.dataset.postMenu;
       const menu = document.createElement('div');
       menu.className = 'post-menu'; menu.setAttribute('role', 'menu');
-      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" data-arch-post="${esc(id)}">${icon('archive')}${(posts.find(x => x.id === id) || {}).archived ? 'Arşivden çıkar' : 'Arşivle'}</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
+      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" data-tpl-post="${esc(id)}">${icon('grid')}Şablon olarak kaydet</button><button type="button" role="menuitem" data-arch-post="${esc(id)}">${icon('archive')}${(posts.find(x => x.id === id) || {}).archived ? 'Arşivden çıkar' : 'Arşivle'}</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
       pm.parentElement.appendChild(menu);
       const close = ev => { if (!menu.contains(ev.target) && ev.target !== pm) { menu.remove(); document.removeEventListener('click', close, true); } };
       setTimeout(() => document.addEventListener('click', close, true), 0);
+      return;
+    }
+    const tpp = e.target.closest('[data-tpl-post]');
+    if (tpp) {
+      const p = posts.find(x => x.id === tpp.dataset.tplPost); if (!p) return;
+      const name = prompt('Şablonun adı (üretimde bu adla seçilir):', p.title.slice(0, 80));
+      if (!name || !name.trim()) return;
+      try { await api.saveTemplate(brand.id, p.id, name.trim()); toast(`"${name.trim()}" şablon olarak kaydedildi; Havuzdan fikir seçerken listede.`, 'success'); route(); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const arc = e.target.closest('[data-arch-post]');
@@ -372,11 +380,12 @@ async function fromIdeaFlow(brand, models, templates, designs = []) {
       <section class="fi-step"><div class="fi-step-head"><span class="fi-n">1</span><b>Fikir</b><select class="select input-sm w-auto ml-auto" id="fi-format" name="format" aria-label="Fikir türü">${Object.entries(state.meta.ideaFormats).map(([k, v]) => `<option value="${k}" ${k === 'post' ? 'selected' : ''}>${esc(v)} fikirleri</option>`).join('')}</select></div>
         <div class="pool-pick fi-hero" id="fi-idea"><span class="small muted">Seçiliyor…</span></div></section>
       <section class="fi-step"><div class="fi-step-head"><span class="fi-n">2</span><b>Hangi tasarım?</b><span class="xsmall muted">Yerleşim sabit kalır, yapay zekâ yalnız metni yazar</span></div>
+        ${templates.filter(t => !t.match.frame).length ? '' : '<p class="xsmall muted mb-2">Henüz şablonun yok. Beğendiğin bir tasarımın ⋯ menüsünden "Şablon olarak kaydet" de; burada seçilebilir olur.</p>'}
         <div class="fi-designs" role="radiogroup" aria-label="Tasarım">
           ${(() => { const tpls = templates.filter(t => !t.match.frame); const def = tpls.find(t => t.match.isDefault); const opt = (val, name, sub, on) => `<label class="fi-design ${on ? 'on' : ''}"><input type="radio" name="design" value="${esc(val)}" ${on ? 'checked' : ''}><span><b>${esc(name)}</b><small>${esc(sub)}</small></span></label>`;
             return [opt('', 'Fikre uyan şablon', def ? `eşleşme yoksa ★ ${def.name}` : 'eşleşme yoksa marka yerleşimi', !def),
-              ...tpls.map(t => opt(`t:${t.id}`, `${t.match.isDefault ? '★ ' : ''}${t.name}`, `Şablon · ${t.kindLabel} · V${t.version || 1}`, t.match.isDefault)),
-              ...designs.filter(d => !d.archived).slice(0, 12).map(d => opt(`p:${d.id}`, d.title, `Tasarımım · ${d.kindLabel}`, false))].join(''); })()}
+              ...tpls.map(t => opt(`t:${t.id}`, `${t.match.isDefault ? '★ ' : ''}${t.name}`, `${t.kindLabel}${t.pack ? ` · ${t.pack}` : ""}`, t.match.isDefault)),
+              ].join(''); })()}
         </div></section>
       <section class="fi-step"><div class="fi-step-head"><span class="fi-n">3</span><b>Kaç sayfa?</b><span class="xsmall muted">Kapak kanca, ortada gelişme, sonda kapanış</span></div>
         <div class="fi-count" role="radiogroup" aria-label="Sayfa sayısı">${[['1', 'Tek görsel'], ['3', '3 sayfa'], ['5', '5 sayfa'], ['7', '7 sayfa']].map(([v, l]) => `<label class="fi-design ${v === '5' ? 'on' : ''}"><input type="radio" name="count" value="${v}" ${v === '5' ? 'checked' : ''}><span><b>${l}</b></span></label>`).join('')}</div></section>
