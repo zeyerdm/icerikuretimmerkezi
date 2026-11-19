@@ -322,6 +322,7 @@ export const api = {
   brainstormPrompts: (id, body) => request('POST', b(id) + '/prompts/brainstorm', body),
   reelsPlan: (id, body) => request('POST', b(id) + '/prompts/reels-plan', body),
   checkReelsPlan: (id, plan) => request('POST', b(id) + '/prompts/reels-plan/check', { plan }),
+  schedulePrompt: (id, pid, scheduledAt) => request('POST', `${b(id)}/prompts/${pid}/schedule`, { scheduledAt }),
   enhancePrompt: (id, body) => request('POST', b(id) + '/prompts/enhance', body),
   promptPresets: () => request('GET', '/api/prompt-presets'),
   savePromptPreset: (pid, body) => (pid ? request('PUT', `/api/prompt-presets/${pid}`, body) : request('POST', '/api/prompt-presets', body)),

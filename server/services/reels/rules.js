@@ -401,11 +401,12 @@ export function planPrompt({ brandName, memory, settings, topic, scenes = 0, ext
     extra ? `${extra}\n` : '',
     scenes >= 1 ? `GÖREV: Bu konu için TAM ${scenes} sahnelik 1 Reels senaryosu yaz (saniye saniye).` : 'GÖREV: Bu konu için 1 Reels senaryosu yaz (saniye saniye).', '',
     ...storyRules(brandName, name),
+    "AÇIKLAMA: 'caption' alanına Instagram açıklaması yaz (600-1200 karakter): merak uyandıran ilk satır, 2-4 kısa paragraf, yorum sorusu; hashtag'leri ayrıca 'hashtags' listesine yaz (en fazla 5).", '',
     'KALİTE KONTROLÜ: Yanıtı vermeden önce kontrol et: her sahnede konuşma var ve sahnenin çoğunu dolduruyor mu, zamanlama boşluksuz mu, replikler süreye sığıyor mu, sahneler birbirine bağlanıyor mu, asıl espri son sahnede söyleniyor mu, çağrı var mı?', '',
     'Sadece şu JSON biçiminde yanıt ver:',
     JSON.stringify({ title: 'Kısa video adı', format: 'skec', topic: 'Tek cümle konu', punchline: 'Asıl espri, somut tek cümle', setting: 'Korunacak mekân ve ışık', screenTitle: 'En fazla 5 kelime', titleKeyword: 'başlıktaki tek kelime',
       scenes: [{ duration: 7, start: 'Başlangıç durumu', beats: [{ from: 0, to: 2, action: '...', camera: '...', sound: '' }, { from: 2, to: 7, action: '...', camera: '...', sound: '' }], line: 'Türkçe konuşma', lineFrom: 0.5, lineTo: 7, endFrame: 'Son kare' }],
-      ending: { resolution: '...', finalLine: '...', twist: '...', lastFrame: '...', loop: '' }, music: 'Müzik önerisi' })
+      ending: { resolution: '...', finalLine: '...', twist: '...', lastFrame: '...', loop: '' }, caption: 'Açıklama', hashtags: ['#ornek'], music: 'Müzik önerisi' })
   ].filter(s => s !== '').join('\n');
 }
 

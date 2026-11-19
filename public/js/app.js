@@ -295,7 +295,9 @@ export async function route() {
       else if (r.page === 'takvim') await renderCalendar(view, { brand });
       else if (r.page === 'arsiv') await renderArchive(view, brand);
       else if (r.page === 'analiz') await renderAnalytics(view, { brand });
-      else if (r.page === 'reels') await renderReels(view, brand, r.sub);
+      // Reels tek akış: senaryo yazımı Prompt Studio'da. Eski liste/havuz/kalıp sayfaları Prompt Studio'ya yönlenir;
+      // eski senaryoların kendi sayfası (seslendirme, video) açılmaya devam eder.
+      else if (r.page === 'reels') { if (!r.sub || ['liste', 'kaliplar'].includes(r.sub)) { location.replace(`#/m/${encodeURIComponent(brand.id)}/prompt`); return; } await renderReels(view, brand, r.sub); }
       else if (r.page === 'post') await renderPosts(view, brand, r.sub);
       else if (r.page === 'prompt') await renderPrompts(view, brand, r.sub);
       else if (r.page === 'rakipler') await renderCompetitors(view, brand);
