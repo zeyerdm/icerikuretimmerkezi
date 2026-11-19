@@ -375,7 +375,7 @@ function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, pos
     KIND_TASK[kind] ? KIND_TASK[kind] : kind === 'carousel'
       ? [`GÖREV: Bu konu için ${slideCount} slaytlık, yüksek etkileşimli bir Instagram carousel yaz. Akış bir hikâye gibi ilerlesin:`,
         `1. slayt KAPAK = KANCA (hook): kaydırmayı durduran, merak uyandıran, ters köşe ya da soru biçiminde kısa başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt başlık. Konunun ne olduğunu sezdirsin ama cevabı vermesin.`,
-        slideCount > 2 ? `2.–${slideCount - 1}. slaytlar GELİŞME: her biri tek bir madde, adım ya da bilgi; kısa başlık (en fazla 6 kelime) ve 1-3 kısa cümlelik açıklama (en fazla 220 karakter). Maddeler BU KONUYA ve markanın sektörüne özel, somut, öğretici olsun; jenerik kalıp yazma. Her slayt bir sonrakine merak bıraksın, birbirini tekrar etmesin.` : '',
+        slideCount > 2 ? `2.–${slideCount - 1}. slaytlar GELİŞME: her biri tek bir madde, adım ya da bilgi; kısa başlık (en fazla 6 kelime) ve açıklama. Açıklama okuyana gerçekten değer katsın: neden önemli, nasıl yapılır, somut bir örnek ya da ipucu. Konu gerektiriyorsa 2-4 cümle (en fazla 340 karakter), basitse 1-2 cümle yeter; doldurmak için yazma. Maddeler BU KONUYA ve markanın sektörüne özel, somut, öğretici olsun; jenerik kalıp yazma. Her slayt bir sonrakine merak bıraksın, birbirini tekrar etmesin.` : '',
         `Son slayt (${slideCount}.) KAPANIŞ: konuyu bağlayan akılda kalıcı bir sonuç ya da özet başlığı ve kaydetme/paylaşma ya da yorum yapma çağrısı.`,
         'Teknik bir terim gerekirse aynı cümlede sade Türkçeyle açıkla.'].filter(Boolean).join('\n')
       : 'GÖREV: Tek görsellik bir Instagram postu metni yaz: kısa, vurucu başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt metin.',
@@ -389,8 +389,8 @@ function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, pos
     // Kart düzeni (carousel): başlıkta *vurgu*, maskotun konuşma balonu ve slayta uygun poz
     kind === 'carousel' ? [
       'BAŞLIKLAR: Her başlıkta en önemli 1-2 kelimeyi *yıldız* içine al (ör. "En sık yapılan *3 hata*"); bunlar marka renginde basılır. Kapak başlığı vurucu olsun.',
-      'Metin kuralları: günlük dil, kısa ve tam cümleler, alt metin 1-2 cümle. Gereksiz tırnak ve noktalı virgül kullanma.',
-      poses.length && fixedSpeech ? `MASKOT: Konuşma metni sabit havuzdan gelir, "speech" yazma. Her slayta yalnızca "pose" yaz; şu pozlardan slayta en uygun olanı: ${poses.join(', ')}.` : poses.length ? `MASKOT: Her slayta "speech" (maskotun en çok 6 kelimelik kısa tepkisi, ör. "Kaydırarak incele 👀"; son slaytta kaydet/paylaş çağrısı) ve "pose" yaz. "pose" şu pozlardan slayta en uygun olanı olsun: ${poses.join(', ')}.` : ''
+      'Metin kuralları: günlük dil, tam ve akıcı cümleler. Açıklama yüzeysel slogan değil, okuyanın işine yarayan bilgi olsun. Gereksiz tırnak ve noktalı virgül kullanma.',
+      poses.length && fixedSpeech ? `MASKOT: Konuşma metni sabit havuzdan gelir, "speech" yazma. Her slayta yalnızca "pose" yaz; şu pozlardan slayta en uygun olanı: ${poses.join(', ')}.` : poses.length ? `MASKOT: Her slayta "speech" (maskotun en çok 6 kelimelik kısa tepkisi, ör. kapakta "Kaydırarak incele 👀"; SON slaytta asla "kaydır" deme, kaydet/paylaş ya da yorum çağrısı yap) ve "pose" yaz. "pose" şu pozlardan slayta en uygun olanı olsun: ${poses.join(', ')}.` : ''
     ].filter(Boolean).join('\n') : '',
     kind === 'youtube'
       ? "Kapak yazısı kalın ve iri basılacak; kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına YouTube video açıklaması (ilk iki satır videonun vaadini anlatsın, 400-1500 karakter), 'hashtags' alanına en fazla 3 hashtag yaz."
@@ -428,6 +428,9 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       items: (Array.isArray(s && s.items) ? s.items : []).map(x => polish(x).slice(0, 120)).filter(Boolean).slice(0, 6), cta: polish(s && s.cta).slice(0, 40),
       speech: polish(s && s.speech).replace(/["“”]/g, '').slice(0, 60), pose: polish(s && s.pose).slice(0, 60),
       fields: Object.fromEntries(Object.entries((s && typeof s.fields === 'object' && s.fields) || {}).filter(([k]) => /^[A-Za-z][A-Za-z0-9_]{0,29}$/.test(k)).map(([k, v]) => [k.toUpperCase(), polish(v).slice(0, 300)])) })).filter(s => s.title).slice(0, count);
+    // Kapanış (son) slaytında "kaydır" çağrısı olmaz: kaydırılacak sayfa kalmadı
+    const last = texts[texts.length - 1];
+    if (texts.length > 1 && last) { if (/kayd[ıi]r|swipe/i.test(last.speech)) last.speech = 'Kaydet, lazım olur! 🚀'; if (/kayd[ıi]r|swipe/i.test(last.cta)) last.cta = 'Kaydet ve paylaş'; }
     if (!texts.length) throw new HttpError(502, 'AI_BAD_POST', 'Model kullanılabilir bir metin döndürmedi. Tekrar dene ya da başka bir model seç.');
     return { texts, title: polish(out.title).slice(0, 120) || texts[0].title, caption: String(out.caption || '').trim().slice(0, 3000),
       hashtags: (Array.isArray(out.hashtags) ? out.hashtags : []).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 8), r };
@@ -531,7 +534,10 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
   const fillTemplate = (data, texts, { mascots = [], topic = '', pools = { cta: [], closing: [], speech: [] }, seed = 0 } = {}) => { const pick = (list, i) => list[(seed + i) % list.length]; return Object.assign({}, data, {
     slides: (data.slides || []).map((sl, i, all) => {
       const t = texts[Math.min(i, texts.length - 1)] || { title: '', body: '', items: [], cta: '' };
-      const speech = pools.speech.length ? pick(pools.speech, i) : (t.speech || '');
+      const isLast = all.length > 1 && i === all.length - 1;
+      const noSwipe = list => (isLast ? list.filter(x => !/kayd[ıi]r|swipe/i.test(x)) : list);
+      const pickFor = (list, j, fb = 'Kaydet, lazım olur! 🚀') => { const l2 = noSwipe(list); return l2.length ? l2[(seed + j) % l2.length] : (isLast ? fb : pick(list, j)); };
+      const speech = pools.speech.length ? pickFor(pools.speech, i) : (t.speech || '');
       let k = 0;
       const titleLayers = (sl.layers || []).filter(l => l.type === 'text' && !l.fixed && !(l.field && l.field !== 'MAIN_TITLE') && roleOf(l) === 'title');
       const titleParts = splitTitle(String(t.title || '').replace(/\*/g, ''), titleLayers.length);
@@ -553,7 +559,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
         if (role === 'item') return Object.assign({}, l, { text: (t.items || [])[k++] || '' });
         // Carousel'de buton: kapakta kaydırma daveti, ara sayfalarda devam, son sayfada asıl çağrı (havuz ya da AI)
         if (role === 'cta' && all.length > 1 && i < all.length - 1) return Object.assign({}, l, { role, text: i === 0 ? 'Kaydırarak incele →' : 'Devamı →' });
-        if (role === 'cta' && (t.cta || pools.cta.length)) return Object.assign({}, l, { role, text: pools.cta.length ? pick(pools.cta, i) : t.cta });
+        if (role === 'cta' && (t.cta || pools.cta.length)) return Object.assign({}, l, { role, text: pools.cta.length ? pickFor(pools.cta, i, 'Kaydet ve paylaş') : t.cta });
         if (l.role === 'speech') return Object.assign({}, l, { text: speech });
         if (role === 'closing') return Object.assign({}, l, { text: pools.closing.length ? pick(pools.closing, i) : (f.CLOSING || l.text) });
         if (l.role === 'topic' && topic) return Object.assign({}, l, { text: String(topic).slice(0, 60) });

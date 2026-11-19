@@ -37,10 +37,20 @@ export async function todaySummary(now = new Date()) {
   };
 }
 export const pendingCount = s => s.today.filter(c => !['tamamlandi', 'yayinlandi'].includes(c.status)).length + s.overdueContents.length + s.tasksToday.length + s.overdueTasks.length;
+// Zil rozeti: özet açılıp görülen bekleyen işler bir daha sayılmaz; yalnızca yeni bekleyen iş çıkınca rozet döner
+const SEEN = 'ium.bell.seen';
+const pendingIds = s => [...s.today.filter(c => !['tamamlandi', 'yayinlandi'].includes(c.status)).map(c => `c:${c.id}`), ...s.overdueContents.map(c => `o:${c.id}`), ...s.tasksToday.map(t => `t:${t.id}`), ...s.overdueTasks.map(t => `d:${t.id}`)];
+export const unseenCount = s => { const seen = new Set(store.get(SEEN, [])); return pendingIds(s).filter(id => !seen.has(id)).length; };
+export function markSummarySeen(s) {
+  store.set(SEEN, pendingIds(s).slice(0, 500));
+  document.querySelectorAll('#bell .bell-badge').forEach(b => b.remove());
+  const bell = document.getElementById('bell'); if (bell) bell.setAttribute('aria-label', 'Günün özeti');
+}
 
 export const clearSummaryCache = () => { cache = null; };
 
 export function openSummary(s) {
+  if (s) markSummarySeen(s);
   const item = c => `<li><a href="#/m/${esc(c.brandId)}/takvim" data-close><span class="sum-dot" style="background:${esc(c.brandColor || '#7d6bf0')}"></span><b>${c.scheduledAt ? timeStr(c.scheduledAt) : ''}</b> ${esc(c.title)} <span class="muted small">· ${esc(c.brandName)} · ${esc(c.typeLabel)} · ${esc(c.statusLabel)}</span></a></li>`;
   const task = t => `<li><a href="#/gorevler" data-close>${esc(t.title)} <span class="muted small">${t.brandName ? '· ' + esc(t.brandName) : ''} · son tarih ${esc(fmtDate(t.dueDate + 'T12:00:00', { day: 'numeric', month: 'short' }))}</span></a></li>`;
   const sec = (title, list, fn, empty) => `<section class="sum-sec"><h4>${title} <span class="muted">${list.length}</span></h4>${list.length ? `<ul class="sum-list">${list.slice(0, 8).map(fn).join('')}</ul>${list.length > 8 ? `<div class="xsmall muted">+${list.length - 8} daha</div>` : ''}` : `<p class="small muted">${empty}</p>`}</section>`;
@@ -61,7 +71,7 @@ let cache = null;
 export async function bellHtml() {
   try {
     if (!cache || Date.now() - cache.at > 60000) cache = { at: Date.now(), s: await todaySummary() };
-    const s = cache.s; const n = pendingCount(s); return { html: `<button type="button" class="bell" id="bell" aria-label="Günün özeti${n ? `: ${n} bekleyen iş` : ''}" title="Günün özeti">${icon('bell')}${n ? `<span class="bell-badge">${n > 99 ? '99+' : n}</span>` : ''}</button>`, summary: s };
+    const s = cache.s; const n = unseenCount(s); return { html: `<button type="button" class="bell" id="bell" aria-label="Günün özeti${n ? `: ${n} bekleyen iş` : ''}" title="Günün özeti">${icon('bell')}${n ? `<span class="bell-badge">${n > 99 ? '99+' : n}</span>` : ''}</button>`, summary: s };
   } catch { return { html: '', summary: null }; }
 }
 

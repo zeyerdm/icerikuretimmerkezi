@@ -117,7 +117,7 @@ test('Tema arayüzü: kutuya rol verilir (yükseklik otomatik), uzun yazı küç
     const tpl = (await s.request('POST', `/api/brands/${b.id}/posts/${post.id}/template`, { name: 'Benim temam' })).data.template;
 
     await page.goto(`${s.base}/#/m/${b.id}/post`);
-    await page.locator('.tpl-card', { hasText: 'Dolan alanlar: Ana başlık' }).waitFor();
+    await page.locator('.tpl-card [title*="Dolan alanlar: Ana başlık"]').waitFor();
     await page.locator('#qp-tpl').selectOption(tpl.id);
     await page.locator('#quick-post [name="slides"]').selectOption('4');
     await page.locator('#quick-post [name="topic"]').fill('Kahve demleme');
@@ -271,7 +271,8 @@ test('Arayüz: referanslar çoklu seçilir ve birlikte gönderilir; şablonun ad
     assert.equal(provider.calls[0].opts.images.length, 2);
     await page.keyboard.press('Escape');
     await page.goto(`${s.base}/#/m/${b.id}/post`);
-    const card = page.locator('.tpl-card', { hasText: 'Koyu carousel' });
+    const card = page.locator('.post-card-wrap', { hasText: 'Koyu carousel' });
+    await card.locator('[data-tpl-menu]').click();
     await card.locator('[data-rename-tpl]').click();
     await page.locator('#tpl-name').fill('Haftalık ipucu');
     await page.locator('.modal [type=submit]').click();

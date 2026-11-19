@@ -274,6 +274,13 @@ test('T.11 hatırlatmalar: özet sayıları ve zil rozeti, şerit günde bir kez
     // Özet penceresi
     await page.locator('#bell').click();
     await page.locator('.modal', { hasText: 'Bugünkü post' }).waitFor();
+    // Özet görüldü: rozet kalkar, sayfa yenilense de aynı işler için geri gelmez
+    assert.equal(await page.locator('.bell-badge').count(), 0);
+    await page.keyboard.press('Escape');
+    await page.reload();
+    await page.locator('#bell').waitFor();
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('.bell-badge').count(), 0, 'görülen işler için rozet geri gelmez');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
@@ -298,8 +305,8 @@ test('T.29 marka sayfaları: akordeon gruplar ve tercihin hatırlanması, açık
     // Kapalı gruptaki sayfaya gidilince o grup açılır
     await page.goto(srv.base + `/#/m/${a.id}/kutuphane`);
     await page.waitForFunction(() => document.querySelector('[data-nav-group="varlik"]').getAttribute('aria-expanded') === 'true');
-    // Bütün modüllere menüden erişilir (Video ve altyazı, Reels ve video bölümünün sekmesi)
-    for (const href of ['', '/kimlik', '/fikirler', '/reels', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane']) {
+    // Bütün modüllere menüden erişilir (Reels ve video şimdilik kapalı)
+    for (const href of ['', '/kimlik', '/fikirler', '/post', '/prompt', '/takvim', '/arsiv', '/kampanya', '/youtube', '/rakipler', '/analiz', '/rapor', '/kutuphane']) {
       assert.equal(await page.locator(`.sidebar a[href="#/m/${a.id}${href}"]`).count(), 1, `menüde ${href || 'ana sayfa'} yok`);
     }
 

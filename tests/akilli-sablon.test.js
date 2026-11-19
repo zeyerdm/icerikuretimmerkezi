@@ -230,3 +230,19 @@ test('Fikirden üretim eski akışta: seçilen sayfa kadar carousel, kapak kanca
     assert.equal(r.data.post.kind, 'carousel'); assert.equal(r.data.post.data.slides.length, 5);
   } finally { await s.stop(); }
 });
+
+test('Kapanış sayfasında "kaydır" çağrısı olmaz (AI de havuz da yazsa); açıklama istemi değer katmayı ister', async () => {
+  const out = { title: 'T', caption: 'c', hashtags: [], slides: [{ title: 'Kanca', body: 'b', speech: 'Kaydırarak incele' }, { title: 'Madde', body: 'b', speech: 'Devam' }, { title: 'Sonuç', body: 'b', speech: 'Hemen kaydır, prod\'u kurtarıyoruz', cta: 'Kaydır' }] };
+  const provider = fakeProvider([out]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Kapanış' })).data.brand;
+    const idea = (await s.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Şifre güvenliği', format: 'post', category: 'egitici' })).data.idea;
+    const r = await s.request('POST', `/api/brands/${b.id}/posts/from-idea`, { ideaId: idea.id, slides: 3 });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const last = r.data.post.data.slides.at(-1).layers.filter(l => l.type === 'text').map(l => l.text).join(' ');
+    assert.doesNotMatch(last, /kayd[ıi]r/i, last);
+    assert.match(provider.calls[0].prompt, /değer katsın/);
+    assert.match(provider.calls[0].prompt, /SON slaytta asla "kaydır" deme|KAPANIŞ/);
+  } finally { await s.stop(); }
+});

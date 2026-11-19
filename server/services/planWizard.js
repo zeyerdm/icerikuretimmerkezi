@@ -49,8 +49,10 @@ export function createPlanWizardService({ db, brands, workspace }) {
       const mix = hist.length ? hist.flatMap(h => Array(Math.max(1, Math.round(h.n / hist[0].n * 3))).fill(h.type)) : DEFAULT_MIX;
 
       // Kaynaklar: henüz takvime girmemiş fikirler (favoriler önce) ve beğenilmemiş olmayan Reels havuzu fikirleri
-      const ideas = db.prepare('SELECT i.id, i.title, i.description FROM ideas i WHERE i.brand_id = ? AND i.archived = 0 AND i.used_at IS NULL AND NOT EXISTS (SELECT 1 FROM contents c WHERE c.idea_id = i.id) ORDER BY i.favorite DESC, i.created_at DESC LIMIT 30').all(b.id);
-      const pool = db.prepare('SELECT p.id, p.text FROM reels_pool p WHERE p.brand_id = ? AND p.rating >= 0 AND NOT EXISTS (SELECT 1 FROM reels r WHERE r.pool_id = p.id) ORDER BY p.rating DESC, p.created_at DESC LIMIT 30').all(b.id);
+      const all = db.prepare('SELECT i.id, i.title, i.description, i.format FROM ideas i WHERE i.brand_id = ? AND i.archived = 0 AND i.used_at IS NULL AND NOT EXISTS (SELECT 1 FROM contents c WHERE c.idea_id = i.id) ORDER BY i.favorite DESC, i.created_at DESC LIMIT 30').all(b.id);
+      // Tek fikir havuzu: türü Reels olan fikirler Reels günlerine gider
+      const pool = all.filter(x => x.format === 'reels').map(x => ({ id: x.id, text: x.title, description: x.description }));
+      const ideas = all.filter(x => x.format !== 'reels');
 
       // Özel günler (dönemler değil): o güne bir içerik
       const specials = specialDays(keyOf(new Date(Date.UTC(y, m - 1, d))), keyOf(new Date(Date.UTC(y, m - 1, d + 6)))).filter(s => !s.end);
@@ -67,9 +69,9 @@ export function createPlanWizardService({ db, brands, workspace }) {
       for (const i of days) {
         const type = mix[k % mix.length]; k++;
         let item = { day: i, type, title: '', source: 'bos', note: '' };
-        if (type === 'reels' && pool.length) { const p = pool.shift(); item = Object.assign(item, { title: p.text.slice(0, 120), poolId: p.id, source: 'reels-havuzu' }); }
+        if (type === 'reels' && pool.length) { const p = pool.shift(); item = Object.assign(item, { title: p.text.slice(0, 120), ideaId: p.id, source: 'reels-havuzu', note: p.description || '' }); }
         else if (ideas.length) { const x = ideas.shift(); item = Object.assign(item, { title: x.title, ideaId: x.id, source: 'fikir', note: x.description || '' }); }
-        else if (pool.length) { const p = pool.shift(); item = Object.assign(item, { type: 'reels', title: p.text.slice(0, 120), poolId: p.id, source: 'reels-havuzu' }); }
+        else if (pool.length) { const p = pool.shift(); item = Object.assign(item, { type: 'reels', title: p.text.slice(0, 120), ideaId: p.id, source: 'reels-havuzu', note: p.description || '' }); }
         else item.title = `Yeni ${CONTENT_TYPES[type] || type} içeriği`;
         items.push(item);
       }

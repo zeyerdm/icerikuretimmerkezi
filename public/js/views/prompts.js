@@ -49,7 +49,7 @@ export async function renderPrompts(view, brand, sub) {
       <div class="tabs mb-3" role="tablist" aria-label="Prompt Studio"><button type="button" role="tab" class="active" aria-selected="true" data-ps-tab="yeni">Yeni prompt</button><button type="button" role="tab" aria-selected="false" data-ps-tab="hizli">Hızlı görsel</button></div>
       <div id="ps-pane-hizli" hidden><p class="small muted mb-2">İki soruyla tek parça AI görseli: prompt yazılır, Prompt Studio'ya kaydedilir ve görsel üretilir. Görsel kütüphaneye "AI görseli" olarak düşer; Post stüdyosunda Yüklemeler ya da Zemin panelinden kullanabilirsin.</p><div id="ps-tpl"></div></div>
       <div id="ps-pane-yeni">
-      <div class="chips mb-3" role="radiogroup" aria-label="Prompt türü">${Object.entries(meta.kinds).filter(([k]) => k !== 'reels').map(([k, v]) => `<button type="button" class="chip ${k === kind ? 'active' : ''}" role="radio" aria-checked="${k === kind}" data-kind="${k}">${esc(v.label)}</button>`).join('')}<a class="chip chip-link" href="#/m/${esc(brand.id)}/reels" title="Reels senaryoları, sahne prompt'ları, altyazı ve seslendirme Reels ve video bölümünde">Reels → Reels ve video</a></div>
+      <div class="chips mb-3" role="radiogroup" aria-label="Prompt türü">${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip ${k === kind ? 'active' : ''}" role="radio" aria-checked="${k === kind}" data-kind="${k}">${esc(v.label)}</button>`).join('')}</div>
       <p class="small muted mb-3" id="ps-hint"></p>
       ${aiReady ? `
         <div class="pool-pick mb-2"><button type="button" class="btn btn-sm" data-pick-idea>${icon('idea')}Havuzdan fikir çek</button>
@@ -73,7 +73,7 @@ export async function renderPrompts(view, brand, sub) {
     <section class="card">
       <div class="card-head"><h3>Kayıtlı prompt'lar</h3>
         <input class="input w-auto" type="search" id="ps-q" placeholder="Ara" aria-label="Prompt ara"></div>
-      <div class="chips mb-3" aria-label="Türe göre filtre"><button type="button" class="chip active" data-filter="">Tümü</button>${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip" data-filter="${k}">${esc(k === 'reels' ? 'Reels (eski)' : v.label)}</button>`).join('')}</div>
+      <div class="chips mb-3" aria-label="Türe göre filtre"><button type="button" class="chip active" data-filter="">Tümü</button>${Object.entries(meta.kinds).map(([k, v]) => `<button type="button" class="chip" data-filter="${k}">${esc(v.label)}</button>`).join('')}</div>
       <div id="ps-list"></div>
     </section>`;
   // Hızlı görsel (eski adıyla hazır görsel şablonları): "Yeni prompt" kartında ikinci sekme

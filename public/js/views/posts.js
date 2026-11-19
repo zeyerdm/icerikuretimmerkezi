@@ -123,13 +123,12 @@ export async function renderPosts(view, brand, sub) {
     view.insertAdjacentHTML('beforeend', `<section class="card mt-4"><div class="card-head"><h3>Şablonlar (tasarımların)</h3><span class="small muted">${templates.length}</span></div>
       <p class="small muted mb-3">Tasarımı bir kez hazırla: düzenleyicide yazı kutularını <b>Başlık / Açıklama / Maskot konuşması</b> diye, maskot görselini <b>Maskot yeri</b> diye işaretle ve "Marka şablonu olarak kaydet". Post üretirken yukarıdan tasarımı seç; yapay zekâ yalnızca metni yazar ve maskotun pozunu seçer, yerleşim değişmez. Özel gün tasarımları da böyle eklenir.</p>
       ${[...new Set(templates.map(t => t.pack || ''))].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'tr')).map(pk => `${pk || templates.some(t => t.pack) ? `<h4 class="tpl-pack-head">${pk ? `${icon('grid')}${esc(pk)}` : 'Pakete eklenmemiş'}</h4>` : ''}
-      <div class="post-grid">${templates.filter(t => (t.pack || '') === pk).map(t => `<div class="post-card tpl-card">
+      <div class="post-grid">${templates.filter(t => (t.pack || '') === pk).map(t => `<div class="post-card-wrap"><div class="post-card tpl-card">
         <div class="post-thumb"><canvas data-tpl-thumb="${esc(t.id)}" aria-hidden="true"></canvas></div>
-        <div class="strong truncate">${esc(t.name)} <span class="badge" title="Şablon versiyonu">V${t.version || 1}</span>${t.match.isDefault ? ' <span class="badge badge-def" title="Eşleşen şablon yoksa üretim bununla yapılır">★ Varsayılan</span>' : ''}</div><div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt · ${t.usedIn ? `<button type="button" class="link-btn" data-tpl-usage="${esc(t.id)}">${t.usedIn} içerikte kullanıldı</button>` : 'henüz kullanılmadı'}</div>
-        <div class="xsmall ${tplFields(t).length ? '' : 'text-warn'} mt-1">${tplFields(t).length ? `Dolan alanlar: ${esc(tplFields(t).join(', '))}` : 'İşaretli alan yok: düzenleyicide kutulara rol ver'}</div>
-        ${t.match.frame ? `<span class="tag mt-1">${t.match.frame === 'acilis' ? 'Sabit açılış slaytı' : 'Sabit kapanış slaytı'}</span>` : ''}<div class="xsmall muted mt-1">${t.match.formats.length || t.match.categories.length ? `Eşleşen fikirler: ${esc([...t.match.formats.map(k => state.meta.ideaFormats[k]), ...t.match.categories.map(k => state.meta.ideaCategories[k])].join(', '))}` : 'Henüz fikir eşleşmesi yok'}</div>
-        <div class="row mt-2"><button class="btn btn-sm" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button>${t.match.frame ? '' : `<button class="btn btn-sm btn-ghost" data-tpl-default="${esc(t.id)}" data-on="${t.match.isDefault ? '0' : '1'}">${t.match.isDefault ? 'Varsayılanı kaldır' : '★ Varsayılan yap'}</button>`}<button class="btn btn-sm btn-ghost" data-match-tpl="${esc(t.id)}">Eşleştir / açılış-kapanış</button><button class="btn btn-sm btn-ghost" data-tpl-versions="${esc(t.id)}">Versiyonlar</button><button class="btn btn-sm btn-ghost" data-tpl-pack="${esc(t.id)}">Paket</button><button class="btn btn-sm btn-ghost icon-btn" data-rename-tpl="${esc(t.id)}" aria-label="${esc(t.name)} şablonunun adını değiştir" title="Adını değiştir">${icon('edit')}</button><button class="btn btn-sm btn-ghost icon-btn" data-del-tpl="${esc(t.id)}" aria-label="Şablonu sil">${icon('trash')}</button></div>
-      </div>`).join('')}</div>`).join('')}</section>`);
+        <div class="strong truncate" title="${esc(tplFields(t).length ? `Dolan alanlar: ${tplFields(t).join(', ')}` : 'İşaretli alan yok')}">${t.match.isDefault ? '<span class="badge badge-def" title="Eşleşen şablon yoksa üretim bununla yapılır">★</span> ' : ''}${esc(t.name)}</div>
+        <div class="xsmall muted">${esc(t.kindLabel)} · ${(t.data.slides || []).length} slayt${t.usedIn ? ` · <button type="button" class="link-btn" data-tpl-usage="${esc(t.id)}">${t.usedIn} içerik</button>` : ''}${t.match.frame ? ` · ${t.match.frame === 'acilis' ? 'sabit açılış' : 'sabit kapanış'}` : ''}${tplFields(t).length ? '' : ' · <span class="text-warn">alan işaretli değil</span>'}</div>
+        <button class="btn btn-sm mt-2 w-full" data-use-tpl="${esc(t.id)}">Bu şablonla başla</button>
+      </div><button type="button" class="post-menu-btn" data-tpl-menu="${esc(t.id)}" aria-haspopup="menu" aria-label="${esc(t.name)}: şablon işlemleri" title="İşlemler">⋯</button></div>`).join('')}</div>`).join('')}</section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
       if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format]); });
@@ -251,6 +250,23 @@ export async function renderPosts(view, brand, sub) {
       return;
     }
     // 10.8: şablonu fikir türü ve kategorileriyle eşleştir
+    const tm = e.target.closest('[data-tpl-menu]');
+    if (tm) {
+      document.querySelectorAll('.post-menu').forEach(x => x.remove());
+      const t = templates.find(x => x.id === tm.dataset.tplMenu); if (!t) return;
+      const id = esc(t.id);
+      const menu = document.createElement('div'); menu.className = 'post-menu'; menu.setAttribute('role', 'menu');
+      menu.innerHTML = `${t.match.frame ? '' : `<button type="button" role="menuitem" data-tpl-default="${id}" data-on="${t.match.isDefault ? '0' : '1'}">★ ${t.match.isDefault ? 'Varsayılanı kaldır' : 'Varsayılan yap'}</button>`}
+        <button type="button" role="menuitem" data-rename-tpl="${id}">${icon('edit')}Adını değiştir</button>
+        <button type="button" role="menuitem" data-match-tpl="${id}">${icon('idea')}Fikirlerle eşleştir</button>
+        <button type="button" role="menuitem" data-tpl-versions="${id}">${icon('refresh')}Versiyonlar</button>
+        <button type="button" role="menuitem" data-tpl-pack="${id}">${icon('grid')}Pakete taşı</button>
+        <button type="button" role="menuitem" class="danger" data-del-tpl="${id}">${icon('trash')}Sil</button>`;
+      tm.parentElement.appendChild(menu);
+      const close = ev => { if (!menu.contains(ev.target) && ev.target !== tm) { menu.remove(); document.removeEventListener('click', close, true); } };
+      setTimeout(() => document.addEventListener('click', close, true), 0);
+      return;
+    }
     const td = e.target.closest('[data-tpl-default]');
     if (td) { try { await api.setTemplateDefault(brand.id, td.dataset.tplDefault, td.dataset.on === '1'); toast(td.dataset.on === '1' ? 'Varsayılan şablon: fikirden ve konudan üretimde bu tasarım kullanılır, AI yalnızca metni yazar.' : 'Varsayılan kaldırıldı.', 'success'); renderPosts(view, brand, null); } catch (err) { toast(err.message, 'error'); } return; }
     const mt = e.target.closest('[data-match-tpl]');
@@ -782,6 +798,7 @@ async function renderEditor(view, brand, id, models) {
           <nav class="ed-rail" aria-label="Araçlar">${RAIL.map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
           <aside class="ed-panel" ${panel ? '' : 'hidden'}><div id="ed-panel-body"></div><button type="button" class="ed-collapse" data-rail-close aria-label="Paneli kapat">${icon('chevronLeft')}</button></aside>
           <main class="ed-stage" id="ed-stage-area">
+            <div class="ed-ctxbar" id="ed-ctxbar" role="toolbar" aria-label="Seçili öğe araçları" hidden></div>
             <div class="ed-canvas-wrap"><canvas id="stage" tabindex="0" aria-label="Slayt; öğe seçmek için tıkla, taşımak için sürükle, ince ayar için ok tuşları"></canvas></div>
           </main>
           <aside class="ed-props" id="layer-panel" ${selected ? '' : 'hidden'}></aside>
@@ -907,6 +924,7 @@ async function renderEditor(view, brand, id, models) {
   }
   // Hızlı yeniden çizim; vektör öğenin rengi/boyutu değiştiyse yeni hâli yüklenince bir kez daha çizilir
   const quick = () => {
+    drawCtxBar();
     const c = $('#stage'); if (!c) return;
     const s = slide(); const opts = () => ({ selectedId: multi || selected, handles: true, showHidden: true, guides });
     drawSlide(c, s, format(), opts());
@@ -944,7 +962,45 @@ async function renderEditor(view, brand, id, models) {
     $('#layer-panel').hidden = !id;
   }
 
+  // Seçili öğenin üstündeki araç çubuğu (Canva benzeri): AI'ya sor, düzenle, değiştir, renk, çevir, saydamlık, konum, çoğalt, kilitle, sil
+  function drawCtxBar() {
+    const bar = $('#ed-ctxbar'); if (!bar) return;
+    const l = layer(); const many = multi && multi.length > 1;
+    if (!l && !many) { bar.hidden = true; bar.innerHTML = ''; return; }
+    const b = (k, ic, label, extra = '') => `<button type="button" class="cb-btn" data-cb="${k}" ${extra}>${ic ? icon(ic) : ''}<span>${label}</span></button>`;
+    const sep = '<span class="cb-sep" aria-hidden="true"></span>';
+    const colorable = l && ['text', 'shape', 'qr'].includes(l.type) || (l && l.type === 'vector' && l.recolor);
+    bar.hidden = false;
+    bar.innerHTML = many ? [b('arrange', 'layers', 'Konumlandır'), b('group', 'group', 'Grupla'), sep, b('dup', 'copy', 'Çoğalt'), b('del', 'trash', 'Sil', 'class="cb-btn cb-danger"')].join('')
+      : [aiReady && l.type === 'text' ? b('ai', 'sparkle', "AI'ya sor") : '', b('edit', 'edit', 'Düzenle'),
+        ['image', 'vector'].includes(l.type) ? b('replace', 'refresh', 'Değiştir') : '',
+        colorable ? `<button type="button" class="cb-btn cb-color" data-cp="color" title="Renk" aria-label="Renk"><span class="cp-trigger-sw" style="background:${l.gradient ? gradCss(l.gradient) : esc(l.color || '#000000')}"></span><span class="sr-only">${esc(String(l.color || '').toUpperCase())}</span></button>` : '',
+        ['image', 'vector'].includes(l.type) ? b('flip', 'refresh', 'Çevir') : '',
+        b('opacity', 'eye', 'Saydamlık'), b('arrange', 'layers', 'Konumlandır'), sep,
+        b('dup', 'copy', ''), b('lock', l.locked ? 'lock' : 'unlock', ''), b('del', 'trash', '', 'class="cb-btn cb-danger"')].join('');
+    bar.querySelectorAll('.cb-btn').forEach(x => { if (!x.title) x.title = { dup: 'Çoğalt (Ctrl+D)', lock: l && l.locked ? 'Kilidi aç' : 'Kilitle', del: 'Sil (Delete)' }[x.dataset.cb] || x.textContent.trim(); if (!x.getAttribute('aria-label')) x.setAttribute('aria-label', x.title); });
+  }
+  function ctxBarAction(k, btn) {
+    const l = layer();
+    if (k === 'ai') { aiScope = 'sel'; if (panel !== 'ai') openPanel('ai'); return; }
+    if (k === 'edit') { const t = $('#lp-text'); if (t) { t.focus(); t.select(); } else { const p = $('#layer-panel'); if (p) p.scrollIntoView({ block: 'nearest' }); } return; }
+    if (k === 'replace' && l) { const want = l.type === 'vector' ? 'ogeler' : 'yuklemeler'; if (panel !== want) openPanel(want); return toast(l.type === 'vector' ? 'Öğeler panelinden yeni öğeyi seç; eski öğeyi sonra silebilirsin.' : 'Yüklemelerden görsele tıklayınca seçili görselin yerine geçmesi için önce eskisini sil ya da sürükle.', 'info', 3000); }
+    if (k === 'flip' && l) { l.flipX = !l.flipX; markDirty(); return redraw(); }
+    if (k === 'opacity' && l) {
+      document.querySelectorAll('.cb-pop').forEach(x => x.remove());
+      const pop = document.createElement('div'); pop.className = 'cb-pop';
+      pop.innerHTML = `<label class="small">Saydamlık <b data-op-v>${l.opacity != null ? l.opacity : 100}%</b><input type="range" min="0" max="100" step="5" value="${l.opacity != null ? l.opacity : 100}" aria-label="Saydamlık"></label>`;
+      btn.parentElement.appendChild(pop); pop.style.left = `${btn.offsetLeft}px`;
+      pop.querySelector('input').addEventListener('input', e => { l.opacity = Number(e.target.value); pop.querySelector('[data-op-v]').textContent = `${l.opacity}%`; markDirty(false, `${l.id}:opacity`); quick(); });
+      const close = ev => { if (!pop.contains(ev.target) && ev.target !== btn) { pop.remove(); document.removeEventListener('mousedown', close, true); } };
+      setTimeout(() => document.addEventListener('mousedown', close, true), 0);
+      return;
+    }
+    if (k === 'arrange') { const r = btn.getBoundingClientRect(); return layerMenu(r.left, r.bottom + 4); }
+    if (['dup', 'lock', 'del', 'group'].includes(k)) { runCtx(k); return drawCtxBar(); }
+  }
   function drawProps() {
+    drawCtxBar();
     const p = $('#layer-panel');
     const l = layer();
     if (!l) { p.innerHTML = ''; return; }
@@ -1052,13 +1108,13 @@ async function renderEditor(view, brand, id, models) {
       if (el.view === 'search' && el.q.trim()) {
         box.innerHTML = '<p class="small muted">Aranıyor…</p>';
         const res = searchEls(await allItems(api), el.q);
-        html = `<p class="xsmall muted mb-2">${res.length} sonuç</p>${elGrid(res.slice(0, el.limit), Math.max(0, res.length - el.limit))}`;
+        html = `<div class="el-nav"><button type="button" class="btn btn-sm el-back" data-el-home aria-label="Aramayı temizle, kategorilere dön">${icon('back')}Geri</button><span class="xsmall muted grow">"${esc(el.q)}" · ${res.length} sonuç</span></div>${elGrid(res.slice(0, el.limit), Math.max(0, res.length - el.limit))}`;
       } else if (el.view === 'cat' && el.cat) {
         const cat = cats.find(c => c.id === el.cat) || cats[0];
         const sub = cat.subs.find(x => x.id === el.sub) || null;
         const lists = await Promise.all((sub ? [sub] : cat.subs).map(x => itemsFor(x, api).catch(() => [])));
         const all = lists.flat();
-        html = `<div class="row mb-2"><button type="button" class="btn btn-sm btn-ghost" data-el-home>← Kategoriler</button><strong class="grow">${esc(cat.name)}</strong></div>
+        html = `<div class="el-nav"><button type="button" class="btn btn-sm el-back" data-el-home aria-label="Kategorilere dön">${icon('back')}Geri</button><strong class="grow truncate">${esc(cat.name)}</strong></div>
           ${cat.subs.length > 1 ? `<div class="chips mb-2"><button type="button" class="chip ${!sub ? 'active' : ''}" data-el-sub="">Tümü</button>${cat.subs.map(x => `<button type="button" class="chip ${sub && sub.id === x.id ? 'active' : ''}" data-el-sub="${esc(x.id)}">${esc(x.name)}</button>`).join('')}</div>` : ''}
           ${elGrid(all.slice(0, el.limit), Math.max(0, all.length - el.limit))}`;
       } else {
@@ -1991,11 +2047,13 @@ async function renderEditor(view, brand, id, models) {
     const sw = t.closest('[data-swatch]');
     if (sw && layer()) { layer()[sw.dataset.swatch] = sw.dataset.color; if (sw.dataset.swatch === 'color') delete layer().gradient; markDirty(); return redraw(); }
     // Renk seçici (özellik paneli): canlı önizleme, art arda değişiklik tek geri alma adımı
+    const cbb = t.closest('[data-cb]');
+    if (cbb) return ctxBarAction(cbb.dataset.cb, cbb);
     const cp = t.closest('[data-cp]');
     if (cp && layer()) {
       const l = layer(); const key = cp.dataset.cp;
       const label = () => { const g = key === 'color' && l.gradient; cp.querySelector('.cp-trigger-sw').style.background = g ? gradCss(g) : l[key]; cp.lastElementChild.textContent = g ? 'Gradyan' : String(l[key]).toUpperCase(); };
-      return openColorPicker(cp, { value: l[key] || '#000000', gradient: key === 'color' ? l.gradient : null, allowGradient: key === 'color' && l.type === 'shape', brandColors: palette, title: { color: 'Renk', highlight: 'Vurgu rengi', shadowColor: 'Gölge rengi', strokeColor: 'Çizgi rengi', bgColor: 'Kutu rengi' }[key] || 'Renk',
+      return openColorPicker(cp, { value: l[key] || '#000000', gradient: key === 'color' ? l.gradient : null, allowGradient: key === 'color' && l.type === 'shape', brandColors: palette, designColors: data.slides.flatMap(sl => [sl.bg, ...sl.layers.map(x => x.color)]), brandHref: `#/m/${encodeURIComponent(brand.id)}/kimlik/gorsel`, title: { color: 'Renk', highlight: 'Vurgu rengi', shadowColor: 'Gölge rengi', strokeColor: 'Çizgi rengi', bgColor: 'Kutu rengi' }[key] || 'Renk',
         onChange: h => { if (!lockAllows(key, h)) { document.querySelectorAll('.cp-pop').forEach(pp => pp._close && pp._close()); return; } l[key] = h; if (key === 'color') delete l.gradient; markDirty(false, `${l.id}:${key}`); quick(); label(); },
         onGradient: g => { if (g) l.gradient = g; else delete l.gradient; markDirty(false, `${l.id}:grad`); quick(); label(); } });
     }
@@ -2011,7 +2069,7 @@ async function renderEditor(view, brand, id, models) {
     const cpb = t.closest('[data-cp-bg]');
     if (cpb) {
       const s = slide();
-      return openColorPicker(cpb, { value: s.bg, gradient: s.bgGradient, allowGradient: true, brandColors: palette, title: 'Zemin',
+      return openColorPicker(cpb, { value: s.bg, gradient: s.bgGradient, allowGradient: true, brandColors: palette, designColors: data.slides.flatMap(sl => [sl.bg, ...sl.layers.map(x => x.color)]), brandHref: `#/m/${encodeURIComponent(brand.id)}/kimlik/gorsel`, title: 'Zemin',
         onChange: h => { s.bg = h; delete s.bgGradient; markDirty(false, 'bg'); quick(); cpb.querySelector('.cp-trigger-sw').style.background = h; cpb.lastElementChild.textContent = h.toUpperCase(); },
         onGradient: g => { if (g) s.bgGradient = g; else delete s.bgGradient; markDirty(false, 'bggrad'); quick(); cpb.querySelector('.cp-trigger-sw').style.background = g ? gradCss(g) : s.bg; cpb.lastElementChild.textContent = g ? 'Gradyan' : s.bg.toUpperCase(); } });
     }

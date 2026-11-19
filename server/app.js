@@ -613,7 +613,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/reels', (req, res) => res.json({ reels: reels.list(req.brand.id) }));
   api.post('/brands/:brandId/reels', route(async (req, res) => {
     const b = req.body || {};
-    res.status(201).json({ reels: await reels.create(req.brand.id, { topic: b.topic, poolId: b.poolId || null, format: b.format || null, patternId: b.patternId || null, modelRef: mr(b) }) });
+    res.status(201).json({ reels: await reels.create(req.brand.id, { topic: b.topic, poolId: b.poolId || null, ideaId: b.ideaId || null, format: b.format || null, patternId: b.patternId || null, modelRef: mr(b) }) });
   }));
   // 8.19 Hata günlüğü (Ayarlar)
   api.get('/errors', (req, res) => res.json({ errors: errorLog.list(req.query.limit), system: (({ version, sha }) => ({ version, sha, node: process.version, platform: process.platform }))(systemInfo()) }));
