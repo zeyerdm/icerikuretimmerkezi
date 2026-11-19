@@ -35,7 +35,7 @@ export async function renderReels(view, brand, sub) {
 }
 
 // Reels ayarları: karakter adı, görsel stil, varsayılan başlık stili
-async function settingsModal(brand, meta) {
+export async function settingsModal(brand, meta) {
   const { settings } = await api.reelsSettings(brand.id);
   openModal({
     title: 'Reels ayarları',

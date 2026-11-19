@@ -15,7 +15,8 @@ const goodPlan = {
     { duration: 8, start: 'Laboratuvar', beats: beats(8), line: 'İlk bilgisayarlar koca bir odayı kaplıyordu ve otuz ton ağırlığındaydı inanabiliyor musun', lineFrom: 0.5, lineTo: 7.5, endFrame: 'Karakter çipi tutuyor' },
     { duration: 8, start: 'Karakter çipi tutuyor', beats: beats(8), line: 'Bugün aynı gücün binlercesi şu küçücük çipin içinde avucumda duruyor bak', lineFrom: 0.5, lineTo: 7.5, endFrame: 'Telefon ekranı' }
   ],
-  ending: { twist: 'Telefon karakteri çağırıyor' }
+  ending: { twist: 'Telefon karakteri çağırıyor' },
+  caption: 'Bir zamanlar bir oda büyüklüğündeydi. Bugün cebinde.', hashtags: ['#teknoloji', 'tarih']
 };
 const filled = (n, line, d) => FLOW.replace('[NUMARASI]', String(n)).replace('[X] saniye', `${d} saniye`).replace('"[Seslendirme metni birebir buraya yazılır.]"', `"${line}"`).replace(/\[[^\]\n]+\]/g, 'dolu');
 
@@ -68,8 +69,27 @@ test('Senaryo planı: eski Reels kurallarıyla yazılır, süre sorunu varsa bir
     assert.equal(p.title, 'Cebe sığan dev');
     assert.equal(p.scenes.length, 2);
     assert.match(p.scenes[1].text, /Bu sahnede kapak yazısı yok/);
+    assert.equal(p.quality.ok, true, 'kapak yazısı bilerek sadeleşen sahne eksik sayılmaz');
     assert.deepEqual(p.plan.scenes.map(x => x.line), r.plan.scenes.map(x => x.line));
     assert.deepEqual(p.planIssues, []);
     assert.equal((await s.request('GET', `/api/brands/${b.id}/prompts/${p.id}`)).data.prompt.planIssues.length, 0);
+
+    // Yayın paketi: açıklama ve hashtag'ler, plandaki konuşma saniyelerinden altyazı, durum, takvim
+    assert.match(provider.calls[0].prompt, /'caption' alanına Instagram açıklaması/);
+    assert.equal(p.plan.caption, goodPlan.caption);
+    assert.deepEqual(p.plan.hashtags, ['#teknoloji', '#tarih']);
+    assert.match(p.srt, /^1\n00:00:00,500 --> 00:00:07,500\nİlk bilgisayarlar/);
+    assert.match(p.srt, /2\n00:00:08,500 --> 00:00:15,500\nBugün aynı gücün/);
+    assert.equal(p.status, 'taslak');
+    const pu = `/api/brands/${b.id}/prompts/${p.id}`;
+    assert.equal((await s.request('PUT', pu, { status: 'yok' })).status, 400);
+    const up = (await s.request('PUT', pu, { status: 'hazir', caption: 'Yeni açıklama', hashtags: 'reels #kod' })).data.prompt;
+    assert.equal(up.statusLabel, 'Çekime hazır');
+    assert.equal(up.plan.caption, 'Yeni açıklama');
+    assert.deepEqual(up.plan.hashtags, ['#reels', '#kod']);
+    assert.equal(up.content, null);
+    const c = (await s.request('POST', `${pu}/schedule`, { scheduledAt: '2026-11-25T09:00:00.000Z' })).data.content;
+    assert.equal(c.type, 'reels'); assert.equal(c.caption, 'Yeni açıklama');
+    assert.deepEqual((await s.request('GET', pu)).data.prompt.content, { id: c.id, scheduledAt: '2026-11-25T09:00:00.000Z' });
   } finally { await s.stop(); }
 });

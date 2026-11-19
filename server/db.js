@@ -677,6 +677,11 @@ const MIGRATIONS = [
   // 46: Prompt Studio Reels: onaylanan senaryo planı (espri, sahne süreleri, saniyeler, replikler) prompt'la birlikte saklanır
   `
   ALTER TABLE prompts ADD COLUMN plan TEXT NOT NULL DEFAULT '';
+  `,
+  // 47: Reels tek akış (Prompt Studio): senaryolu prompt'un çekim durumu ve takvimdeki içerikle bağı
+  `
+  ALTER TABLE prompts ADD COLUMN status TEXT NOT NULL DEFAULT 'taslak';
+  ALTER TABLE contents ADD COLUMN prompt_id TEXT;
   `
 ];
 

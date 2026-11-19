@@ -7,7 +7,7 @@ import { bookBlock } from './characterBook.js';
 import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { transaction } from '../db.js';
-import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds } from './reels/rules.js';
+import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds, buildSrt, STATUSES as REELS_STATUSES } from './reels/rules.js';
 import { RULE_EXAMPLES } from '../../public/js/ruleExamples.js';
 import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
 
@@ -150,11 +150,12 @@ function toPrompt(row) {
     tool: row.tool || '', aspect: row.aspect || '', ruleId: row.rule_id || '',
     scenes: (() => { try { return sceneList(JSON.parse(row.scenes || '[]')); } catch { return []; } })(),
     plan: row.plan ? parseJson(row.plan, null) : null,
+    status: row.status || 'taslak', statusLabel: REELS_STATUSES[row.status || 'taslak'] || row.status,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
 
-export function createPromptService({ db, ai, brands, reels, identity = null }) {
+export function createPromptService({ db, ai, brands, reels, workspace = null, identity = null }) {
   const meta = r => ({ model: r.servedRef || r.ref, modelLabel: ai.labelOf(r.servedRef || r.ref), cost: r.cost, ms: r.ms, fallbackUsed: Boolean(r.fallbackUsed) });
 
   function row(brandId, id) {
@@ -222,7 +223,9 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     if (ru) {
       const sc = toPrompt(r).scenes;
       if (!sc.length) return ruleCheck(ru.body, r.text);
-      const qs = sc.map(s => ruleCheck(ru.body, s.text));
+      // 2. sahneden itibaren kapak yazısı bölümü bilerek sadeleştirilir: o sahneler sadeleştirilmiş şablona göre denetlenir
+      const noCoverBody = coverOnlyFirst([{ text: '' }, { text: ru.body }], ru.body)[1].text;
+      const qs = sc.map((s, i) => ruleCheck(i > 0 && s.text.includes(NO_COVER) ? noCoverBody : ru.body, s.text));
       const worst = qs.reduce((a, q) => (q.score < a.score ? q : a), qs[0]);
       return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
     }
@@ -239,6 +242,9 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     return Object.assign(toPrompt(r), {
       rule: ru ? { id: ru.id, name: ru.name } : null,
       quality: quality(r),
+      // Reels yayın paketi: altyazı (.srt plandaki konuşma saniyelerinden), takvimdeki içerik
+      srt: r.plan ? (() => { const pl = parseJson(r.plan, null); return pl ? buildSrt(pl) : ''; })() : '',
+      content: (() => { const c = db.prepare('SELECT id, scheduled_at FROM contents WHERE prompt_id = ? ORDER BY created_at DESC LIMIT 1').get(r.id); return c ? { id: c.id, scheduledAt: c.scheduled_at } : null; })(),
       planIssues: r.plan ? (() => { const pl = parseJson(r.plan, null); return pl ? planIssues(pl, toPrompt(r).scenes, reelsCheckOpts(r.brand_id)) : []; })() : [],
       feedback: fbOf(r.brand_id, 'prompt', r.id),
       // 7.10: hedef araca göre kopyalanacak çıktı (yalnız İngilizce hâlde)
@@ -315,6 +321,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
 
   return {
     kinds: Object.fromEntries(Object.entries(PROMPT_KINDS).map(([k, v]) => [k, { label: v.label, english: v.english, hint: v.hint, tools: Object.fromEntries(Object.entries(toolsFor(k)).map(([t, d]) => [t, d.label])) }])),
+    statuses: REELS_STATUSES,
     aspects: ASPECTS,
     actions: Object.fromEntries(Object.entries(IMPROVE_ACTIONS).map(([k, v]) => [k, v.label])),
 
@@ -391,7 +398,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const opts = reelsCheckOpts(b.id);
       const attempt = async (prompt, temperature) => {
         const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature });
-        const pl = normalizeScenario(r.output);
+        const pl = normalizeScenario(r.output, { titleStyle: settings.titleStyle || 'pop' });
         if (!pl) return { r, pl: null, issues: ['x'] };
         if (n >= 1) pl.scenes = pl.scenes.slice(0, n);
         return { r, pl, issues: checkQuality(pl, opts) };
@@ -415,6 +422,17 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const b = brands.get(brandId);
       const pl = cleanPlan(plan);
       return { plan: pl, issues: checkQuality(pl, reelsCheckOpts(b.id)), totalSeconds: totalSeconds(pl) };
+    },
+
+    // Takvime ekle: senaryolu Reels prompt'u takvimde içerik olur (açıklama ve hashtag'lerle)
+    schedule(brandId, id, { scheduledAt = null } = {}) {
+      const b = brands.get(brandId);
+      const r = row(b.id, id);
+      if (!workspace) throw badRequest('Takvim kullanılamıyor.');
+      const pl = parseJson(r.plan, {}) || {};
+      const content = workspace.createContent({ brandId: b.id, title: r.title, type: r.kind === 'reels' ? 'reels' : 'post', status: r.status === 'paylasildi' ? 'yayinlandi' : 'hazirlaniyor', scheduledAt, notes: 'Prompt Studio senaryosundan oluşturuldu.', caption: String(pl.caption || '').slice(0, 2200), hashtags: pl.hashtags || [] });
+      db.prepare('UPDATE contents SET prompt_id = ? WHERE id = ?').run(r.id, content.id);
+      return Object.assign(content, { promptId: r.id });
     },
 
     // Beyin fırtınası: tek istekten birkaç konsept × varyasyon (kaydedilmez; beğenilen elle kaydedilir)
@@ -495,6 +513,16 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
         scenesJson = JSON.stringify(sc);
         next.text = joinScenes(sc, PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr');
       }
+      // Reels: çekim durumu; açıklama ve hashtag'ler planın içinde saklanır
+      const status = 'status' in body ? oneOf(body.status, Object.keys(REELS_STATUSES), 'Durum') : (r.status || 'taslak');
+      let planJson = r.plan || '';
+      if (planJson && ('caption' in body || 'hashtags' in body)) {
+        const pl = parseJson(planJson, {}) || {};
+        if ('caption' in body) pl.caption = (text(body.caption, { field: 'Açıklama', max: 2200 }) || '');
+        if ('hashtags' in body) pl.hashtags = (Array.isArray(body.hashtags) ? body.hashtags : String(body.hashtags || '').split(/[\s,]+/)).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 30);
+        planJson = JSON.stringify(pl);
+      }
+      db.prepare('UPDATE prompts SET status = ?, plan = ? WHERE id = ?').run(status, planJson, r.id);
       const changed = next.text !== r.text || next.textTr !== r.text_tr;
       db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, is_example = ?, tool = ?, aspect = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
         .run(next.title, next.text, next.textTr, next.favorite, next.example, tool, aspect, changed ? '' : r.model, scenesJson, now(), r.id);

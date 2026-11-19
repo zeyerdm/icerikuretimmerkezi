@@ -564,29 +564,25 @@ function stage3Provider() {
   }]);
 }
 
-test('Reels: tek havuza fikir ekle, senaryo yaz, tek sahneyi yeniden yaz, Türkçeyi düzeltip çevir, sürüme dön, telepromter, takvim', { skip }, async () => {
+test('Reels: eski liste Prompt Studio sayfasına yönlenir, ayarlar Kütüphanem menüsünde; eski senaryo sayfası: tek sahneyi yeniden yaz, Türkçeyi düzeltip çevir, sürüme dön, telepromter, takvim', { skip }, async () => {
   const srv = await startServer({ aiProvider: stage3Provider() });
   const { browser, page, problems } = await open(srv);
   try {
     const brand = (await srv.request('POST', '/api/brands', { name: 'Kahve Evi' })).data.brand;
+    // Reels tek akış: eski liste sayfası Prompt Studio'ya yönlenir; Reels ayarları Prompt Studio'nun Kütüphanem menüsünde
     await page.goto(srv.base + `/#/m/${brand.id}/reels`);
-    await page.getByRole('heading', { name: 'Reels ve video', exact: true }).waitFor();
-    assert.equal(await page.locator('.sidebar a', { hasText: 'Reels ve video' }).count(), 0, 'Reels şimdilik menüde yok (adresle açılır)');
-
-    await page.getByRole('button', { name: 'Reels ayarları' }).click();
+    await page.getByRole('heading', { name: 'Prompt Studio', exact: true }).waitFor();
+    assert.match(page.url(), /\/prompt$/);
+    await page.locator('.menu-dd > summary').click();
+    await page.locator('[data-reels-settings]').click();
     await page.getByLabel('Konuşan karakterin adı *').fill('Kahveci');
     await page.getByRole('dialog').getByRole('button', { name: 'Kaydet' }).click();
     await page.getByText('Reels ayarları kaydedildi.').waitFor();
+    assert.equal((await srv.request('GET', `/api/brands/${brand.id}/reels/settings`)).data.settings.character, 'Kahveci');
 
-    await page.getByLabel('Fikir', { exact: true }).fill('Vize haftası kahve kuyruğu');
-    await page.locator('#pool-add').getByRole('button', { name: 'Ekle' }).click();
-    await page.locator('.pool-item').filter({ hasText: 'Vize haftası kahve kuyruğu' }).waitFor();
-    // Tek fikir havuzu: eklenen fikir İçerik fikirlerinde Reels türüyle durur
-    const pooled = (await srv.request('GET', `/api/brands/${brand.id}/ideas?format=reels`)).data.ideas;
-    assert.ok(pooled.some(i => i.title === 'Vize haftası kahve kuyruğu'), 'fikir ana havuzda');
-
-    await page.locator('.pool-item').filter({ hasText: 'Vize haftası kahve kuyruğu' }).getByRole('button', { name: 'Senaryo yaz' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Senaryoyu yaz' }).click();
+    // Eski senaryoların kendi sayfası açılmaya devam eder
+    const made = (await srv.request('POST', `/api/brands/${brand.id}/reels`, { topic: 'Vize haftası kahve kuyruğu' })).data.reels;
+    await page.goto(srv.base + `/#/m/${brand.id}/reels/${made.id}`);
     await page.getByRole('heading', { name: 'Vize kahvesi' }).waitFor();
     assert.match(page.url(), /\/reels\/[0-9a-f-]{36}$/);
     await page.getByRole('heading', { name: /Sahne 2/ }).waitFor();

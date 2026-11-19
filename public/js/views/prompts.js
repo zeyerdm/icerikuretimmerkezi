@@ -3,7 +3,8 @@
 import { api } from '../api.js';
 import { openRecipes } from '../recipes.js';
 import { esc, icon, toast, pageHead, emptyState, openModal, timeAgo, busy } from '../ui.js';
-import { downloadBlob, safeName } from '../titlePng.js';
+import { downloadBlob, safeName, titleBlob } from '../titlePng.js';
+import { settingsModal as reelsSettingsModal } from './reels.js';
 import { state, go } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
 import { imageBox, templateBox } from './imageGen.js';
@@ -44,6 +45,7 @@ export async function renderPrompts(view, brand, sub) {
         <details class="menu-dd"><summary class="btn">${icon('notes')}Kütüphanem ▾</summary><div class="menu-dd-list" role="menu">
           <button type="button" role="menuitem" data-rules><b>Kural şablonlarım</b><span class="xsmall muted">Bu markanın uzun prompt iskeletleri</span></button>
           <button type="button" role="menuitem" data-recipes><b>Tariflerim</b><span class="xsmall muted">Kaydettiğin hazır prompt'lar; başka markadan da kopyalanır</span></button>
+          <button type="button" role="menuitem" data-reels-settings><b>Reels ayarları</b><span class="xsmall muted">Konuşan karakterin adı, görsel stil, kapak yazısı stili</span></button>
           <button type="button" role="menuitem" data-manual><b>Elle prompt kaydet</b><span class="xsmall muted">Başka yerde yazdığın prompt'u buraya ekle</span></button>
         </div></details>`
     })}
@@ -191,6 +193,7 @@ export async function renderPrompts(view, brand, sub) {
     if (pst) { const hz = pst.dataset.psTab === 'hizli'; view.querySelectorAll('[data-ps-tab]').forEach(b => { b.classList.toggle('active', b === pst); b.setAttribute('aria-selected', String(b === pst)); }); view.querySelector('#ps-pane-hizli').hidden = !hz; view.querySelector('#ps-pane-yeni').hidden = hz; return; }
     if (e.target.closest('.menu-dd-list button')) { const d = e.target.closest('details'); if (d) d.open = false; }
     if (e.target.closest('[data-rules]')) return rulesModal(brand, meta, kind, loadRules);
+    if (e.target.closest('[data-reels-settings]')) return reelsSettingsModal(brand, state.meta.reels);
     if (e.target.closest('[data-builder]')) return openRuleBuilder(brand, meta, { onSaved: loadRules });
     if (e.target.closest('[data-recipes]')) return openRecipes('prompt', brand, res => go(`#/m/${brand.id}/prompt/${res.prompt.id}`));
     const k = e.target.closest('[data-kind]');
@@ -311,13 +314,13 @@ async function renderDetail(view, brand, id, models) {
   const meta = state.meta.prompts;
   let p = (await api.prompt(brand.id, id)).prompt;
   let lastAi = null;
-  let panel = 'gelistir';
+  let panel = p.plan ? 'yayin' : 'gelistir';
 
   function draw() {
     const panelBox = (k, title, inner) => `<div class="ed-pane" data-pane="${k}" ${panel === k ? '' : 'hidden'}><h3 class="ed-panel-title">${title}</h3>${inner}</div>`;
     const toolMap = (meta.kinds[p.kind] || {}).tools || {};
     const hasTools = Object.keys(toolMap).length > 0;
-    const rails = [['gelistir', 'Geliştir', 'sparkle'], ...(hasTools ? [['arac', 'Hedef araç', 'wand']] : []), ...(IMAGE_KINDS[p.kind] ? [['gorsel', 'Görsel üret', 'image']] : []), ['surumler', 'Sürümler', 'refresh']];
+    const rails = [...(p.plan ? [['yayin', 'Yayın', 'film']] : []), ['gelistir', 'Geliştir', 'sparkle'], ...(hasTools ? [['arac', 'Hedef araç', 'wand']] : []), ...(IMAGE_KINDS[p.kind] ? [['gorsel', 'Görsel üret', 'image']] : []), ['surumler', 'Sürümler', 'refresh']];
     const to = p.toolOutput;
     const outBox = (label, key, value, rows) => `<div class="field mt-2"><div class="row"><span class="field-label grow">${label}</span><button type="button" class="btn btn-sm btn-ghost" data-copy-tool="${key}">Kopyala</button></div><textarea class="textarea" rows="${rows}" readonly data-tool-out="${key}">${esc(value)}</textarea></div>`;
     const toolPane = hasTools ? panelBox('arac', 'Hedef araç', `<p class="small muted mb-3">Aynı prompt seçtiğin araca göre biçimlenir: oran yazımı, negatif prompt alanı ve uzunluk. Araç seçiliyken yapılan geliştirmeler de bu araca göre yazılır.</p>
@@ -360,6 +363,15 @@ async function renderDetail(view, brand, id, models) {
                 <button class="btn btn-sm mt-2" data-rebrief>Yeni girişe göre yeniden yaz</button></div>`
               : '<div class="notice"><div><strong>AI bağlı değil.</strong> Geliştirme işlemleri için bir sağlayıcı bağla. Elle düzenleyip kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>')}
             ${toolPane}
+            ${p.plan ? panelBox('yayin', 'Yayın paketi', `<div class="field"><label for="pp-status">Durum</label><select class="select" id="pp-status">${Object.entries(meta.statuses || {}).map(([k, v]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+              <div class="stack-sm mt-3">${p.content ? `<a class="btn btn-sm" href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde · ${esc(when(p.content.scheduledAt || p.updatedAt))}</a>` : `<button type="button" class="btn btn-sm" data-rl-schedule>${icon('calendar')}Takvime ekle</button>`}
+                <button type="button" class="btn btn-sm" data-rl-srt ${p.srt ? '' : 'disabled'}>${icon('download')}Altyazı indir (.srt)</button>
+                <button type="button" class="btn btn-sm" data-rl-png ${p.plan.screenTitle ? '' : 'disabled'}>${icon('download')}Kapak yazısı PNG</button></div>
+              <p class="xsmall muted mt-1">Altyazı plandaki konuşma saniyelerinden hazırlanır; CapCut'ta Metin → Altyazı içe aktar ile eklenir. Kapak yazısı Reels ayarlarındaki stille çizilir.</p>
+              <hr class="sep">
+              <div class="field"><label for="pp-caption">Instagram açıklaması</label><textarea class="textarea" id="pp-caption" rows="8" maxlength="2200">${esc(p.plan.caption || '')}</textarea></div>
+              <div class="field mt-2"><label for="pp-tags">Hashtag'ler</label><input class="input" id="pp-tags" maxlength="400" value="${esc((p.plan.hashtags || []).join(' '))}"></div>
+              <div class="row mt-2"><button type="button" class="btn btn-sm" data-rl-cap-save>Kaydet</button><button type="button" class="btn btn-sm btn-ghost" data-rl-cap-copy>Kopyala</button></div>`) : ''}
             ${IMAGE_KINDS[p.kind] ? panelBox('gorsel', "Bu prompt'la görsel üret", '<p class="small muted mb-3">Prompt kutusundaki metin seçtiğin görsel modeline gönderilir; sonuç kütüphaneye kaydedilir.</p><div id="pp-image"></div>') : ''}
             ${panelBox('surumler', `Sürümler <span class="small muted">${p.versions.length}</span>`, `<ul class="version-list">${p.versions.map((v, i) => `<li><div class="grow"><div class="small strong">${esc(v.note)}</div><div class="xsmall muted">${esc(when(v.createdAt))}${v.modelLabel ? ` · ${esc(v.modelLabel)}` : ''}</div></div>
               <button class="btn btn-sm btn-ghost" data-show="${esc(v.id)}">Göster</button>
@@ -420,6 +432,10 @@ async function renderDetail(view, brand, id, models) {
 
   // 7.10: araç ya da oran değişince kaydedilir, çıktı yeniden hazırlanır
   view.onchange = async e => {
+    if (e.target.matches('#pp-status')) {
+      try { p = (await api.savePrompt(brand.id, p.id, { status: e.target.value })).prompt; toast(`Durum: ${p.statusLabel}`, 'success'); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     if (!e.target.matches('#pp-tool, #pp-aspect')) return;
     try {
       if (dirty()) await save();
@@ -430,6 +446,20 @@ async function renderDetail(view, brand, id, models) {
 
   view.onclick = async e => {
     const t = e.target;
+    // Reels yayın paketi
+    const name = safeName(p.title || 'reels');
+    if (t.closest('[data-rl-srt]')) { downloadBlob(new Blob([p.srt], { type: 'text/plain;charset=utf-8' }), `${name}_altyazi.srt`); return toast('Altyazı indirildi. CapCut\'ta Metin → Altyazı içe aktar ile ekleyebilirsin.', 'success', 5000); }
+    const png = t.closest('[data-rl-png]');
+    if (png) return busy(png, async () => downloadBlob(await titleBlob({ title: p.plan.screenTitle, keyword: p.plan.titleKeyword, style: p.plan.titleStyle, colors: brand.colors }), `${name}_kapak.png`));
+    if (t.closest('[data-rl-cap-copy]')) return copy([val('#pp-caption'), val('#pp-tags')].filter(Boolean).join('\n\n'), 'Açıklama kopyalandı.');
+    const cs = t.closest('[data-rl-cap-save]');
+    if (cs) { try { p = (await busy(cs, () => api.savePrompt(brand.id, p.id, { caption: val('#pp-caption'), hashtags: val('#pp-tags') }))).prompt; toast('Açıklama kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); } return; }
+    const sch = t.closest('[data-rl-schedule]');
+    if (sch) {
+      const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(12, 0, 0, 0);
+      try { await busy(sch, () => api.schedulePrompt(brand.id, p.id, d.toISOString())); p = (await api.prompt(brand.id, p.id)).prompt; toast('Takvime yarın 12:00 için eklendi; takvimden tarihini değiştirebilirsin.', 'success', 5000); draw(); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const menu = t.closest('[data-menu]');
     if (menu) { const dd = view.querySelector(`[data-drop="${menu.dataset.menu}"]`); const was = dd.hidden; view.querySelectorAll('[data-drop]').forEach(x => { x.hidden = true; }); dd.hidden = !was; return; }
     if (!t.closest('.ed-drop') || t.closest('button')) view.querySelectorAll('[data-drop]').forEach(x => { x.hidden = true; });
