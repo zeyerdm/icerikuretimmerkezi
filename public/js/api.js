@@ -320,6 +320,8 @@ export const api = {
   imageFromTemplate: (id, body) => request('POST', b(id) + '/images/template', body),
   prompts: (id, params = {}) => request('GET', b(id) + '/prompts?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v))),
   brainstormPrompts: (id, body) => request('POST', b(id) + '/prompts/brainstorm', body),
+  reelsPlan: (id, body) => request('POST', b(id) + '/prompts/reels-plan', body),
+  checkReelsPlan: (id, plan) => request('POST', b(id) + '/prompts/reels-plan/check', { plan }),
   enhancePrompt: (id, body) => request('POST', b(id) + '/prompts/enhance', body),
   promptPresets: () => request('GET', '/api/prompt-presets'),
   savePromptPreset: (pid, body) => (pid ? request('PUT', `/api/prompt-presets/${pid}`, body) : request('POST', '/api/prompt-presets', body)),

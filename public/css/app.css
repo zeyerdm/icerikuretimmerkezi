@@ -2259,3 +2259,15 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .ps-bs-dd > summary::-webkit-details-marker { display: none; }
 .ps-bs-dd > summary svg { width: 16px; height: 16px; }
 @media (max-width: 640px) { .ps-compose-foot .spacer { display: none; } .ps-compose-foot [data-create] { width: 100%; justify-content: center; } }
+
+/* Reels senaryo planı */
+.ps-plan { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--surface, #fff); }
+.ps-plan-head { display: flex; align-items: center; gap: var(--s-2); }
+.ps-plan-check { margin-top: 10px; padding: 8px 12px; border-radius: 10px; font-size: var(--t-sm, .875rem); }
+.ps-plan-check ul { margin: 4px 0 0 18px; padding: 0; }
+.ps-plan-check.ok { background: #e7f6ec; color: #155c2e; }
+.ps-plan-check.warn { background: #fff4e0; color: #7a4600; }
+.ps-plan-scenes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.ps-plan-scene { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 6px; align-content: start; }
+.ps-beats { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.ps-plan-foot { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-top: 12px; }
