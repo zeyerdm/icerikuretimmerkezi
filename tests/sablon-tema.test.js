@@ -154,6 +154,7 @@ test('Kısayollar: referans silinir; fikirlerde Ctrl+A seç, Delete sil, Ctrl+Z 
   try {
     // Referans silme
     await page.goto(`${s.base}/#/m/${b.id}/post`);
+    await page.locator('.menu-dd > summary').first().click(); // Diğer menüsü
     await page.locator('[data-ref]').first().click();
     await page.locator(`[data-ref-del="${ref.id}"]`).click();
     await page.waitForFunction(() => !document.querySelector('[data-ref-pick]'));
@@ -258,6 +259,7 @@ test('Arayüz: referanslar çoklu seçilir ve birlikte gönderilir; şablonun ad
   page.on('pageerror', e => problems.push(e.message));
   try {
     await page.goto(`${s.base}/#/m/${b.id}/post`);
+    await page.locator('.menu-dd > summary').first().click(); // Diğer menüsü
     await page.locator('[data-ref]').first().click();
     await page.locator('#ref-count', { hasText: '1 referans seçili' }).waitFor();
     const other = (await page.locator('[data-ref-pick].is-picked').getAttribute('data-ref-pick')) === r1.id ? r2.id : r1.id;

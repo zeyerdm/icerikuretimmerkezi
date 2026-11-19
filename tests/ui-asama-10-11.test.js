@@ -375,7 +375,7 @@ test('Havuzdan fikir: beğenmedim → havuzdan sil (yenisi gelir), beğendim →
   const { browser, page, problems } = await open(srv);
   try {
     await page.goto(`${srv.base}/#/m/${b.id}/post`);
-    await page.locator('#quick-post [data-from-idea]').click();
+    await page.locator('[data-from-idea]').first().click();
     await page.locator('#fi-idea b').waitFor();
     const first = await page.locator('#fi-idea b').innerText();
     await page.locator('[data-fi-del]').click();

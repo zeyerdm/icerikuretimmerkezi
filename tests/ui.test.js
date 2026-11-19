@@ -649,7 +649,8 @@ test('Post stüdyosu: konudan carousel üret, katman seç ve düzenle, slayt ekl
     await srv.request('POST', `/api/brands/${brand.id}/assets?category=logo`, PNG_1PX, { 'Content-Type': 'image/png' });
     await page.goto(srv.base + `/#/m/${brand.id}/post`);
     await page.getByRole('heading', { name: 'Post stüdyosu' }).waitFor();
-    await page.getByRole('button', { name: 'Konudan üret' }).first().click();
+    await page.locator('.menu-dd > summary').first().click(); // Diğer menüsü
+    await page.locator('[data-new]').first().click();
     await page.getByLabel('Konu *').fill('Sınav haftası ipuçları');
     await page.getByLabel('Slayt sayısı (carousel)').fill('3');
     await page.getByRole('dialog').getByRole('button', { name: 'Üret' }).click();
