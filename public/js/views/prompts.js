@@ -35,6 +35,7 @@ export async function renderPrompts(view, brand, sub) {
   let q = '';
   let picked = null;      // havuzdan çekilen fikir
   const pickedSeen = [];  // aynı ziyarette tekrar çekilmesin
+  let plan = null;        // Reels: onay bekleyen senaryo planı
 
   view.innerHTML = `
     ${pageHead({
@@ -64,8 +65,9 @@ export async function renderPrompts(view, brand, sub) {
             <select class="select w-auto" id="ps-tool" aria-label="Hedef araç" title="Prompt bu araca uygun biçimde yazılır"></select>
             <select class="select w-auto" id="ps-rule" aria-label="Kural şablonu" title="Prompt bu şablonun yapısına birebir uyar"></select>
             <span class="spacer"></span><span class="xsmall muted cost-hint" id="ps-cost"></span>
-            <button class="btn btn-primary" data-create>${icon('sparkle')}Prompt üret</button></div>
+            <button class="btn btn-primary" data-create>${icon('sparkle')}<span id="ps-create-label">Senaryo yaz</span></button></div>
         </div>
+        <div id="ps-plan" class="mt-4"></div>
         <details class="ps-bs-dd mt-3"><summary class="small">${icon('grid')}Kararsız mısın? <b>Beyin fırtınası</b> ile aynı isteğe birkaç farklı konsept al</summary>
           <div class="row mt-2"><select class="select w-auto" id="bs-c" aria-label="Konsept sayısı">${[2, 3, 4, 5].map(n => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} konsept</option>`).join('')}</select>
             <select class="select w-auto" id="bs-v" aria-label="Varyasyon sayısı">${[1, 2, 3].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>× ${n} varyasyon</option>`).join('')}</select>
@@ -100,6 +102,9 @@ export async function renderPrompts(view, brand, sub) {
   const hint = () => {
     syncRules();
     const k = meta.kinds[kind];
+    const lb = view.querySelector('#ps-create-label');
+    if (lb) lb.textContent = kind === 'reels' ? 'Senaryo yaz' : 'Prompt üret';
+    if (kind !== 'reels' && plan) { plan = null; drawPlan(); }
     const hn = view.querySelector('#ps-hint');
     if (hn) hn.textContent = `${k.hint}.${k.english ? ' Prompt önce Türkçe yazılır; hazır olunca tek tıkla İngilizceye çevrilir.' : ' Prompt Türkçe yazılır.'}`;
     const ts = view.querySelector('#ps-tool');
@@ -113,6 +118,45 @@ export async function renderPrompts(view, brand, sub) {
   loadRules();
   // 8.5 tahmini tutar (sahneli üretimde sahne sayısıyla; kalite kontrolü bir kez daha yazdırabilir)
   if (aiReady) bindCostHint(view.querySelector('#ps-cost'), models, () => { const n = Number(view.querySelector('#ps-scenes').value) || 1; return { task: 'yazim', ref: view.querySelector('#ps-model').value, job: 'prompt', times: n, suffix: n > 1 ? ` (${n} sahne)` : ' (eksik çıkarsa bir kez daha yazılır)' }; }, [view.querySelector('#ps-model'), view.querySelector('#ps-scenes')]);
+
+  // Reels senaryo planı: önce espri, akış, süreler ve replikler (eski Reels bölümünün kuralları ve süre ölçümü);
+  // replik ya da kapak yazısı düzenlenince plan yeniden ölçülür, onaylanınca Flow şablonuna dökülür.
+  const fmt = v => String(v).replace('.', ',');
+  const words = t => String(t || '').trim().split(/\s+/).filter(Boolean).length;
+  function drawPlan(issues = null) {
+    const box = view.querySelector('#ps-plan');
+    if (!box) return;
+    if (!plan) { box.innerHTML = ''; return; }
+    if (issues) box._issues = issues;
+    const iss = box._issues || [];
+    const total = plan.scenes.reduce((n, sc) => n + sc.duration, 0);
+    box.innerHTML = `<section class="ps-plan" aria-label="Senaryo planı">
+      <div class="ps-plan-head"><div class="grow"><div class="xsmall muted">Senaryo planı · ${plan.scenes.length} sahne · ${fmt(total)} sn</div><div class="strong">${esc(plan.title)}</div></div>
+        <button type="button" class="btn btn-sm btn-ghost" data-plan-redo>${icon('refresh')}Yeniden yaz</button></div>
+      <div class="form-grid mt-2"><div class="field"><label for="pl-punch">Asıl espri (son sahnede söylenir)</label><input class="input" id="pl-punch" data-pl="punchline" maxlength="300" value="${esc(plan.punchline || '')}"></div>
+        <div class="field"><label for="pl-title">Kapak yazısı (yalnız 1. sahnede, en çok 5 kelime)</label><input class="input" id="pl-title" data-pl="screenTitle" maxlength="80" value="${esc(plan.screenTitle || '')}"></div></div>
+      <div class="ps-plan-check ${iss.length ? 'warn' : 'ok'}" role="status">${iss.length ? `<b>Süre ve akış kontrolü: ${iss.length} uyarı</b><ul>${iss.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '<b>Süre ve akış kontrolü: sorun yok ✓</b> <span class="xsmall">Replikler süreye sığıyor, saniyeler boşluksuz.</span>'}</div>
+      <ol class="ps-plan-scenes">${plan.scenes.map((sc, i) => `<li class="ps-plan-scene">
+        <div class="row-between"><b>Sahne ${i + 1}</b><span class="tag">${fmt(sc.duration)} sn</span></div>
+        <ul class="ps-beats small">${(sc.beats || []).map(b => `<li><span class="muted">${fmt(b.from)}–${fmt(b.to)} sn</span> ${esc(b.action)}${b.camera ? ` <span class="muted">· ${esc(b.camera)}</span>` : ''}</li>`).join('')}</ul>
+        <label class="xsmall muted" for="pl-line-${i}">Replik${sc.lineFrom != null ? ` · ${fmt(sc.lineFrom)}–${fmt(sc.lineTo)} sn` : ''} · ${words(sc.line)} kelime</label>
+        <textarea class="textarea" id="pl-line-${i}" data-pl-line="${i}" rows="2" maxlength="400">${esc(sc.line || '')}</textarea>
+      </li>`).join('')}</ol>
+      <div class="ps-plan-foot"><span class="xsmall muted grow">Planı beğendiysen sahneler seçili şablona (${esc((view.querySelector('#ps-rule option:checked') || {}).textContent || 'şablonsuz')}) dökülür; replikler birebir kalır, kapak yazısı yalnız ilk sahnede.</span>
+        <button type="button" class="btn btn-primary" data-plan-ok>${icon('sparkle')}Flow prompt'larına dönüştür</button></div>
+    </section>`;
+  }
+  async function writePlan(btn, brief) {
+    try {
+      const r = await busyTimer(btn, () => api.reelsPlan(brand.id, { brief, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0) || 1, model: view.querySelector('#ps-model').value || null }), 'Senaryo yazıyor');
+      plan = r.plan; drawPlan(r.issues);
+      toast(aiNote(r.ai), 'success', 4000);
+      const box = view.querySelector('#ps-plan'); if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) { toast(err.message, 'error'); }
+  }
+  async function recheckPlan() {
+    try { const r = await api.checkReelsPlan(brand.id, plan); plan = r.plan; drawPlan(r.issues); } catch (err) { toast(err.message, 'error'); }
+  }
 
   async function loadList() {
     const box = view.querySelector('#ps-list');
@@ -132,6 +176,12 @@ export async function renderPrompts(view, brand, sub) {
   }
   await loadList();
 
+  view.onchange = e => {
+    if (!plan) return;
+    const pl = e.target.closest('[data-pl]'); const ln = e.target.closest('[data-pl-line]');
+    if (pl) { plan[pl.dataset.pl] = e.target.value.trim(); recheckPlan(); }
+    else if (ln) { plan.scenes[Number(ln.dataset.plLine)].line = e.target.value.trim(); recheckPlan(); }
+  };
   let timer = null;
   view.oninput = e => {
     if (e.target.id === 'ps-q') { clearTimeout(timer); timer = setTimeout(() => { q = e.target.value.trim(); loadList(); }, 250); }
@@ -216,10 +266,24 @@ export async function renderPrompts(view, brand, sub) {
     if (create) {
       const brief = view.querySelector('#ps-brief').value.trim();
       if (!brief) return toast('Önce ne istediğini kısaca yaz.', 'error');
+      if (kind === 'reels') return writePlan(create, brief);
       try {
         const { prompt } = await streamBusy(create, st => api.createPrompt(brand.id, { kind, brief, model: view.querySelector('#ps-model').value || null, scenes: Number((view.querySelector('#ps-scenes') || {}).value || 0), tool: (view.querySelector('#ps-tool') || {}).value || '', ruleId: (view.querySelector('#ps-rule') || {}).value || 'none' }, st));
         toast(aiNote(prompt.ai), 'success', 5000);
         if (picked) { try { const u = await api.useIdea(brand.id, picked.id, 'prompt'); if (u && u.warning) toast(u.warning, 'info', 6000); } catch { /* fikir silinmiş olabilir */ } picked = null; }
+        go(base(brand) + '/' + prompt.id);
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const redo = e.target.closest('[data-plan-redo]');
+    if (redo) return writePlan(redo, view.querySelector('#ps-brief').value.trim() || plan.title);
+    const ok = e.target.closest('[data-plan-ok]');
+    if (ok) {
+      try {
+        const { prompt } = await streamBusy(ok, st => api.createPrompt(brand.id, { kind, brief: view.querySelector('#ps-brief').value.trim() || plan.title, plan, model: view.querySelector('#ps-model').value || null, ruleId: (view.querySelector('#ps-rule') || {}).value || 'none' }, st));
+        toast(aiNote(prompt.ai), 'success', 5000);
+        if (picked) { try { const u = await api.useIdea(brand.id, picked.id, 'prompt'); if (u && u.warning) toast(u.warning, 'info', 6000); } catch { /* fikir silinmiş olabilir */ } picked = null; }
+        plan = null;
         go(base(brand) + '/' + prompt.id);
       } catch (err) { toast(err.message, 'error'); }
       return;
@@ -316,6 +380,7 @@ async function renderDetail(view, brand, id, models) {
                     <div class="row"><button type="button" class="btn btn-sm btn-primary" data-scene-act="add">${icon('plus')}Bir sahne daha üret (devamı)</button><span class="xsmall muted">Sahneleri elle de düzenleyebilirsin; Kaydet'e bas.</span></div></div>
                   <textarea class="textarea prompt-text" id="pp-text" rows="6" maxlength="30000" readonly hidden>${esc(p.text)}</textarea>` : `<textarea class="textarea prompt-text" id="pp-text" rows="12" maxlength="30000">${esc(p.text)}</textarea>`}</div>
                 ${p.english && p.lang !== 'tr' ? `<div class="field mt-3"><label for="pp-tr">Türkçesi (okumak için)</label><textarea class="textarea" id="pp-tr" rows="7" maxlength="30000">${esc(p.textTr)}</textarea></div>` : ''}
+                ${p.plan ? `<div class="ps-plan-check mt-2 ${p.planIssues.length ? 'warn' : 'ok'}" role="status"><b>Senaryo planına uyum${p.planIssues.length ? `: ${p.planIssues.length} uyarı` : ': replikler ve süreler birebir ✓'}</b>${p.planIssues.length ? `<ul>${p.planIssues.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>` : ''}
                 ${p.quality && p.quality.checks.length ? `<div class="q-badges mt-2" aria-label="Kalite kontrolü"><span class="xsmall muted">Kalite kontrolü %${p.quality.score}${p.ai && p.ai.qualityRetried ? ' · eksikler için bir kez daha yazıldı' : ''}:</span>${p.quality.checks.map(c => `<span class="q-badge ${c.ok ? 'ok' : 'bad'}" title="${esc(c.msg || '')}">${c.ok ? '✓' : '✗'} ${esc(c.label)}</span>`).join('')}</div>` : ''}
                 <div class="row mt-3">
                   ${p.english && p.lang !== 'tr' ? '<button class="btn btn-sm btn-ghost" data-copy="tr">Türkçesini kopyala</button>' : ''}

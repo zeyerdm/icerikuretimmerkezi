@@ -7,7 +7,7 @@ import { bookBlock } from './characterBook.js';
 import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { transaction } from '../db.js';
-import { polish, LIMITS as REELS_LIMITS } from './reels/rules.js';
+import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds } from './reels/rules.js';
 import { RULE_EXAMPLES } from '../../public/js/ruleExamples.js';
 import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
 
@@ -62,6 +62,59 @@ export const REELS_RULES = [
   '- Altyazı, ekranda konuşma metni, logo ve gerçek kişi/marka adı yok; karakter tasarımı bütün sahnelerde aynı kalır.'
 ].join('\n');
 
+// --- Reels senaryo planı (eski Reels bölümünün mantığı): önce espri, akış, süreler ve replikler; Flow prompt'ları sonra ---
+const fmtSec = v => String(v).replace('.', ',');
+// Planın modele verilen hâli: sahne prompt'ları bu plana birebir uyar
+export function planBlock(plan) {
+  const L = ['ONAYLANAN SENARYO PLANI (BİREBİR UY: sahne sayısını, süreleri, saniye aralıklarını ve replikleri DEĞİŞTİRME):',
+    `Video adı: ${plan.title}`, plan.punchline ? `Asıl espri: ${plan.punchline}` : '', plan.setting ? `Korunacak mekân ve ışık: ${plan.setting}` : '',
+    plan.screenTitle ? `Kapak yazısı (yalnız 1. sahnede): "${plan.screenTitle}"` : '', plan.music ? `Müzik: ${plan.music}` : ''];
+  plan.scenes.forEach((sc, i) => {
+    L.push('', `SAHNE ${i + 1} (${fmtSec(sc.duration)} saniye):`);
+    if (sc.start) L.push(`Başlangıç: ${sc.start}`);
+    (sc.beats || []).forEach(b => L.push(`* ${fmtSec(b.from)}–${fmtSec(b.to)} saniye: ${b.action}${b.camera ? ` Kamera: ${b.camera}.` : ''}${b.sound ? ` Ses: ${b.sound}.` : ''}`));
+    if (sc.line) L.push(`Konuşma ${sc.lineFrom != null ? `${fmtSec(sc.lineFrom)}. saniyede başlar, ${fmtSec(sc.lineTo)}. saniyede biter` : ''}: "${sc.line}"`);
+    if (sc.endFrame) L.push(`Bitiş karesi: ${sc.endFrame}`);
+  });
+  if (plan.ending && plan.ending.twist) L.push('', `Final: ${plan.ending.twist}`);
+  L.push('', 'PLANI ŞABLONA DÖKME: Her sahnenin prompt\'u plandaki sahneyi anlatır. Süre alanına sahnenin süresini, saniye saniye bölümüne plandaki aralıkları AYNEN (aynı saniyelerle), konuşma bölümüne konuşmanın başlama saniyesini ve repliği tırnak içinde KELİMESİ KELİMESİNE yaz. Kapak yazısı yalnız 1. sahnede kullanılır; 2. sahneden itibaren kapak yazısı bölümüne yalnızca "Bu sahnede kapak yazısı yok; ekranda hiçbir yazı olmayacak." yaz.');
+  return L.filter(x => x !== '').join('\n').replace(/\n(SAHNE|PLANI|Final)/g, '\n\n$1');
+}
+// Kapak yazısı yalnız ilk sahnede: Flow her sahnede yeniden çizilen yazıyı farklı ve hatalı çiziyor. 2. sahneden itibaren bölüm kodla sabitlenir.
+const NO_COVER = 'Bu sahnede kapak yazısı yok; ekranda hiçbir yazı olmayacak.';
+export function coverOnlyFirst(scenes, ruleBody) {
+  const heads = ruleHeadings(ruleBody);
+  const cover = heads.find(h => /kapak yaz/i.test(foldTr(h)) || /^cover/i.test(h));
+  if (!cover) return scenes;
+  // Ana başlıklar: hemen bir başlığın altındaki başlık ("Kapak yazısı:" altındaki "Tam olarak şu metin kullanılmalı:") alt satırdır
+  const key = l => foldTr(l.trim().replace(/^[*•-]\s*/, '').replace(/:$/, ''));
+  const headSet = new Set(heads.map(foldTr));
+  const main = new Set();
+  let prevHead = false;
+  String(ruleBody).split('\n').filter(l => l.trim()).forEach(l => { const h = /:\s*$/.test(l.trim()) && headSet.has(key(l)); if (h && !prevHead) main.add(key(l)); prevHead = h; });
+  const isHead = l => /:\s*$/.test(l.trim()) && main.has(key(l));
+  return scenes.map((sc, i) => {
+    if (i === 0) return sc;
+    const lines = sc.text.split('\n');
+    const at = lines.findIndex(l => foldTr(l.trim().replace(/:$/, '')) === foldTr(cover) && /:\s*$/.test(l.trim()));
+    if (at < 0) return sc;
+    let end = at + 1;
+    while (end < lines.length && !isHead(lines[end])) end++;
+    return Object.assign({}, sc, { text: [...lines.slice(0, at + 1), NO_COVER, ...lines.slice(end)].join('\n') });
+  });
+}
+// Plan denetimi (eski Reels kalite kontrolü) + sahne prompt'larında replik birebir geçiyor mu
+export function planIssues(plan, scenes = [], { character = '', allow = [] } = {}) {
+  const issues = checkQuality(plan, { character, allow });
+  scenes.forEach((sc, i) => {
+    const want = plan.scenes[i];
+    if (!want) return;
+    if (want.line && !foldTr(sc.text).includes(foldTr(want.line).replace(/[.!?…]+$/, ''))) issues.push(`Sahne ${i + 1}: plandaki replik prompt'ta birebir geçmiyor.`);
+    if (!new RegExp(`(^|\\D)${String(want.duration).replace('.', '[.,]')}\\s*saniye`, 'i').test(sc.text)) issues.push(`Sahne ${i + 1}: süre (${want.duration} saniye) prompt'ta yazmıyor.`);
+  });
+  return issues;
+}
+
 // Kural şablonu: kullanıcının kendi prompt yapısı. Başlıklar ve sabit cümleler aynen kalır, [köşeli] alanlar doldurulur.
 const PLACEHOLDER = /\[[^\]\n]+\]/g;
 const foldTr = s => String(s || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
@@ -96,6 +149,7 @@ function toPrompt(row) {
     lang: (PROMPT_KINDS[row.kind] || {}).english ? (row.lang || 'en') : 'tr',
     tool: row.tool || '', aspect: row.aspect || '', ruleId: row.rule_id || '',
     scenes: (() => { try { return sceneList(JSON.parse(row.scenes || '[]')); } catch { return []; } })(),
+    plan: row.plan ? parseJson(row.plan, null) : null,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
@@ -127,6 +181,14 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
   };
   // Ortak şablonlar (shared) bütün markalarda görünür ve kullanılır
+  const reelsCheckOpts = brandId => { const b = brands.get(brandId); const ch = reels ? reels.settings(b.id).character : ''; return { character: ch, allow: [b.name, ch].filter(Boolean) }; };
+  // Planı gelen ya da düzenlenen hâliyle yeniden düzenler (süreler, konuşma hızına göre uzatma); kullanılamazsa 400
+  const cleanPlan = (raw, n = 0) => {
+    const pl = normalizeScenario(raw && typeof raw === 'object' ? Object.assign({}, raw, { title: raw.title || raw.screenTitle || 'Reels' }) : null);
+    if (!pl) throw badRequest('Senaryo planı okunamadı.');
+    if (n >= 1) pl.scenes = pl.scenes.slice(0, n);
+    return pl;
+  };
   const ruleOf = (brandId, id) => (id === BUILTIN_RULE_ID ? BUILTIN_RULE : id ? db.prepare('SELECT * FROM prompt_rules WHERE id = ? AND (brand_id = ? OR shared = 1)').get(String(id), brandId) || null : null);
   // ruleId: '' → türün varsayılan şablonu, 'none' → şablonsuz, kimlik → o şablon
   const pickRule = (brandId, kind, ruleId) => {
@@ -177,6 +239,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     return Object.assign(toPrompt(r), {
       rule: ru ? { id: ru.id, name: ru.name } : null,
       quality: quality(r),
+      planIssues: r.plan ? (() => { const pl = parseJson(r.plan, null); return pl ? planIssues(pl, toPrompt(r).scenes, reelsCheckOpts(r.brand_id)) : []; })() : [],
       feedback: fbOf(r.brand_id, 'prompt', r.id),
       // 7.10: hedef araca göre kopyalanacak çıktı (yalnız İngilizce hâlde)
       toolOutput: PROMPT_KINDS[r.kind].english && (r.lang || 'en') === 'en' ? toolOutput(r.kind, r.tool, r.text, r.aspect) : null,
@@ -279,7 +342,7 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     score(brandId, kind, textIn, lang) { return checkPrompt(kind, textIn, lang, qualityOpts(brandId)); },
 
     // AI ile yeni prompt: kısa tarif (brief) → tam prompt
-    async create(brandId, { kind, brief, modelRef = null, lang = 'tr', scenes: sceneCount = 0, tool = '', ruleId = '' } = {}) {
+    async create(brandId, { kind, brief, modelRef = null, lang = 'tr', scenes: sceneCount = 0, tool = '', ruleId = '', plan = null } = {}) {
       const b = brands.get(brandId);
       const k = oneOf(kind, Object.keys(PROMPT_KINDS), 'Prompt türü');
       const want = text(brief, { field: 'İstek', max: 2000, required: true });
@@ -287,6 +350,8 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const lg = rule ? (PROMPT_KINDS[k].english && rule.lang === 'en' ? 'en' : 'tr') : PROMPT_KINDS[k].english && lang === 'en' ? 'en' : 'tr';
       const tl = validTool(k, tool) ? tool : '';
       const nScenes = Math.round(Number(sceneCount) || 0);
+      // Reels: onaylanan senaryo planı varsa sahne sayısı ve içerik plandan gelir
+      if (plan && k === 'reels') { const pl = cleanPlan(plan); return this.createScenes(b, k, want, pl.scenes.length, lg, modelRef, tl, rule, pl); }
       if (nScenes >= 2) return this.createScenes(b, k, want, Math.min(k === 'reels' ? REELS_LIMITS.maxScenes : MAX_SCENES, nScenes), lg, modelRef, tl, rule);
       if (rule) return this.createWithRule(b, k, want, lg, modelRef, tl, rule);
       const prompt = ['PROMPT STUDIO', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rules(k, lg, tl), '',
@@ -312,6 +377,44 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
       const created = row(b.id, id);
       saveVersion(created, 'İlk üretim');
       return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: retried }) });
+    },
+
+    // Reels senaryo planı (kaydedilmez): espri, akış, sahne süreleri, saniyeler ve replikler. Eski Reels bölümünün kuralları
+    // ve kalite kontrolü; zamanlama sorunu varsa sorunlar söylenerek bir kez daha yazılır, daha az sorunlu olan tutulur.
+    async plan(brandId, { brief, scenes = 0, modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const want = text(brief, { field: 'İstek', max: 2000, required: true });
+      const n = Math.max(0, Math.min(REELS_LIMITS.maxScenes, Math.round(Number(scenes) || 0)));
+      const settings = reels ? reels.settings(b.id) : { character: 'Karakter', style: '3d' };
+      const book = bookBlock(parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(b.id) || {}).character_book, {}) || {});
+      const ask = planPrompt({ brandName: b.name, memory: brands.memory(b.id), settings, topic: want, scenes: n, extra: book });
+      const opts = reelsCheckOpts(b.id);
+      const attempt = async (prompt, temperature) => {
+        const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature });
+        const pl = normalizeScenario(r.output);
+        if (!pl) return { r, pl: null, issues: ['x'] };
+        if (n >= 1) pl.scenes = pl.scenes.slice(0, n);
+        return { r, pl, issues: checkQuality(pl, opts) };
+      };
+      let a = await attempt(ask, 0.9);
+      let retried = false;
+      const timing = list => list.filter(t => /saniye|sığmıyor|boş|çakışıyor|konuşma|replik/i.test(t));
+      if (!a.pl || timing(a.issues).length) {
+        try {
+          const fix = a.pl ? `ÖNCEKİ DENEMEDEKİ SORUNLAR (bunları düzelterek yeniden yaz):\n${a.issues.map(t => '- ' + t).join('\n')}\nÖNCEKİ DENEME:\n${JSON.stringify(a.pl)}` : 'ÖNCEKİ DENEME KULLANILAMADI: yalnız istenen JSON biçiminde yanıt ver.';
+          const a2 = await attempt(ask + '\n\n' + fix, 0.6);
+          retried = true;
+          if (a2.pl && (!a.pl || a2.issues.length <= a.issues.length)) a = Object.assign(a2, { r: Object.assign(a2.r, { cost: (a.r.cost || 0) + (a2.r.cost || 0) }) });
+        } catch { /* ilk sonuç kalır */ }
+      }
+      if (!a.pl) throw badRequest('Model kullanılabilir bir senaryo döndürmedi; tekrar dene ya da başka model seç.');
+      return { plan: a.pl, issues: a.issues, totalSeconds: totalSeconds(a.pl), ai: Object.assign(meta(a.r), { qualityRetried: retried }) };
+    },
+    // Düzenlenen planı yeniden ölçer (replik süreye sığıyor mu, saniyeler boşluksuz mu); AI çağrısı yok
+    checkPlan(brandId, { plan } = {}) {
+      const b = brands.get(brandId);
+      const pl = cleanPlan(plan);
+      return { plan: pl, issues: checkQuality(pl, reelsCheckOpts(b.id)), totalSeconds: totalSeconds(pl) };
     },
 
     // Beyin fırtınası: tek istekten birkaç konsept × varyasyon (kaydedilmez; beğenilen elle kaydedilir)
@@ -401,11 +504,12 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
     },
 
     // 7.8: çok sahneli prompt (eski sistemdeki gibi): sahneler birbirinin devamı, her biri kemiğe uyan tam bir prompt
-    async createScenes(b, k, want, n, lg, modelRef, tl = '', rule = null) {
+    async createScenes(b, k, want, n, lg, modelRef, tl = '', rule = null, plan = null) {
       const shape = JSON.stringify({ title: 'Kısa Türkçe başlık', scenes: [{ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' }] });
       const prompt = ['PROMPT STUDIO · SAHNELİ', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, k), '', rule ? ruleRules(k, rule, n) : rules(k, lg, tl), '',
         `İSTEK (kullanıcının kısa tarifi):\n${want}`, '',
-        `GÖREV: Bu istek için birbirinin devamı olan ${n} sahne yaz. Her sahne kendi başına ${rule ? 'şablona birebir uyan' : 'kemiğe uyan'} tam bir prompt olsun; karakter, mekân, ışık ve stil sahneler arasında tutarlı kalsın; her sahne bir öncekinin bittiği yerden başlasın.`,
+        plan ? planBlock(plan) + '\n' : '',
+        `GÖREV: Bu ${plan ? 'plan' : 'istek'} için birbirinin devamı olan ${n} sahne yaz. Her sahne kendi başına ${rule ? 'şablona birebir uyan' : 'kemiğe uyan'} tam bir prompt olsun; karakter, mekân, ışık ve stil sahneler arasında tutarlı kalsın; her sahne bir öncekinin bittiği yerden başlasın.`,
         '', 'Sadece şu JSON biçiminde yanıt ver:', shape].join('\n');
       let r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: rule ? 0.6 : 0.8 });
       let scenes = sceneList(r.output && r.output.scenes).slice(0, n); // fazla sahne gelirse istenen sayıda kesilir
@@ -424,10 +528,11 @@ export function createPromptService({ db, ai, brands, reels, identity = null }) 
           } catch { /* ilk sonuç kalır */ }
         }
       }
-      const title = polish(r.output && r.output.title).slice(0, 80) || want.slice(0, 60);
+      if (rule) scenes = coverOnlyFirst(scenes, rule.body);
+      const title = (plan && plan.title) || polish(r.output && r.output.title).slice(0, 80) || want.slice(0, 60);
       const id = newId(); const t = now();
-      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, scenes, tool, rule_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, b.id, k, title, want, joinScenes(scenes, lg), '', r.servedRef || r.ref, lg, JSON.stringify(scenes), tl, rule ? rule.id : '', t, t);
+      db.prepare('INSERT INTO prompts (id, brand_id, kind, title, brief, text, text_tr, model, lang, scenes, tool, rule_id, plan, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, b.id, k, title, want, joinScenes(scenes, lg), '', r.servedRef || r.ref, lg, JSON.stringify(scenes), tl, rule ? rule.id : '', plan ? JSON.stringify(plan) : '', t, t);
       const created = row(b.id, id);
       saveVersion(created, `İlk üretim (${scenes.length} sahne${rule ? `, "${rule.name}" şablonu` : ''})`);
       return Object.assign(detail(created), { ai: Object.assign(meta(r), { qualityRetried: retried }) });

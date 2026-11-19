@@ -673,6 +673,10 @@ const MIGRATIONS = [
       p.brand_id, p.text, '', p.category, CASE WHEN p.rating > 0 THEN 1 ELSE 0 END, p.source, p.created_at, 'reels'
     FROM reels_pool p
     WHERE p.rating >= 0 AND NOT EXISTS (SELECT 1 FROM ideas i WHERE i.brand_id = p.brand_id AND lower(i.title) = lower(p.text));
+  `,
+  // 46: Prompt Studio Reels: onaylanan senaryo planı (espri, sahne süreleri, saniyeler, replikler) prompt'la birlikte saklanır
+  `
+  ALTER TABLE prompts ADD COLUMN plan TEXT NOT NULL DEFAULT '';
   `
 ];
 

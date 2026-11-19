@@ -129,7 +129,11 @@ let chromium = null;
 try { chromium = createRequire(import.meta.url)('playwright').chromium; } catch { chromium = null; }
 
 test('Arayüz: hazır örnekle kural şablonu kaydedilir, üretimde seçili gelir ve gönderilir', { skip: !chromium && 'Playwright yok' }, async () => {
-  const provider = fakeProvider([{ title: 'Sahne', prompt: 'SAHNE 1 — Deneme\nVideo formatı ve süre:\nDikey' }]);
+  // Reels iki adımlı: önce senaryo planı, onaylanınca şablona dökülen sahneler
+  const plan = { title: 'Kahve molası', punchline: 'Kahve bitti, kod da bitti', setting: 'Ofis', screenTitle: 'Kahvesiz kod', titleKeyword: 'Kahvesiz',
+    scenes: [{ duration: 8, start: 'Masa', beats: [{ from: 0, to: 8, action: 'Kupa boşalıyor', camera: 'yakın' }], line: 'Kahvem bitti ve kodum da tam o anda bitti sanırım bugün yine uzun bir gece olacak', lineFrom: 0.5, lineTo: 7.5, endFrame: 'Boş kupa' }],
+    ending: { twist: 'Kupa doluyor' } };
+  const provider = fakeProvider([plan, { title: 'Sahne', scenes: [{ title: 'S1', prompt: 'SAHNE 1 — Deneme\nVideo formatı ve süre:\nDikey' }] }]);
   const s = await startServer({ aiProvider: provider });
   const b = (await s.request('POST', '/api/brands', { name: 'Kural UI' })).data.brand;
   const browser = await chromium.launch();
@@ -152,9 +156,13 @@ test('Arayüz: hazır örnekle kural şablonu kaydedilir, üretimde seçili geli
     await page.selectOption('#ps-scenes', '0');
     assert.match(await page.locator('#ps-rule option:checked').textContent(), /Dikey video sahnesi/);
     await page.locator('#ps-brief').fill('Maskot kahve içiyor');
-    await page.locator('[data-create]').click();
+    await page.locator('[data-create]').click(); // "Senaryo yaz": önce plan
+    await page.locator('.ps-plan', { hasText: 'Kahve molası' }).waitFor();
+    assert.equal(await page.locator('#pl-line-0').inputValue(), plan.scenes[0].line);
+    await page.locator('[data-plan-ok]').click();
     await page.waitForURL(/\/prompt\/[^/]+$/);
-    assert.match(provider.calls[0].prompt, /Flow'da kayıtlı ana karakter kullanılmalı/);
+    assert.match(provider.calls[1].prompt, /Flow'da kayıtlı ana karakter kullanılmalı/);
+    assert.match(provider.calls[1].prompt, /ONAYLANAN SENARYO PLANI/);
     await page.locator('.ed-bottom', { hasText: 'Kural şablonu: Dikey video sahnesi' }).waitFor();
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }

@@ -343,6 +343,23 @@ export function scriptText(data, { character = 'Karakter', style = '3d', colors 
   return L.join('\n');
 }
 
+// Senaryo kuralları: Reels bölümü ve Prompt Studio'nun senaryo planı aynı kuralları kullanır
+export function storyRules(brandName, name) {
+  return [
+    `GERÇEK İSİM YASAĞI: Hiçbir alanda gerçek kişi, ünlü, şirket, kurum, okul, marka, ürün, uygulama veya web sitesi adı kullanma; rol veya unvan kullan (bir bilim insanı, büyük bir teknoloji şirketi, bir mesajlaşma uygulaması). Tek istisna kendi markamız ${brandName} ve karakterimiz ${name}.`, '',
+    `EN ÖNEMLİ KURAL - KONUŞMA ÖNCE GELİR: ${name} HER SAHNEDE konuşur ve konuşma sahnenin en az %70'ini kaplar (8 saniyelik sahnede ≈6 saniye, 12-16 kelime). Sessiz veya yalnızca mimikten oluşan sahne yok. Mimik ve aksiyon söyleneni görselleştirir. ANLATILAN OLAY EKRANDA GÖSTERİLİR: konuşmada geçen nesne veya olay görüntüde somut olarak yer alır; jestler olay sayılmaz. Bilgi anlatan fikirlerde en çarpıcı somut bilgi (rakam, süre, sonuç) söylenir; emin olmadığın bilgiyi uydurma.`, '',
+    "'BU BEN' ETKİSİ: Her fikir, hedef kitlenin 'bu tam ben' deyip arkadaşını etiketleyeceği tanıdık ve gerçek bir ana dayansın.", '',
+    `KARAKTER: ${name}'in görünümü video aracında tanımlıdır; hiçbir alanda görünüm, kıyafet veya renk tarifi YAZMA. Kişiliği marka hafızasındaki karaktere uysun.`, '',
+    `SÜRE: Konuyu eksiksiz anlatan en kısa süreyi seç. Genelde ${LIMITS.targetMax} saniyeyi geçme; kesin üst sınır ${LIMITS.maxTotal} saniye. Her sahne en fazla ${LIMITS.maxScene} saniye (tek klip sınırı), en fazla ${LIMITS.maxScenes} sahne.`, '',
+    "SANİYE SANİYE: Her sahneyi 'beats' listesiyle yaz: her aralıkta aksiyon (action), kamera (camera) ve varsa ses (sound). Beat'ler 0'dan başlar, boşluksuz ve çakışmasız ilerler, son beat sahne süresinde biter. Konuşmanın başlayıp bittiği saniyeyi 'lineFrom' ve 'lineTo' ile ver. Türkçe konuşma hızı saniyede 2-2,5 kelimedir; replik bu süreyi doldurmalı ama aşmamalı.", '',
+    "SÜREKLİLİK: Ana mekânı ve ışığı 'setting' alanında bir kez tanımla ve koru. Her sahnenin 'start' alanı başlangıcını, 'endFrame' alanı son karesini anlatır; 2. sahneden itibaren 'start' önceki 'endFrame'den birebir devam eder. Mekân değişiyorsa geçişi açıkça yaz.", '',
+    "HİKÂYE: İlk 1-2 saniyede dikkat çekici bir olay; giriş ve tanıtım yok. Hızlı kurgu, anında tepkiler. ASIL ESPRİ: Yazmadan önce konunun asıl esprisini veya en çarpıcı bilgisini bul, 'punchline' alanına tek ve somut cümleyle yaz; son sahnenin repliği bunu açıkça söyleyerek biter. Mümkünse son kare ilk sahneye bağlansın (döngü).", '',
+    'KAMERA: Sahne içinde 2-3 saniyede bir plan değişsin (yakın, detay, geniş). Her hareketin sebebi olsun.', '',
+    "EKRAN YAZILARI: 'screenTitle' en fazla 5 kelime, en vurucu kelimesi 'titleKeyword' alanında birebir. Repliklerin dışında karede yazı, tabela veya arayüz kurgulama.", '',
+    'ÇAĞRI YOK: Repliklerde kaydet, beğen, paylaş, takip et, yorum yaz gibi çağrılar kullanma. Video asıl espriyle biter.', ''
+  ];
+}
+
 // --- AI istekleri ---
 export function scenarioPrompt({ brandName, memory, settings, topic, format, liked = [], disliked = [], existing = [], rewrite = null, pattern = '' }) {
   const name = settings.character;
@@ -359,17 +376,7 @@ export function scenarioPrompt({ brandName, memory, settings, topic, format, lik
     liked.length ? `BEĞENİLEN FİKİRLER (bu tarzı ve kaliteyi örnek al ama kopyalama):\n${liked.map(t => `- ${t}`).join('\n')}\n` : '',
     existing.length ? `DAHA ÖNCE YAZILAN SENARYOLAR (bunları tekrar etme):\n${existing.map(t => `- ${t}`).join('\n')}\n` : '',
     rewrite || 'GÖREV: Bu konu için 1 adet Reels senaryosu yaz (saniye saniye).', '',
-    `GERÇEK İSİM YASAĞI: Hiçbir alanda gerçek kişi, ünlü, şirket, kurum, okul, marka, ürün, uygulama veya web sitesi adı kullanma; rol veya unvan kullan (bir bilim insanı, büyük bir teknoloji şirketi, bir mesajlaşma uygulaması). Tek istisna kendi markamız ${brandName} ve karakterimiz ${name}.`, '',
-    `EN ÖNEMLİ KURAL - KONUŞMA ÖNCE GELİR: ${name} HER SAHNEDE konuşur ve konuşma sahnenin en az %70'ini kaplar (8 saniyelik sahnede ≈6 saniye, 12-16 kelime). Sessiz veya yalnızca mimikten oluşan sahne yok. Mimik ve aksiyon söyleneni görselleştirir. ANLATILAN OLAY EKRANDA GÖSTERİLİR: konuşmada geçen nesne veya olay görüntüde somut olarak yer alır; jestler olay sayılmaz. Bilgi anlatan fikirlerde en çarpıcı somut bilgi (rakam, süre, sonuç) söylenir; emin olmadığın bilgiyi uydurma.`, '',
-    "'BU BEN' ETKİSİ: Her fikir, hedef kitlenin 'bu tam ben' deyip arkadaşını etiketleyeceği tanıdık ve gerçek bir ana dayansın.", '',
-    `KARAKTER: ${name}'in görünümü video aracında tanımlıdır; hiçbir alanda görünüm, kıyafet veya renk tarifi YAZMA. Kişiliği marka hafızasındaki karaktere uysun.`, '',
-    `SÜRE: Konuyu eksiksiz anlatan en kısa süreyi seç. Genelde ${LIMITS.targetMax} saniyeyi geçme; kesin üst sınır ${LIMITS.maxTotal} saniye. Her sahne en fazla ${LIMITS.maxScene} saniye (tek klip sınırı), en fazla ${LIMITS.maxScenes} sahne.`, '',
-    "SANİYE SANİYE: Her sahneyi 'beats' listesiyle yaz: her aralıkta aksiyon (action), kamera (camera) ve varsa ses (sound). Beat'ler 0'dan başlar, boşluksuz ve çakışmasız ilerler, son beat sahne süresinde biter. Konuşmanın başlayıp bittiği saniyeyi 'lineFrom' ve 'lineTo' ile ver. Türkçe konuşma hızı saniyede 2-2,5 kelimedir; replik bu süreyi doldurmalı ama aşmamalı.", '',
-    "SÜREKLİLİK: Ana mekânı ve ışığı 'setting' alanında bir kez tanımla ve koru. Her sahnenin 'start' alanı başlangıcını, 'endFrame' alanı son karesini anlatır; 2. sahneden itibaren 'start' önceki 'endFrame'den birebir devam eder. Mekân değişiyorsa geçişi açıkça yaz.", '',
-    "HİKÂYE: İlk 1-2 saniyede dikkat çekici bir olay; giriş ve tanıtım yok. Hızlı kurgu, anında tepkiler. ASIL ESPRİ: Yazmadan önce konunun asıl esprisini veya en çarpıcı bilgisini bul, 'punchline' alanına tek ve somut cümleyle yaz; son sahnenin repliği bunu açıkça söyleyerek biter. Mümkünse son kare ilk sahneye bağlansın (döngü).", '',
-    'KAMERA: Sahne içinde 2-3 saniyede bir plan değişsin (yakın, detay, geniş). Her hareketin sebebi olsun.', '',
-    "EKRAN YAZILARI: 'screenTitle' en fazla 5 kelime, en vurucu kelimesi 'titleKeyword' alanında birebir. Repliklerin dışında karede yazı, tabela veya arayüz kurgulama.", '',
-    'ÇAĞRI YOK: Repliklerde kaydet, beğen, paylaş, takip et, yorum yaz gibi çağrılar kullanma. Video asıl espriyle biter.', '',
+    ...storyRules(brandName, name),
     `FLOW PROMPT: Her sahne için iki dilde birebir aynı içerikte video tarifi yaz: 'flowScene' İngilizce, 'flowSceneTr' Türkçe. Saniye aralıklarıyla yaz ('0-2s:' / '0-2 sn:'), son saniyeye kadar. Karakterden her zaman '${name}' adıyla bahset. Karede yazı tarif etme; durumu görsel anlat. 'smooth', 'slow', 'yavaş' gibi tempoyu düşüren kamera ifadeleri kullanma. Görünüm, başlık, replik metni ve altyazı yazma; sistem ekleyecek.`, '',
     "AÇIKLAMA: 'caption' alanına Instagram açıklaması yaz (600-1200 karakter): merak uyandıran ilk satır, 2-4 kısa paragraf, yorum sorusu; hashtag'leri ayrıca 'hashtags' listesine yaz (en fazla 5).", '',
     'KALİTE KONTROLÜ: Yanıtı vermeden önce kontrol et: her sahnede konuşma var ve sahnenin çoğunu dolduruyor mu, zamanlama boşluksuz mu, replikler süreye sığıyor mu, sahneler birbirine bağlanıyor mu, asıl espri son sahnede söyleniyor mu, çağrı var mı?', '',
@@ -377,6 +384,28 @@ export function scenarioPrompt({ brandName, memory, settings, topic, format, lik
     JSON.stringify({ title: 'Kısa video adı', format: Object.keys(formats)[0], topic: 'Tek cümle konu', why: "İzleyici neden 'bu ben' der?", punchline: 'Asıl espri, somut tek cümle', setting: 'Korunacak mekân ve ışık', screenTitle: 'En fazla 5 kelime', titleKeyword: 'başlıktaki tek kelime',
       scenes: [{ duration: 7, start: 'Başlangıç durumu', beats: [{ from: 0, to: 2, action: '...', camera: '...', sound: '' }, { from: 2, to: 7, action: '...', camera: '...', sound: '' }], line: 'Türkçe konuşma', lineFrom: 0.5, lineTo: 7, endFrame: 'Son kare', flowScene: 'English, 0-2s: ...', flowSceneTr: 'Türkçe, 0-2 sn: ...' }],
       ending: { resolution: '...', finalLine: '...', twist: '...', lastFrame: '...', loop: '' }, caption: 'Açıklama', hashtags: ['#ornek'], music: 'Müzik önerisi' })
+  ].filter(s => s !== '').join('\n');
+}
+
+// Prompt Studio senaryo planı: önce kısa senaryo (espri, akış, replikler, saniyeler); Flow prompt'ları onaydan sonra yazılır.
+// Flow tarifi ve açıklama istenmez: yanıt kısa kalır, plan hızlı gelir.
+export function planPrompt({ brandName, memory, settings, topic, scenes = 0, extra = '' }) {
+  const name = settings.character;
+  const style = STYLES[settings.style] || STYLES['3d'];
+  return [
+    `Sen '${brandName}' markasının Instagram Reels senaristisin. Videolarda ${name} adlı karakter kameraya konuşuyor.`,
+    `Videolar Google Flow ile "${style.label}" tarzında, her sahne ayrı bir klip olarak üretilip birleştirilecek. Şimdi yalnız SENARYO PLANINI yazıyorsun; sahne prompt'ları bu plan onaylandıktan sonra yazılacak.`,
+    '', 'MARKA HAFIZASI (karakter, kitle ve dil buna sadık kalmalı):', memory, '',
+    'FORMATLAR (fikre en uygun olanı seç):', ...Object.entries(FORMATS).map(([k, f]) => `- ${k}: ${f.desc}`), '',
+    `KONU: ${topic}`, 'Senaryoyu bu konuya sadık kalarak yaz; konunun espri veya bilgi özünü koru, hikâyeleştir.', '',
+    extra ? `${extra}\n` : '',
+    scenes >= 1 ? `GÖREV: Bu konu için TAM ${scenes} sahnelik 1 Reels senaryosu yaz (saniye saniye).` : 'GÖREV: Bu konu için 1 Reels senaryosu yaz (saniye saniye).', '',
+    ...storyRules(brandName, name),
+    'KALİTE KONTROLÜ: Yanıtı vermeden önce kontrol et: her sahnede konuşma var ve sahnenin çoğunu dolduruyor mu, zamanlama boşluksuz mu, replikler süreye sığıyor mu, sahneler birbirine bağlanıyor mu, asıl espri son sahnede söyleniyor mu, çağrı var mı?', '',
+    'Sadece şu JSON biçiminde yanıt ver:',
+    JSON.stringify({ title: 'Kısa video adı', format: 'skec', topic: 'Tek cümle konu', punchline: 'Asıl espri, somut tek cümle', setting: 'Korunacak mekân ve ışık', screenTitle: 'En fazla 5 kelime', titleKeyword: 'başlıktaki tek kelime',
+      scenes: [{ duration: 7, start: 'Başlangıç durumu', beats: [{ from: 0, to: 2, action: '...', camera: '...', sound: '' }, { from: 2, to: 7, action: '...', camera: '...', sound: '' }], line: 'Türkçe konuşma', lineFrom: 0.5, lineTo: 7, endFrame: 'Son kare' }],
+      ending: { resolution: '...', finalLine: '...', twist: '...', lastFrame: '...', loop: '' }, music: 'Müzik önerisi' })
   ].filter(s => s !== '').join('\n');
 }
 

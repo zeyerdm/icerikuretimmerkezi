@@ -786,7 +786,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/prompts', (req, res) => res.json({ prompts: prompts.list(req.brand.id, { kind: req.query.kind || null, q: req.query.q || '' }) }));
   api.post('/brands/:brandId/prompts', route(async (req, res) => {
     const b = req.body || {};
-    const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b), lang: b.lang === 'en' ? 'en' : 'tr', scenes: b.scenes, tool: b.tool, ruleId: b.ruleId || '' });
+    const prompt = b.manual ? prompts.createManual(req.brand.id, b) : await prompts.create(req.brand.id, { kind: b.kind, brief: b.brief, modelRef: mr(b), lang: b.lang === 'en' ? 'en' : 'tr', scenes: b.scenes, tool: b.tool, ruleId: b.ruleId || '', plan: b.plan && typeof b.plan === 'object' ? b.plan : null });
     res.status(201).json({ prompt });
   }));
   // Şablon oluşturucu seçenekleri (mecra, başlık/altyazı stili, palet...) ve kullanıcının kendi stilleri (markadan bağımsız)
@@ -800,6 +800,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/prompt-rules', (req, res) => res.status(201).json({ rule: prompts.saveRule(req.brand.id, null, req.body || {}) }));
   api.put('/brands/:brandId/prompt-rules/:rid', (req, res) => res.json({ rule: prompts.saveRule(req.brand.id, req.params.rid, req.body || {}) }));
   api.delete('/brands/:brandId/prompt-rules/:rid', (req, res) => { prompts.removeRule(req.brand.id, req.params.rid); res.status(204).end(); });
+  // Reels senaryo planı: önce plan (kaydedilmez), düzenlenince yeniden ölçülür; onaylanınca /prompts'a plan ile gönderilir
+  api.post('/brands/:brandId/prompts/reels-plan', route(async (req, res) => { const b = req.body || {}; res.json(await prompts.plan(req.brand.id, { brief: b.brief, scenes: b.scenes, modelRef: mr(b) })); }));
+  api.post('/brands/:brandId/prompts/reels-plan/check', (req, res) => res.json(prompts.checkPlan(req.brand.id, req.body || {})));
   api.post('/brands/:brandId/prompts/brainstorm', route(async (req, res) => { const b = req.body || {}; res.json(await prompts.brainstorm(req.brand.id, { kind: b.kind, brief: b.brief, concepts: b.concepts, variations: b.variations, modelRef: mr(b) })); }));
   api.post('/brands/:brandId/prompts/enhance', route(async (req, res) => { const b = req.body || {}; res.json(await prompts.enhance(req.brand.id, { kind: b.kind, text: b.text, modelRef: mr(b) })); }));
   api.get('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.get(req.brand.id, req.params.id) }));
