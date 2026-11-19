@@ -30,7 +30,7 @@ const BG_PRESETS = [
   { n: 'Turuncu ışık', g: { type: 'radial', angle: 0, stops: [{ c: '#ff9a3c', p: 0 }, { c: '#c2410c', p: 100 }] } },
   { n: 'Gri', g: { type: 'linear', angle: 90, stops: [{ c: '#f8fafc', p: 0 }, { c: '#cbd5e1', p: 100 }] } }
 ];
-const MASCOT_OPTS = [['auto', 'Maskot: otomatik yerleştir'], ['manual', 'Maskot: ben yerleştireceğim'], ['none', 'Maskot: kullanma']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+const MASCOT_OPTS = [['auto', 'Otomatik'], ['manual', 'Ben yerleştiririm'], ['none', 'Kullanma']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
 const IMAGE_ROLES = [['', 'Sabit görsel (değişmez)'], ['mascot', 'Maskot yeri · MASCOT (poz konuya göre seçilir)'], ['logo', 'Logo · LOGO'], ['main', 'Ana görsel · MAIN_IMAGE (her içerikte değiştirilecek)']];
 // Şablonun hangi alanları her postta doluyor (kartta gösterilir)
 const ROLE_NAMES = { title: 'Ana başlık', subtitle: 'Alt başlık', body: 'Açıklama', stat: 'İstatistik', item: 'Madde', cta: 'Buton', closing: 'Kapanış cümlesi', speech: 'Maskot konuşması', topic: 'Konu', num: 'Slayt no', mascot: 'Maskot yeri', main: 'Ana görsel' };
@@ -72,19 +72,32 @@ export async function renderPosts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
-      actions: `<a class="btn btn-ghost" href="${base(brand)}/izgara">${icon('grid')}Izgara önizlemesi</a><button class="btn" data-blank>${icon('plus')}Boş tasarım</button>${aiReady ? `<button class="btn" data-ref>${icon('image')}Referanstan şablon</button><button class="btn" data-new>${icon('sparkle')}Konudan üret</button>` : ''}`
+      actions: `<button class="btn" data-blank>${icon('plus')}Boş tasarım</button>
+        <details class="menu-dd"><summary class="btn btn-ghost">Diğer ▾</summary><div class="menu-dd-list" role="menu">
+          ${aiReady ? `<button type="button" role="menuitem" data-ref><b>${icon('image')} Referanstan şablon</b><span class="xsmall muted">Beğendiğin bir tasarımdan şablon çıkar</span></button>
+          <button type="button" role="menuitem" data-new><b>${icon('sparkle')} Konudan üret (gelişmiş)</b><span class="xsmall muted">Tür, boyut ve model seçerek</span></button>` : ''}
+          <a role="menuitem" href="${base(brand)}/izgara"><b>${icon('grid')} Izgara önizlemesi</b><span class="xsmall muted">Profilde nasıl görüneceğini gör</span></a>
+        </div></details>`
     })}
-    ${aiReady ? `<form class="card quick-post mb-4" id="quick-post">
-      <input class="input grow" name="topic" maxlength="1000" required placeholder="Konuyu yaz, carousel hazırlansın. Ör. Sınav haftasında kahve nasıl içilir?" aria-label="Post konusu">
-      <select class="select w-auto" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Tasarım: otomatik (marka yerleşimi)</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>Tasarım: ${t.pack ? `${esc(t.pack)} / ` : ''}${esc(t.name)} V${t.version || 1} · ${esc(t.kindLabel)}</option>`).join('')}</select>
-      <select class="select w-auto" name="slides" aria-label="Slayt sayısı">${[4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 6 ? 'selected' : ''}>${n} slayt</option>`).join('')}</select>
-      <select class="select w-auto" name="mascot" aria-label="Maskot" title="Maskot kullanımı">${MASCOT_OPTS}</select>
-      <button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button>
-      <button class="btn" type="button" data-from-idea title="İçerik havuzundan kullanılmamış bir fikir seç">${icon('idea')}Havuzdan</button>
-    </form>` : ''}
+    ${aiReady ? `<section class="ps-start mb-4">
+      <button type="button" class="card ps-pool" data-from-idea>
+        <span class="ps-pool-ic">${icon('idea')}</span>
+        <span class="ps-pool-tx"><b>Havuzdan fikir seç</b><small>Fikri seç, tasarımı ve sayfa sayısını belirle; metinleri yapay zekâ yazsın</small></span>
+        <span class="btn btn-primary">Başla →</span>
+      </button>
+      <form class="card ps-topic" id="quick-post">
+        <label class="ps-topic-l" for="qp-topic"><b>ya da konuyu yaz</b></label>
+        <div class="ps-topic-row"><input class="input grow" id="qp-topic" name="topic" maxlength="1000" required placeholder="Ör. Sınav haftasında kahve nasıl içilir?" aria-label="Post konusu"><button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button></div>
+        <div class="ps-opts">
+          <label>Tasarım<select class="select input-sm" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Otomatik</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>${t.match.isDefault ? '★ ' : ''}${esc(t.name)}</option>`).join('')}</select></label>
+          <label>Sayfa<select class="select input-sm" name="slides" aria-label="Slayt sayısı">${[3, 4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 5 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+          <label>Maskot<select class="select input-sm" name="mascot" aria-label="Maskot" title="Maskot kullanımı">${MASCOT_OPTS}</select></label>
+        </div>
+      </form>
+    </section>` : ''}
     <section class="card mb-4 gen-queue" id="gen-queue" hidden></section>
     ${aiReady ? '' : '<div class="notice mb-4"><div><strong>AI bağlı değil.</strong> Boş tasarımla başlayabilirsin; konudan metin yazdırmak için bir sağlayıcı bağla.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
-    ${posts.length ? `${[[posts.filter(p => !p.archived), ''], [posts.filter(p => p.archived), 'Arşivlenen tasarımlar']].filter(([l]) => l.length).map(([list, head]) => `${head ? `<details class="post-archive mt-4"><summary class="ed-sub">${head} (${list.length})</summary>` : ''}<div class="post-grid">${list.map(p => `
+    ${posts.length ? `<h3 class="ps-h">Tasarımlarım <span class="small muted">${posts.filter(p => !p.archived).length}</span></h3>${[[posts.filter(p => !p.archived), ''], [posts.filter(p => p.archived), 'Arşivlenen tasarımlar']].filter(([l]) => l.length).map(([list, head]) => `${head ? `<details class="post-archive mt-4"><summary class="ed-sub">${head} (${list.length})</summary>` : ''}<div class="post-grid">${list.map(p => `
       <div class="post-card-wrap"><a class="card post-card" href="${base(brand)}/${esc(p.id)}">
         <div class="post-thumb"><canvas data-thumb="${esc(p.id)}" aria-hidden="true"></canvas></div>
         <div class="strong truncate">${esc(p.title)}</div>
@@ -775,7 +788,7 @@ async function renderEditor(view, brand, id, models) {
           </div>
           <span class="spacer"></span>
           <label class="ed-zoom"><input type="range" id="ed-zoom" min="40" max="200" step="10" value="${zoom}" aria-label="Yakınlaştırma"><span id="ed-zoom-val">%${zoom}</span></label>
-          <span class="small muted">${current + 1} / ${data.slides.length}</span>
+          <span class="small muted" id="ed-page-n" title="Sayfa değiştirmek için ← → (öğe seçili değilken)">${current + 1} / ${data.slides.length}</span>
         </footer>
       </div>`;
     wireStage();
@@ -893,6 +906,7 @@ async function renderEditor(view, brand, id, models) {
 
   function drawList() {
     const list = $('#slide-list');
+    const pn = $('#ed-page-n'); if (pn) pn.textContent = `${current + 1} / ${data.slides.length}`;
     list.innerHTML = data.slides.map((s, i) => `<button type="button" class="slide-thumb ${i === current ? 'active' : ''}" data-slide="${i}" draggable="true" aria-label="Slayt ${i + 1}" aria-current="${i === current}" title="Sürükleyerek sırala · sağ tık: sayfa işlemleri"><canvas></canvas><span>${i + 1}</span></button>`).join('');
     // Sürükle-bırak ile sayfa sıralama; sağ tıkla sayfa menüsü
     list.ondragstart = e => { const b = e.target.closest('[data-slide]'); if (!b) return; e.dataTransfer.setData('text/x-slide', b.dataset.slide); e.dataTransfer.effectAllowed = 'move'; };
@@ -1730,6 +1744,19 @@ async function renderEditor(view, brand, id, models) {
       if (!slide().layers.length) return;
       setSelected(null); multi = slide().layers.map(l => l.id); quick();
       return toast(`${multi.length} katman seçildi: Ctrl+C / Ctrl+X, Delete, oklar ya da sürükle. Esc ile bırak.`, 'info', 2500);
+    }
+    // Hiçbir öğe seçili değilken sağ/sol ok (ve PageUp/PageDown, Home/End) sayfalar arasında gezdirir;
+    // öğe seçiliyse oklar öğeyi taşır (Esc ile seçimi bırakınca yine sayfa değişir)
+    const ae = document.activeElement;
+    if (!multi && !layer() && !mod && !(ae && (ae.tagName === 'SELECT' || ae.type === 'range')) && ['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key) && data.slides.length > 1) {
+      const n = data.slides.length;
+      const to = { ArrowLeft: current - 1, PageUp: current - 1, ArrowRight: current + 1, PageDown: current + 1, Home: 0, End: n - 1 }[e.key];
+      if (to < 0 || to >= n || to === current) return;
+      e.preventDefault(); current = to; setSelected(null);
+      if (panel === 'zemin') drawPanelBody();
+      redraw();
+      const th = view.querySelector(`[data-slide="${current}"]`); if (th) th.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      return;
     }
     if (multi) {
       const group = slide().layers.filter(l => multi.includes(l.id));
