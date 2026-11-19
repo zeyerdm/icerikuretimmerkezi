@@ -246,3 +246,27 @@ test('Arayüz: kendi tasarımı silinir (çöp kutusuna gider), hazır şablonla
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
 });
+
+test('Düzenleyici: öğe seçili değilken sağ/sol ok, Home ve End tuşları sayfa değiştirir; sayaç güncellenir', { skip }, async () => {
+  const s = await startServer();
+  const b = (await s.request('POST', '/api/brands', { name: 'Ok' })).data.brand;
+  const post = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Ok', kind: 'carousel' })).data.post;
+  await s.request('PUT', `/api/brands/${b.id}/posts/${post.id}`, { data: { format: '4:5', slides: [0, 1, 2].map(i => ({ bg: '#ffffff', layers: [{ id: `t${i}`, type: 'text', role: 'title', text: `Sayfa ${i + 1}`, x: 100, y: 100, w: 600, size: 60, color: '#111111', font: 'Inter', weight: 700, align: 'left' }] })) } });
+  const browser = await chromium.launch();
+  const page = await (await browser.newContext({ viewport: { width: 1400, height: 950 } })).newPage();
+  const problems = [];
+  page.on('pageerror', e => problems.push(e.message));
+  const at = () => page.evaluate(() => document.querySelector("#ed-page-n").textContent.trim().split(" ")[0]);
+  try {
+    await page.goto(`${s.base}/#/m/${b.id}/post/${post.id}`);
+    await page.locator('#stage').waitFor();
+    await page.locator('body').click({ position: { x: 5, y: 900 } });
+    assert.equal(await at(), '1');
+    await page.keyboard.press('ArrowRight'); await page.waitForFunction(() => /2\s*\/\s*3/.test(document.body.textContent));
+    await page.keyboard.press('ArrowRight'); await page.waitForFunction(() => /3\s*\/\s*3/.test(document.body.textContent));
+    await page.keyboard.press('ArrowRight'); assert.equal(await at(), '3', 'son sayfada durur');
+    await page.keyboard.press('ArrowLeft'); await page.waitForFunction(() => /2\s*\/\s*3/.test(document.body.textContent));
+    await page.keyboard.press('Home'); await page.waitForFunction(() => /1\s*\/\s*3/.test(document.body.textContent));
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await s.stop(); }
+});

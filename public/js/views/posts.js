@@ -788,7 +788,7 @@ async function renderEditor(view, brand, id, models) {
           </div>
           <span class="spacer"></span>
           <label class="ed-zoom"><input type="range" id="ed-zoom" min="40" max="200" step="10" value="${zoom}" aria-label="Yakınlaştırma"><span id="ed-zoom-val">%${zoom}</span></label>
-          <span class="small muted">${current + 1} / ${data.slides.length}</span>
+          <span class="small muted" id="ed-page-n" title="Sayfa değiştirmek için ← → (öğe seçili değilken)">${current + 1} / ${data.slides.length}</span>
         </footer>
       </div>`;
     wireStage();
@@ -906,6 +906,7 @@ async function renderEditor(view, brand, id, models) {
 
   function drawList() {
     const list = $('#slide-list');
+    const pn = $('#ed-page-n'); if (pn) pn.textContent = `${current + 1} / ${data.slides.length}`;
     list.innerHTML = data.slides.map((s, i) => `<button type="button" class="slide-thumb ${i === current ? 'active' : ''}" data-slide="${i}" draggable="true" aria-label="Slayt ${i + 1}" aria-current="${i === current}" title="Sürükleyerek sırala · sağ tık: sayfa işlemleri"><canvas></canvas><span>${i + 1}</span></button>`).join('');
     // Sürükle-bırak ile sayfa sıralama; sağ tıkla sayfa menüsü
     list.ondragstart = e => { const b = e.target.closest('[data-slide]'); if (!b) return; e.dataTransfer.setData('text/x-slide', b.dataset.slide); e.dataTransfer.effectAllowed = 'move'; };
@@ -1743,6 +1744,19 @@ async function renderEditor(view, brand, id, models) {
       if (!slide().layers.length) return;
       setSelected(null); multi = slide().layers.map(l => l.id); quick();
       return toast(`${multi.length} katman seçildi: Ctrl+C / Ctrl+X, Delete, oklar ya da sürükle. Esc ile bırak.`, 'info', 2500);
+    }
+    // Hiçbir öğe seçili değilken sağ/sol ok (ve PageUp/PageDown, Home/End) sayfalar arasında gezdirir;
+    // öğe seçiliyse oklar öğeyi taşır (Esc ile seçimi bırakınca yine sayfa değişir)
+    const ae = document.activeElement;
+    if (!multi && !layer() && !mod && !(ae && (ae.tagName === 'SELECT' || ae.type === 'range')) && ['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key) && data.slides.length > 1) {
+      const n = data.slides.length;
+      const to = { ArrowLeft: current - 1, PageUp: current - 1, ArrowRight: current + 1, PageDown: current + 1, Home: 0, End: n - 1 }[e.key];
+      if (to < 0 || to >= n || to === current) return;
+      e.preventDefault(); current = to; setSelected(null);
+      if (panel === 'zemin') drawPanelBody();
+      redraw();
+      const th = view.querySelector(`[data-slide="${current}"]`); if (th) th.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      return;
     }
     if (multi) {
       const group = slide().layers.filter(l => multi.includes(l.id));
