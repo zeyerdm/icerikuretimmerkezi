@@ -44,17 +44,21 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 | 7 | Post'ta kendi notların | Fikirle birlikte kendi maddelerini yazarsın; AI slaytları bu maddelerden kurar, özünü korur | ⏳ |
 | 8 | Karakter ve mekân sabitliği | Her sahne için ilk kare görseli prompt'u (Flow'da görselden video); karakter kitabı ve plandaki mekân / ışık her sahneye aynı ifadelerle girer | ⏳ |
 
-### Mevcut sistemde düzeltilecekler (yenilik değil, var olanın doğru çalışması)
+### Mevcut sistemde düzeltilecekler (yenilik değil, var olanın doğru çalışması; onaylandı)
+
+Öncelik: 9 en acil, sonra 10, 11; ardından 12-17.
 
 | Sıra | Sorun | Düzeltme | Durum |
 |---|---|---|---|
-| 9 | Asistan "Reels fikri ekle" eski Reels havuzuna yazıyor; tek havuza geçtiğimiz için bu fikirler hiçbir yerde görünmüyor, "havuzu aç" bağlantısı da eski sayfaya gidiyor | İçerik fikirlerine Reels türüyle yazılır, bağlantı İçerik fikirlerine gider | ⏳ |
+| 9 | **EN ACİL.** Asistan "Reels fikri ekle" eski Reels havuzuna yazıyor; tek havuza geçtiğimiz için bu fikirler hiçbir yerde görünmüyor, "havuzu aç" bağlantısı da eski sayfaya gidiyor | İçerik fikirlerine Reels türüyle yazılır; eski havuzda kalmış fikirler de taşınır; bağlantı İçerik fikirlerine gider | ⏳ |
 | 10 | Asistan "Reels senaryosu yaz" eski Reels bölümünde senaryo oluşturuyor | Prompt Studio'da senaryo planı yazar, oraya bağlantı verir | ⏳ |
-| 11 | Planlı Reels'te Uzat / Değiştir / Bir sahne daha: yeni sahne plana bakmıyor, kapak yazısı geri geliyor, "plana uyum" yanlış uyarı veriyor | Sahne işlemleri planı ve tek kapak kuralını korur; plan sahneyle birlikte güncellenir | ⏳ |
-| 12 | Erişilebilirlik taraması GitHub'da hiç çalışmıyor (axe-core bağımlılıklarda yok); güncel taramada asistan düğmesi ve marka kartlarında etiket uyumsuzluğu var | axe-core geliştirme bağımlılığı olur, bulunan sorunlar düzeltilir | ⏳ |
+| 11 | Planlı Reels'te Uzat / Değiştir / Bir sahne daha: yeni sahne plana bakmıyor, kapak yazısı geri geliyor, "plana uyum" yanlış uyarı veriyor | Sahne işlemleri planı ve tek kapak kuralını korur; plan sahneyle birlikte güncellenir (değişen sahnenin süresi, replik ve saniyeleri plana yazılır) | ⏳ |
+| 12 | Erişilebilirlik (ekran okuyucu, klavye, renk kontrastı) taraması GitHub'da hiç çalışmıyor çünkü tarama aracı projede kayıtlı değil; güncel taramada asistan düğmesi ve marka kartlarının ekran okuyucu adı ekrandaki yazıyla uyuşmuyor | Tarama aracı projeye eklenir, her değişiklikte çalışır; bulunan sorunlar düzeltilir | ⏳ |
 | 13 | Kampanya kanvasına "Reels senaryosu" eklerken yalnız eski Reels senaryoları listeleniyor | Prompt Studio'daki Reels'ler de listelenir | ⏳ |
 | 14 | Çöp kutusunda Reels / kalıp geri yükleme bağlantıları eski sayfaya gidiyor | Doğru sayfaya gider | ⏳ |
-| 15 | Varsayılan 4 sahne × 8 sn = 32 sn: plan çoğu zaman "30 saniyeyi aşıyor" uyarısı veriyor | Varsayılan sahne sayısı ve süre hedefi uyumlu hâle gelir | ⏳ |
+| 15 | Süre kuralı: 30 sn kesin sınır gibi uyarı veriyor | 30 sn **hedef** (aşınca uyarı değil bilgi), kesin üst sınır **40 sn**; sahneler 8 sn olmak zorunda değil (8 sn yalnız Flow'un tek klip sınırı), toplam hedef 30 sn civarı | ⏳ |
+| 16 | Prompt Studio Reels'inden takvime eklenen içerikte "senaryoyu aç" bağlantısı yok (içerik penceresi ve arşiv yalnız eski Reels'i tanıyor) | İçerik penceresi ve arşivde Prompt Studio'daki Reels'e bağlantı | ⏳ |
+| 17 | Haftalık plan sihirbazında Reels fikirleri hâlâ "Reels havuzu" diye etiketleniyor | "Fikir havuzu (Reels)" olarak gösterilir | ⏳ |
 
 Sonra konuşulacak: Reels serileri. Ertelenenler: koyu tema, TR/EN, 10.10 maddeleri.
 
