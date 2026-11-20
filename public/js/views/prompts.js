@@ -59,7 +59,7 @@ export async function renderPrompts(view, brand, sub) {
       ${aiReady ? `
         <div class="ps-compose">
           <div class="ps-compose-top"><span class="small muted grow" id="ps-hint"></span>
-            <button type="button" class="btn btn-sm" data-pick-idea id="ps-pick-btn" title="Fikir türü seçili prompt türünden gelir">${icon('idea')}Havuzdan fikir</button></div>
+            <button type="button" class="btn btn-sm btn-soft" data-pick-idea id="ps-pick-btn" title="Fikir türü seçili prompt türünden gelir">${icon('idea')}Havuzdan fikir</button></div>
           <div class="ps-picked small" id="ps-picked" hidden></div>
           <label class="sr-only" for="ps-brief">İstek</label>
           <textarea class="textarea ps-brief" id="ps-brief" maxlength="2000" placeholder="Kısaca ne istediğini yaz. Ör. Maskotumuz sabah kampüste elinde kahveyle koşuyor, enerjik ve komik"></textarea>
