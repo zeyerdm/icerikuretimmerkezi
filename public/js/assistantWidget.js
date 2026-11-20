@@ -64,7 +64,7 @@ function draw() {
         </form>
       </div>
     </section>
-    <button class="ai-fab" aria-expanded="false" aria-label="${esc(brand.name)} asistanı" title="${esc(brand.name)} asistanı">${avatar('ai-fab-av')}<span>Asistan</span></button>`;
+    <button class="ai-fab" aria-expanded="false" aria-label="Asistan: ${esc(brand.name)} asistanı" title="${esc(brand.name)} asistanı">${avatar('ai-fab-av')}<span>Asistan</span></button>`;
   loadedFor = null;
 }
 

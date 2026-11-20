@@ -9,7 +9,7 @@ export function brandCard(b) {
   const colors = [b.colors.primary, ...(b.colors.secondary || [])].filter(Boolean);
   const pct = b.contentTotal ? Math.round((b.contentDone / b.contentTotal) * 100) : 0;
   return `
-    <article class="card brand-card" data-open="${esc(b.id)}" tabindex="0" role="link" aria-label="${esc(b.name)} çalışma alanını aç">
+    <article class="card brand-card" data-open="${esc(b.id)}" tabindex="0" role="link" title="${esc(b.name)} çalışma alanını aç">
       <div class="b-top">${brandAvatar(b, b.logoUrl, 'avatar-lg')}
         <div class="grow stack-sm" style="gap:4px">
           <div class="b-name"><span class="truncate">${esc(b.name)}</span></div>
