@@ -306,12 +306,14 @@ test('10.1 marka geneli dışa aktarma kaldırıldı; takvim aktarımı duruyor'
 test('11.1 hız: atma adımı yapay zekâ beklemez; okumalar bitişte arka planda ve paralel; süre sınırı; küçük resim gider', async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const seen = [];
+  const spans = []; // her yavaş okumanın başlangıç/bitiş zamanı: paralellik süre eşiğiyle değil, çakışmayla ölçülür
+  const slowRead = async ms => { const sp = { start: Date.now() }; spans.push(sp); await sleep(ms); sp.end = Date.now(); };
   const provider = {
     id: 'fake', label: 'Yavaş', calls: [],
     async generate(prompt, opts) {
       seen.push({ prompt: prompt.slice(0, 40), images: (opts && opts.images || []).map(i => i.data.length) });
-      if (/MASKOT KARAKTER KİTABI/.test(prompt)) { await sleep(700); return { name: 'Ayıcık', lookEn: 'A blue bear', colors: [], personality: 'Meraklı', speech: [], never: [] }; }
-      if (/MARKA KİMLİĞİ/.test(prompt)) { await sleep(700); return { profile: { sector: 'Teknoloji', audience: 'Gençler' }, colors: {}, fonts: {}, notes: '' }; }
+      if (/MASKOT KARAKTER KİTABI/.test(prompt)) { await slowRead(700); return { name: 'Ayıcık', lookEn: 'A blue bear', colors: [], personality: 'Meraklı', speech: [], never: [] }; }
+      if (/MARKA KİMLİĞİ/.test(prompt)) { await slowRead(700); return { profile: { sector: 'Teknoloji', audience: 'Gençler' }, colors: {}, fonts: {}, notes: '' }; }
       return { reply: 'x' };
     },
     async test() { return { ok: true, modelCount: 1, modelAvailable: true }; }
@@ -331,8 +333,10 @@ test('11.1 hız: atma adımı yapay zekâ beklemez; okumalar bitişte arka pland
     assert.ok(Date.now() - t0 < 500, 'bitiş anında');
     assert.equal(fin.state.ai.status, 'calisiyor');
     const ai = await waitAi(s, b.id);
-    const ms = Date.now() - t0;
-    assert.ok(ms < 1300, `iki okuma paralel (${ms} ms)`);
+    // Paralel: ikinci okuma birincisi bitmeden başlar (sıralı olsaydı biri bittikten sonra başlardı). Yavaş CI makinesinde de kararlı.
+    assert.equal(spans.length, 2, 'iki yavaş okuma');
+    const [a1, a2] = [...spans].sort((x, y) => x.start - y.start);
+    assert.ok(a2.start < a1.end, `iki okuma paralel (ikinci ${a2.start - a1.start} ms sonra başladı, birincisi ${a1.end - a1.start} ms sürdü)`);
     assert.ok(ai.found.some(f => /karakter kitabı/.test(f)) && ai.found.some(f => /Metinden/.test(f)), JSON.stringify(ai));
     const br = (await s.request('GET', `/api/brands/${b.id}`)).data.brand;
     assert.equal(br.audience, 'Gençler', 'boş alan dolduruldu');
