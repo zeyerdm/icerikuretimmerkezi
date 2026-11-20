@@ -275,3 +275,10 @@ test('Düzenleyici: öğe seçili değilken sağ/sol ok, Home ve End tuşları s
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
 });
+
+test('Öğe serbest esner: "stretch" oranı korumaz, varsayılan sığdırır', async () => {
+  const { vectorUrl } = await import('../public/js/postCanvas.js');
+  const svg = '<svg viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>';
+  assert.match(decodeURIComponent(vectorUrl({ svg, w: 200, h: 80, fit: 'stretch' })), /preserveAspectRatio="none"/);
+  assert.match(decodeURIComponent(vectorUrl({ svg, w: 200, h: 80 })), /preserveAspectRatio="xMidYMid meet"/);
+});

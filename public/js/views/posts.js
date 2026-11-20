@@ -1054,7 +1054,9 @@ async function renderEditor(view, brand, id, models) {
         <div class="form-grid"><div class="field"><label for="lp-vw">Genişlik</label><input class="input" id="lp-vw" type="number" min="4" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-vh">Yükseklik</label><input class="input" id="lp-vh" type="number" min="4" max="4000" data-prop="h" value="${l.h}"></div></div>
         ${l.recolor ? `<div class="field"><span class="field-label">Renk</span>${swatches('color', l.color || '#1b1f3b')}</div>` : '<p class="xsmall muted">Çok renkli öğe: renkleri değiştirilemez, vektör olarak kalır.</p>'}
-        <label class="chip-check"><input type="checkbox" data-flag="flipX" ${l.flipX ? 'checked' : ''}><span>Aynala</span></label>`
+        <label class="chip-check"><input type="checkbox" data-flag="stretch" ${l.fit === 'stretch' ? 'checked' : ''}><span>Serbest esnet (oranı koruma)</span></label>
+        <label class="chip-check"><input type="checkbox" data-flag="flipX" ${l.flipX ? 'checked' : ''}><span>Aynala</span></label>
+        <p class="xsmall muted">Kenar tutamaçları genişliği ya da yüksekliği tek başına değiştirir; köşe tutamaçları oranı korur (Shift ile serbest).</p>`
       : l.type === 'image' ? `
         <div class="form-grid"><div class="field"><label for="lp-iw">Genişlik</label><input class="input" id="lp-iw" type="number" min="10" max="4000" data-prop="w" value="${l.w}"></div>
           <div class="field"><label for="lp-ih">Yükseklik</label><input class="input" id="lp-ih" type="number" min="10" max="4000" data-prop="h" value="${l.h}"></div></div>
@@ -1460,6 +1462,9 @@ async function renderEditor(view, brand, id, models) {
       return;
     }
     const keep = l.type === 'qr' || ((l.type === 'image' || l.type === 'vector') !== shift);
+    // Öğe (vektör) kenar tutamacıyla ya da Shift + köşeyle serbest esner: basıklık/genişlik ayarlanır (Canva gibi);
+    // köşe tutamacı oranı korur
+    if (l.type === 'vector' && (h.length === 1 || shift)) l.fit = 'stretch';
     let w = Math.max(12, o.w + sx); let hh = Math.max(12, o.h + sy);
     if (keep && h.length === 2) { const k = Math.max(w / o.w, hh / o.h); w = o.w * k; hh = o.h * k; }
     if (l.type === 'qr') hh = w;
@@ -1905,6 +1910,7 @@ async function renderEditor(view, brand, id, models) {
       const lf = layer(); const f = t.dataset.flag;
       if (f === 'bgBox') { if (t.checked) lf.bgColor = lf.bgColor || '#ffffff'; else delete lf.bgColor; }
       else if (f === 'fit') { if (t.checked) lf.fit = 'cover'; else delete lf.fit; }
+      else if (f === 'stretch') { if (t.checked) lf.fit = 'stretch'; else delete lf.fit; }
       else if (t.checked) lf[f] = true; else delete lf[f];
       markDirty(); quick(); drawProps(); return;
     }
@@ -1913,6 +1919,7 @@ async function renderEditor(view, brand, id, models) {
     const l = layer();
     if (!prop || !l) return;
     l[prop] = ['text', 'font', 'color', 'role', 'shadowColor', 'strokeColor', 'bgColor'].includes(prop) ? t.value : Number(t.value);
+    if (l.type === 'vector' && (prop === 'w' || prop === 'h')) l.fit = 'stretch'; // elle yazılan genişlik/yükseklik öğeyi esnetir
     view._propKey = `${l.id}:${prop}`;
     if (!lockAllows(prop, t.value)) { drawProps(); return; }
     const vl = $(`[data-val="${prop}"]`); if (vl) vl.textContent = `${t.value}${t.dataset.unit || ''}`;
