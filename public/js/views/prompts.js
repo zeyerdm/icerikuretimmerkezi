@@ -133,7 +133,7 @@ export async function renderPrompts(view, brand, sub) {
     const iss = box._issues || [];
     const total = plan.scenes.reduce((n, sc) => n + sc.duration, 0);
     box.innerHTML = `<section class="ps-plan" aria-label="Senaryo planı">
-      <div class="ps-plan-head"><div class="grow"><div class="xsmall muted">Senaryo planı · ${plan.scenes.length} sahne · ${fmt(total)} sn</div><div class="strong">${esc(plan.title)}</div></div>
+      <div class="ps-plan-head"><div class="grow"><div class="xsmall muted">Senaryo planı · ${plan.scenes.length} sahne · ${fmt(total)} sn${total > 30 ? ' (hedef 30 sn civarı, üst sınır 40 sn)' : ''}</div><div class="strong">${esc(plan.title)}</div></div>
         <button type="button" class="btn btn-sm btn-ghost" data-plan-redo>${icon('refresh')}Yeniden yaz</button></div>
       <div class="form-grid mt-2"><div class="field"><label for="pl-punch">Asıl espri (son sahnede söylenir)</label><input class="input" id="pl-punch" data-pl="punchline" maxlength="300" value="${esc(plan.punchline || '')}"></div>
         <div class="field"><label for="pl-title">Kapak yazısı (yalnız 1. sahnede, en çok 5 kelime)</label><input class="input" id="pl-title" data-pl="screenTitle" maxlength="80" value="${esc(plan.screenTitle || '')}"></div></div>

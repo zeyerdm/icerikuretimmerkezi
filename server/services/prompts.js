@@ -52,7 +52,7 @@ const BUILTIN_KINDS = ['reels', 'video', 'maskot'];
 // Reels senaryo kuralları (Reels modülüyle aynı sınırlar): şablon doldurulurken bunlara da uyulur
 export const REELS_RULES = [
   'REELS SENARYO KURALLARI (Google Flow\'da her sahne ayrı bir klip olarak üretilip birleştirilecek):',
-  `- Her sahne en çok ${REELS_LIMITS.maxScene} saniye (Flow'un tek klip sınırı), en az ${REELS_LIMITS.minScene} saniye; toplam genelde ${REELS_LIMITS.targetMax} saniyeyi geçmesin, kesin üst sınır ${REELS_LIMITS.maxTotal} saniye.`,
+  `- Her sahne en çok ${REELS_LIMITS.maxScene} saniye (Flow'un tek klip sınırı), en az ${REELS_LIMITS.minScene} saniye; sahneler 8 saniye olmak zorunda değil. Toplam süre hedefi ${REELS_LIMITS.targetMax} saniye civarı, kesin üst sınır ${REELS_LIMITS.maxTotal} saniye.`,
   '- İlk 1-2 saniyede dikkat çekici bir olay (kanca); giriş, selamlama, tanıtım yok.',
   '- Saniye saniye aksiyon 0\'dan başlar, aralıklar boşluksuz ve çakışmasız ilerler, son aralık sahnenin son saniyesinde biter.',
   `- Karakter her sahnede konuşur; konuşma sahnenin en az %70'ini kaplar. Türkçe konuşma hızı saniyede yaklaşık ${REELS_LIMITS.speechRate} kelimedir: replik konuşma süresini doldurur ama aşmaz (8 saniyelik sahnede 12-16 kelime). Konuşmanın başladığı ve bittiği saniyeyi yaz.`,
@@ -649,15 +649,39 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
           : `YALNIZCA sahne ${i + 1}'i şu talimata göre yeniden yaz: ${how}. Beğenilmeyen kısmı değiştir, geri kalanı ve diğer sahnelerle tutarlılığı koru.`;
         note = action === 'extend' ? `Sahne ${i + 1} uzatıldı` : `Sahne ${i + 1} değiştirildi`;
       } else throw badRequest('Geçersiz sahne işlemi.');
+      // Planlı Reels: sahne işlemi planı da günceller (süre, saniye saniye aksiyon, replik); kapak yazısı yalnız ilk sahnede kalır
+      const plan = r.plan ? parseJson(r.plan, null) : null;
+      const at = action === 'add' ? scenes.length : i;
+      if (plan && action === 'add') {
+        if (scenes.length >= REELS_LIMITS.maxScenes) throw badRequest(`Reels en fazla ${REELS_LIMITS.maxScenes} sahne olabilir.`);
+        if (totalSeconds(plan) + REELS_LIMITS.minScene > REELS_LIMITS.maxTotal) throw badRequest(`Video ${totalSeconds(plan)} saniye; yeni sahne ${REELS_LIMITS.maxTotal} saniye üst sınırını aşar.`);
+      }
+      const planAsk = plan ? [planBlock(plan), '',
+        `PLANLI SAHNE KURALI: Değişen sahnenin plandaki karşılığını da 'planScene' alanında ver (duration, start, beats [from, to, action, camera, sound], line, lineFrom, lineTo, endFrame). Sahne en fazla ${REELS_LIMITS.maxScene} saniye; "uzatmak" saniye eklemek değil, akışı ve ayrıntıyı zenginleştirmektir. Toplam süre ${REELS_LIMITS.maxTotal} saniyeyi aşmasın. Sahne prompt'u planScene ile birebir uyumlu olsun (aynı süre, aynı saniye aralıkları, replik kelimesi kelimesine). Konuşma süresi saniyede yaklaşık ${REELS_LIMITS.speechRate} kelimeyi aşmasın.`,
+        at > 0 ? `Bu sahne ${at + 1}. sahne: kapak yazısı bölümüne yalnızca "${NO_COVER}" yaz.` : ''].filter(Boolean).join('\n') : '';
+      const shape = plan ? { title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u', planScene: { duration: 7, start: '...', beats: [{ from: 0, to: 7, action: '...', camera: '...', sound: '' }], line: 'Replik', lineFrom: 0.5, lineTo: 7, endFrame: '...' } } : { title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' };
       const prompt = ['PROMPT STUDIO · SAHNE', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, r.kind), '', rulesFor(r), '',
-        `İLK İSTEK: ${r.brief || '-'}`, '', 'MEVCUT SAHNELER:', joinScenes(scenes, lg), '', `YAPILACAK: ${ask}`, '',
-        'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' })].join('\n');
+        `İLK İSTEK: ${r.brief || '-'}`, '', planAsk, 'MEVCUT SAHNELER:', joinScenes(scenes, lg), '', `YAPILACAK: ${ask}`, '',
+        'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify(shape)].join('\n');
       const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
       const sc = sceneList([out.output])[0];
       if (!sc) throw badRequest('Model sahne döndürmedi; tekrar dene.');
-      const next = scenes.slice();
+      let next = scenes.slice();
       if (action === 'add') next.push(sc); else next[i] = Object.assign({}, sc, { title: sc.title || scenes[i].title });
-      db.prepare('UPDATE prompts SET scenes = ?, text = ?, model = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(next), joinScenes(next, lg), out.servedRef || out.ref, now(), r.id);
+      const ru = ruleOf(r.brand_id, r.rule_id);
+      if (plan && ru) next = coverOnlyFirst(next, ru.body);
+      let planJson = r.plan || '';
+      if (plan) {
+        // Modelin verdiği plan sahnesi aynı kurallarla düzenlenir (süre sınırı, konuşma hızına göre uzatma); gelmezse plan sahnesi korunur
+        const ps = out.output && out.output.planScene;
+        const one = ps && typeof ps === 'object' ? normalizeScenario({ title: plan.title || 'Reels', scenes: [ps] }) : null;
+        if (one && one.scenes[0]) {
+          const scenesNext = plan.scenes.slice();
+          if (action === 'add') scenesNext.push(one.scenes[0]); else scenesNext[i] = one.scenes[0];
+          planJson = JSON.stringify(Object.assign({}, plan, { scenes: scenesNext }));
+        }
+      }
+      db.prepare('UPDATE prompts SET scenes = ?, text = ?, model = ?, plan = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(next), joinScenes(next, lg), out.servedRef || out.ref, planJson, now(), r.id);
       const u = row(b.id, r.id);
       saveVersion(u, note);
       return Object.assign(detail(u), { ai: meta(out) });

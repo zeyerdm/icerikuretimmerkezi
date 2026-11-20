@@ -2,7 +2,8 @@
 // altyazı (.srt) ve senaryo metni. Saf işlevler: veritabanı ve AI çağrısı yok (testlenebilir).
 // Eski sistemdeki kuralların markadan bağımsız hâli: karakter, kitle ve dil markanın kimliğinden gelir.
 
-export const LIMITS = { maxScene: 8, minScene: 3, targetMax: 30, maxTotal: 45, maxScenes: 6, speechRate: 2.4 };
+// targetMax hedeftir (aşmak sorun sayılmaz), maxTotal kesin üst sınırdır; 8 sn Flow'un tek klip sınırı (sahneler 8 sn olmak zorunda değil)
+export const LIMITS = { maxScene: 8, minScene: 3, targetMax: 30, maxTotal: 40, maxScenes: 6, speechRate: 2.4 };
 
 export const FORMATS = {
   vlog: { label: 'Vlog / POV', desc: "Karakter kameraya konuşur, günlük hayatından veya işinden tanıdık bir anı hızlıca paylaşır. İzleyici 'bu benim hayatım' demeli." },
@@ -228,7 +229,7 @@ export function checkQuality(data, { character = '', allow = [] } = {}) {
   const tw = wordCount(data.screenTitle);
   if (tw > 5) issues.push(`Başlık ${tw} kelime: en fazla 5 olmalı.`);
   const total = totalSeconds(data);
-  if (total > LIMITS.targetMax) issues.push(`Video ${total} saniye: ${LIMITS.targetMax} saniyeyi aşıyor, kısaltılabilecek sahne var mı?`);
+  if (total > LIMITS.maxTotal) issues.push(`Video ${total} saniye: üst sınır ${LIMITS.maxTotal} saniye, bir sahneyi kısalt ya da çıkar.`);
   if (!data.setting) issues.push('Görsel ortam (sahneler boyunca korunacak mekân) yazılmamış.');
   if (!data.ending || !data.ending.twist) issues.push('Final için şaşırtıcı veya komik bir kapanış yazılmamış.');
   const names = findRealNames(data, { allow });
@@ -350,7 +351,7 @@ export function storyRules(brandName, name) {
     `EN ÖNEMLİ KURAL - KONUŞMA ÖNCE GELİR: ${name} HER SAHNEDE konuşur ve konuşma sahnenin en az %70'ini kaplar (8 saniyelik sahnede ≈6 saniye, 12-16 kelime). Sessiz veya yalnızca mimikten oluşan sahne yok. Mimik ve aksiyon söyleneni görselleştirir. ANLATILAN OLAY EKRANDA GÖSTERİLİR: konuşmada geçen nesne veya olay görüntüde somut olarak yer alır; jestler olay sayılmaz. Bilgi anlatan fikirlerde en çarpıcı somut bilgi (rakam, süre, sonuç) söylenir; emin olmadığın bilgiyi uydurma.`, '',
     "'BU BEN' ETKİSİ: Her fikir, hedef kitlenin 'bu tam ben' deyip arkadaşını etiketleyeceği tanıdık ve gerçek bir ana dayansın.", '',
     `KARAKTER: ${name}'in görünümü video aracında tanımlıdır; hiçbir alanda görünüm, kıyafet veya renk tarifi YAZMA. Kişiliği marka hafızasındaki karaktere uysun.`, '',
-    `SÜRE: Konuyu eksiksiz anlatan en kısa süreyi seç. Genelde ${LIMITS.targetMax} saniyeyi geçme; kesin üst sınır ${LIMITS.maxTotal} saniye. Her sahne en fazla ${LIMITS.maxScene} saniye (tek klip sınırı), en fazla ${LIMITS.maxScenes} sahne.`, '',
+    `SÜRE: Konuyu eksiksiz anlatan süreyi seç; hedef toplam ${LIMITS.targetMax} saniye civarı, kesin üst sınır ${LIMITS.maxTotal} saniye. Her sahne en fazla ${LIMITS.maxScene} saniye (tek klip sınırı) ama 8 saniye olmak zorunda değil: anlatıma göre ${LIMITS.minScene}-${LIMITS.maxScene} saniye seç. En fazla ${LIMITS.maxScenes} sahne.`, '',
     "SANİYE SANİYE: Her sahneyi 'beats' listesiyle yaz: her aralıkta aksiyon (action), kamera (camera) ve varsa ses (sound). Beat'ler 0'dan başlar, boşluksuz ve çakışmasız ilerler, son beat sahne süresinde biter. Konuşmanın başlayıp bittiği saniyeyi 'lineFrom' ve 'lineTo' ile ver. Türkçe konuşma hızı saniyede 2-2,5 kelimedir; replik bu süreyi doldurmalı ama aşmamalı.", '',
     "SÜREKLİLİK: Ana mekânı ve ışığı 'setting' alanında bir kez tanımla ve koru. Her sahnenin 'start' alanı başlangıcını, 'endFrame' alanı son karesini anlatır; 2. sahneden itibaren 'start' önceki 'endFrame'den birebir devam eder. Mekân değişiyorsa geçişi açıkça yaz.", '',
     "HİKÂYE: İlk 1-2 saniyede dikkat çekici bir olay; giriş ve tanıtım yok. Hızlı kurgu, anında tepkiler. ASIL ESPRİ: Yazmadan önce konunun asıl esprisini veya en çarpıcı bilgisini bul, 'punchline' alanına tek ve somut cümleyle yaz; son sahnenin repliği bunu açıkça söyleyerek biter. Mümkünse son kare ilk sahneye bağlansın (döngü).", '',
