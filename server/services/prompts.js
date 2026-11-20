@@ -9,6 +9,7 @@ import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib
 import { transaction } from '../db.js';
 import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds, buildSrt, STATUSES as REELS_STATUSES } from './reels/rules.js';
 import { RULE_EXAMPLES } from '../../public/js/ruleExamples.js';
+import { perfTopReels } from './perf.js';
 import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
 
 export const PROMPT_KINDS = {
@@ -216,7 +217,10 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
     });
     const recent = rows.slice(0, 15).map(r => short(r.title, 70));
     const favIdeas = db.prepare("SELECT title FROM ideas WHERE brand_id = ? AND format = 'reels' AND favorite = 1 ORDER BY created_at DESC LIMIT 5").all(brandId).map(r => short(r.title, 90));
+    let top = '';
+    try { top = perfTopReels(db, brandId); } catch { /* rapor tabloları yoksa atlanır */ }
     return [
+      top,
       favIdeas.length ? `FAVORİ REELS FİKİRLERİ (markanın sevdiği konu ve yaklaşım tarzı): ${favIdeas.join(' · ')}` : '',
       liked.length ? `BEĞENİLEN REELS'LER (espri tarzını, temposunu ve replik dilini ölçü al; içeriğini kopyalama):\n${liked.join('\n')}` : '',
       disliked.length ? `BEĞENİLMEYEN REELS'LER (bu yaklaşımları ve nedenlerini tekrarlama):\n${disliked.join('\n')}` : '',

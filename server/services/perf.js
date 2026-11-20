@@ -144,3 +144,16 @@ export function perfFocusText(db, brandId) {
   const parts = [(d.focus || []).length ? `Odak: ${d.focus.join('; ')}` : '', (d.worked || []).length ? `Tutanlar: ${d.worked.slice(0, 3).join('; ')}` : '', (d.design || []).length ? `Tasarım: ${d.design.slice(0, 3).join('; ')}` : ''].filter(Boolean);
   return parts.length ? `${r.month} performans analizine göre bu dönem önceliği (fikir, metin ve tasarımda dikkate al):\n${parts.map(p => `- ${p}`).join('\n')}` : '';
 }
+
+// Reels senaryo planı için: son 3 ayda en çok izlenen Reels'ler (izlenme, kaydetme ve kullanıcı notuyla) — "bu tarz tutuyor"
+export function perfTopReels(db, brandId, { limit = 5 } = {}) {
+  const since = new Date(Date.now() - 92 * 86400000).toISOString().slice(0, 7);
+  const rows = db.prepare("SELECT month, title, metrics, note FROM perf_entries WHERE brand_id = ? AND kind = 'reels' AND month >= ?").all(brandId, since)
+    .map(r => Object.assign(r, { m: parseJson(r.metrics, {}) || {} }))
+    .filter(r => Number(r.m.views) > 0)
+    .sort((a, b) => Number(b.m.views) - Number(a.m.views)).slice(0, limit);
+  if (!rows.length) return '';
+  const n = v => Number(v || 0).toLocaleString('tr-TR');
+  return "EN ÇOK İZLENEN REELS'LER (aylık rapordan; bu tarz tutuyor: konu seçimini, kancayı ve tempoyu buna yakın kur, içeriği kopyalama):\n"
+    + rows.map(r => `- ${String(r.title).slice(0, 90)} · ${n(r.m.views)} izlenme${r.m.saves ? `, ${n(r.m.saves)} kaydetme` : ''}${r.m.shares ? `, ${n(r.m.shares)} paylaşım` : ''}${r.note ? ` · not: ${String(r.note).slice(0, 120)}` : ''} (${r.month})`).join('\n');
+}
