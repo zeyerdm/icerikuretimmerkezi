@@ -2332,3 +2332,16 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .cal-card .cal-special.imp-yuksek { font-weight: 700; }
 .cal-card .cal-special.imp-dusuk { opacity: 1; font-weight: 500; }
 .cal-card .cal-cell.today .cal-special { background: rgba(255,255,255,.95); }
+
+/* Geçmiş günler: gri zemin ve soluk numara (okunur kontrastla), tıklanınca planlama açılmaz */
+.cal-card .cal-month .cal-cell.past { background: #f1efeb; border-color: #e6e3dd; cursor: default; }
+.cal-card .cal-month .cal-cell.past:hover { box-shadow: none; transform: none; }
+.cal-card .cal-month .cal-cell.past .cal-num { color: #6b6f7e; }
+.cal-card .cal-month .cal-cell.past.out { background: #f4f2ee; }
+.cal-card .cal-month .cal-cell.past.sp-day { background: #f1efeb; }
+.cal-card .cw-col.past { background: #f1efeb; }
+.cal-card .cw-col.past .cw-head b, .cal-card .cw-col.past .cw-head span { color: #6b6f7e; }
+.cal-card .cal-month .cal-cell.past:hover { background: #f1efeb; }
+/* Geçmiş gün numaraları gri ama okunur (WCAG AA): ay dışı günlerin soluk rengi de bu renge çekilir */
+.cal-card .cal-month .cal-cell.past .cal-num, .cal-card .cal-month .cal-cell.past.out .cal-num { color: #50535f !important; opacity: 1 !important; }
+.cal-card .cw-col.past .cw-head b, .cal-card .cw-col.past .cw-head span { color: #50535f !important; opacity: 1 !important; }

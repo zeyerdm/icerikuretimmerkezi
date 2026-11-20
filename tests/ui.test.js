@@ -422,7 +422,7 @@ test('tasarım kuralları: düğme boyları, her sayfada aynı başlık yapısı
 
     // Takvim: gün hücresine klavyeyle gelip Enter ile içerik planlanır
     await page.goto(srv.base + '/#/takvim');
-    const cell = page.locator('.cal-cell').nth(15);
+    const cell = page.locator('.cal-cell:not(.past)').first(); // geçmiş güne içerik planlanmaz
     await cell.focus();
     await page.keyboard.press('Enter');
     await page.getByRole('dialog').waitFor();
