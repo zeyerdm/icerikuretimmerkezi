@@ -360,13 +360,13 @@ async function renderDetail(view, brand, id, models) {
   const meta = state.meta.prompts;
   let p = (await api.prompt(brand.id, id)).prompt;
   let lastAi = null;
-  let panel = p.plan ? 'yayin' : 'gelistir';
+  let panel = p.kind === 'reels' ? 'yayin' : 'gelistir';
 
   function draw() {
     const panelBox = (k, title, inner) => `<div class="ed-pane" data-pane="${k}" ${panel === k ? '' : 'hidden'}><h3 class="ed-panel-title">${title}</h3>${inner}</div>`;
     const toolMap = (meta.kinds[p.kind] || {}).tools || {};
     const hasTools = Object.keys(toolMap).length > 0;
-    const rails = [...(p.plan ? [['yayin', 'Yayın', 'film']] : []), ['gelistir', 'Geliştir', 'sparkle'], ...(hasTools ? [['arac', 'Hedef araç', 'wand']] : []), ...(IMAGE_KINDS[p.kind] ? [['gorsel', 'Görsel üret', 'image']] : []), ['surumler', 'Sürümler', 'refresh']];
+    const rails = [...(p.kind === 'reels' ? [['yayin', 'Yayın', 'film']] : []), ['gelistir', 'Geliştir', 'sparkle'], ...(hasTools ? [['arac', 'Hedef araç', 'wand']] : []), ...(IMAGE_KINDS[p.kind] ? [['gorsel', 'Görsel üret', 'image']] : []), ['surumler', 'Sürümler', 'refresh']];
     const to = p.toolOutput;
     const outBox = (label, key, value, rows) => `<div class="field mt-2"><div class="row"><span class="field-label grow">${label}</span><button type="button" class="btn btn-sm btn-ghost" data-copy-tool="${key}">Kopyala</button></div><textarea class="textarea" rows="${rows}" readonly data-tool-out="${key}">${esc(value)}</textarea></div>`;
     const toolPane = hasTools ? panelBox('arac', 'Hedef araç', `<p class="small muted mb-3">Aynı prompt seçtiğin araca göre biçimlenir: oran yazımı, negatif prompt alanı ve uzunluk. Araç seçiliyken yapılan geliştirmeler de bu araca göre yazılır.</p>
@@ -409,15 +409,21 @@ async function renderDetail(view, brand, id, models) {
                 <button class="btn btn-sm mt-2" data-rebrief>Yeni girişe göre yeniden yaz</button></div>`
               : '<div class="notice"><div><strong>AI bağlı değil.</strong> Geliştirme işlemleri için bir sağlayıcı bağla. Elle düzenleyip kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>')}
             ${toolPane}
-            ${p.plan ? panelBox('yayin', 'Yayın paketi', `<div class="field"><label for="pp-status">Durum</label><select class="select" id="pp-status">${Object.entries(meta.statuses || {}).map(([k, v]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+            ${p.kind === 'reels' ? panelBox('yayin', 'Yayın paketi', `<div class="field"><label for="pp-status">Durum</label><select class="select" id="pp-status">${Object.entries(meta.statuses || {}).map(([k, v]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
               <div class="stack-sm mt-3">${p.content ? `<a class="btn btn-sm" href="#/m/${esc(brand.id)}/takvim">${icon('calendar')}Takvimde · ${esc(when(p.content.scheduledAt || p.updatedAt))}</a>` : `<button type="button" class="btn btn-sm" data-rl-schedule>${icon('calendar')}Takvime ekle</button>`}
                 <button type="button" class="btn btn-sm" data-rl-srt ${p.srt ? '' : 'disabled'}>${icon('download')}Altyazı indir (.srt)</button>
-                <button type="button" class="btn btn-sm" data-rl-png ${p.plan.screenTitle ? '' : 'disabled'}>${icon('download')}Kapak yazısı PNG</button></div>
+                <button type="button" class="btn btn-sm" data-rl-png ${p.plan && p.plan.screenTitle ? '' : 'disabled'}>${icon('download')}Kapak yazısı PNG</button></div>
               <p class="xsmall muted mt-1">Altyazı plandaki konuşma saniyelerinden hazırlanır; CapCut'ta Metin → Altyazı içe aktar ile eklenir. Kapak yazısı Reels ayarlarındaki stille çizilir.</p>
-              <hr class="sep">
+              ${p.plan ? `<hr class="sep">
               <div class="field"><label for="pp-caption">Instagram açıklaması</label><textarea class="textarea" id="pp-caption" rows="8" maxlength="2200">${esc(p.plan.caption || '')}</textarea></div>
               <div class="field mt-2"><label for="pp-tags">Hashtag'ler</label><input class="input" id="pp-tags" maxlength="400" value="${esc((p.plan.hashtags || []).join(' '))}"></div>
-              <div class="row mt-2"><button type="button" class="btn btn-sm" data-rl-cap-save>Kaydet</button><button type="button" class="btn btn-sm btn-ghost" data-rl-cap-copy>Kopyala</button></div>`) : ''}
+              <div class="row mt-2"><button type="button" class="btn btn-sm" data-rl-cap-save>Kaydet</button><button type="button" class="btn btn-sm btn-ghost" data-rl-cap-copy>Kopyala</button></div>` : ''}
+              <hr class="sep">
+              <div class="field-label">İngilizce (Flow için, isteğe bağlı)</div>
+              ${p.scenesEn && p.scenesEn.length ? `<p class="xsmall muted mb-2">Replikler ve kapak yazısı Türkçe kaldı. Türkçe sahneleri değiştirirsen İngilizcesi silinir, yeniden çevirirsin.</p>
+                ${p.scenesEn.map((x, i) => `<div class="field mt-2"><div class="row"><span class="grow small strong">Sahne ${i + 1}</span><button type="button" class="btn btn-sm btn-ghost" data-en-copy="${i}">Kopyala</button></div><textarea class="textarea" rows="4" readonly data-en-text="${i}">${esc(x.text)}</textarea></div>`).join('')}
+                <div class="row mt-2"><button type="button" class="btn btn-sm btn-ghost" data-en-all>Hepsini kopyala</button><button type="button" class="btn btn-sm btn-ghost" data-translate>Yeniden çevir</button></div>`
+              : `<p class="xsmall muted mb-2">Senaryo Türkçe yazılır. Flow'da İngilizce daha iyi sonuç verirse buradan çevir; replikler ve kapak yazısı Türkçe kalır.</p><button type="button" class="btn btn-sm" data-translate>İngilizceye çevir</button>`}`) : ''}
             ${IMAGE_KINDS[p.kind] ? panelBox('gorsel', "Bu prompt'la görsel üret", '<p class="small muted mb-3">Prompt kutusundaki metin seçtiğin görsel modeline gönderilir; sonuç kütüphaneye kaydedilir.</p><div id="pp-image"></div>') : ''}
             ${panelBox('surumler', `Sürümler <span class="small muted">${p.versions.length}</span>`, `<ul class="version-list">${p.versions.map((v, i) => `<li><div class="grow"><div class="small strong">${esc(v.note)}</div><div class="xsmall muted">${esc(when(v.createdAt))}${v.modelLabel ? ` · ${esc(v.modelLabel)}` : ''}</div></div>
               <button class="btn btn-sm btn-ghost" data-show="${esc(v.id)}">Göster</button>
@@ -497,6 +503,9 @@ async function renderDetail(view, brand, id, models) {
     if (t.closest('[data-rl-srt]')) { downloadBlob(new Blob([p.srt], { type: 'text/plain;charset=utf-8' }), `${name}_altyazi.srt`); return toast('Altyazı indirildi. CapCut\'ta Metin → Altyazı içe aktar ile ekleyebilirsin.', 'success', 5000); }
     const png = t.closest('[data-rl-png]');
     if (png) return busy(png, async () => downloadBlob(await titleBlob({ title: p.plan.screenTitle, keyword: p.plan.titleKeyword, style: p.plan.titleStyle, colors: brand.colors }), `${name}_kapak.png`));
+    const enc = t.closest('[data-en-copy]');
+    if (enc) return copy((p.scenesEn[Number(enc.dataset.enCopy)] || {}).text || '', `Sahne ${Number(enc.dataset.enCopy) + 1} kopyalandı.`);
+    if (t.closest('[data-en-all]')) return copy(p.scenesEn.map((x, i) => `SCENE ${i + 1}\n${x.text}`).join('\n\n'), 'Bütün sahneler kopyalandı.');
     if (t.closest('[data-rl-cap-copy]')) return copy([val('#pp-caption'), val('#pp-tags')].filter(Boolean).join('\n\n'), 'Açıklama kopyalandı.');
     const cs = t.closest('[data-rl-cap-save]');
     if (cs) { try { p = (await busy(cs, () => api.savePrompt(brand.id, p.id, { caption: val('#pp-caption'), hashtags: val('#pp-tags') }))).prompt; toast('Açıklama kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); } return; }
@@ -549,7 +558,8 @@ async function renderDetail(view, brand, id, models) {
         if (dirty()) await save();
         const res = await busyTimer(trBtn, () => api.translatePrompt(brand.id, p.id, {}), 'Çeviriyor');
         p = res.prompt; lastAi = p.ai; draw();
-        toast('İngilizceye çevrildi; Türkçesi aşağıda.', 'success');
+        toast(p.kind === 'reels' ? 'İngilizcesi hazır: Yayın panelinde sahne sahne kopyalayabilirsin.' : 'İngilizceye çevrildi; Türkçesi aşağıda.', 'success');
+        if (p.kind === 'reels') { panel = 'yayin'; draw(); }
       } catch (err) { toast(err.message, 'error'); }
       return;
     }

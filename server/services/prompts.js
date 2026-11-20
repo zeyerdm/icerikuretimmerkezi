@@ -167,6 +167,8 @@ function toPrompt(row) {
     tool: row.tool || '', aspect: row.aspect || '', ruleId: row.rule_id || '',
     scenes: (() => { try { return sceneList(JSON.parse(row.scenes || '[]')); } catch { return []; } })(),
     plan: row.plan ? parseJson(row.plan, null) : null,
+    // Reels: istenince yapılan İngilizce (sahne sırasıyla); Türkçe sahneler değişince silinir
+    scenesEn: row.scenes_en ? (parseJson(row.scenes_en, []) || []) : [],
     status: row.status || 'taslak', statusLabel: REELS_STATUSES[row.status || 'taslak'] || row.status,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
@@ -576,6 +578,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       const changed = next.text !== r.text || next.textTr !== r.text_tr;
       db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, is_example = ?, tool = ?, aspect = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
         .run(next.title, next.text, next.textTr, next.favorite, next.example, tool, aspect, changed ? '' : r.model, scenesJson, now(), r.id);
+      if (changed) db.prepare("UPDATE prompts SET scenes_en = '' WHERE id = ?").run(r.id);
       const u = row(b.id, r.id);
       if (changed) saveVersion(u, 'Elle düzenlendi');
       return detail(u);
@@ -731,7 +734,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
           planJson = JSON.stringify(Object.assign({}, plan, { scenes: scenesNext }));
         }
       }
-      db.prepare('UPDATE prompts SET scenes = ?, text = ?, model = ?, plan = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(next), joinScenes(next, lg), out.servedRef || out.ref, planJson, now(), r.id);
+      db.prepare("UPDATE prompts SET scenes = ?, text = ?, model = ?, plan = ?, scenes_en = '', updated_at = ? WHERE id = ?").run(JSON.stringify(next), joinScenes(next, lg), out.servedRef || out.ref, planJson, now(), r.id);
       const u = row(b.id, r.id);
       saveVersion(u, note);
       return Object.assign(detail(u), { ai: meta(out) });
@@ -741,6 +744,21 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
     async translate(brandId, id, { modelRef = null } = {}) {
       const b = brands.get(brandId);
       const r = row(b.id, id);
+      // Reels: Türkçe senaryo asıl kalır; İngilizcesi yalnız istenince yazılır (Flow/Veo İngilizceyi daha iyi anlar).
+      // Replikler ve kapak yazısı Türkçe kalır: karakter Türkçe konuşur, kapakta Türkçe yazı çıkar.
+      if (r.kind === 'reels') {
+        const scs = toPrompt(r).scenes;
+        const src = scs.length ? scs : [{ title: r.title, text: r.text }];
+        const prompt = ['REELS PROMPT ÇEVİRİSİ (Google Flow / Veo için)',
+          'Aşağıdaki Türkçe sahne prompt\'larını sırasını ve bölüm yapısını koruyarak İngilizceye çevir. Video terimlerini İngilizce kullan (shot types, camera moves, lighting). Yeni bilgi ekleme, açıklama yazma.',
+          'TÜRKÇE KALACAKLAR: Karakterin söylediği replikler (tırnak içindeki konuşma metni) ve kapak yazısı metni KELİMESİ KELİMESİNE Türkçe kalır; yanlarına "spoken in Turkish" / "on-screen text in Turkish, exactly" diye belirt. Karakter adı değişmez.',
+          '', `SAHNELER (JSON):\n${JSON.stringify(src.map(x => ({ title: x.title, prompt: x.text })))}`, '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ scenes: [{ title: 'Scene title', prompt: 'English prompt' }] })].join('\n');
+        const out = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 0.2 });
+        const en = sceneList(out.output && out.output.scenes);
+        if (en.length !== src.length) throw badRequest('Model sahnelerin hepsini çevirmedi; tekrar dene.');
+        db.prepare('UPDATE prompts SET scenes_en = ? WHERE id = ?').run(JSON.stringify(en), r.id);
+        return Object.assign(detail(row(b.id, r.id)), { ai: meta(out) });
+      }
       if (!PROMPT_KINDS[r.kind].english) throw badRequest('Bu tür Türkçe kullanılır; çeviri gerekmez.');
       if ((r.lang || 'en') === 'en') throw badRequest('Prompt zaten İngilizce.');
       const tail = SKELETONS[r.kind] && SKELETONS[r.kind].sections.includes('negative') ? `Türkçe kapanışı tam olarak şu İngilizce ifadeyle değiştir: "${NEGATIVE_TAIL}"` : '';

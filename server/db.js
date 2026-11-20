@@ -684,7 +684,7 @@ const MIGRATIONS = [
   ALTER TABLE contents ADD COLUMN prompt_id TEXT;
   `,
   // 48: Tek havuza geçtikten sonra eski Reels havuzuna yazılmış (asistandan gelen) fikirler de İçerik fikirlerine taşınır;
-  //     toplu üretim kuyruğu Reels senaryosu da üretir (sonuç Prompt Studio'da)
+  //     toplu üretim kuyruğu Reels senaryosu da üretir (sonuç Prompt Studio'da); Reels sahnelerinin istenince yapılan İngilizcesi
   `
   INSERT INTO ideas (id, brand_id, title, description, category, favorite, source, created_at, format)
     SELECT lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6))),
@@ -692,6 +692,7 @@ const MIGRATIONS = [
     FROM reels_pool p
     WHERE p.rating >= 0 AND NOT EXISTS (SELECT 1 FROM ideas i WHERE i.brand_id = p.brand_id AND lower(i.title) = lower(p.text));
   ALTER TABLE gen_jobs ADD COLUMN prompt_id TEXT;
+  ALTER TABLE prompts ADD COLUMN scenes_en TEXT NOT NULL DEFAULT '';
   `
 ];
 
