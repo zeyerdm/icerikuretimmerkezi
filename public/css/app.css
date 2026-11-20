@@ -2308,3 +2308,10 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 /* Durdur: yazan düğmenin yanında, belirgin ama sakin */
 .busy-stop { border: 1px solid color-mix(in srgb, #c62828 35%, transparent) !important; color: #a12b2b !important; background: #fff !important; }
 .busy-stop:hover { background: #fdecec !important; }
+
+/* Takvim hücresi: özel gün adı tek satır, sığmazsa "…" (üstüne gelince tam ad); fazlası "+n özel gün" */
+.cal-month .cal-special { white-space: nowrap; align-items: center; }
+.cal-month .cal-special .cs-name { display: block; -webkit-line-clamp: unset; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-sp-more { align-self: flex-start; border: 1px dashed var(--line-strong, #c9c6d6); background: var(--surface, #fff); color: var(--muted, #555); border-radius: 999px; padding: 0 8px; font: inherit; font-size: 11px; font-weight: 700; line-height: 18px; cursor: pointer; }
+.cal-sp-more:hover { background: color-mix(in srgb, var(--brand) 10%, #fff); color: var(--ink, #1b1f3b); }
+.modal .cal-special { white-space: normal; font-size: 13px; padding: 6px 10px; }
