@@ -11,6 +11,7 @@ import { imageBox, templateBox } from './imageGen.js';
 import { feedbackButtons, handleFeedbackClick } from '../feedback.js';
 import { RULE_EXAMPLES } from '../ruleExamples.js';
 import { openRuleBuilder } from './ruleBuilder.js';
+import { notifyDone, askPermissionOnce } from '../notify.js';
 
 // Havuzdan fikir çekerken fikir türü, seçili prompt türünden çıkarılır (ikinci bir tür seçimi gerekmez)
 const POOL_OF = { gorsel: 'post', post: 'post', urun: 'post', reklam: 'genel', metin: 'genel', video: 'reels', reels: 'reels', maskot: 'reels' };
@@ -41,7 +42,7 @@ export async function renderPrompts(view, brand, sub) {
   view.innerHTML = `
     ${pageHead({
       title: 'Prompt Studio', desc: `${esc(brand.name)} için Google Flow'da üretilecek Reels senaryoları: saniye saniye, sahne sahne, sabit şablona bağlı. Görsel, video, metin, reklam ve post prompt'ları da yazılır; marka kimliği her prompt'a otomatik eklenir.`,
-      actions: `<button class="btn" data-builder>${icon('sparkle')}Şablon oluşturucu</button>
+      actions: `${aiReady ? `<button class="btn" data-bulk-reels title="Havuzdan birkaç Reels fikri seç; senaryoları arka planda yazılır, bitince haber verilir">${icon('grid')}Toplu Reels</button>` : ''}<button class="btn" data-builder>${icon('sparkle')}Şablon oluşturucu</button>
         <details class="menu-dd"><summary class="btn">${icon('notes')}Kütüphanem ▾</summary><div class="menu-dd-list" role="menu">
           <button type="button" role="menuitem" data-rules><b>Kural şablonlarım</b><span class="xsmall muted">Bu markanın uzun prompt iskeletleri</span></button>
           <button type="button" role="menuitem" data-recipes><b>Tariflerim</b><span class="xsmall muted">Kaydettiğin hazır prompt'lar; başka markadan da kopyalanır</span></button>
@@ -78,6 +79,7 @@ export async function renderPrompts(view, brand, sub) {
       : '<div class="notice"><div><strong>AI bağlı değil.</strong> Prompt üretmek ve geliştirmek için bir sağlayıcı bağla; o zamana kadar kendi prompt\'larını elle kaydedebilirsin.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}
       </div>
     </section>
+    <section class="card mb-4" id="ps-batch" hidden aria-live="polite"></section>
     <section class="card">
       <div class="card-head"><h3>Kayıtlı prompt'lar</h3>
         <input class="input w-auto" type="search" id="ps-q" placeholder="Ara" aria-label="Prompt ara"></div>
@@ -160,6 +162,45 @@ export async function renderPrompts(view, brand, sub) {
     try { const r = await api.checkReelsPlan(brand.id, plan); plan = r.plan; drawPlan(r.issues); } catch (err) { toast(err.message, 'error'); }
   }
 
+  // Toplu Reels: seçilen fikirlerin senaryo planı + Flow sahneleri arka planda yazılır; ilerleme burada, bitince bildirim
+  let batchTimer = null; let batchBusy = false;
+  async function drawBatch() {
+    clearTimeout(batchTimer);
+    const box = view.querySelector('#ps-batch');
+    if (!box || !box.isConnected) return;
+    let res; try { res = await api.genJobs(brand.id, '', 'reels'); } catch { return; }
+    const bt = res.batches[0];
+    if (!bt) { box.hidden = true; return; }
+    const jobs = res.jobs.filter(j => j.batchId === bt.batchId);
+    const active = bt.waiting || bt.working;
+    const recent = Date.now() - new Date(bt.createdAt).getTime() < 6 * 3600000;
+    box.hidden = !active && !recent;
+    box.innerHTML = `<div class="card-head"><h3>Toplu Reels · ${bt.done}/${bt.total} hazır${bt.failed ? ` · ${bt.failed} hata` : ''}</h3>${active ? '<span class="small muted">Arka planda yazılıyor; başka sayfaya geçebilirsin, bitince haber verilir.</span>' : `<button type="button" class="btn btn-sm btn-ghost" data-batch-hide>Gizle</button>`}</div>
+      <ul class="pool-list">${jobs.map(j => `<li class="pool-item"><span class="status-badge">${esc(j.statusLabel)}</span><span class="grow">${j.promptId ? `<a class="link" href="${base(brand)}/${esc(j.promptId)}">${esc(j.promptTitle || j.ideaTitle)}</a>` : esc(j.ideaTitle)}${j.error ? `<div class="xsmall muted">${esc(j.error)}</div>` : ''}</span>${j.status === 'hata' ? `<button type="button" class="btn btn-sm" data-batch-retry="${esc(j.id)}">Tekrar dene</button>` : ''}</li>`).join('')}</ul>`;
+    if (batchBusy && !active) { notifyDone('Toplu Reels hazır', { body: `${bt.done}/${bt.total} senaryo yazıldı${bt.failed ? `, ${bt.failed} hata` : ''}.`, ok: !bt.failed }); loadList(); }
+    batchBusy = Boolean(active);
+    if (active) batchTimer = setTimeout(drawBatch, 4000);
+  }
+  async function bulkModal() {
+    let ideas = [];
+    try { ideas = (await api.ideas(brand.id, '?format=reels&status=kullanilmamis')).ideas; } catch (err) { return toast(err.message, 'error'); }
+    if (!ideas.length) return toast('Kullanılmamış Reels fikri yok. İçerik fikirlerine Reels türünde fikir ekle.', 'info', 6000);
+    openModal({
+      title: 'Toplu Reels', submitLabel: 'Başlat',
+      body: `<p class="small muted mb-3">Seçtiğin her fikir için senaryo planı ve Google Flow sahne prompt'ları yazılır (seçili kural şablonuyla). İş arka planda sürer; bitince ses ve bildirimle haber verilir. 3-5 fikir önerilir.</p>
+        <div class="field"><label for="bk-scenes">Sahne sayısı</label><select class="select w-auto" id="bk-scenes" name="scenes">${[2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === 4 ? 'selected' : ''}>${n} sahne</option>`).join('')}</select></div>
+        <fieldset class="field mt-3"><legend class="field-label">Fikirler (en çok 10)</legend><div class="stack-sm bk-list">${ideas.slice(0, 30).map((x, i) => `<label class="check"><input type="checkbox" name="idea" value="${esc(x.id)}" ${i < 3 ? 'checked' : ''}> ${esc(x.title)}</label>`).join('')}</div></fieldset>`,
+      onSubmit: async fd => {
+        const ids = fd.getAll('idea').slice(0, 10);
+        if (!ids.length) throw new Error('En az bir fikir seç.');
+        askPermissionOnce();
+        const r = await api.genBatch(brand.id, { type: 'reels', ideaIds: ids, scenes: Number(fd.get('scenes')) || 4, model: (view.querySelector('#ps-model') || {}).value || null });
+        toast(`${r.added.length} Reels kuyruğa alındı${r.skipped.length ? `, ${r.skipped.length} atlandı (${r.skipped.map(x => x.reason).join(', ')})` : ''}.`, 'success', 6000);
+        batchBusy = true; drawBatch();
+      }
+    });
+  }
+
   async function loadList() {
     const box = view.querySelector('#ps-list');
     const { prompts } = await api.prompts(brand.id, { kind: filter, q });
@@ -177,6 +218,7 @@ export async function renderPrompts(view, brand, sub) {
     box._prompts = prompts;
   }
   await loadList();
+  drawBatch();
 
   view.onchange = e => {
     if (!plan) return;
@@ -194,6 +236,10 @@ export async function renderPrompts(view, brand, sub) {
     if (e.target.closest('.menu-dd-list button')) { const d = e.target.closest('details'); if (d) d.open = false; }
     if (e.target.closest('[data-rules]')) return rulesModal(brand, meta, kind, loadRules);
     if (e.target.closest('[data-reels-settings]')) return reelsSettingsModal(brand, state.meta.reels);
+    if (e.target.closest('[data-bulk-reels]')) return bulkModal();
+    if (e.target.closest('[data-batch-hide]')) { view.querySelector('#ps-batch').hidden = true; return; }
+    const brt = e.target.closest('[data-batch-retry]');
+    if (brt) { try { await api.genRetry(brand.id, brt.dataset.batchRetry); batchBusy = true; drawBatch(); } catch (err) { toast(err.message, 'error'); } return; }
     if (e.target.closest('[data-builder]')) return openRuleBuilder(brand, meta, { onSaved: loadRules });
     if (e.target.closest('[data-recipes]')) return openRecipes('prompt', brand, res => go(`#/m/${brand.id}/prompt/${res.prompt.id}`));
     const k = e.target.closest('[data-kind]');

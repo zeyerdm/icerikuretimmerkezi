@@ -683,13 +683,15 @@ const MIGRATIONS = [
   ALTER TABLE prompts ADD COLUMN status TEXT NOT NULL DEFAULT 'taslak';
   ALTER TABLE contents ADD COLUMN prompt_id TEXT;
   `,
-  // 48: Tek havuza geçtikten sonra eski Reels havuzuna yazılmış (asistandan gelen) fikirler de İçerik fikirlerine taşınır
+  // 48: Tek havuza geçtikten sonra eski Reels havuzuna yazılmış (asistandan gelen) fikirler de İçerik fikirlerine taşınır;
+  //     toplu üretim kuyruğu Reels senaryosu da üretir (sonuç Prompt Studio'da)
   `
   INSERT INTO ideas (id, brand_id, title, description, category, favorite, source, created_at, format)
     SELECT lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6))),
       p.brand_id, p.text, '', p.category, CASE WHEN p.rating > 0 THEN 1 ELSE 0 END, p.source, p.created_at, 'reels'
     FROM reels_pool p
     WHERE p.rating >= 0 AND NOT EXISTS (SELECT 1 FROM ideas i WHERE i.brand_id = p.brand_id AND lower(i.title) = lower(p.text));
+  ALTER TABLE gen_jobs ADD COLUMN prompt_id TEXT;
   `
 ];
 

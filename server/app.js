@@ -141,7 +141,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const competitors = createCompetitorService({ db, ai, brands });
   const reels = createReelsService({ db, ai, brands, workspace, patterns });
   const posts = createPostService({ db, ai, brands, assets, workspace });
-  const queue = createGenQueue({ db, brands, posts, ideas, autostart: queueAutostart });
+  let promptsRef = null; // Prompt Studio aşağıda kurulur; toplu Reels işleri ona buradan ulaşır
+  const queue = createGenQueue({ db, brands, posts, ideas, getPrompts: () => promptsRef, autostart: queueAutostart });
   const elements = createElementService(db, path.join(dataDir, 'uploads', 'elements'));
   const perf = createPerfService({ db, ai, brands, assets });
   const shared = createSharedTemplateService({ db, ownerId, brands, assets });
@@ -159,6 +160,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const voiceover = createVoiceoverService({ db, ai, brands, uploadDir: path.join(dataDir, 'uploads') });
   const feedback = createFeedbackService({ db, brands, identity: promptIdentity });
   const prompts = createPromptService({ db, ai, brands, reels, workspace, identity: promptIdentity });
+  promptsRef = prompts;
   const presets = createPresetService({ db });
   const compare = createCompareService({ db, ai, brands, prompts });
   const recipes = createRecipeService({ db, ownerId, brands, prompts });
@@ -689,8 +691,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/brands/:brandId/post-templates/:tid/default', (req, res) => res.json({ template: posts.setTemplateDefault(req.brand.id, req.params.tid, (req.body || {}).on !== false) }));
   api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
   // Toplu üretim kuyruğu
-  api.get('/brands/:brandId/gen-jobs', (req, res) => res.json({ jobs: queue.list(req.brand.id, { batchId: req.query.batch || null }), batches: queue.batches(req.brand.id), statuses: queue.statuses }));
-  api.post('/brands/:brandId/gen-batches', (req, res) => { const b = req.body || {}; res.status(201).json(queue.createBatch(req.brand.id, { ideaIds: b.ideaIds, category: b.category || null, format: b.format || null, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides, mascot: b.mascot, modelRef: b.model || null, force: Boolean(b.force) })); });
+  api.get('/brands/:brandId/gen-jobs', (req, res) => res.json({ jobs: queue.list(req.brand.id, { batchId: req.query.batch || null, type: req.query.type }), batches: queue.batches(req.brand.id, { type: req.query.type }), statuses: queue.statuses }));
+  api.post('/brands/:brandId/gen-batches', (req, res) => { const b = req.body || {}; res.status(201).json(queue.createBatch(req.brand.id, { ideaIds: b.ideaIds, category: b.category || null, format: b.format || null, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides, mascot: b.mascot, modelRef: b.model || null, force: Boolean(b.force), type: b.type === 'reels' ? 'reels' : 'post', scenes: b.scenes })); });
   api.post('/brands/:brandId/gen-batches/:bid/:action', (req, res) => {
     const a = req.params.action;
     if (!['pause', 'resume', 'cancel'].includes(a)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Geçersiz işlem.' } });

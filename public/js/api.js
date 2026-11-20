@@ -293,7 +293,7 @@ export const api = {
   useSharedTemplate: (id, tid, title) => request('POST', `${b(id)}/shared-templates/${tid}/use`, { title }),
   deleteSharedTemplate: tid => request('DELETE', `/api/shared-templates/${tid}`),
   postTemplates: id => request('GET', b(id) + '/post-templates'),
-  genJobs: (id, batch = '') => request('GET', `${b(id)}/gen-jobs${batch ? '?batch=' + encodeURIComponent(batch) : ''}`),
+  genJobs: (id, batch = '', type = '') => request('GET', `${b(id)}/gen-jobs?` + new URLSearchParams(Object.entries({ batch, type }).filter(([, v]) => v))),
   genBatch: (id, body) => request('POST', `${b(id)}/gen-batches`, body),
   genBatchAction: (id, bid, action) => request('POST', `${b(id)}/gen-batches/${bid}/${action}`, {}),
   genRetry: (id, jid) => request('POST', `${b(id)}/gen-jobs/${jid}/retry`, {}),
