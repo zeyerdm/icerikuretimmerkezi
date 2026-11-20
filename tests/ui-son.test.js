@@ -82,26 +82,35 @@ test('T.38 otomatik testte tur kendiliğinden açılmaz', { skip }, async () => 
   } finally { await browser.close(); await srv.stop(); }
 });
 
-test('T.37 takvimde sürükle-bırak: aylık ve Çalışma masası haftalık görünüm, saat korunur', { skip }, async () => {
+test('T.37 takvimde sürükle-bırak: aylık ve Çalışma masası haftalık görünüm, saat korunur; geçmiş güne bırakılmaz', { skip }, async () => {
   const srv = await startServer();
   const brand = (await srv.request('POST', '/api/brands', { name: 'Sürükle' })).data.brand;
   const now = new Date();
-  const mid = new Date(now.getFullYear(), now.getMonth(), 15, 14, 30);
+  // Geçmiş günlere işlem yapılmadığı için tarihler bugünden ileri seçilir (ay görünümü önümüzdeki günleri her zaman kapsar)
+  const mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2, 14, 30);
   const c = (await srv.request('POST', '/api/contents', { brandId: brand.id, title: 'Taşınacak içerik', type: 'post', scheduledAt: mid.toISOString() })).data.content;
   const { browser, page, problems } = await open(srv);
   const at = async () => new Date((await srv.request('GET', '/api/contents')).data.contents.find(x => x.id === c.id).scheduledAt);
   try {
-    // Aylık görünüm: 15'inden 17'sine
+    // Aylık görünüm: 2 gün sonrasından 4 gün sonrasına
     await page.goto(srv.base + `/#/m/${brand.id}/takvim`);
     await page.locator('[data-mode="ay"]').click();
+    if (mid.getMonth() !== now.getMonth()) await page.locator('[data-nav="1"]').click();
     const item = page.locator(`.cal-item[data-item="${c.id}"]`);
     await item.waitFor();
-    const target = new Date(now.getFullYear(), now.getMonth(), 17);
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 4);
     await item.dragTo(page.locator(`.cal-cell[data-day="${localMidnight(target)}"]`));
     await page.locator('.toast', { hasText: 'tarihine taşındı' }).waitFor();
     await page.locator(`.cal-cell[data-day="${localMidnight(target)}"] .cal-item[data-item="${c.id}"]`).waitFor();
     let d = await at();
-    assert.deepEqual([d.getDate(), d.getHours(), d.getMinutes()], [17, 14, 30]);
+    assert.deepEqual([d.getDate(), d.getHours(), d.getMinutes()], [target.getDate(), 14, 30]);
+    // Geçmiş güne bırakılamaz (geçmiş hücreler bırakma alanı değil)
+    const pastCell = page.locator('.cal-cell.past').first();
+    if (await pastCell.count()) {
+      await page.locator(`.cal-item[data-item="${c.id}"]`).dragTo(pastCell);
+      await page.waitForTimeout(300);
+      assert.equal(localMidnight(await at()), localMidnight(target), 'geçmiş güne taşınmadı');
+    }
 
     // Aynı güne bırakmak bir şey değiştirmez (istek atılmaz)
     let patched = 0;
@@ -110,14 +119,15 @@ test('T.37 takvimde sürükle-bırak: aylık ve Çalışma masası haftalık gö
     await page.waitForTimeout(400);
     assert.equal(patched, 0);
 
-    // Çalışma masası haftalık: içeriği bu haftaya al, başka bir güne sürükle
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 15);
+    // Çalışma masası haftalık: içeriği gelecek haftaya al (bütün günleri ileri tarih), başka bir güne sürükle
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 9, 15);
     await srv.request('PATCH', `/api/contents/${c.id}`, { scheduledAt: today.toISOString() });
     await page.goto(srv.base + '/#/masa');
     await page.locator('[data-mode="hafta"]').click();
+    await page.locator('[data-nav="1"]').first().click();
     const wItem = page.locator(`.cw-item[data-item="${c.id}"]`);
     await wItem.waitFor();
-    const other = await page.locator(`.cw-col[data-day]:not([data-day="${localMidnight(today)}"])`).first().getAttribute('data-day');
+    const other = await page.locator(`.cw-col[data-day]:not(.past):not([data-day="${localMidnight(today)}"])`).first().getAttribute('data-day');
     await wItem.dragTo(page.locator(`.cw-col[data-day="${other}"]`));
     await page.locator(`.cw-col[data-day="${other}"] .cw-item[data-item="${c.id}"]`).waitFor();
     d = await at();

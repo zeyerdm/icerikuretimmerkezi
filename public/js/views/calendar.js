@@ -90,7 +90,8 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
         const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
         const out = day.getMonth() !== cursor.getMonth();
         const top = daySpecials(day).find(x => !x.end || x.date === iso(day));
-        return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)} imp-${esc(top.importance || 'orta')}` : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
+        const past = startOfDay(day) < startOfDay(today);
+        return `<div class="cal-cell ${out ? 'out' : ''} ${past ? 'past' : ''} ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)} imp-${esc(top.importance || 'orta')}` : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik.${past ? ' Geçmiş gün' : ' İçerik planlamak için Enter'}">
           <div class="cal-num-row"><div class="cal-num">${day.getDate()}</div>${sameDay(day, today) ? '<span class="cal-today-tag">Bugün</span>' : ''}</div>
           ${(() => { // hücre sabit yükseklikte: özel günler + içerikler en çok 2 satır, fazlası "+n daha"
             // Özel günler en çok 2 (küçük boyutta 1); fazlası "+n" işareti: üstüne gelince adları okunur, tıklayınca liste açılır
@@ -110,12 +111,13 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     return `<div class="cal-week">${Array.from({ length: 7 }, (_, i) => addDays(from, i)).map((day, i) => {
       const list = items.filter(c => sameDay(c.scheduledAt, day)).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
       const top = daySpecials(day).find(x => !x.end || x.date === iso(day));
-      return `<div class="cw-col ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)}` : ''}" data-day="${day.getTime()}">
+      const past = startOfDay(day) < startOfDay(today);
+      return `<div class="cw-col ${past ? 'past' : ''} ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)}` : ''}" data-day="${day.getTime()}">
         <div class="cw-head"><span>${TR_DAYS_SHORT[i]}</span><b>${day.getDate()}</b></div>
         <div class="cw-body">${daySpecials(day).map(spChip).join('')}${list.map(c => `<button class="cw-item status-${esc(c.status)}" data-item="${esc(c.id)}" draggable="true" style="--item-color:${esc(c.brandColor || '#7d6bf0')}">
             <span class="ci-time">${timeStr(c.scheduledAt)}</span><b>${esc(c.title)}</b>
             <span class="cw-meta">${brand ? '' : esc(c.brandName) + ' · '}${esc(c.typeLabel)}</span><span class="st">${esc(c.statusLabel)}</span></button>`).join('')}
-          <button class="cw-add" data-add="${day.getTime()}" aria-label="${esc(fmtDate(day))} için içerik planla">${icon('plus')}</button></div>
+          ${past ? '' : `<button class="cw-add" data-add="${day.getTime()}" aria-label="${esc(fmtDate(day))} için içerik planla">${icon('plus')}</button>`}</div>
       </div>`;
     }).join('')}</div>`;
   }
@@ -172,7 +174,10 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     if (sel) sel.addEventListener('change', () => { brandFilter = sel.value; draw().catch(err => toast(err.message, 'error')); });
   }
 
+  // Geçmiş günler: içerik planlanmaz, içerik oraya taşınmaz (var olan içerikler açılıp görülebilir)
+  const isPast = day => startOfDay(new Date(Number(day))) < startOfDay(new Date());
   const plan = day => {
+    if (isPast(day)) return toast('Geçmiş bir güne içerik planlanamaz. Bugün ya da ileri bir tarih seç.', 'info', 3500);
     const d = new Date(Number(day));
     d.setHours(12, 0, 0, 0);
     try {
@@ -258,7 +263,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
 
   // S.3: Sürükle-bırak: içeriği başka bir güne taşı (saat aynı kalır)
   let dragId = null;
-  const dropZone = t => t && t.closest && t.closest('.cal-cell[data-day], .cw-col[data-day]');
+  const dropZone = t => t && t.closest && t.closest('.cal-cell[data-day]:not(.past), .cw-col[data-day]:not(.past)');
   view.ondragstart = e => {
     const it = alive() && e.target.closest && e.target.closest('[data-item][draggable]');
     if (!it) return;
