@@ -80,7 +80,8 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       <div class="field full">
         <label for="f-drive">Google Drive klasörü</label>
         <div class="drive-row">
-          <input class="input" id="f-drive" data-drive value="${esc(draft.driveFolder)}" placeholder="https://drive.google.com/drive/folders/…" autocomplete="off">
+          <input class="input" id="f-drive" type="text" data-drive value="${esc(draft.driveFolder)}" placeholder="https://drive.google.com/drive/folders/…" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn" data-action="drive-paste" title="Panodaki linki kutuya yapıştırır">Yapıştır</button>
           ${isNew ? '' : `<button type="button" class="btn" data-action="drive-test" ${driveOk && brand.driveFolderId ? '' : 'disabled'}>Bağlantıyı test et</button>`}
         </div>
         <span class="hint">Bu markanın dosyaları bu klasöre gönderilir (şimdilik kütüphane görselleri; postlar, başlıklar ve senaryolar geldikçe onlar da). Drive'da klasörü aç, adres çubuğundaki linki kopyalayıp buraya yapıştır. İsteğe bağlı.${driveOk ? '' : ' Gönderebilmek için önce <a href="#/ayarlar">Ayarlar → Google Drive</a> bağlantısını kur.'}</span>
@@ -243,6 +244,15 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.action === 'save') save(t);
+    else if (t.dataset.action === 'drive-paste') {
+      // Klavye kısayolu bir eklentiye ya da sisteme takılırsa: panodaki link düğmeyle alınır
+      try {
+        const v = String(await navigator.clipboard.readText() || '').trim();
+        if (!v) return toast('Pano boş. Drive\'da klasörün adres çubuğundaki linki kopyala.', 'error');
+        const inp = view.querySelector('#f-drive'); inp.value = v; draft.driveFolder = v; markDirty();
+        if (!/drive\.google\.com|^[A-Za-z0-9_-]{10,}$/.test(v)) toast('Yapıştırılan metin Drive klasör linkine benzemiyor; kontrol et.', 'info', 5000);
+      } catch { toast('Tarayıcı panoya erişime izin vermedi. Kutuya tıklayıp sağ tık → Yapıştır ya da Ctrl+V dene.', 'error', 6000); }
+    }
     else if (t.dataset.action === 'drive-test') {
       if (draft.driveFolder.trim() !== brand.driveFolder) return toast('Önce Kaydet\'e bas; sonra bağlantıyı test et.', 'error');
       t.disabled = true;

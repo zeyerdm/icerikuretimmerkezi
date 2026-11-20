@@ -53,6 +53,41 @@ import { youtubePreview } from './youtube.js';
 const base = brand => `#/m/${encodeURIComponent(brand.id)}/post`;
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// Tasarımı şablon olarak kaydet: yeni şablon mu, kayıtlı bir şablonun yeni sürümü mü (önceki üretimler değişmez)
+async function saveAsTemplateModal(brand, post, { currentTplId = null, beforeSave = null, done = null } = {}) {
+  const { templates: own } = await api.postTemplates(brand.id);
+  const list = own.filter(t => !String(t.id).startsWith('post:'));
+  const packs = [...new Set(list.map(x => x.pack).filter(Boolean))];
+  const sel = currentTplId && list.some(t => t.id === currentTplId) ? currentTplId : '';
+  const m = openModal({
+    title: 'Şablon olarak kaydet', submitLabel: 'Kaydet',
+    body: `<div class="tpl-choice" role="radiogroup" aria-label="Kayıt biçimi">
+        <label class="fi-design ${sel ? '' : 'on'}"><input type="radio" name="mode" value="new" ${sel ? '' : 'checked'}><span><b>Yeni şablon</b><small>Bu tasarım ayrı bir şablon olur (V1).</small></span></label>
+        <label class="fi-design ${sel ? 'on' : ''} ${list.length ? '' : 'is-off'}"><input type="radio" name="mode" value="update" ${sel ? 'checked' : ''} ${list.length ? '' : 'disabled'}><span><b>Kayıtlı şablonu güncelle</b><small>${list.length ? 'Seçtiğin şablonun yeni sürümü olur; önceki üretimler değişmez.' : 'Henüz kayıtlı şablon yok.'}</small></span></label>
+      </div>
+      <div class="form-grid mt-3" data-mode-box="new" ${sel ? 'hidden' : ''}><div class="field"><label for="st-name">Şablon adı</label><input class="input" id="st-name" name="name" maxlength="80" value="${esc(String(post.title || '').slice(0, 80))}"></div>
+        <div class="field"><label for="st-pack">Paket (isteğe bağlı)</label><input class="input" id="st-pack" name="pack" maxlength="60" list="st-packs" placeholder="Ör. Teknoloji carousel"><datalist id="st-packs">${packs.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div></div>
+      <div class="field mt-3" data-mode-box="update" ${sel ? '' : 'hidden'}><label for="st-tpl">Hangi şablon?</label><select class="select" id="st-tpl" name="tpl">${list.map(t => `<option value="${esc(t.id)}" ${t.id === sel ? 'selected' : ''}>${esc(t.name)}${t.version ? ` · V${t.version}` : ''}${t.id === currentTplId ? ' (bu tasarımın şablonu)' : ''}</option>`).join('')}</select></div>`,
+    onSubmit: async fd => {
+      if (beforeSave) await beforeSave();
+      if (fd.get('mode') === 'update') {
+        const { template } = await api.updateTemplateFrom(brand.id, fd.get('tpl'), post.id);
+        toast(`"${template.name}" şablonu V${template.version} oldu; önceki üretimler değişmedi.`, 'success', 4000);
+      } else {
+        const name = String(fd.get('name') || '').trim();
+        await api.saveTemplate(brand.id, post.id, name, String(fd.get('pack') || '').trim());
+        toast(`${name ? `"${name}"` : 'Tasarım'} yeni şablon olarak kaydedildi (V1).`, 'success');
+      }
+      if (done) done();
+    }
+  });
+  m.form.addEventListener('change', e => {
+    if (e.target.name !== 'mode') return;
+    m.form.querySelectorAll('.tpl-choice .fi-design').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+    m.form.querySelectorAll('[data-mode-box]').forEach(b => { b.hidden = b.dataset.modeBox !== e.target.value; });
+  });
+}
+
 export async function renderPosts(view, brand, sub) {
   view.onclick = view.onchange = view.oninput = view.onkeydown = view.ondblclick = null;
   const models = await aiModels();
@@ -225,9 +260,7 @@ export async function renderPosts(view, brand, sub) {
     const tpp = e.target.closest('[data-tpl-post]');
     if (tpp) {
       const p = posts.find(x => x.id === tpp.dataset.tplPost); if (!p) return;
-      const name = prompt('Şablonun adı (üretimde bu adla seçilir):', p.title.slice(0, 80));
-      if (!name || !name.trim()) return;
-      try { await api.saveTemplate(brand.id, p.id, name.trim()); toast(`"${name.trim()}" şablon olarak kaydedildi; Havuzdan fikir seçerken listede.`, 'success'); route(); } catch (err) { toast(err.message, 'error'); }
+      try { await saveAsTemplateModal(brand, p, { currentTplId: p.data && p.data.template ? p.data.template.id : null, done: () => route() }); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const arc = e.target.closest('[data-arch-post]');
@@ -768,7 +801,7 @@ async function renderEditor(view, brand, id, models) {
               <div class="ed-drop-head"><b>${esc(post.title)}</b><span class="xsmall">${esc(post.kindLabel)} · ${esc(format().label)} · ${format().w}×${format().h} px</span></div>
               <button type="button" data-act="rename">${icon('edit')}Adını değiştir</button>
               <button type="button" data-act="save">${icon('check')}Kaydet <span class="ed-hint" id="ed-save-state">${dirty ? 'Kaydedilmemiş değişiklik' : 'Değişiklikler kaydedildi'}</span></button>
-              <button type="button" data-act="template">${icon('grid')}Marka şablonu olarak kaydet</button>
+              <button type="button" data-act="template">${icon('grid')}Şablon olarak kaydet <span class="ed-hint">yeni ya da kayıtlı şablonun yeni sürümü</span></button>
               ${data.template ? `<button type="button" data-act="template-update">${icon('refresh')}Şablonu bu tasarımla güncelle <span class="ed-hint">${esc(data.template.name)} · yeni versiyon</span></button>` : ''}
               <button type="button" data-act="autosave">${icon('check')}Otomatik kayıt <span class="ed-hint" id="ed-autosave-state">${autoSaveOn() ? 'Açık' : 'Kapalı'}</span></button>
               <button type="button" data-act="share-template">${icon('grid')}Ortak şablon kütüphanesine kaydet <span class="ed-hint">bütün markalar</span></button>
@@ -2133,18 +2166,9 @@ async function renderEditor(view, brand, id, models) {
           return youtubePreview(brand, URL.createObjectURL(blob), { title: post.title, logoUrl: logo ? logo.url : null });
         }
         if (a === 'template') {
-          const { templates: own } = await api.postTemplates(brand.id);
-          const packs = [...new Set(own.map(x => x.pack).filter(Boolean))];
-          return openModal({ title: 'Marka şablonu olarak kaydet', submitLabel: 'Kaydet',
-            body: `<div class="form-grid"><div class="field"><label for="st-name">Şablon adı</label><input class="input" id="st-name" name="name" maxlength="80" placeholder="Boş bırakırsan &quot;Şablon N&quot;"></div>
-              <div class="field"><label for="st-pack">Paket (isteğe bağlı)</label><input class="input" id="st-pack" name="pack" maxlength="60" list="st-packs" placeholder="Ör. Teknoloji haberleri carousel"><datalist id="st-packs">${packs.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div></div>
-              <p class="xsmall muted mt-2">Şablon V1 olarak kaydedilir. Sonra bu şablonla üretilen bir tasarımı düzenleyip "Şablonu bu tasarımla güncelle" dersen V2 olur; önceki üretimler değişmez.</p>`,
-            onSubmit: async fd => {
-              if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; dirty = false; }
-              await api.saveTemplate(brand.id, post.id, String(fd.get('name') || '').trim(), String(fd.get('pack') || '').trim());
-              toast('Marka şablonu olarak kaydedildi (V1).', 'success');
-              if (panel === 'sablonlar') drawPanelBody();
-            } });
+          return saveAsTemplateModal(brand, post, { currentTplId: data.template ? data.template.id : null,
+            beforeSave: async () => { if (dirty) { post = (await api.savePost(brand.id, post.id, { data })).post; data = JSON.parse(JSON.stringify(post.data)); dirty = false; } },
+            done: () => { if (panel === 'sablonlar') drawPanelBody(); } });
         }
         if (a === 'template-update' && data.template) {
           if (!confirm(`"${data.template.name}" şablonu bu tasarımla güncellensin mi? Yeni versiyon oluşur; daha önce üretilen tasarımlar değişmez.`)) return;

@@ -282,3 +282,38 @@ test('Öğe serbest esner: "stretch" oranı korumaz, varsayılan sığdırır', 
   assert.match(decodeURIComponent(vectorUrl({ svg, w: 200, h: 80, fit: 'stretch' })), /preserveAspectRatio="none"/);
   assert.match(decodeURIComponent(vectorUrl({ svg, w: 200, h: 80 })), /preserveAspectRatio="xMidYMid meet"/);
 });
+
+test('Arayüz: şablon olarak kaydet: yeni şablon ya da kayıtlı şablonun yeni sürümü', { skip }, async () => {
+  const s = await startServer();
+  const b = (await s.request('POST', '/api/brands', { name: 'Şablonlu' })).data.brand;
+  const p1 = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'İlk tasarım', kind: 'post' })).data.post;
+  const browser = await chromium.launch();
+  const page = await (await browser.newContext({ viewport: { width: 1400, height: 950 } })).newPage();
+  const problems = [];
+  page.on('pageerror', e => problems.push(e.message));
+  try {
+    await page.goto(`${s.base}/#/m/${b.id}/post`);
+    await page.locator(`[data-post-menu="${p1.id}"]`).click();
+    await page.locator(`.post-menu [data-tpl-post="${p1.id}"]`).click();
+    await page.locator('.modal input[name=mode][value=new]').waitFor();
+    assert.equal(await page.locator('.modal input[name=mode][value=update]').isDisabled(), true, 'kayıtlı şablon yokken güncelleme seçilemez');
+    await page.fill('#st-name', 'Haber kartı');
+    await page.locator('.modal [type=submit]').click();
+    await page.waitForFunction(() => !document.querySelector('.modal-backdrop'));
+    let tpls = (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates.filter(t => !String(t.id).startsWith('post:'));
+    assert.deepEqual(tpls.map(t => [t.name, t.version]), [['Haber kartı', 1]]);
+    // Aynı tasarımdan kayıtlı şablonu güncelle → V2
+    await page.goto(`${s.base}/#/m/${b.id}/post/${p1.id}`);
+    await page.locator('#stage').waitFor();
+    await page.locator('[data-menu="dosya"], [data-ed-menu="dosya"]').first().click().catch(() => {});
+    await page.locator('[data-act="template"]').first().click();
+    await page.locator('.modal input[name=mode][value=update]').check();
+    assert.equal(await page.locator('[data-mode-box="update"]').isVisible(), true);
+    await page.selectOption('#st-tpl', tpls[0].id);
+    await page.locator('.modal [type=submit]').click();
+    await page.waitForFunction(() => !document.querySelector('.modal-backdrop'));
+    tpls = (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates.filter(t => !String(t.id).startsWith('post:'));
+    assert.deepEqual(tpls.map(t => [t.name, t.version]), [['Haber kartı', 2]], 'yeni sürüm, yeni şablon değil');
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await s.stop(); }
+});
