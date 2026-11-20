@@ -94,8 +94,12 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
         return `<div class="cal-cell ${out ? 'out' : ''} ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)} imp-${esc(top.importance || 'orta')}` : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik. İçerik planlamak için Enter">
           <div class="cal-num-row"><div class="cal-num">${day.getDate()}</div>${sameDay(day, today) ? '<span class="cal-today-tag">Bugün</span>' : ''}</div>
           ${(() => { // hücre sabit yükseklikte: özel günler + içerikler en çok 2 satır, fazlası "+n daha"
-            const sp = daySpecials(day).slice(0, size === 'kucuk' ? 1 : 2); const room = ROOM[size] - sp.length; const shown = list.length <= room ? list.length : Math.max(0, room - 1);
-            return `${sp.map(spChip).join('')}${list.slice(0, shown).map(chip).join('')}${list.length > shown ? `<button class="cal-more" data-more="${day.getTime()}">+${list.length - shown} daha</button>` : ''}`; })()}
+            // Özel günler en çok 2 (küçük boyutta 1); fazlası "+n" işareti: üstüne gelince adları okunur, tıklayınca liste açılır
+            const allSp = daySpecials(day); const cap = size === 'kucuk' ? 1 : 2;
+            const sp = allSp.slice(0, cap); const rest = allSp.slice(cap); // ilk adlar her zaman görünür
+            const spMore = rest.length ? `<button type="button" class="cal-sp-more" data-special-more="${esc(iso(day))}" title="${esc(rest.map(x => x.name).join('\n'))}" aria-label="${rest.length} özel gün daha: ${esc(rest.map(x => x.name).join(', '))}">+${rest.length} özel gün</button>` : '';
+            const room = ROOM[size] - sp.length - (rest.length ? 1 : 0); const shown = list.length <= room ? list.length : Math.max(0, room - 1);
+            return `${sp.map(spChip).join('')}${spMore}${list.slice(0, shown).map(chip).join('')}${list.length > shown ? `<button class="cal-more" data-more="${day.getTime()}">+${list.length - shown} daha</button>` : ''}`; })()}
         </div>`;
       }).join('')}
     </div>`;
@@ -215,6 +219,14 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const t = e.target;
     const sp = t.closest('[data-special]');
     if (sp) { const s = specials.find(x => `${x.date}|${x.name}` === sp.dataset.special); if (s) specialModal(s); return; }
+    const spm = t.closest('[data-special-more]');
+    if (spm) {
+      const day = new Date(`${spm.dataset.specialMore}T12:00:00`);
+      const all = daySpecials(day);
+      const m = openModal({ title: `${fmtDate(day, { day: 'numeric', month: 'long' })} · özel günler`, submitLabel: 'Kapat', body: `<div class="stack-sm">${all.map(spChip).join('')}</div>`, onSubmit: () => {} });
+      m.form.addEventListener('click', e2 => { const b = e2.target.closest('[data-special]'); if (!b) return; e2.preventDefault(); const s2 = all.find(x => `${x.date}|${x.name}` === b.dataset.special); if (s2) { m.form.closest('.modal-backdrop').remove(); specialModal(s2); } });
+      return;
+    }
     const spu = t.closest('[data-special-up]');
     if (spu) { const s = upcoming.find(x => `${x.date}|${x.name}` === spu.dataset.specialUp); if (s) specialModal(s); return; }
     const item = t.closest('[data-item]');
