@@ -2271,3 +2271,7 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .ps-plan-scene { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 6px; align-content: start; }
 .ps-beats { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
 .ps-plan-foot { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-top: 12px; }
+
+/* Post: kendi maddelerin */
+.ps-notes { margin-top: var(--s-2); }
+.ps-notes > summary { cursor: pointer; color: var(--muted); }

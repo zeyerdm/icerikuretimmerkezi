@@ -93,6 +93,9 @@ export async function renderPosts(view, brand, sub) {
           <label>Sayfa<select class="select input-sm" name="slides" aria-label="Slayt sayısı">${[3, 4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 5 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label>Maskot<select class="select input-sm" name="mascot" aria-label="Maskot" title="Maskot kullanımı">${MASCOT_OPTS}</select></label>
         </div>
+        <details class="ps-notes"><summary class="small">Kendi maddelerini ekle (isteğe bağlı)</summary>
+          <textarea class="textarea mt-2" name="notes" rows="4" maxlength="3000" aria-label="Kendi maddelerin" placeholder="Her satıra bir madde. Ör.&#10;Kahveyi aç karnına içme&#10;Günde en çok 3 fincan&#10;Sınavdan 1 saat önce son fincan"></textarea>
+          <span class="xsmall muted">Slaytlar bu maddelerden kurulur; yapay zekâ özünü korur, kanca ve kapanışı ekler.</span></details>
       </form>
     </section>` : ''}
     <section class="card mb-4 gen-queue" id="gen-queue" hidden></section>
@@ -198,7 +201,7 @@ export async function renderPosts(view, brand, sub) {
     try {
       const templateId = fd.get('templateId') || null;
       try { localStorage.setItem(tplKey, templateId || ''); } catch { /* gizli pencere */ }
-      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId, mascot: fd.get('mascot') || 'auto' }, st));
+      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId, mascot: fd.get('mascot') || 'auto', notes: String(fd.get('notes') || '').trim() }, st));
       if (!res) return;
       toast(aiNote(res.post.ai), 'success', 5000);
       previewPost(brand, res.post);
@@ -405,6 +408,8 @@ async function fromIdeaFlow(brand, models, templates, designs = []) {
         </div></section>
       <section class="fi-step"><div class="fi-step-head"><span class="fi-n">3</span><b>Kaç sayfa?</b><span class="xsmall muted">Kapak kanca, ortada gelişme, sonda kapanış</span></div>
         <div class="fi-count" role="radiogroup" aria-label="Sayfa sayısı">${[['1', 'Tek görsel'], ['3', '3 sayfa'], ['5', '5 sayfa'], ['7', '7 sayfa']].map(([v, l]) => `<label class="fi-design ${v === '5' ? 'on' : ''}"><input type="radio" name="count" value="${v}" ${v === '5' ? 'checked' : ''}><span><b>${l}</b></span></label>`).join('')}</div></section>
+      <details class="fi-more"><summary>Kendi maddelerin (isteğe bağlı)</summary>
+        <textarea class="textarea mt-2" id="fi-notes" name="notes" rows="4" maxlength="3000" aria-label="Kendi maddelerin" placeholder="Her satıra bir madde; slaytlar bu maddelerden kurulur, yapay zekâ özünü korur."></textarea></details>
       <details class="fi-more"><summary>Maskot ve model</summary><div class="form-grid mt-2">
         <div class="field"><label for="fi-mascot">Maskot</label><select class="select" id="fi-mascot" name="mascot">${MASCOT_OPTS}</select></div>
         <div class="field full"><label for="fi-model">Model</label>${modelSelect(models, 'yazim', { id: 'fi-model' })}</div>
@@ -424,7 +429,7 @@ async function fromIdeaFlow(brand, models, templates, designs = []) {
       let r;
       try {
         const dv = String(fd.get('design') || '');
-        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: dv.startsWith('t:') ? dv.slice(2) : null, designId: dv.startsWith('p:') ? dv.slice(2) : null, slides: Number(fd.get('count')) || null, mascot: fd.get('mascot') || 'auto', model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
+        r = await streamBusy(form.querySelector('[type=submit]'), st => api.postFromIdea(brand.id, { ideaId: idea.id, templateId: dv.startsWith('t:') ? dv.slice(2) : null, designId: dv.startsWith('p:') ? dv.slice(2) : null, slides: Number(fd.get('count')) || null, mascot: fd.get('mascot') || 'auto', notes: String(fd.get('notes') || '').trim(), model: form.querySelector('#fi-model').value || null }, st), 'Yazıyor');
       } finally {
         clearInterval(timer);
         status.hidden = true;

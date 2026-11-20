@@ -367,11 +367,13 @@ const KIND_TASK = {
 
 // Şablon alanları: alan kimliği ↔ metin anahtarı
 export const FIELD_CODES = { title: 'MAIN_TITLE', subtitle: 'SUB_TITLE', body: 'DESCRIPTION', cta: 'CTA', speech: 'SPEECH', num: 'PAGE_NUMBER', page: 'PAGE_TOTAL', stat: 'STAT', topic: 'TOPIC', item: 'ITEM', closing: 'CLOSING', mascot: 'MASCOT', logo: 'LOGO', main: 'MAIN_IMAGE' };
-function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false }) {
+function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, notes = '' }) {
   const lim = Object.entries(limits).filter(([, n]) => n > 0);
   return [
     kind === 'youtube' ? `Sen '${brandName}' markasının YouTube kapak ve içerik yazarısın.` : `Sen '${brandName}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI (dil ve kitle buna uysun):', memory, '',
     `KONU: ${topic}`, '',
+    // Kullanıcının kendi maddeleri: slaytlar bunlardan kurulur, özü korunur (eski sistemdeki "özel maddeler")
+    notes ? `KULLANICININ VERDİĞİ MADDELER VE NOTLAR:\n\"\"\"\n${notes}\n\"\"\"\nÖNEMLİ: Slaytları bu maddeleri temel alarak kur. Her maddenin özünü koru, hiçbirini atlama, kendi bilgini ekleyerek uydurma; maddeleri vurucu kısa başlıklara ve değer katan açıklamalara dönüştür. Madde sayısı slayt sayısından fazlaysa birleştir, azsa kanca ve kapanışla tamamla.\n` : '',
     KIND_TASK[kind] ? KIND_TASK[kind] : kind === 'carousel'
       ? [`GÖREV: Bu konu için ${slideCount} slaytlık, yüksek etkileşimli bir Instagram carousel yaz. Akış bir hikâye gibi ilerlesin:`,
         `1. slayt KAPAK = KANCA (hook): kaydırmayı durduran, merak uyandıran, ters köşe ya da soru biçiminde kısa başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt başlık. Konunun ne olduğunu sezdirsin ama cevabı vermesin.`,
@@ -418,11 +420,11 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       mascots: assets.list(b.id, 'mascot').map(a => ({ id: a.id, url: a.url, label: a.label })) };
   };
 
-  async function writeTexts(b, { topic, kind, slides, modelRef, rewriteOf, mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false }) {
+  async function writeTexts(b, { topic, kind, slides, modelRef, rewriteOf, mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, notes = '' }) {
     const count = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || 6)) : 1;
     // Post metni kısa ve kalıplı: modelin uzun düşünmesine gerek yok (düşük çaba = hızlı yanıt)
     const poses = assets.list(b.id, 'mascot').map(a => polish(a.label)).filter(Boolean).slice(0, 12);
-    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: postPrompt({ brandName: b.name, memory: brands.memory(b.id), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta }), json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.7 });
+    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: postPrompt({ brandName: b.name, memory: brands.memory(b.id), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, notes }), json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.7 });
     const out = r.output || {};
     const texts = (Array.isArray(out.slides) ? out.slides : []).map(s => ({ title: polish(s && s.title).slice(0, 160), body: polish(s && s.body).slice(0, 500),
       items: (Array.isArray(s && s.items) ? s.items : []).map(x => polish(x).slice(0, 120)).filter(Boolean).slice(0, 6), cta: polish(s && s.cta).slice(0, 40),
@@ -613,7 +615,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
   // Maskot kullanılmayacaksa (ya da kullanıcı kendisi yerleştirecekse) maskot, balon ve konuşma kutuları çıkarılır
   const MASCOT_MODES = ['auto', 'manual', 'none'];
   const stripMascot = data => Object.assign({}, data, { slides: data.slides.map(s => Object.assign({}, s, { layers: s.layers.filter(l => !((l.type === 'image' && l.role === 'mascot') || l.role === 'bubble' || (l.type === 'text' && l.role === 'speech'))) })) });
-  async function fromTemplateTopic(b, tpl, topic, modelRef, slides = null, mascotMode = 'auto') {
+  async function fromTemplateTopic(b, tpl, topic, modelRef, slides = null, mascotMode = 'auto', notes = '') {
     const clean = cleanData(tpl.data, b.id);
     const tslides = clean.slides.filter(s => !s.frame);
     // Carousel'de istenen slayt sayısı (yoksa şablonun kendi sayısı; 3'ten azsa 6)
@@ -628,11 +630,11 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     const hasRole = r => tslides.some(s => (s.layers || []).some(l => l.type === 'text' && !l.fixed && roleOf(l) === r));
     // Kapanış cümlesi kutusu havuz boşsa yapay zekâya ek alan olarak gider
     if (hasRole('closing') && !pools.closing.length && !fields.some(f => f.key === 'CLOSING')) fields.push({ key: 'CLOSING', hint: 'kısa kapanış cümlesi' });
-    const w = await writeTexts(b, { topic, kind: kind, slides: want, modelRef, mascot, fields, limits, fixedSpeech: pools.speech.length > 0, wantCta: hasRole('cta') && !pools.cta.length });
+    const w = await writeTexts(b, { topic, kind: kind, slides: want, modelRef, mascot, fields, limits, fixedSpeech: pools.speech.length > 0, wantCta: hasRole('cta') && !pools.cta.length, notes });
     const seed = db.prepare('SELECT COUNT(*) AS n FROM posts WHERE brand_id = ?').get(b.id).n;
     const fitted = kind === 'carousel' ? fitSlides(tslides, w.texts.length) : tslides;
     const filled = fillTemplate(Object.assign({}, clean, { slides: fitted }), w.texts, { mascots: brandAssets(b).mascots, topic: String(topic).split(' — ')[0], pools, seed });
-    let data = Object.assign(withFrames(b.id, filled, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta }), { caption: w.caption, hashtags: w.hashtags, topic }, String(tpl.id).startsWith('post:') ? {} : { template: { id: tpl.id, name: tpl.name, version: tpl.version || 1 } });
+    let data = Object.assign(withFrames(b.id, filled, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta }), { caption: w.caption, hashtags: w.hashtags, topic }, notes ? { notes } : {}, String(tpl.id).startsWith('post:') ? {} : { template: { id: tpl.id, name: tpl.name, version: tpl.version || 1 } });
     if (mascotMode !== 'auto') data = stripMascot(data);
     const r = { id: newId(), brand_id: b.id, title: w.title, kind: kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
     db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
@@ -658,17 +660,18 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     setArchived(brandId, id, on) { const b = brands.get(brandId); const p = row(b.id, id); db.prepare('UPDATE posts SET archived = ? WHERE id = ?').run(on ? 1 : 0, p.id); return toPost(row(b.id, p.id)); },
     get: (brandId, id) => toPost(row(brands.get(brandId).id, id)),
 
-    async create(brandId, { topic, kind = 'carousel', format = null, slides = 6, modelRef = null, templateId = null, templateVersion = null, mascot = 'auto' } = {}) {
+    async create(brandId, { topic, kind = 'carousel', format = null, slides = 6, modelRef = null, templateId = null, templateVersion = null, mascot = 'auto', notes = '' } = {}) {
       const b = brands.get(brandId);
+      notes = text(notes, { field: 'Notlar', max: 3000 }) || '';
       const mm = MASCOT_MODES.includes(mascot) ? mascot : 'auto';
       // 11.10: konudan üretirken şablon seçildiyse metin o şablona yerleşir
-      if (templateId) return fromTemplateTopic(b, templateAt(b.id, templateId, templateVersion), text(topic, { field: 'Konu', max: 1000, required: true }), modelRef, slides, mm);
+      if (templateId) return fromTemplateTopic(b, templateAt(b.id, templateId, templateVersion), text(topic, { field: 'Konu', max: 1000, required: true }), modelRef, slides, mm, notes);
       oneOf(kind, Object.keys(POST_KINDS), 'Tür');
       format = format || KIND_DEFAULTS[kind].format;
       if (!POST_FORMATS[format]) throw badRequest('Geçersiz boyut.');
       const t = text(topic, { field: 'Konu', max: 1000, required: true });
-      const w = await writeTexts(b, { topic: t, kind, slides, modelRef });
-      let data = withFrames(b.id, { format, slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format, kind, topic: String(t).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags, topic: t }, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta });
+      const w = await writeTexts(b, { topic: t, kind, slides, modelRef, notes });
+      let data = withFrames(b.id, { format, slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format, kind, topic: String(t).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags, topic: t, ...(notes ? { notes } : {}) }, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta });
       if (mm !== 'auto') data = stripMascot(data);
       const r = { id: newId(), brand_id: b.id, title: w.title, kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
       db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
@@ -699,14 +702,14 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       // Şablonla hazırlanmış tasarımda yerleşim korunur: yalnızca metinler (ve maskot pozu) yenilenir
       if (data.template) {
         const content = (data.slides || []).map((s, i) => i).filter(i => !data.slides[i].frame);
-        const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: content.length, modelRef, rewriteOf: prev, mascot: true });
+        const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: content.length, modelRef, rewriteOf: prev, mascot: true, notes: data.notes || '' });
         const filled = fillTemplate({ slides: content.map(i => data.slides[i]) }, w.texts, { mascots: brandAssets(b).mascots, topic: String(data.topic || p.title).split(' — ')[0] }).slides;
         const slides = data.slides.map((s, i) => (content.includes(i) ? filled[content.indexOf(i)] : s));
         const next = Object.assign({}, data, { slides, caption: w.caption, hashtags: w.hashtags });
         db.prepare('UPDATE posts SET title = ?, data = ?, model = ?, updated_at = ? WHERE id = ?').run(w.title, JSON.stringify(next), w.r.servedRef || w.r.ref, now(), p.id);
         return Object.assign(toPost(row(b.id, p.id)), { ai: meta(w.r) });
       }
-      const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: (data.slides || []).length, modelRef, rewriteOf: prev });
+      const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: (data.slides || []).length, modelRef, rewriteOf: prev, notes: data.notes || '' });
       const next = Object.assign({}, data, { slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format: data.format, kind: p.kind, topic: String(data.topic || p.title).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags });
       db.prepare('UPDATE posts SET title = ?, data = ?, model = ?, updated_at = ? WHERE id = ?').run(w.title, JSON.stringify(next), w.r.servedRef || w.r.ref, now(), p.id);
       return Object.assign(toPost(row(b.id, p.id)), { ai: meta(w.r) });
@@ -752,7 +755,8 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
 
     // 10.8 Fikirden tasarım: fikrin metni marka diliyle yazılır, eşleşen (ya da seçilen) şablona yerleşir; şablon yoksa
     // fikrin türüne uygun marka yerleşimiyle hazırlanır. Fikir "kullanıldı (Post stüdyosu)" olur.
-    async fromIdea(brandId, { ideaId, templateId = null, templateVersion = null, designId = null, slides = null, modelRef = null, mascot = 'auto' } = {}) {
+    async fromIdea(brandId, { ideaId, templateId = null, templateVersion = null, designId = null, slides = null, modelRef = null, mascot = 'auto', notes = '' } = {}) {
+      notes = text(notes, { field: 'Notlar', max: 3000 }) || '';
       const b = brands.get(brandId);
       const ir = db.prepare('SELECT * FROM ideas WHERE id = ? AND brand_id = ?').get(String(ideaId || ''), b.id);
       if (!ir) throw notFound('Fikir bulunamadı.');
@@ -766,11 +770,11 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       else tpl = bestTemplate(b.id, idea);
       let post;
       const mm = MASCOT_MODES.includes(mascot) ? mascot : 'auto';
-      if (tpl) post = await fromTemplateTopic(b, tpl, topic, modelRef, slides, mm);
+      if (tpl) post = await fromTemplateTopic(b, tpl, topic, modelRef, slides, mm, notes);
       else {
         // Şablon yoksa da eski akış: istenen sayfa kadar carousel (kapak kanca + gelişme + kapanış); tek görsel seçildiyse post
         const kind = idea.format === 'story' ? 'story' : Number(slides) === 1 ? 'post' : 'carousel';
-        post = await this.create(b.id, { topic, kind, slides: Number(slides) || 5, modelRef, mascot: mm });
+        post = await this.create(b.id, { topic, kind, slides: Number(slides) || 5, modelRef, mascot: mm, notes });
       }
       const used = markIdeaUsed(db, b.id, idea.id, 'post');
       // Postun kaynağı: dışa aktarırken "bu fikri havuzdan sil" önerisi için
