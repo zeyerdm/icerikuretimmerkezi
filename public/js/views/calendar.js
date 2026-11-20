@@ -71,10 +71,9 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   // Geri sayım: bugün, yarın, n gün sonra (yalnızca önümüzdeki 14 gün)
   const daysTo = date => Math.round((new Date(`${date}T12:00:00`) - startOfDay(new Date()).setHours(12)) / 86400000);
   const countdown = s => { const n = daysTo(s.date); return n === 0 ? 'Bugün' : n === 1 ? 'Yarın' : n > 1 && n <= 14 ? `${n} gün sonra` : ''; };
-  const ICON = { sektor: '◆', anma: '▪', donem: '◷' };
   // Hücrede geri sayım rozeti yok (üstteki şerit gösteriyor): adın tamamı sığsın
   const spChip = s => { const cd = '';
-    return `<button class="cal-special cat-${esc(s.category)} imp-${esc(s.importance || 'orta')}" data-special="${esc(s.date + '|' + s.name)}" title="${esc(`${s.name} · ${s.categoryLabel}${s.importanceLabel ? ' · ' + s.importanceLabel : ''}${s.brands ? ' · ' + s.brands.join(', ') : ''}${s.end ? ` · ${s.date} – ${s.end}` : ''}`)}">${ICON[s.category] || (s.end ? '◷' : '★')} <span class="cs-name">${esc(s.name)}</span>${cd ? `<span class="cs-cd">${cd}</span>` : ''}</button>`; };
+    return `<button class="cal-special cat-${esc(s.category)} imp-${esc(s.importance || 'orta')}" data-special="${esc(s.date + '|' + s.name)}" title="${esc(`${s.name} · ${s.categoryLabel}${s.importanceLabel ? ' · ' + s.importanceLabel : ''}${s.brands ? ' · ' + s.brands.join(', ') : ''}${s.end ? ` · ${s.date} – ${s.end}` : ''}`)}"><i class="cs-dot" aria-hidden="true"></i><span class="cs-name">${esc(s.name)}</span>${cd ? `<span class="cs-cd">${cd}</span>` : ''}</button>`; };
   const SP_LEGEND = [['sektor', 'Markana özel'], ['resmi', 'Resmî / millî'], ['ticari', 'Ticari'], ['dini', 'Dinî'], ['dunya', 'Dünya günü'], ['anma', 'Anma (ticari içerik yok)'], ['donem', 'Dönem']];
   // Üst şerit: yalnız önümüzdeki 10 gün (bugün dahil); hepsi görünür, kaydırma çubuğu yok
   const soon = () => upcoming.filter(u => { const n = daysTo(u.date); return (n >= 0 && n <= 10) || (u.end && u.date < iso(startOfDay(new Date())) && u.end >= iso(startOfDay(new Date()))); });
