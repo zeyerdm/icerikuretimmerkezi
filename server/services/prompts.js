@@ -198,6 +198,31 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
     return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
   };
   // Ortak şablonlar (shared) bütün markalarda görünür ve kullanılır
+  // Beğenilen Reels'ten öğrenme: "Marka örneği" ve beğenilen (👍) Reels'lerin esprisi ve replikleri ölçü olur; beğenilmeyenlerin
+  // nedenleri kaçınılacaklar olarak, son yazılan başlıklar da tekrar etmemek için plana girer.
+  function reelsMemory(brandId) {
+    const short = (t, n = 160) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, n);
+    const rows = db.prepare(`SELECT p.id, p.title, p.plan, p.is_example, f.vote, f.reasons, f.note FROM prompts p
+      LEFT JOIN feedback f ON f.brand_id = p.brand_id AND f.target_type = 'prompt' AND f.target_id = p.id
+      WHERE p.brand_id = ? AND p.kind = 'reels' ORDER BY p.updated_at DESC LIMIT 60`).all(brandId);
+    const liked = rows.filter(r => r.plan && (r.is_example || r.vote > 0)).slice(0, 3).map(r => {
+      const pl = parseJson(r.plan, null);
+      if (!pl) return '';
+      return `- ${short(r.title, 80)} · espri: ${short(pl.punchline)} · ${pl.scenes.length} sahne, ${totalSeconds(pl)} sn · replikler: ${pl.scenes.map(x => `"${short(x.line, 90)}"`).join(' / ')}`;
+    }).filter(Boolean);
+    const disliked = rows.filter(r => r.vote < 0).slice(0, 5).map(r => {
+      const why = [...(parseJson(r.reasons, []) || []), r.note].filter(Boolean).join(', ');
+      return `- ${short(r.title, 80)}${why ? ` (neden: ${short(why, 120)})` : ''}`;
+    });
+    const recent = rows.slice(0, 15).map(r => short(r.title, 70));
+    const favIdeas = db.prepare("SELECT title FROM ideas WHERE brand_id = ? AND format = 'reels' AND favorite = 1 ORDER BY created_at DESC LIMIT 5").all(brandId).map(r => short(r.title, 90));
+    return [
+      favIdeas.length ? `FAVORİ REELS FİKİRLERİ (markanın sevdiği konu ve yaklaşım tarzı): ${favIdeas.join(' · ')}` : '',
+      liked.length ? `BEĞENİLEN REELS'LER (espri tarzını, temposunu ve replik dilini ölçü al; içeriğini kopyalama):\n${liked.join('\n')}` : '',
+      disliked.length ? `BEĞENİLMEYEN REELS'LER (bu yaklaşımları ve nedenlerini tekrarlama):\n${disliked.join('\n')}` : '',
+      recent.length ? `DAHA ÖNCE YAZILAN REELS'LER (konuyu ve esprisini tekrar etme): ${recent.join(' · ')}` : ''
+    ].filter(Boolean).join('\n\n');
+  }
   // Hızlı modda kalite için ikinci yazım yapılmaz; eksikler kalite rozetlerinde uyarı olarak görünür
   const qualityRetry = () => !(ai.speedOf && ai.speedOf('yazim') === 'hizli');
   const reelsCheckOpts = brandId => { const b = brands.get(brandId); const ch = reels ? reels.settings(b.id).character : ''; return { character: ch, allow: [b.name, ch].filter(Boolean) }; };
@@ -412,7 +437,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       const n = Math.max(0, Math.min(REELS_LIMITS.maxScenes, Math.round(Number(scenes) || 0)));
       const settings = reels ? reels.settings(b.id) : { character: 'Karakter', style: '3d' };
       const book = bookBlock(parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(b.id) || {}).character_book, {}) || {});
-      const ask = planPrompt({ brandName: b.name, memory: brands.memory(b.id), settings, topic: want, scenes: n, extra: book });
+      const ask = planPrompt({ brandName: b.name, memory: brands.memory(b.id), settings, topic: want, scenes: n, extra: [book, reelsMemory(b.id)].filter(Boolean).join('\n\n') });
       const opts = reelsCheckOpts(b.id);
       const attempt = async (prompt, temperature) => {
         // Senaryo planı özen ister: hız ayarı Hızlı olsa da en az Dengeli düşünülür
