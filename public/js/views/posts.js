@@ -979,7 +979,7 @@ async function renderEditor(view, brand, id, models) {
     bar.innerHTML = many ? [b('arrange', 'layers', 'Konumlandır'), b('group', 'group', 'Grupla'), sep, b('dup', 'copy', 'Çoğalt'), b('del', 'trash', 'Sil', 'class="cb-btn cb-danger"')].join('')
       : [aiReady && l.type === 'text' ? b('ai', 'sparkle', "AI'ya sor") : '', b('edit', 'edit', 'Düzenle'),
         ['image', 'vector'].includes(l.type) ? b('replace', 'refresh', 'Değiştir') : '',
-        colorable ? `<button type="button" class="cb-btn cb-color" data-cp="color" title="Renk" aria-label="Renk"><span class="cp-trigger-sw" style="background:${l.gradient ? gradCss(l.gradient) : esc(l.color || '#000000')}"></span><span class="sr-only">${esc(String(l.color || '').toUpperCase())}</span></button>` : '',
+        colorable ? `<button type="button" class="cb-btn cb-color" data-cp="color" title="Renk" aria-label="Renk"><span class="cp-ring"><span class="cp-trigger-sw" style="background:${l.gradient ? gradCss(l.gradient) : esc(l.color || '#000000')}"></span></span><span class="sr-only">${esc(String(l.color || '').toUpperCase())}</span></button>` : '',
         ['image', 'vector'].includes(l.type) ? b('flip', 'refresh', 'Çevir') : '',
         b('opacity', 'eye', 'Saydamlık'), b('arrange', 'layers', 'Konumlandır'), sep,
         b('dup', 'copy', ''), b('lock', l.locked ? 'lock' : 'unlock', ''), b('del', 'trash', '', 'class="cb-btn cb-danger"')].join('');
@@ -1285,8 +1285,8 @@ async function renderEditor(view, brand, id, models) {
       const sw = [...new Set([brand.colors.primary, ...(brand.colors.secondary || []), brand.colors.heading, '#ffffff', '#111111'].filter(c => /^#[0-9a-f]{6}$/i.test(c || '')))];
       box.innerHTML = `${head}
         <div class="row mb-2"><input class="input input-sm grow" id="ed-el-q" type="search" placeholder="Öğe ara (ör. kalp, ok, çerçeve, kahve)" value="${esc(el.q)}" aria-label="Öğe ara"></div>
-        <div class="row mb-2 el-colors" role="group" aria-label="Öğe rengi"><span class="xsmall muted">Renk</span>${sw.map(c => `<button type="button" class="sw ${el.color === c ? 'on' : ''}" data-el-color="${esc(c)}" style="background:${esc(c)}" title="${esc(c)}" aria-label="Renk ${esc(c)}"></button>`).join('')}<input type="color" id="ed-el-color" value="${esc(el.color)}" aria-label="Özel renk" title="Özel renk"></div>
-        <p class="xsmall muted mb-2">Tek renkli öğelerin rengi değişir. Tıkla ya da tuvale sürükle.</p>
+        <div class="el-colorbar mb-2"><button type="button" class="cp-trigger el-color-btn" data-el-cp title="Öğe rengi: renk kartelası" aria-label="Öğe rengi ${esc(String(el.color).toUpperCase())}"><span class="cp-ring"><span class="cp-trigger-sw" style="background:${esc(el.color)}"></span></span><span>Öğe rengi</span><b>${esc(String(el.color).toUpperCase())}</b></button></div>
+        <p class="xsmall muted mb-2">Seçtiğin renk tek renkli öğelere uygulanır. Öğeye tıkla ya da tuvale sürükle.</p>
         <div id="ed-el"><p class="small muted">Yükleniyor…</p></div>
         <h4 class="ed-sub mt-3">Basit şekil</h4>
         <div class="ed-shapes"><button type="button" data-add="shape" title="Dikdörtgen"><span class="sh rect"></span></button><button type="button" data-add="shape" data-preset="rounded" title="Yuvarlak köşe"><span class="sh rounded"></span></button><button type="button" data-add="circle" title="Daire"><span class="sh circle"></span></button><button type="button" data-add="shape" data-preset="line" title="Çizgi"><span class="sh line"></span></button></div>
@@ -1967,6 +1967,11 @@ async function renderEditor(view, brand, id, models) {
     if (es) { el.sub = es.dataset.elSub || null; el.limit = 120; return drawElements(); }
     if (t.closest('[data-el-home]')) { el.view = 'home'; el.cat = null; el.q = ''; const q = $('#ed-el-q'); if (q) q.value = ''; return drawElements(); }
     if (t.closest('[data-el-more]')) { el.limit += 240; return drawElements(); }
+    const ecp = t.closest('[data-el-cp]');
+    if (ecp) {
+      return openColorPicker(ecp, { value: el.color, brandColors: palette, designColors: data.slides.flatMap(sl => [sl.bg, ...sl.layers.map(x => x.color)]), brandHref: `#/m/${encodeURIComponent(brand.id)}/kimlik/gorsel`,
+        onChange: h => { el.color = h; ecp.querySelector('.cp-trigger-sw').style.background = h; ecp.querySelector('b').textContent = h.toUpperCase(); clearTimeout(view._stockT); view._stockT = setTimeout(drawElements, 150); } });
+    }
     const eco = t.closest('[data-el-color]');
     if (eco) { el.color = eco.dataset.elColor; $$('[data-el-color]').forEach(b => b.classList.toggle('on', b === eco)); const ci = $('#ed-el-color'); if (ci) ci.value = el.color; return drawElements(); }
     const ef = t.closest('[data-el-fav]');

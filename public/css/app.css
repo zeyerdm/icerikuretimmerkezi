@@ -2286,3 +2286,11 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .cal-legend { display: grid; gap: 6px; padding-top: var(--s-3); border-top: 1px solid var(--line); }
 .cal-legend .lg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .cal-legend .lg-h { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #6b7280); min-width: 96px; }
+
+/* Renk düğmesi kartela gibi: gökkuşağı halka, ortada seçili renk (araç çubuğu ve Öğeler paneli aynı) */
+.cp-ring { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; padding: 3px; flex: none;
+  background: conic-gradient(#ff3b30, #ff9500, #ffcc00, #34c759, #00c7be, #007aff, #5856d6, #af52de, #ff2d55, #ff3b30); }
+.cp-ring .cp-trigger-sw { width: 100% !important; height: 100% !important; border-radius: 50% !important; border: 2px solid #fff !important; box-shadow: none !important; display: block; }
+.ed-ctxbar .cb-color .cp-ring { width: 26px; height: 26px; }
+.el-colorbar .el-color-btn { width: 100%; height: 40px; padding: 0 12px 0 6px; justify-content: flex-start; gap: 10px; font-size: 13px; }
+.el-colorbar .el-color-btn b { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 700; }

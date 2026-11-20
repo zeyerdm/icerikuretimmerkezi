@@ -176,7 +176,12 @@ test('Arayüz: Öğeler paneli, sürükle-bırak, favori, AI hızlı düzen ve �
     await page.locator('[data-el-fav]').first().click();
     assert.equal(await page.locator('[data-el-fav].on').count(), 1);
     // Renk seç ve tuvale sürükle-bırak
-    await page.locator('[data-el-color="#e4572e"]').click();
+    // Öğe rengi: kartela düğmesi renk panelini açar; hex yazılınca sonuçlardan seçilir
+    await page.locator('[data-el-cp]').click();
+    await page.fill('.cp-pop [data-cp-q]', '#e4572e');
+    await page.locator('.cp-pop [data-cp-pick="#e4572e"]').first().click();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelector('[data-el-cp] b').textContent === '#E4572E');
     await page.waitForTimeout(200);
     const box = await page.locator('#stage').boundingBox();
     await page.locator('.el-item').first().dragTo(page.locator('#stage'), { targetPosition: { x: box.width * 0.8, y: box.height * 0.8 } });
