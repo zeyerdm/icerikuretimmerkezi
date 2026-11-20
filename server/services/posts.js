@@ -307,7 +307,7 @@ function cleanLayer(l) {
     if (l.recolor) out.recolor = true;
     if (/^[\w:.-]{1,80}$/.test(String(l.elementId || ''))) out.elementId = String(l.elementId);
     if (l.flipX) out.flipX = true;
-    if (l.fit === 'cover') out.fit = 'cover'; // desen/doku: kutuyu kaplar
+    if (l.fit === 'cover' || l.fit === 'stretch') out.fit = l.fit; // desen/doku kutuyu kaplar; 'stretch' serbest esnetilmiş öğe (oran korunmaz)
   } else if (l.type === 'qr') {
     // QR kod: metin/link kare olarak çizilir (beyaz sessiz bölge her zaman eklenir, okunabilirlik için)
     const text = String(l.text || '').trim().slice(0, 200);

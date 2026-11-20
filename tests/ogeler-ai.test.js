@@ -317,3 +317,18 @@ test('Arayüz: şablon olarak kaydet: yeni şablon ya da kayıtlı şablonun yen
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
 });
+
+test('Serbest esnetilen öğe kaydedilince esnek kalır (fit: stretch korunur)', async () => {
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Esnek' })).data.brand;
+    const p = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Balon', kind: 'post' })).data.post;
+    const svg = '<svg viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>';
+    const data = { format: '4:5', slides: [{ bg: '#000000', layers: [{ id: 'v1', type: 'vector', svg, x: 50, y: 50, w: 400, h: 120, fit: 'stretch', recolor: true, color: '#ffffff' }] }] };
+    const r = await s.request('PUT', `/api/brands/${b.id}/posts/${p.id}`, { data });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    const got = (await s.request('GET', `/api/brands/${b.id}/posts/${p.id}`)).data.post.data.slides[0].layers[0];
+    assert.equal(got.fit, 'stretch');
+    assert.deepEqual([got.w, got.h], [400, 120]);
+  } finally { await s.stop(); }
+});
