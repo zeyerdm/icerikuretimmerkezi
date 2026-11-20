@@ -744,7 +744,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       const lang = (body.lang != null ? body.lang : old && old.lang) === 'en' ? 'en' : 'tr';
       const shared = body.shared != null ? Boolean(body.shared) : old ? Boolean(old.shared) : false;
       const example = body.example != null ? (text(body.example, { field: 'Örnek prompt', max: 8000 }) || '') : old ? old.example : '';
-      const spec = body.spec && typeof body.spec === 'object' ? JSON.stringify(body.spec).slice(0, 4000) : old ? old.spec : '{}';
+      const spec = body.spec && typeof body.spec === 'object' ? (JSON.stringify(body.spec).length <= 12000 ? JSON.stringify(body.spec) : (old ? old.spec : '{}')) : old ? old.spec : '{}';
       const t = now();
       const id = old ? old.id : newId();
       const isDefault = body.isDefault != null ? Boolean(body.isDefault) : old ? Boolean(old.is_default) : !db.prepare('SELECT 1 FROM prompt_rules WHERE (brand_id = ? OR shared = 1) AND kind = ?').get(b.id, kind);
