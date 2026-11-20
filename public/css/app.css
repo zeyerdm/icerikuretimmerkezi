@@ -2275,3 +2275,14 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 /* Post: kendi maddelerin */
 .ps-notes { margin-top: var(--s-2); }
 .ps-notes > summary { cursor: pointer; color: var(--muted); }
+
+/* Takvim sadeleştirme: üst şerit sarar (kaydırma yok), hücrede ad iki satıra kadar tam görünür, bugün komşularını taşmaz,
+   açıklama iki düzenli satır */
+.cal-upcoming { flex-wrap: wrap; overflow: visible; row-gap: 6px; padding: 10px 12px; }
+.cal-upcoming > b { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin-right: 6px; }
+.cal-special { white-space: normal; align-items: flex-start; }
+.cal-special .cs-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; }
+.cal-card .cal-month .cal-cell.today, .cal-card .sp-day.today, .cal-card .cw-col.today { transform: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, #000 12%, var(--brand)); }
+.cal-legend { display: grid; gap: 6px; padding-top: var(--s-3); border-top: 1px solid var(--line); }
+.cal-legend .lg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.cal-legend .lg-h { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #6b7280); min-width: 96px; }

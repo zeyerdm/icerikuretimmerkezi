@@ -72,10 +72,13 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   const daysTo = date => Math.round((new Date(`${date}T12:00:00`) - startOfDay(new Date()).setHours(12)) / 86400000);
   const countdown = s => { const n = daysTo(s.date); return n === 0 ? 'Bugün' : n === 1 ? 'Yarın' : n > 1 && n <= 14 ? `${n} gün sonra` : ''; };
   const ICON = { sektor: '◆', anma: '▪', donem: '◷' };
-  const spChip = s => { const n = daysTo(s.date); const cd = s.end && n < 0 ? '' : n === 0 ? 'bugün' : n === 1 ? 'yarın' : n > 1 && n <= 14 ? `${n} gün` : '';
+  // Hücrede geri sayım rozeti yok (üstteki şerit gösteriyor): adın tamamı sığsın
+  const spChip = s => { const cd = '';
     return `<button class="cal-special cat-${esc(s.category)} imp-${esc(s.importance || 'orta')}" data-special="${esc(s.date + '|' + s.name)}" title="${esc(`${s.name} · ${s.categoryLabel}${s.importanceLabel ? ' · ' + s.importanceLabel : ''}${s.brands ? ' · ' + s.brands.join(', ') : ''}${s.end ? ` · ${s.date} – ${s.end}` : ''}`)}">${ICON[s.category] || (s.end ? '◷' : '★')} <span class="cs-name">${esc(s.name)}</span>${cd ? `<span class="cs-cd">${cd}</span>` : ''}</button>`; };
   const SP_LEGEND = [['sektor', 'Markana özel'], ['resmi', 'Resmî / millî'], ['ticari', 'Ticari'], ['dini', 'Dinî'], ['dunya', 'Dünya günü'], ['anma', 'Anma (ticari içerik yok)'], ['donem', 'Dönem']];
-  const upcomingHtml = () => (showSpecial && upcoming.length ? `<div class="cal-upcoming" aria-label="Yaklaşan özel günler"><b>Yaklaşan:</b>${upcoming.slice(0, 6).map(u => `<button class="cu-item cat-${esc(u.category)} imp-${esc(u.importance || 'orta')}" data-special-up="${esc(u.date + '|' + u.name)}"><span>${esc(u.name)}</span><em>${esc(countdown(u) || fmtDate(new Date(`${u.date}T12:00:00`), { day: 'numeric', month: 'short' }))}</em></button>`).join('')}</div>` : '');
+  // Üst şerit: yalnız önümüzdeki 10 gün (bugün dahil); hepsi görünür, kaydırma çubuğu yok
+  const soon = () => upcoming.filter(u => { const n = daysTo(u.date); return (n >= 0 && n <= 10) || (u.end && u.date < iso(startOfDay(new Date())) && u.end >= iso(startOfDay(new Date()))); });
+  const upcomingHtml = () => (showSpecial && soon().length ? `<div class="cal-upcoming" aria-label="Önümüzdeki 10 günün özel günleri"><b>Önümüzdeki 10 gün</b>${soon().slice(0, 8).map(u => `<button class="cu-item cat-${esc(u.category)} imp-${esc(u.importance || 'orta')}" data-special-up="${esc(u.date + '|' + u.name)}"><span>${esc(u.name)}</span><em>${esc(countdown(u) || fmtDate(new Date(`${u.date}T12:00:00`), { day: 'numeric', month: 'short' }))}</em></button>`).join('')}</div>` : '');
 
   function monthGrid() {
     const { from } = range();
@@ -147,9 +150,9 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
         </div>
         ${upcomingHtml()}
         ${embedded ? '<div class="cal-scroll">' : ''}${mode === 'ay' ? monthGrid() : weekGrid()}
-        <div class="cal-legend">${Object.entries(statuses).map(([k, v]) => `<span class="lg status-${k}"><i></i>${esc(v)}</span>`).join('')}
-          ${brand ? '' : '<span class="small muted">Renkli çizgi: içeriğin markası</span>'}
-          ${showSpecial ? `<span class="lg-sep"></span>${SP_LEGEND.map(([k, v]) => `<span class="lg-sp cat-${k}"><i></i>${esc(v)}</span>`).join('')}` : ''}</div>
+        <div class="cal-legend"><div class="lg-row"><span class="lg-h">İçerik durumu</span>${Object.entries(statuses).map(([k, v]) => `<span class="lg status-${k}"><i></i>${esc(v)}</span>`).join('')}
+          ${brand ? '' : '<span class="small muted">Renkli çizgi: içeriğin markası</span>'}</div>
+          ${showSpecial ? `<div class="lg-row"><span class="lg-h">Özel günler</span>${SP_LEGEND.map(([k, v]) => `<span class="lg-sp cat-${k}"><i></i>${esc(v)}</span>`).join('')}</div>` : ''}</div>
       ${embedded ? unschedHtml() + '</div>' : ''}</div>
       ${!embedded && unscheduled.length ? `<section class="card mt-5"><div class="card-head"><h3>Tarihsiz içerikler</h3><span class="small muted">${unscheduled.length}</span></div>
         <div class="unsched">${unscheduled.map(c => `<button class="ag-item status-${esc(c.status)}" data-item="${esc(c.id)}" style="--item-color:${esc(c.brandColor || '#7d6bf0')}"><span class="ag-title">${esc(c.title)}</span><span class="ag-meta">${esc(c.brandName)} · ${esc(c.typeLabel)} · <span class="st">${esc(c.statusLabel)}</span></span></button>`).join('')}</div></section>` : ''}`;
