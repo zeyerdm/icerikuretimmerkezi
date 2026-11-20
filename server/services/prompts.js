@@ -115,6 +115,22 @@ export function planIssues(plan, scenes = [], { character = '', allow = [] } = {
   return issues;
 }
 
+// Reels açıklaması ve hashtag'ler: tam 5 hashtag (genel etiketler atılır, eksikse marka etiketiyle tamamlanır); kısa açıklama uyarılır
+const GENERIC_TAGS = new Set(['#keşfet', '#kesfet', '#reels', '#viral', '#explore', '#fyp', '#instagram', '#trend', '#reelsinstagram']);
+export function fixPublishing(plan, brandName = '') {
+  const seen = new Set();
+  const tags = (plan.hashtags || []).map(h => String(h || '').trim().replace(/^#?/, '#').replace(/\s+/g, '')).filter(h => h.length > 2 && !GENERIC_TAGS.has(h.toLocaleLowerCase('tr-TR')))
+    .filter(h => { const k = h.toLocaleLowerCase('tr-TR'); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+  const brandTag = '#' + String(brandName || '').replace(/[^\p{L}\p{N}]/gu, '');
+  if (tags.length < 5 && brandTag.length > 2 && !seen.has(brandTag.toLocaleLowerCase('tr-TR'))) tags.push(brandTag);
+  const out = Object.assign({}, plan, { hashtags: tags });
+  const notes = [];
+  if (tags.length < 5) notes.push(`Hashtag sayısı ${tags.length}; 5 olmalı (Yayın panelinden tamamlayabilirsin).`);
+  const len = String(plan.caption || '').length;
+  if (len && len < 1000) notes.push(`Açıklama kısa (${len} karakter); hedef 1200-1800.`);
+  return { plan: out, notes };
+}
+
 // Kural şablonu: kullanıcının kendi prompt yapısı. Başlıklar ve sabit cümleler aynen kalır, [köşeli] alanlar doldurulur.
 const PLACEHOLDER = /\[[^\]\n]+\]/g;
 const foldTr = s => String(s || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
@@ -415,6 +431,8 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
         } catch { /* ilk sonuç kalır */ }
       }
       if (!a.pl) throw badRequest('Model kullanılabilir bir senaryo döndürmedi; tekrar dene ya da başka model seç.');
+      const pub = fixPublishing(a.pl, b.name);
+      a.pl = pub.plan; a.issues = a.issues.concat(pub.notes);
       return { plan: a.pl, issues: a.issues, totalSeconds: totalSeconds(a.pl), ai: Object.assign(meta(a.r), { qualityRetried: retried }) };
     },
     // Düzenlenen planı yeniden ölçer (replik süreye sığıyor mu, saniyeler boşluksuz mu); AI çağrısı yok
