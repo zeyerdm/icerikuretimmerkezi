@@ -82,20 +82,25 @@ async function renderBoard(view, brand, id) {
     let list = [];
     try {
       if (kind === 'idea') list = (await api.ideas(brand.id)).ideas.map(x => ({ id: x.id, t: x.title, s: x.categoryLabel }));
-      if (kind === 'reels') list = (await api.reelsList(brand.id)).reels.map(x => ({ id: x.id, t: x.title, s: x.statusLabel || '' }));
+      // Reels tek akış: Prompt Studio'daki Reels'ler (prompt kartı olarak) ve eski Reels senaryoları birlikte listelenir
+      if (kind === 'reels') {
+        const [ps, old] = await Promise.all([api.prompts(brand.id, { kind: 'reels' }), api.reelsList(brand.id).catch(() => ({ reels: [] }))]);
+        list = [...ps.prompts.map(x => ({ id: x.id, k: 'prompt', t: x.title, s: `Prompt Studio · ${x.statusLabel || 'Reels'}` })), ...old.reels.map(x => ({ id: x.id, k: 'reels', t: x.title, s: `Eski senaryo · ${x.statusLabel || ''}` }))];
+      }
       if (kind === 'post') list = (await api.posts(brand.id)).posts.map(x => ({ id: x.id, t: x.title, s: x.kindLabel || '' }));
       if (kind === 'prompt') list = (await api.prompts(brand.id)).prompts.map(x => ({ id: x.id, t: x.title, s: x.kindLabel || '' }));
       if (kind === 'asset') list = (await api.assets(brand.id)).assets.map(x => ({ id: x.id, t: x.label || x.categoryLabel, s: x.categoryLabel, img: x.url }));
       if (kind === 'content') list = (await api.contents({ brandId: brand.id })).contents.map(x => ({ id: x.id, t: x.title, s: `${x.typeLabel} · ${x.statusLabel}` }));
     } catch (err) { return toast(err.message, 'error'); }
-    const used = new Set(c.items.filter(i => i.kind === kind).map(i => i.refId));
+    const used = new Set(c.items.map(i => `${i.kind}:${i.refId}`));
+    const kindOf = x => x.k || kind;
     const m = openModal({
       title: 'Panoya ekle', submitLabel: 'Kapat',
-      body: list.length ? `<input class="input mb-3" id="cv-q" placeholder="Ara" aria-label="Ara"><div class="cv-pick">${list.map(x => `<button type="button" class="cv-pick-item" data-pick="${esc(x.id)}" ${used.has(x.id) ? 'disabled title="Zaten panoda"' : ''}>${x.img ? `<img src="${esc(x.img)}" alt="">` : ''}<span><b>${esc(x.t)}</b><em>${esc(x.s)}</em></span></button>`).join('')}</div>`
+      body: list.length ? `<input class="input mb-3" id="cv-q" placeholder="Ara" aria-label="Ara"><div class="cv-pick">${list.map(x => `<button type="button" class="cv-pick-item" data-pick="${esc(x.id)}" data-pick-kind="${esc(kindOf(x))}" ${used.has(`${kindOf(x)}:${x.id}`) ? 'disabled title="Zaten panoda"' : ''}>${x.img ? `<img src="${esc(x.img)}" alt="">` : ''}<span><b>${esc(x.t)}</b><em>${esc(x.s)}</em></span></button>`).join('')}</div>`
         : '<p class="card-text">Bu türde kayıt yok. Önce ilgili sayfada oluştur.</p>',
       onSubmit: () => {}
     });
-    m.form.addEventListener('click', e => { const p = e.target.closest('[data-pick]'); if (!p || p.disabled) return; p.disabled = true; add(kind, p.dataset.pick); });
+    m.form.addEventListener('click', e => { const p = e.target.closest('[data-pick]'); if (!p || p.disabled) return; p.disabled = true; add(p.dataset.pickKind || kind, p.dataset.pick); });
     const q = m.form.querySelector('#cv-q');
     if (q) q.addEventListener('input', () => { const v = q.value.toLocaleLowerCase('tr-TR'); m.form.querySelectorAll('[data-pick]').forEach(b => { b.hidden = !b.textContent.toLocaleLowerCase('tr-TR').includes(v); }); });
   }
