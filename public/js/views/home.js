@@ -180,8 +180,8 @@ function actionHtml(a, brand) {
   if (a.ok === false) return box(`<span class="act-fail">✗ ${esc(ACTION_ERR[a.type] || 'İşlem yapılamadı')}</span>`, `<div class="small muted">${esc(a.error || '')}</div>`);
   if (a.type === 'save_ideas' && a.ideas && a.ideas.length) return box(`✓ ${a.ideas.length} fikir fikir havuzuna kaydedildi`, li(a.ideas.map(i => `<li>${esc(i.title)} <span class="muted small">· ${esc(i.categoryLabel)}</span></li>`)));
   if (a.type === 'update_idea') return box(`✓ Fikir güncellendi: ${esc(a.idea.title)}`, `<a class="small" href="${m}/fikirler">Fikirlerde gör</a>`);
-  if (a.type === 'add_reels_ideas') return box(`✓ ${a.items.length} Reels fikri havuza eklendi`, li(a.items.map(i => `<li>${esc(i.text)}</li>`)) + `<a class="small" href="${m}/reels">Reels fikir havuzunu aç</a>`);
-  if (a.type === 'create_reels') return box(`✓ Reels senaryosu yazıldı: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/reels/${esc(a.id)}">Senaryoyu aç</a>`);
+  if (a.type === 'add_reels_ideas') return box(`✓ ${a.items.length} Reels fikri fikir havuzuna eklendi`, li(a.items.map(i => `<li>${esc(i.text)}</li>`)) + `<a class="small" href="${m}/fikirler">İçerik fikirlerini aç</a>`);
+  if (a.type === 'create_reels') return box(`✓ Reels senaryosu yazıldı: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/prompt/${esc(a.id)}">Senaryoyu aç</a>`);
   if (a.type === 'create_post') return box(`✓ Post tasarımı hazır: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/post/${esc(a.id)}">Tasarımı aç</a>`);
   if (a.type === 'create_prompt') return box(`✓ ${esc(a.kindLabel || '')} prompt'u yazıldı: ${esc(a.title)}`, `<a class="btn btn-sm" href="${m}/prompt/${esc(a.id)}">Prompt'u aç</a>`);
   if (a.type === 'create_image') return box(`✓ Görsel üretildi (${esc(a.modelLabel)}), kütüphaneye kaydedildi`, `<a href="${esc(a.asset.url)}" target="_blank" rel="noopener"><img class="act-img" src="${esc(a.asset.url)}" alt=""></a><a class="small" href="${m}/kutuphane">Kütüphaneyi aç</a>`);
