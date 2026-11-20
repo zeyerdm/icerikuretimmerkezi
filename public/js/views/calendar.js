@@ -297,7 +297,7 @@ function weekPlanModal(brandId, lockBrand, onDone) {
   const mon = d => { const x = startOfWeek(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
   const thisWeek = mon(new Date());
   const nextWeek = mon(addDays(new Date(), 7));
-  const SRC = { fikir: 'Fikir havuzu', 'reels-havuzu': 'Reels havuzu', 'ozel-gun': 'Özel gün', bos: 'Başlığı düzenle' };
+  const SRC = { fikir: 'Fikir havuzu', 'reels-havuzu': 'Fikir havuzu (Reels)', 'ozel-gun': 'Özel gün', bos: 'Başlığı düzenle' };
   let draft = null;
   const m = openModal({
     title: 'Haftalık plan', submitLabel: 'Takvime yaz',

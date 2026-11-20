@@ -90,7 +90,7 @@ export function createWorkspaceService(db, ownerId, brands) {
   const toContent = r => Object.assign({
     id: r.id, title: r.title, type: r.type, typeLabel: CONTENT_TYPES[r.type] || r.type,
     status: r.status, statusLabel: CONTENT_STATUSES[r.status] || r.status, done: DONE_STATUSES.includes(r.status),
-    scheduledAt: r.scheduled_at, notes: r.notes, ideaId: r.idea_id, reelsId: r.reels_id || null, postId: r.post_id || null, completedAt: r.completed_at,
+    scheduledAt: r.scheduled_at, notes: r.notes, ideaId: r.idea_id, reelsId: r.reels_id || null, promptId: r.prompt_id || null, postId: r.post_id || null, completedAt: r.completed_at,
     caption: r.caption || '', hashtags: r.hashtags ? r.hashtags.split(' ').filter(Boolean) : [], firstComment: r.first_comment || '',
     checklist: r.checklist ? parseJson(r.checklist, []) : defaultChecklist(r.type),
     metrics: r.metrics ? parseJson(r.metrics, null) : null, rate: r.metrics ? engagementRate(parseJson(r.metrics, null)) : null, hook: r.hook || '', theme: r.theme || '',
@@ -243,7 +243,7 @@ export function createWorkspaceService(db, ownerId, brands) {
           next.caption, next.hashtags, next.first_comment, next.checklist, now(), row.id);
       if (next.metrics && next.metrics !== row.metrics) brands.logActivity(next.brand_id, 'content.metrics', `Paylaşım sonucu girildi: ${next.title}`);
       // Marka değişince başka markanın senaryosuna/postuna bağlantı kalmaz
-      if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, post_id = NULL WHERE id = ?').run(row.id);
+      if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, prompt_id = NULL, post_id = NULL WHERE id = ?').run(row.id);
       if (!wasDone && isDone) brands.logActivity(next.brand_id, 'content.completed', `${CONTENT_STATUSES[next.status]}: ${next.title}`);
       return toContent(getContentRow(row.id));
     },
