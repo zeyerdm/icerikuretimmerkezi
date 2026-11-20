@@ -4,6 +4,18 @@ import { aiError, notConfigured, describeStatus, parseJsonOutput, cancelled, req
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const LABEL = 'Gemini';
 
+// Düşünme: Hızlı modda Flash modellerinde kapalı (Pro'da kapatılamaz, en az bütçe), Dengeli'de sınırlı, Derin'de modelin varsayılanı.
+// Gemini 3 ailesi bütçe yerine düzey (low/high) alır. Düşünmeyen modellere bir şey gönderilmez.
+export function thinkingConfig(model, effort) {
+  const m = String(model || '');
+  if (effort === 'high') return null;
+  if (/gemini-3/.test(m)) return { thinkingLevel: 'low' };
+  if (!/gemini-2\.5/.test(m)) return null;
+  const pro = /pro/.test(m);
+  if (effort === 'medium') return { thinkingBudget: 1024 };
+  return { thinkingBudget: pro ? 128 : 0 };
+}
+
 export function createGeminiProvider({ getApiKey, fetchImpl = fetch }) {
   async function request(path, init, { signal = null, raw = false } = {}) {
     const key = getApiKey();
@@ -33,8 +45,10 @@ export function createGeminiProvider({ getApiKey, fetchImpl = fetch }) {
     id: 'gemini',
     label: 'Google Gemini',
 
-    async generate({ model, prompt, json = false, temperature = 0.8, images = [], videoUrl = null, onDelta = null, signal = null }) {
+    async generate({ model, prompt, json = false, temperature = 0.8, effort = 'low', images = [], videoUrl = null, onDelta = null, signal = null }) {
       const generationConfig = { temperature };
+      const thinking = thinkingConfig(model, effort);
+      if (thinking) generationConfig.thinkingConfig = thinking;
       if (json) generationConfig.responseMimeType = 'application/json';
       // YouTube bağlantısı Gemini'ye doğrudan video girdisi olarak verilir (herkese açık videolar)
       const video = videoUrl ? [{ file_data: { file_uri: videoUrl } }] : [];

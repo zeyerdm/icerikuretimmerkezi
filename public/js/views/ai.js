@@ -178,7 +178,7 @@ async function renderCompare(body, ov, connected, view) {
       if (!sel || !sel.value) return;
       const task = ov.tasks.find(t => t.id === sel.value);
       try {
-        await api.aiSaveTasks({ [task.id]: { primary: sel.dataset.assign, fallback: task.fallback || '' } });
+        await api.aiSaveTasks({ [task.id]: { primary: sel.dataset.assign, fallback: task.fallback || '', speed: task.speed || 'hizli' } });
         toast(`${labelOf(sel.dataset.assign)} artık "${task.label}" işinde kullanılacak.`, 'success');
         await refreshChrome();
       } catch (err) { toast(err.message, 'error'); }
@@ -322,7 +322,7 @@ async function renderProviders(body, ov, view) {
     if (save) {
       const tasks = {};
       body.querySelectorAll('[data-task]').forEach(row => {
-        tasks[row.dataset.task] = { primary: row.querySelector('[data-role=primary]').value, fallback: row.querySelector('[data-role=fallback]').value };
+        tasks[row.dataset.task] = { primary: row.querySelector('[data-role=primary]').value, fallback: row.querySelector('[data-role=fallback]').value, speed: (row.querySelector('[data-role=speed]') || {}).value || 'hizli' };
       });
       try { await busy(save, () => api.aiSaveTasks(tasks)); toast('Atamalar kaydedildi.', 'success'); await refreshChrome(); renderAi(view, 'modeller'); } catch (err) { toast(err.message, 'error'); }
     }
@@ -356,6 +356,7 @@ async function renderProviders(body, ov, view) {
       <div><div class="strong">${esc(t.label)}${t.primaryUnavailable ? ' <span class="pill pill-warn"><span class="dot"></span>Model erişilemiyor</span>' : ''}</div><div class="xsmall muted">${esc(t.hint)}${t.auto && t.primary ? ' Şu an otomatik seçildi.' : ''}${t.primaryUnavailable ? ' Seçili model hesabında yok ya da kapatılmış; başka bir model seç.' : ''}</div></div>
       <div class="field"><label for="tp-${t.id}">Model</label><select class="select" id="tp-${t.id}" data-role="primary">${modelOptions(ov, lists, t.primary)}</select></div>
       <div class="field"><label for="tf-${t.id}">Yedek model</label><select class="select" id="tf-${t.id}" data-role="fallback">${modelOptions(ov, lists, t.fallback, { allowNone: true })}</select></div>
+      <div class="field"><label for="ts-${t.id}">Hız</label><select class="select" id="ts-${t.id}" data-role="speed" title="Hızlı: model düşünmeden yazar (en hızlı). Dengeli: biraz düşünür. Derin: modelin kendi düşünme süresi (en yavaş).">${Object.entries(ov.speeds || { hizli: 'Hızlı', dengeli: 'Dengeli', derin: 'Derin' }).map(([k, l]) => `<option value="${k}" ${(t.speed || 'hizli') === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
     </div>`).join('');
 }
 

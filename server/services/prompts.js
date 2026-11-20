@@ -198,6 +198,8 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
     return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
   };
   // Ortak şablonlar (shared) bütün markalarda görünür ve kullanılır
+  // Hızlı modda kalite için ikinci yazım yapılmaz; eksikler kalite rozetlerinde uyarı olarak görünür
+  const qualityRetry = () => !(ai.speedOf && ai.speedOf('yazim') === 'hizli');
   const reelsCheckOpts = brandId => { const b = brands.get(brandId); const ch = reels ? reels.settings(b.id).character : ''; return { character: ch, allow: [b.name, ch].filter(Boolean) }; };
   // Planı gelen ya da düzenlenen hâliyle yeniden düzenler (süreler, konuşma hızına göre uzatma); kullanılamazsa 400
   const cleanPlan = (raw, n = 0) => {
@@ -384,7 +386,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       // 7.6: zorunlu eksik varsa eksikler söylenerek bir kez daha denenir; daha iyi olan tutulur
       let q = checkPrompt(k, c.text, lg, qualityOpts(b.id));
       let retried = false;
-      if (!q.ok) {
+      if (!q.ok && qualityRetry()) {
         try {
           const r2 = await ai.run({ task: 'yazim', brandId: b.id, prompt: prompt + '\n\n' + retryInstruction(q), json: true, modelRef, temperature: 0.7 });
           const c2 = clean(r2.output, k, want.slice(0, 60), lg);
@@ -413,7 +415,8 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       const ask = planPrompt({ brandName: b.name, memory: brands.memory(b.id), settings, topic: want, scenes: n, extra: book });
       const opts = reelsCheckOpts(b.id);
       const attempt = async (prompt, temperature) => {
-        const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature });
+        // Senaryo planı özen ister: hız ayarı Hızlı olsa da en az Dengeli düşünülür
+        const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature, effort: 'medium' });
         const pl = normalizeScenario(r.output, { titleStyle: settings.titleStyle || 'pop' });
         if (!pl) return { r, pl: null, issues: ['x'] };
         if (n >= 1) pl.scenes = pl.scenes.slice(0, n);
@@ -562,7 +565,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       if (!scenes.length) throw badRequest('Model kullanılabilir sahne döndürmedi; tekrar dene.');
       let retried = false;
       // Şablon kontrolü: eksik bölüm ya da doldurulmamış [alan] varsa bir kez daha yazılır, daha iyisi tutulur
-      if (rule) {
+      if (rule && qualityRetry()) {
         const worst = list => Math.min(...list.map(s => ruleCheck(rule.body, s.text).score));
         const q = scenes.map(s => ruleCheck(rule.body, s.text)).find(x => !x.ok);
         if (q) {
@@ -592,7 +595,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       let c = clean(r.output, k, want.slice(0, 60), 'tr');
       let q = ruleCheck(rule.body, c.text);
       let retried = false;
-      if (!q.ok) {
+      if (!q.ok && qualityRetry()) {
         try {
           const r2 = await ai.run({ task: 'yazim', brandId: b.id, prompt: prompt + '\n\n' + retryInstruction(q), json: true, modelRef, temperature: 0.5 });
           const c2 = clean(r2.output, k, want.slice(0, 60), 'tr');

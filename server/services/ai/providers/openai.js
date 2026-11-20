@@ -31,13 +31,17 @@ export function createOpenAiCompatibleProvider({ id, label, shortLabel, baseURL,
     id,
     label,
 
-    async generate({ model, prompt, json = false, images = [], onDelta = null, signal = null }) {
+    async generate({ model, prompt, json = false, effort = 'low', images = [], onDelta = null, signal = null }) {
       const textPart = json ? prompt + '\n\nYanıtı yalnızca geçerli JSON olarak ver.' : prompt;
       const content = images.length ? [{ type: 'text', text: textPart }, ...images.map(i => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.data.toString('base64')}` } }))] : textPart;
       const body = { model, messages: [{ role: 'user', content }] };
       if (json) body.response_format = { type: 'json_object' };
       // OpenRouter: kullanım ve gerçek maliyet yanıtla gelir; tek isteğin kontrolsüz pahalılaşmaması için çıktı üst sınırı
       if (id === 'openrouter') { body.usage = { include: true }; body.max_tokens = 8000; }
+      // Düşünme derinliği: OpenRouter düşünen modellerde "reasoning" alır (düşünmeyenlerde yok sayılır); Derin'de modelin varsayılanı.
+      // OpenAI'da yalnız düşünen modeller (o serisi, gpt-5) reasoning_effort kabul eder.
+      if (id === 'openrouter' && effort !== 'high') body.reasoning = { effort: effort === 'medium' ? 'medium' : 'low', exclude: true };
+      if (id === 'openai' && effort !== 'high' && /^(o\d|gpt-5)/.test(model)) body.reasoning_effort = effort === 'medium' ? 'medium' : 'low';
       if (onDelta) {
         // 8.4 akış: metin parça parça gelir; kullanım son parçada
         body.stream = true;

@@ -15,8 +15,11 @@ const IMAGE_SETTING = 'ai.imageModel';
 const UNAVAILABLE = 'ai.unavailable'; // erişilemeyen model ref'leri (JSON dizi)
 const keySetting = id => `ai.${id}.apiKey`;
 export const GEMINI_TEXT_MODELS = MODELS.filter(m => m.provider === 'gemini').map(m => m.id);
-// İşe göre düşünme derinliği (Claude): yazım özen ister, çeviri hızlı olmalı
-const EFFORT = { yazim: 'high', fikir: 'medium', ceviri: 'low', denetim: 'medium', karsilastirma: 'high' };
+// İşe göre hız (düşünme derinliği): Hızlı = düşünme kapalı / az, Dengeli = orta, Derin = modelin kendi varsayılanı.
+// Varsayılan Hızlı; senaryo planı gibi özen isteyen işler çağrıda en az "medium" ister (ayar daha yüksekse ayar geçerli).
+export const SPEEDS = { hizli: { label: 'Hızlı', effort: 'low' }, dengeli: { label: 'Dengeli', effort: 'medium' }, derin: { label: 'Derin', effort: 'high' } };
+const EFFORT_RANK = { low: 0, medium: 1, high: 2 };
+const maxEffort = (a, b) => (EFFORT_RANK[b] > EFFORT_RANK[a] ? b : a);
 
 function monthStart(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
@@ -106,7 +109,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     const t = storedTasks()[task] || {};
     const primary = t.primary && parseRef(t.primary) && isConfigured(parseRef(t.primary).provider) ? t.primary : defaultFor(task);
     const fallback = t.fallback && parseRef(t.fallback) && isConfigured(parseRef(t.fallback).provider) && t.fallback !== primary ? t.fallback : null;
-    return { primary, fallback, auto: !t.primary || primary !== t.primary };
+    return { primary, fallback, auto: !t.primary || primary !== t.primary, speed: SPEEDS[t.speed] ? t.speed : 'hizli' };
   }
 
   function labelOf(ref) {
@@ -130,7 +133,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       // 8.4: akışlı istekte metin parçaları istemciye gider; iptal sinyali sağlayıcı isteğini keser
       const sc = currentStream();
       if (sc.signal && sc.signal.aborted) throw cancelled();
-      const r = await providers[p.provider].generate(Object.assign({ model: p.id, prompt, json, temperature, effort: effort || EFFORT[task] || 'medium', images, onDelta: sc.onDelta || null, signal: sc.signal || null }, videoUrl ? { videoUrl } : {}));
+      const r = await providers[p.provider].generate(Object.assign({ model: p.id, prompt, json, temperature, effort: maxEffort(SPEEDS[(TASKS[task] ? assignment(task) : { speed: task === 'karsilastirma' ? 'dengeli' : 'hizli' }).speed].effort, effort || 'low'), images, onDelta: sc.onDelta || null, signal: sc.signal || null }, videoUrl ? { videoUrl } : {}));
       const servedRef = modelRef(p.provider, r.model || p.id);
       const cost = typeof r.cost === 'number' ? r.cost : costOf(servedRef, r.usage || {}) || costOf(ref, r.usage || {});
       record({ ref: servedRef, task, brandId, usage: r.usage, cost });
@@ -293,6 +296,9 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     openrouterCredits,
     providers,
     tasks: TASKS,
+    speeds: Object.fromEntries(Object.entries(SPEEDS).map(([k, v]) => [k, v.label])),
+    // İşin hız ayarı (Hızlı modda kalite için ikinci yazım yapılmaz, eksikler uyarı olarak gösterilir)
+    speedOf: task => (TASKS[task] ? assignment(task).speed : 'hizli'),
     videoOverview,
     videoStart,
     videoPoll,
@@ -374,6 +380,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
           const ref = modelRef(m.provider, m.id);
           return Object.assign({}, m, { ref, price: priceFor(ref) || m.price, available: isConfigured(m.provider), unavailable: unavailable().includes(ref) });
         }),
+        speeds: Object.fromEntries(Object.entries(SPEEDS).map(([k, v]) => [k, v.label])),
         tasks: Object.entries(TASKS).map(([id, t]) => Object.assign({ id }, t, assignment(id), { primaryLabel: assignment(id).primary ? labelOf(assignment(id).primary) : null, primaryUnavailable: unavailable().includes(assignment(id).primary), primaryPrice: assignment(id).primary ? priceFor(assignment(id).primary) : null })),
         budget: budgetStatus(),
         priceOverrides: priceOverrides()
@@ -405,7 +412,9 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
         const fallback = v && v.fallback ? String(v.fallback) : '';
         if (primary && !parseRef(primary)) throw badRequest('Geçersiz model seçimi.');
         if (fallback && !parseRef(fallback)) throw badRequest('Geçersiz yedek model seçimi.');
-        current[task] = { primary, fallback };
+        const speed = v && v.speed != null ? String(v.speed) : (current[task] && current[task].speed) || 'hizli';
+        if (!SPEEDS[speed]) throw badRequest('Geçersiz hız seçimi.');
+        current[task] = { primary, fallback, speed };
       }
       settings.set(TASKS_SETTING, JSON.stringify(current));
     },
