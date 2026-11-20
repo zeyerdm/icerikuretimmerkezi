@@ -811,6 +811,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/brands/:brandId/prompts/:id', (req, res) => res.json({ prompt: prompts.update(req.brand.id, req.params.id, req.body || {}) }));
   api.delete('/brands/:brandId/prompts/:id', (req, res) => trashed(res, 'prompt', req.params.id, () => prompts.remove(req.brand.id, req.params.id)));
   api.post('/brands/:brandId/prompts/:id/scenes', route(async (req, res) => { const b = req.body || {}; res.json({ prompt: await prompts.sceneAction(req.brand.id, req.params.id, { action: b.action, index: b.index, instruction: b.instruction, modelRef: mr(b) }) }); }));
+  api.post('/brands/:brandId/prompts/:id/first-frames', route(async (req, res) => res.json({ prompt: await prompts.firstFrames(req.brand.id, req.params.id, { modelRef: mr(req.body || {}) }) })));
   api.post('/brands/:brandId/prompts/:id/schedule', (req, res) => res.status(201).json({ content: prompts.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));
   api.post('/brands/:brandId/prompts/:id/translate', route(async (req, res) => res.json({ prompt: await prompts.translate(req.brand.id, req.params.id, { modelRef: mr(req.body || {}) }) })));
   api.post('/brands/:brandId/prompts/:id/improve', route(async (req, res) => {

@@ -3,11 +3,11 @@
 // Görsel/video prompt'ları üretim araçları İngilizceyi daha iyi anladığı için İngilizce yazılır, Türkçesi yanında durur.
 // Metin ve Reels prompt'ları Türkçe yazılır (bir sohbet modeline verilecek talimat olarak).
 import { checkPrompt, retryInstruction } from './promptQuality.js';
-import { bookBlock } from './characterBook.js';
+import { bookBlock, bookImageLine } from './characterBook.js';
 import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { transaction } from '../db.js';
-import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds, buildSrt, STATUSES as REELS_STATUSES } from './reels/rules.js';
+import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds, buildSrt, STATUSES as REELS_STATUSES, STYLES as REELS_STYLES } from './reels/rules.js';
 import { RULE_EXAMPLES } from '../../public/js/ruleExamples.js';
 import { perfTopReels } from './perf.js';
 import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
@@ -78,6 +78,7 @@ export function planBlock(plan) {
     if (sc.endFrame) L.push(`Bitiş karesi: ${sc.endFrame}`);
   });
   if (plan.ending && plan.ending.twist) L.push('', `Final: ${plan.ending.twist}`);
+  L.push('', plan.setting ? `SABİT MEKÂN VE IŞIK: Her sahnenin mekân ve ışık bölümüne önce şu cümleyi AYNEN yaz, sahneye özgü ayrıntıyı arkasına ekle: "${plan.setting}". Karakterin görünüşünü değiştirme, yeniden tarif etme.` : '');
   L.push('', 'PLANI ŞABLONA DÖKME: Her sahnenin prompt\'u plandaki sahneyi anlatır. Süre alanına sahnenin süresini, saniye saniye bölümüne plandaki aralıkları AYNEN (aynı saniyelerle), konuşma bölümüne konuşmanın başlama saniyesini ve repliği tırnak içinde KELİMESİ KELİMESİNE yaz. Kapak yazısı yalnız 1. sahnede kullanılır; 2. sahneden itibaren kapak yazısı bölümüne yalnızca "Bu sahnede kapak yazısı yok; ekranda hiçbir yazı olmayacak." yaz.');
   return L.filter(x => x !== '').join('\n').replace(/\n(SAHNE|PLANI|Final)/g, '\n\n$1');
 }
@@ -474,6 +475,34 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       const b = brands.get(brandId);
       const pl = cleanPlan(plan);
       return { plan: pl, issues: checkQuality(pl, reelsCheckOpts(b.id)), totalSeconds: totalSeconds(pl) };
+    },
+
+    // Karakter ve mekân sabitliği: her sahne için ilk kare görseli prompt'u (Flow'da görselden video). Sabit kısım kodla kurulur
+    // (stil + karakter kitabındaki İngilizce görünüş + plandaki mekân ve ışık, her sahnede birebir aynı); yapay zekâ yalnız
+    // sahnenin 0. saniyesindeki pozu ve kadrajı yazar. Sonuç planın içinde saklanır.
+    async firstFrames(brandId, id, { modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const r = row(b.id, id);
+      const pl = r.plan ? parseJson(r.plan, null) : null;
+      if (!pl || !pl.scenes || !pl.scenes.length) throw badRequest('İlk kare görselleri senaryo planı olan Reels için yazılır.');
+      const settings = reels ? reels.settings(b.id) : { character: 'Karakter', style: '3d' };
+      const book = parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(b.id) || {}).character_book, {}) || {};
+      const prompt = ['REELS İLK KARE GÖRSELLERİ', `Marka: ${b.name}. Karakter: ${settings.character}.`,
+        `Korunacak mekân ve ışık (Türkçe): ${pl.setting || '-'}`, '',
+        'Her sahnenin 0. saniyesindeki ilk kareyi İNGİLİZCE ve kısa tarif et: karakterin pozu, yüz ifadesi, elindeki/önündeki nesne, kadraj (close-up / medium / wide) ve kamera açısı. Karakterin görünüşünü, kıyafetini ve rengini YAZMA (sabit tarif ayrıca eklenir). Mekânı yeniden tarif etme; yalnız sahneye özgü nesneleri ekle. Yazı, harf, logo isteme.',
+        "Ayrıca 'settingEn' alanına korunacak mekân ve ışık cümlesinin İngilizcesini yaz (her sahnede aynen kullanılacak).", '',
+        `SAHNELER:\n${pl.scenes.map((x, i) => `${i + 1}. Başlangıç: ${x.start || '-'} | İlk aksiyon: ${(x.beats && x.beats[0] && x.beats[0].action) || '-'} | Kamera: ${(x.beats && x.beats[0] && x.beats[0].camera) || '-'}`).join('\n')}`, '',
+        'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ settingEn: 'English setting and lighting sentence', frames: [{ scene: 1, shot: 'English first-frame description' }] })].join('\n');
+      const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.4 });
+      const frames = Array.isArray(out.output && out.output.frames) ? out.output.frames : [];
+      const settingEn = String((out.output && out.output.settingEn) || '').trim().slice(0, 600);
+      if (frames.length < pl.scenes.length) throw badRequest('Model her sahne için ilk kare döndürmedi; tekrar dene.');
+      const style = (REELS_STYLES[settings.style] || REELS_STYLES['3d']).en;
+      const look = bookImageLine(Object.assign({ name: settings.character }, book)) || `The main character "${settings.character}" keeps exactly the same design as the reference character in every frame.`;
+      const fixed = ['Vertical 9:16, first frame of a video clip.', style, look, settingEn ? `Setting and lighting (identical in every scene): ${settingEn}` : ''].filter(Boolean).join(' ');
+      const scenes = pl.scenes.map((x, i) => Object.assign({}, x, { firstFrame: `${fixed} Shot: ${String(frames[i].shot || '').trim().slice(0, 600)} No text, no letters, no logo, no watermark.` }));
+      db.prepare('UPDATE prompts SET plan = ? WHERE id = ?').run(JSON.stringify(Object.assign({}, pl, { scenes, settingEn })), r.id);
+      return Object.assign(detail(row(b.id, r.id)), { ai: meta(out) });
     },
 
     // Takvime ekle: senaryolu Reels prompt'u takvimde içerik olur (açıklama ve hashtag'lerle)

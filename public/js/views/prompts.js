@@ -418,6 +418,12 @@ async function renderDetail(view, brand, id, models) {
               <div class="field"><label for="pp-caption">Instagram açıklaması</label><textarea class="textarea" id="pp-caption" rows="8" maxlength="2200">${esc(p.plan.caption || '')}</textarea></div>
               <div class="field mt-2"><label for="pp-tags">Hashtag'ler</label><input class="input" id="pp-tags" maxlength="400" value="${esc((p.plan.hashtags || []).join(' '))}"></div>
               <div class="row mt-2"><button type="button" class="btn btn-sm" data-rl-cap-save>Kaydet</button><button type="button" class="btn btn-sm btn-ghost" data-rl-cap-copy>Kopyala</button></div>` : ''}
+              ${p.plan ? `<hr class="sep">
+              <div class="field-label">İlk kare görselleri (karakter ve mekân sabit)</div>
+              ${p.plan.scenes.some(x => x.firstFrame) ? `<p class="xsmall muted mb-2">Her sahnenin ilk karesi için görsel prompt'u: stil, karakterin sabit görünüşü ve mekân her sahnede birebir aynı. Görseli üretip Flow'da "görselden video" ile sahneyi başlat.</p>
+                ${p.plan.scenes.map((x, i) => x.firstFrame ? `<div class="field mt-2"><div class="row"><span class="grow small strong">Sahne ${i + 1}</span><button type="button" class="btn btn-sm btn-ghost" data-ff-copy="${i}">Kopyala</button></div><textarea class="textarea" rows="4" readonly>${esc(x.firstFrame)}</textarea></div>` : '').join('')}
+                <div class="row mt-2"><button type="button" class="btn btn-sm btn-ghost" data-ff-write>Yeniden yaz</button></div>`
+              : `<p class="xsmall muted mb-2">Flow'da karakterin ve mekânın sahneden sahneye değişmemesi için her sahneye ilk kare görseli prompt'u yazılır (karakter kitabındaki görünüş ve plandaki mekân aynen girer).</p><button type="button" class="btn btn-sm" data-ff-write>İlk kare prompt'larını yaz</button>`}` : ''}
               <hr class="sep">
               <div class="field-label">İngilizce (Flow için, isteğe bağlı)</div>
               ${p.scenesEn && p.scenesEn.length ? `<p class="xsmall muted mb-2">Replikler ve kapak yazısı Türkçe kaldı. Türkçe sahneleri değiştirirsen İngilizcesi silinir, yeniden çevirirsin.</p>
@@ -503,6 +509,10 @@ async function renderDetail(view, brand, id, models) {
     if (t.closest('[data-rl-srt]')) { downloadBlob(new Blob([p.srt], { type: 'text/plain;charset=utf-8' }), `${name}_altyazi.srt`); return toast('Altyazı indirildi. CapCut\'ta Metin → Altyazı içe aktar ile ekleyebilirsin.', 'success', 5000); }
     const png = t.closest('[data-rl-png]');
     if (png) return busy(png, async () => downloadBlob(await titleBlob({ title: p.plan.screenTitle, keyword: p.plan.titleKeyword, style: p.plan.titleStyle, colors: brand.colors }), `${name}_kapak.png`));
+    const ffc = t.closest('[data-ff-copy]');
+    if (ffc) return copy(p.plan.scenes[Number(ffc.dataset.ffCopy)].firstFrame || '', `Sahne ${Number(ffc.dataset.ffCopy) + 1} ilk kare prompt'u kopyalandı.`);
+    const ffw = t.closest('[data-ff-write]');
+    if (ffw) { try { const res = await busyTimer(ffw, () => api.promptFirstFrames(brand.id, p.id), 'Yazıyor'); p = res.prompt; draw(); toast(aiNote(p.ai || res.prompt.ai), 'success', 4000); } catch (err) { toast(err.message, 'error'); } return; }
     const enc = t.closest('[data-en-copy]');
     if (enc) return copy((p.scenesEn[Number(enc.dataset.enCopy)] || {}).text || '', `Sahne ${Number(enc.dataset.enCopy) + 1} kopyalandı.`);
     if (t.closest('[data-en-all]')) return copy(p.scenesEn.map((x, i) => `SCENE ${i + 1}\n${x.text}`).join('\n\n'), 'Bütün sahneler kopyalandı.');
