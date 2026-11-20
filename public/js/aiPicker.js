@@ -103,7 +103,8 @@ export async function busyTimer(btn, fn, verb = 'Yazıyor', { stop = true } = {}
     stopBtn.textContent = 'Durdur';
     stopBtn.title = 'Yapay zekâ işini durdur';
     stopBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); ac.abort(); stopBtn.disabled = true; stopBtn.textContent = 'Durduruluyor…'; });
-    btn.insertAdjacentElement('afterend', stopBtn);
+    // Düğmenin hemen solunda: satır sonundaki düğmede alta kaymasın, göz "Yazıyor…" yazısından ayrılmasın
+    btn.insertAdjacentElement('beforebegin', stopBtn);
   }
   const label = html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Yapay zekâ işi';
   try { return await timed(label, () => withSignal(ac.signal, fn)); } finally {

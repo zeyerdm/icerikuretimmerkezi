@@ -2137,10 +2137,10 @@ body.editor-mode .radial-fab { display: none; }
 .cal-card .sp-day.sp-anma { background: #efeff2; border-color: #cfd0d6; }
 .cal-card .sp-day.today { background: color-mix(in srgb, var(--brand) 16%, #fff); border-color: var(--brand); }
 /* Boyutlar */
-.cal-size-kucuk .cal-month .cal-cell { height: 68px; }
-.cal-size-orta .cal-month .cal-cell { height: 104px; }
-.cal-size-buyuk .cal-month .cal-cell { height: 156px; }
-.cal-size-sigdir .cal-month .cal-cell { height: clamp(58px, calc((100vh - 440px) / 6), 130px); }
+.cal-size-kucuk .cal-month .cal-cell { min-height: 68px; }
+.cal-size-orta .cal-month .cal-cell { min-height: 104px; }
+.cal-size-buyuk .cal-month .cal-cell { min-height: 156px; }
+.cal-size-sigdir .cal-month .cal-cell { min-height: clamp(58px, calc((100vh - 440px) / 6), 130px); } /* yazı kesilmesin: gerekirse satır uzar */
 .desk-cal-card.cal-card .cal-month { grid-auto-rows: auto; }
 .cal-size-kucuk .cal-month .cal-num { font-size: 11px; width: 20px; height: 20px; }
 @media (max-width: 760px) { .cal-card .cal-month { gap: 3px; } .cal-card .cal-month .cal-cell { padding: 3px; border-radius: 8px; } .cal-card .cal-dow span { padding: 2px 4px; } }
@@ -2299,3 +2299,12 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .tpl-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tpl-choice .fi-design.is-off { opacity: .55; cursor: not-allowed; }
 @media (max-width: 560px) { .tpl-choice { grid-template-columns: 1fr; } }
+
+/* Yumuşak marka düğmesi: fark edilir ama asıl düğmenin (dolu marka rengi) önüne geçmez */
+.btn.btn-soft { background: color-mix(in srgb, var(--brand) 12%, var(--surface, #fff)); border-color: color-mix(in srgb, var(--brand) 35%, transparent); color: color-mix(in srgb, var(--brand) 55%, #1b1f3b); }
+.btn.btn-soft:hover { background: color-mix(in srgb, var(--brand) 20%, var(--surface, #fff)); }
+.btn.btn-soft svg { color: var(--brand); }
+
+/* Durdur: yazan düğmenin yanında, belirgin ama sakin */
+.busy-stop { border: 1px solid color-mix(in srgb, #c62828 35%, transparent) !important; color: #a12b2b !important; background: #fff !important; }
+.busy-stop:hover { background: #fdecec !important; }
