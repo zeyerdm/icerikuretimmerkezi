@@ -43,6 +43,7 @@ test('Kural şablonları: kayıt, varsayılan, üretimde birebir kullanım, yeni
   ]);
   const s = await startServer({ aiProvider: provider });
   try {
+    await s.request('PUT', '/api/ai/tasks', { tasks: { yazim: { speed: 'dengeli' } } }); // Dengeli: eksikli prompt bir kez daha yazılır (Hızlı modda yalnız uyarı)
     const b = (await s.request('POST', '/api/brands', { name: 'Kural' })).data.brand;
     const url = `/api/brands/${b.id}/prompt-rules`;
     assert.equal((await s.request('POST', url, { kind: 'video', name: 'x', body: 'kısa' })).status, 400);

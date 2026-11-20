@@ -16,7 +16,8 @@ const goodPlan = {
     { duration: 8, start: 'Karakter çipi tutuyor', beats: beats(8), line: 'Bugün aynı gücün binlercesi şu küçücük çipin içinde avucumda duruyor bak', lineFrom: 0.5, lineTo: 7.5, endFrame: 'Telefon ekranı' }
   ],
   ending: { twist: 'Telefon karakteri çağırıyor' },
-  caption: 'Bir zamanlar bir oda büyüklüğündeydi. Bugün cebinde.', hashtags: ['#teknoloji', 'tarih']
+  // Açıklama 1200-1800 karakter hedefi; hashtag'lerden genel olan (#reels) ve tekrar eden atılır, tam 5 kalır
+  caption: 'Bir zamanlar bir oda büyüklüğündeydi. Bugün cebinde. '.repeat(25).trim(), hashtags: ['#teknoloji', 'tarih', '#reels', '#Teknoloji', '#bilgisayar', '#bilim', '#tarihtebugün', '#çip']
 };
 const filled = (n, line, d) => FLOW.replace('[NUMARASI]', String(n)).replace('[X] saniye', `${d} saniye`).replace('"[Seslendirme metni birebir buraya yazılır.]"', `"${line}"`).replace(/\[[^\]\n]+\]/g, 'dolu');
 
@@ -75,9 +76,10 @@ test('Senaryo planı: eski Reels kurallarıyla yazılır, süre sorunu varsa bir
     assert.equal((await s.request('GET', `/api/brands/${b.id}/prompts/${p.id}`)).data.prompt.planIssues.length, 0);
 
     // Yayın paketi: açıklama ve hashtag'ler, plandaki konuşma saniyelerinden altyazı, durum, takvim
-    assert.match(provider.calls[0].prompt, /'caption' alanına Instagram açıklaması/);
+    assert.match(provider.calls[0].prompt, /'caption' alanına uzun ve değerli bir Instagram açıklaması yaz \(1200-1800 karakter/);
+    assert.match(provider.calls[0].prompt, /TAM 5 hashtag/);
     assert.equal(p.plan.caption, goodPlan.caption);
-    assert.deepEqual(p.plan.hashtags, ['#teknoloji', '#tarih']);
+    assert.deepEqual(p.plan.hashtags, ['#teknoloji', '#tarih', '#bilgisayar', '#bilim', '#tarihtebugün'], 'genel ve tekrar eden atılır, tam 5');
     assert.match(p.srt, /^1\n00:00:00,500 --> 00:00:07,500\nİlk bilgisayarlar/);
     assert.match(p.srt, /2\n00:00:08,500 --> 00:00:15,500\nBugün aynı gücün/);
     assert.equal(p.status, 'taslak');

@@ -10,6 +10,7 @@ import { transaction } from '../db.js';
 import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds, buildSrt, STATUSES as REELS_STATUSES, STYLES as REELS_STYLES } from './reels/rules.js';
 import { RULE_EXAMPLES } from '../../public/js/ruleExamples.js';
 import { perfTopReels } from './perf.js';
+import { REASONS as FEEDBACK_REASONS } from './feedback.js';
 import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
 
 export const PROMPT_KINDS = {
@@ -215,7 +216,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       return `- ${short(r.title, 80)} · espri: ${short(pl.punchline)} · ${pl.scenes.length} sahne, ${totalSeconds(pl)} sn · replikler: ${pl.scenes.map(x => `"${short(x.line, 90)}"`).join(' / ')}`;
     }).filter(Boolean);
     const disliked = rows.filter(r => r.vote < 0).slice(0, 5).map(r => {
-      const why = [...(parseJson(r.reasons, []) || []), r.note].filter(Boolean).join(', ');
+      const why = [...(parseJson(r.reasons, []) || []).map(k => (FEEDBACK_REASONS[k] || {}).label || k), r.note].filter(Boolean).join(', ');
       return `- ${short(r.title, 80)}${why ? ` (neden: ${short(why, 120)})` : ''}`;
     });
     const recent = rows.slice(0, 15).map(r => short(r.title, 70));
@@ -593,6 +594,9 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
         if (!sc.length) throw badRequest('En az bir sahne olmalı.');
         scenesJson = JSON.stringify(sc);
         next.text = joinScenes(sc, PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr');
+        // Planlı Reels'te sahne elle silinirse plan da kısalır (süre, replik ve ilk kare sahneyle birlikte gider)
+        const pl = r.plan ? parseJson(r.plan, null) : null;
+        if (pl && Array.isArray(pl.scenes) && pl.scenes.length > sc.length) db.prepare('UPDATE prompts SET plan = ? WHERE id = ?').run(JSON.stringify(Object.assign({}, pl, { scenes: pl.scenes.slice(0, sc.length) })), r.id);
       }
       // Reels: çekim durumu; açıklama ve hashtag'ler planın içinde saklanır
       const status = 'status' in body ? oneOf(body.status, Object.keys(REELS_STATUSES), 'Durum') : (r.status || 'taslak');
@@ -603,7 +607,8 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
         if ('hashtags' in body) pl.hashtags = (Array.isArray(body.hashtags) ? body.hashtags : String(body.hashtags || '').split(/[\s,]+/)).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 30);
         planJson = JSON.stringify(pl);
       }
-      db.prepare('UPDATE prompts SET status = ?, plan = ? WHERE id = ?').run(status, planJson, r.id);
+      db.prepare('UPDATE prompts SET status = ? WHERE id = ?').run(status, r.id);
+      if (planJson !== (r.plan || '')) db.prepare('UPDATE prompts SET plan = ? WHERE id = ?').run(planJson, r.id);
       const changed = next.text !== r.text || next.textTr !== r.text_tr;
       db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, is_example = ?, tool = ?, aspect = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
         .run(next.title, next.text, next.textTr, next.favorite, next.example, tool, aspect, changed ? '' : r.model, scenesJson, now(), r.id);

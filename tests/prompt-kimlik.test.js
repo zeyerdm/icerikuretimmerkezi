@@ -51,6 +51,7 @@ test('7.7 kontrol kuralları: isteme kesin kural olarak girer, kalite kontrolü 
   const provider = fakeProvider([{ title: 'T', prompt: 'Kahve Durağı içinde Ahmet kahve içiyor, orta plan, sabah ışığı, 35mm f/1.8, sıcak tonlar, samimi atmosfer, gerçekçi fotoğraf, temiz kompozisyon, yazı yok, logo yok' }]);
   const s = await startServer({ aiProvider: provider });
   try {
+    await s.request('PUT', '/api/ai/tasks', { tasks: { yazim: { speed: 'dengeli' } } }); // Dengeli: eksikli prompt bir kez daha yazılır (Hızlı modda yalnız uyarı)
     const a = (await s.request('POST', '/api/brands', { name: 'Kahve Durağı' })).data.brand;
     await s.request('PUT', `/api/brands/${a.id}/prompt-identity`, { noBrandName: true, forbidNames: 'Ahmet' });
     const p = (await s.request('POST', `/api/brands/${a.id}/prompts`, { kind: 'gorsel', brief: 'Kafede sabah' })).data.prompt;

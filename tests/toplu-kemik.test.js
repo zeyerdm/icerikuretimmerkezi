@@ -78,6 +78,7 @@ test('T.42 kalite kontrolü ve yeniden deneme: eksikler ikinci isteme yazılır;
   }]);
   const s = await startServer({ aiProvider: provider });
   try {
+    await s.request('PUT', '/api/ai/tasks', { tasks: { yazim: { speed: 'dengeli' } } }); // Dengeli: eksikli prompt bir kez daha yazılır (Hızlı modda yalnız uyarı)
     const b = (await s.request('POST', '/api/brands', { name: 'Kaliteli' })).data.brand;
     const r = (await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'gorsel', brief: 'Latte' })).data.prompt;
     assert.equal(r.ai.qualityRetried, true);

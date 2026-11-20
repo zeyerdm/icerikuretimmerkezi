@@ -20,6 +20,8 @@ function assistantProvider(turns) {
   return fakeProvider([prompt => {
     if (prompt.startsWith("Sen 'KREATİFHANE'")) return turns.shift() || { reply: 'Tamam.', actions: [] };
     if (prompt.includes('Instagram içerik yazarısın')) return { title: 'Sınav kahvesi', slides: [{ title: 'Kapak', body: 'Alt' }, { title: 'İpucu', body: 'Su iç' }, { title: 'Son', body: 'Mola' }], caption: 'Açıklama', hashtags: ['#sinav'] };
+    // Reels tek akış: asistanın Reels'i önce plan (REELS), sonra Flow şablonuna dökülen sahneler
+    if (prompt.startsWith('PROMPT STUDIO · SAHNELİ')) return { title: 'Vize kahvesi', scenes: [1, 2, 3, 4, 5, 6].map(n => ({ title: 'S' + n, prompt: `SAHNE ${n} — Sahne\nVideo formatı ve süre:\nDikey 9:16 video, 7 saniye.` })) };
     if (prompt.startsWith('PROMPT STUDIO')) return { title: 'Kafe sabahı', prompt: 'a cheerful coffee bean mascot on campus', promptTr: 'Kampüste neşeli kahve çekirdeği' };
     return REELS;
   }]);
