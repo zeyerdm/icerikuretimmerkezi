@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { startServer, fakeProvider } from './helpers.js';
-import { ruleHeadings, ruleCheck } from '../server/services/prompts.js';
+import { ruleHeadings, ruleCheck, compactTemplate } from '../server/services/prompts.js';
 
 const BODY = `SAHNE [NUMARASI] — [SAHNENİN AMACI]
 Video formatı ve süre:
@@ -36,7 +36,8 @@ test('Kural şablonu denetimi: başlıklar bulunur, eksik bölüm ve doldurulmam
 
 test('Kural şablonları: kayıt, varsayılan, üretimde birebir kullanım, yeniden deneme, sahneli üretim, şablonsuz seçim', async () => {
   const provider = fakeProvider([
-    { title: 'Eksik', prompt: filled(1).replace('Son kontrol:\nAltyazısız olmalı.', '') },
+    // Değişen alan doldurulmamış (sabit bölüm eksikliği artık kodla tamamlandığı için yeniden yazım nedeni değil)
+    { title: 'Eksik', prompt: filled(1).replace('Son kontrol:\nAltyazısız olmalı.', '').replace('"Kahvesiz kod olmaz!"', '"[Seslendirme metni]"') },
     { title: 'Kahve sahnesi', prompt: filled(1) },
     { title: 'İki sahne', scenes: [{ title: 'Giriş', prompt: filled(1) }, { title: 'Son', prompt: filled(2) }] },
     { title: 'Şablonsuz', prompt: 'A cozy cafe, warm light' }
@@ -61,7 +62,7 @@ test('Kural şablonları: kayıt, varsayılan, üretimde birebir kullanım, yeni
 
     // Üretim: varsayılan şablon (ruleId boş) → şablon istemde birebir; eksik çıkınca bir kez daha yazılır
     const p = (await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'video', brief: 'Maskot kahve içiyor', lang: 'en' })).data.prompt;
-    assert.ok(provider.calls[0].prompt.includes(BODY), 'şablon birebir istemde');
+    assert.ok(provider.calls[0].prompt.includes(compactTemplate(BODY)), 'şablon istemde (sabit bölümler kısaltılmış)');
     assert.match(provider.calls[0].prompt, /KELİMESİ KELİMESİNE/);
     assert.ok(!/ekranda yazı, logo metni, altyazı isteme/.test(provider.calls[0].prompt), 'genel "yazı isteme" kuralı şablonu ezmez');
     assert.match(provider.calls[1].prompt, /KALİTE KONTROLÜ/);
@@ -101,7 +102,7 @@ test('Reels ana kalıbı: kendi şablonun yoksa hazır Google Flow sahne şablon
     const b = (await s.request('POST', '/api/brands', { name: 'Flow' })).data.brand;
     const p = (await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'reels', brief: 'Bilgisayarlar nasıl küçüldü?', scenes: 8 })).data.prompt;
     const ask = provider.calls[0].prompt;
-    assert.ok(ask.includes(flow), 'hazır Flow şablonu birebir istemde');
+    assert.ok(ask.includes(compactTemplate(flow)), 'hazır Flow şablonu istemde');
     assert.match(ask, /REELS SENARYO KURALLARI/);
     assert.match(ask, /en çok 8 saniye/);
     assert.match(ask, /6 sahnenin HER BİRİ/, 'Reels en çok 6 sahne');
@@ -110,7 +111,7 @@ test('Reels ana kalıbı: kendi şablonun yoksa hazır Google Flow sahne şablon
     assert.equal(p.quality.rule, true);
     // Video türünde açıkça seçilebilir; görselde seçilemez
     await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'video', brief: 'x', ruleId: 'hazir-flow' });
-    assert.ok(provider.calls.at(-1).prompt.includes(flow));
+    assert.ok(provider.calls.at(-1).prompt.includes(compactTemplate(flow)));
     assert.equal((await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'gorsel', brief: 'x', ruleId: 'hazir-flow' })).status, 400);
     // Kendi Reels şablonun varsayılan olunca o kullanılır (sabit kalınır)
     const url = `/api/brands/${b.id}/prompt-rules`;
@@ -118,7 +119,7 @@ test('Reels ana kalıbı: kendi şablonun yoksa hazır Google Flow sahne şablon
     assert.equal(mine.isDefault, true);
     const n0 = provider.calls.length;
     await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'reels', brief: 'Kahve' });
-    assert.ok(provider.calls[n0].prompt.includes(BODY) && !provider.calls[n0].prompt.includes(flow));
+    assert.ok(provider.calls[n0].prompt.includes(compactTemplate(BODY)) && !provider.calls[n0].prompt.includes(compactTemplate(flow)));
     assert.match(provider.calls[n0].prompt, /REELS SENARYO KURALLARI/);
     // Hazır şablon düzenlenemez/silinemez
     assert.equal((await s.request('PUT', `${url}/hazir-flow`, { name: 'x' })).status, 400);
@@ -162,9 +163,25 @@ test('Arayüz: hazır örnekle kural şablonu kaydedilir, üretimde seçili geli
     assert.equal(await page.locator('#pl-line-0').inputValue(), plan.scenes[0].line);
     await page.locator('[data-plan-ok]').click();
     await page.waitForURL(/\/prompt\/[^/]+$/);
-    assert.match(provider.calls[1].prompt, /Flow'da kayıtlı ana karakter kullanılmalı/);
+    assert.match(provider.calls[1].prompt, /Karakter kullanımı:\n\(SABİT BÖLÜM/, 'sabit bölüm modele yazdırılmaz, kodla eklenir');
     assert.match(provider.calls[1].prompt, /ONAYLANAN SENARYO PLANI/);
     await page.locator('.ed-bottom', { hasText: 'Kural şablonu: Dikey video sahnesi' }).waitFor();
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
+});
+
+test('Şablonun sabit bölümleri modele yazdırılmaz, kodla kelimesi kelimesine eklenir', async () => {
+  const { compactTemplate, restoreFixed } = await import('../server/services/prompts.js');
+  const { RULE_EXAMPLES } = await import('../public/js/ruleExamples.js');
+  const body = RULE_EXAMPLES[0].body;
+  const compact = compactTemplate(body);
+  assert.ok(compact.length < body.length);
+  assert.ok(!compact.includes('Oyuncak, plastik, LEGO'), 'sabit görsel kalite metni istemde yok');
+  assert.match(compact, /Görsel kalite ve stil:\n\(SABİT BÖLÜM/);
+  // Model sabit bölümleri hiç yazmasa da (ya da bozsa da) çıktıda şablondaki hâliyle yer alır
+  const modelOut = compact.replace(/\n\(SABİT BÖLÜM[^\n]*/g, '').replace('Görsel kalite ve stil:', 'Görsel kalite ve stil:\nbozuk özet').replace(/\[[^\]\n]+\]/g, 'dolu');
+  const fixed = restoreFixed(modelOut, body);
+  assert.ok(fixed.includes('Oyuncak, plastik, LEGO veya düşük kaliteli oyun grafiği görünümü kesinlikle kullanılmamalı.'));
+  assert.ok(!fixed.includes('bozuk özet'));
+  assert.equal(ruleCheck(body, fixed).ok, true);
 });

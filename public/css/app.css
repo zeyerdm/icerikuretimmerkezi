@@ -2275,3 +2275,27 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 /* Post: kendi maddelerin */
 .ps-notes { margin-top: var(--s-2); }
 .ps-notes > summary { cursor: pointer; color: var(--muted); }
+
+/* Takvim sadeleştirme: üst şerit sarar (kaydırma yok), hücrede ad iki satıra kadar tam görünür, bugün komşularını taşmaz,
+   açıklama iki düzenli satır */
+.cal-upcoming { flex-wrap: wrap; overflow: visible; row-gap: 6px; padding: 10px 12px; }
+.cal-upcoming > b { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin-right: 6px; }
+.cal-special { white-space: normal; align-items: flex-start; }
+.cal-special .cs-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; }
+.cal-card .cal-month .cal-cell.today, .cal-card .sp-day.today, .cal-card .cw-col.today { transform: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, #000 12%, var(--brand)); }
+.cal-legend { display: grid; gap: 6px; padding-top: var(--s-3); border-top: 1px solid var(--line); }
+.cal-legend .lg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.cal-legend .lg-h { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #6b7280); min-width: 96px; }
+
+/* Renk düğmesi kartela gibi: gökkuşağı halka, ortada seçili renk (araç çubuğu ve Öğeler paneli aynı) */
+.cp-ring { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; padding: 3px; flex: none;
+  background: conic-gradient(#ff3b30, #ff9500, #ffcc00, #34c759, #00c7be, #007aff, #5856d6, #af52de, #ff2d55, #ff3b30); }
+.cp-ring .cp-trigger-sw { width: 100% !important; height: 100% !important; border-radius: 50% !important; border: 2px solid #fff !important; box-shadow: none !important; display: block; }
+.ed-ctxbar .cb-color .cp-ring { width: 26px; height: 26px; }
+.el-colorbar .el-color-btn { width: 100%; height: 40px; padding: 0 12px 0 6px; justify-content: flex-start; gap: 10px; font-size: 13px; }
+.el-colorbar .el-color-btn b { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 700; }
+
+/* Şablon olarak kaydet: yeni mi, kayıtlı şablonun yeni sürümü mü */
+.tpl-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tpl-choice .fi-design.is-off { opacity: .55; cursor: not-allowed; }
+@media (max-width: 560px) { .tpl-choice { grid-template-columns: 1fr; } }

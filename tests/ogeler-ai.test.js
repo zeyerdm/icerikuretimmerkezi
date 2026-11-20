@@ -176,7 +176,12 @@ test('Arayüz: Öğeler paneli, sürükle-bırak, favori, AI hızlı düzen ve �
     await page.locator('[data-el-fav]').first().click();
     assert.equal(await page.locator('[data-el-fav].on').count(), 1);
     // Renk seç ve tuvale sürükle-bırak
-    await page.locator('[data-el-color="#e4572e"]').click();
+    // Öğe rengi: kartela düğmesi renk panelini açar; hex yazılınca sonuçlardan seçilir
+    await page.locator('[data-el-cp]').click();
+    await page.fill('.cp-pop [data-cp-q]', '#e4572e');
+    await page.locator('.cp-pop [data-cp-pick="#e4572e"]').first().click();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelector('[data-el-cp] b').textContent === '#E4572E');
     await page.waitForTimeout(200);
     const box = await page.locator('#stage').boundingBox();
     await page.locator('.el-item').first().dragTo(page.locator('#stage'), { targetPosition: { x: box.width * 0.8, y: box.height * 0.8 } });
@@ -267,6 +272,48 @@ test('Düzenleyici: öğe seçili değilken sağ/sol ok, Home ve End tuşları s
     await page.keyboard.press('ArrowRight'); assert.equal(await at(), '3', 'son sayfada durur');
     await page.keyboard.press('ArrowLeft'); await page.waitForFunction(() => /2\s*\/\s*3/.test(document.body.textContent));
     await page.keyboard.press('Home'); await page.waitForFunction(() => /1\s*\/\s*3/.test(document.body.textContent));
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await s.stop(); }
+});
+
+test('Öğe serbest esner: "stretch" oranı korumaz, varsayılan sığdırır', async () => {
+  const { vectorUrl } = await import('../public/js/postCanvas.js');
+  const svg = '<svg viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>';
+  assert.match(decodeURIComponent(vectorUrl({ svg, w: 200, h: 80, fit: 'stretch' })), /preserveAspectRatio="none"/);
+  assert.match(decodeURIComponent(vectorUrl({ svg, w: 200, h: 80 })), /preserveAspectRatio="xMidYMid meet"/);
+});
+
+test('Arayüz: şablon olarak kaydet: yeni şablon ya da kayıtlı şablonun yeni sürümü', { skip }, async () => {
+  const s = await startServer();
+  const b = (await s.request('POST', '/api/brands', { name: 'Şablonlu' })).data.brand;
+  const p1 = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'İlk tasarım', kind: 'post' })).data.post;
+  const browser = await chromium.launch();
+  const page = await (await browser.newContext({ viewport: { width: 1400, height: 950 } })).newPage();
+  const problems = [];
+  page.on('pageerror', e => problems.push(e.message));
+  try {
+    await page.goto(`${s.base}/#/m/${b.id}/post`);
+    await page.locator(`[data-post-menu="${p1.id}"]`).click();
+    await page.locator(`.post-menu [data-tpl-post="${p1.id}"]`).click();
+    await page.locator('.modal input[name=mode][value=new]').waitFor();
+    assert.equal(await page.locator('.modal input[name=mode][value=update]').isDisabled(), true, 'kayıtlı şablon yokken güncelleme seçilemez');
+    await page.fill('#st-name', 'Haber kartı');
+    await page.locator('.modal [type=submit]').click();
+    await page.waitForFunction(() => !document.querySelector('.modal-backdrop'));
+    let tpls = (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates.filter(t => !String(t.id).startsWith('post:'));
+    assert.deepEqual(tpls.map(t => [t.name, t.version]), [['Haber kartı', 1]]);
+    // Aynı tasarımdan kayıtlı şablonu güncelle → V2
+    await page.goto(`${s.base}/#/m/${b.id}/post/${p1.id}`);
+    await page.locator('#stage').waitFor();
+    await page.locator('[data-menu="dosya"], [data-ed-menu="dosya"]').first().click().catch(() => {});
+    await page.locator('[data-act="template"]').first().click();
+    await page.locator('.modal input[name=mode][value=update]').check();
+    assert.equal(await page.locator('[data-mode-box="update"]').isVisible(), true);
+    await page.selectOption('#st-tpl', tpls[0].id);
+    await page.locator('.modal [type=submit]').click();
+    await page.waitForFunction(() => !document.querySelector('.modal-backdrop'));
+    tpls = (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates.filter(t => !String(t.id).startsWith('post:'));
+    assert.deepEqual(tpls.map(t => [t.name, t.version]), [['Haber kartı', 2]], 'yeni sürüm, yeni şablon değil');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
 });

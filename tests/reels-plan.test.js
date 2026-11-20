@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, fakeProvider } from './helpers.js';
-import { coverOnlyFirst, planBlock } from '../server/services/prompts.js';
+import { coverOnlyFirst, planBlock, compactTemplate } from '../server/services/prompts.js';
 import { RULE_EXAMPLES } from '../public/js/ruleExamples.js';
 
 const FLOW = RULE_EXAMPLES[0].body;
@@ -65,7 +65,7 @@ test('Senaryo planı: eski Reels kurallarıyla yazılır, süre sorunu varsa bir
     const p = (await s.request('POST', `/api/brands/${b.id}/prompts`, { kind: 'reels', brief: 'Bilgisayarlar', plan: r.plan })).data.prompt;
     const ask = provider.calls[2].prompt;
     assert.match(ask, /ONAYLANAN SENARYO PLANI/);
-    assert.ok(ask.includes(FLOW), 'hazır Flow şablonu');
+    assert.ok(ask.includes(compactTemplate(FLOW)), 'hazır Flow şablonu');
     assert.match(ask, /2 sahnenin HER BİRİ/);
     assert.equal(p.title, 'Cebe sığan dev');
     assert.equal(p.scenes.length, 2);
