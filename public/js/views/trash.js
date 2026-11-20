@@ -4,7 +4,8 @@ import { esc, icon, toast, pageHead, emptyState, timeAgo } from '../ui.js';
 import { route } from '../app.js';
 
 // Silinen kaydın geri alınınca açılacak yeri (marka sayfası) bulmak için
-const PLACE = { idea: '/fikirler', post: '/post', prompt: '/prompt', reels: '/reels', competitor: '/rakipler', pattern: '/reels/kaliplar', content: '/takvim', asset: '/kutuphane' };
+// Reels tek akış: eski Reels senaryosu kendi sayfasında açılır; kalıplar Reels'le birlikte Prompt Studio'ya taşındı
+const PLACE = { idea: '/fikirler', post: '/post', prompt: '/prompt', reels: r => `/reels/${encodeURIComponent(r.id)}`, competitor: '/rakipler', pattern: '/prompt', content: '/takvim', asset: '/kutuphane' };
 
 // Silme geri alma: bildirimdeki "Geri al" ya da sistemin her yerinde Ctrl+Z (yazı alanı dışında).
 // Toplu silmeler (çoklu seçim) tek adımda geri gelir.
@@ -64,7 +65,8 @@ export async function renderTrash(view) {
     try {
       if (r) {
         const { restored } = await api.restoreTrash(r.dataset.restore);
-        const to = restored.brandId && PLACE[restored.kind] ? `#/m/${restored.brandId}${PLACE[restored.kind]}` : '';
+        const pl = PLACE[restored.kind];
+        const to = restored.brandId && pl ? `#/m/${restored.brandId}${typeof pl === 'function' ? pl(restored) : pl}` : '';
         toast(`Geri alındı: ${restored.title}`, 'success');
         return renderTrash(view).then(() => {
           if (!to) return;

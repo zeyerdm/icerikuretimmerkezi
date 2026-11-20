@@ -20,6 +20,7 @@ test('Prompt Studio: üret, düzenle, geliştir, seçili bölüm, girişi deği�
   const provider = promptProvider();
   const s = await startServer({ aiProvider: provider });
   try {
+    await s.request('PUT', '/api/ai/tasks', { tasks: { yazim: { speed: 'dengeli' } } }); // Dengeli: eksikli prompt bir kez daha yazılır (Hızlı modda yalnız uyarı)
     const brand = (await s.request('POST', '/api/brands', { name: 'Kahve Evi', tone: 'Samimi' })).data.brand;
     const other = (await s.request('POST', '/api/brands', { name: 'Başka Marka' })).data.brand;
     const meta = (await s.request('GET', '/api/meta')).data.prompts;

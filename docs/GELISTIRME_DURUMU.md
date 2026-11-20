@@ -31,6 +31,37 @@ Kaynak talimatlar: (1) Post Stüdyo geliştirme talimatları, (2) Akıllı şabl
 | 21 | A7 | Analiz raporları: hazır görsel şablonları, elle prompt / tarifler, Reels ve Prompt Studio ayrımı, video ve altyazı yetenekleri | ✅ |
 | 22 | Z | Toplu test, PR, rapor | ✅ |
 
+## Yapılacaklar (20 Kasım'dan itibaren, onaylandı)
+
+| Sıra | Konu | Ayrıntı | Durum |
+|---|---|---|---|
+| 1 | Reels açıklaması ve hashtag | Açıklama postlardaki gibi 1200-1800 karakter (ilk satır, değer katan paragraflar, yorum sorusu); tam 5 alakalı hashtag, sayısı kodla denetlenir | ✅ (test bekliyor) |
+| 2 | Hız: düşünme süresi | Gemini / OpenRouter düşünen modellerde düşünme kapalı ya da az; iş başına Hızlı / Dengeli / Derin (varsayılan Hızlı, senaryo planı Dengeli); hızlı modda kalite tekrarı yerine uyarı | ✅ (test bekliyor) |
+| 3 | Beğenilen Reels'ten öğrenme | "Marka örneği" Reels prompt'ları ve beğenilen / beğenilmeyen fikirler senaryo planına referans olarak girer | ✅ (test bekliyor) |
+| 4 | Aylık rapordan Reels'e | En çok izlenen Reels'lerin tarzı senaryo planına "bu tarz tutuyor" olarak eklenir | ✅ (test bekliyor) |
+| 5 | Toplu Reels üretimi | Havuzdan 3-5 Reels fikri seçilir, planları arka planda yazılır, bitince bildirim | ✅ (test bekliyor) |
+| 6 | Reels "İngilizceye çevir" | Yalnız düğmeye basınca çevrilir (AI sürekli iki dil yazmaz); replikler ve kapak yazısı Türkçe kalır | ✅ (test bekliyor) |
+| 7 | Post'ta kendi notların | Fikirle birlikte kendi maddelerini yazarsın; AI slaytları bu maddelerden kurar, özünü korur | ✅ (test bekliyor) |
+| 8 | Karakter ve mekân sabitliği | Her sahne için ilk kare görseli prompt'u (Flow'da görselden video); karakter kitabı ve plandaki mekân / ışık her sahneye aynı ifadelerle girer | ✅ (test bekliyor) |
+
+### Mevcut sistemde düzeltilecekler (yenilik değil, var olanın doğru çalışması; onaylandı)
+
+Öncelik: 9 en acil, sonra 10, 11; ardından 12-17.
+
+| Sıra | Sorun | Düzeltme | Durum |
+|---|---|---|---|
+| 9 | **EN ACİL.** Asistan "Reels fikri ekle" eski Reels havuzuna yazıyor; tek havuza geçtiğimiz için bu fikirler hiçbir yerde görünmüyor, "havuzu aç" bağlantısı da eski sayfaya gidiyor | İçerik fikirlerine Reels türüyle yazılır; eski havuzda kalmış fikirler de taşınır; bağlantı İçerik fikirlerine gider | ✅ (test bekliyor) |
+| 10 | Asistan "Reels senaryosu yaz" eski Reels bölümünde senaryo oluşturuyor | Prompt Studio'da senaryo planı yazar, oraya bağlantı verir | ✅ (test bekliyor) |
+| 11 | Planlı Reels'te Uzat / Değiştir / Bir sahne daha: yeni sahne plana bakmıyor, kapak yazısı geri geliyor, "plana uyum" yanlış uyarı veriyor | Sahne işlemleri planı ve tek kapak kuralını korur; plan sahneyle birlikte güncellenir (değişen sahnenin süresi, replik ve saniyeleri plana yazılır) | ✅ (test bekliyor) |
+| 12 | Erişilebilirlik (ekran okuyucu, klavye, renk kontrastı) taraması GitHub'da hiç çalışmıyor çünkü tarama aracı projede kayıtlı değil; güncel taramada asistan düğmesi ve marka kartlarının ekran okuyucu adı ekrandaki yazıyla uyuşmuyor | Tarama aracı projeye eklenir, her değişiklikte çalışır; bulunan sorunlar düzeltilir | ✅ (test bekliyor) |
+| 13 | Kampanya kanvasına "Reels senaryosu" eklerken yalnız eski Reels senaryoları listeleniyor | Prompt Studio'daki Reels'ler de listelenir | ✅ (test bekliyor) |
+| 14 | Çöp kutusunda Reels / kalıp geri yükleme bağlantıları eski sayfaya gidiyor | Doğru sayfaya gider | ✅ (test bekliyor) |
+| 15 | Süre kuralı: 30 sn kesin sınır gibi uyarı veriyor | 30 sn **hedef** (aşınca uyarı değil bilgi), kesin üst sınır **40 sn**; sahneler 8 sn olmak zorunda değil (8 sn yalnız Flow'un tek klip sınırı), toplam hedef 30 sn civarı | ✅ (test bekliyor) |
+| 16 | Prompt Studio Reels'inden takvime eklenen içerikte "senaryoyu aç" bağlantısı yok (içerik penceresi ve arşiv yalnız eski Reels'i tanıyor) | İçerik penceresi ve arşivde Prompt Studio'daki Reels'e bağlantı | ✅ (test bekliyor) |
+| 17 | Haftalık plan sihirbazında Reels fikirleri hâlâ "Reels havuzu" diye etiketleniyor | "Fikir havuzu (Reels)" olarak gösterilir | ✅ (test bekliyor) |
+
+Sonra konuşulacak: Reels serileri. Ertelenenler: koyu tema, TR/EN, 10.10 maddeleri.
+
 ## Bekleyen kararlar (en sonda tekrar sorulacak)
 
 - Lisans: son talimatta uygulama "ticari ve kapalı kaynak" olarak tanımlandı (önceden "ticari değiliz" denmişti). Buna göre AGPL (HyCanvas) ve görünür atıf şartlı (Doory) kod alınmaz; MIT kaynaklarda bildirim dosyası korunur.

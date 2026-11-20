@@ -101,7 +101,7 @@ test('asistan atanan modelle çalışır; Claude isteği doğru biçimde gider, 
     assert.equal(call.body.model, 'claude-sonnet-5-5');
     assert.equal(call.body.fallbacks, 'default', 'sunucu tarafı yedek açık değil');
     assert.match(call.headers.get('anthropic-beta'), /server-side-fallback-2026-07-01/);
-    assert.equal(call.body.output_config.effort, 'medium');
+    assert.equal(call.body.output_config.effort, 'low', 'hız ayarı varsayılan Hızlı');
     assert.equal(call.body.temperature, undefined, 'Claude 5.5 sıcaklık parametresini kabul etmez');
 
     const usage = (await s.request('GET', '/api/ai/usage')).data;

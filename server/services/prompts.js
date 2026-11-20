@@ -3,12 +3,14 @@
 // Görsel/video prompt'ları üretim araçları İngilizceyi daha iyi anladığı için İngilizce yazılır, Türkçesi yanında durur.
 // Metin ve Reels prompt'ları Türkçe yazılır (bir sohbet modeline verilecek talimat olarak).
 import { checkPrompt, retryInstruction } from './promptQuality.js';
-import { bookBlock } from './characterBook.js';
+import { bookBlock, bookImageLine } from './characterBook.js';
 import { SKELETONS, skeletonInstruction, NEGATIVE_TAIL } from './promptSkeleton.js';
 import { newId, now, text, badRequest, notFound, oneOf, parseJson } from '../lib/http.js';
 import { transaction } from '../db.js';
-import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds, buildSrt, STATUSES as REELS_STATUSES } from './reels/rules.js';
+import { polish, LIMITS as REELS_LIMITS, planPrompt, normalizeScenario, checkQuality, totalSeconds, buildSrt, STATUSES as REELS_STATUSES, STYLES as REELS_STYLES } from './reels/rules.js';
 import { RULE_EXAMPLES } from '../../public/js/ruleExamples.js';
+import { perfTopReels } from './perf.js';
+import { REASONS as FEEDBACK_REASONS } from './feedback.js';
 import { toolsFor, validTool, toolInstruction, toolOutput, ASPECTS } from './promptTools.js';
 
 export const PROMPT_KINDS = {
@@ -52,7 +54,7 @@ const BUILTIN_KINDS = ['reels', 'video', 'maskot'];
 // Reels senaryo kuralları (Reels modülüyle aynı sınırlar): şablon doldurulurken bunlara da uyulur
 export const REELS_RULES = [
   'REELS SENARYO KURALLARI (Google Flow\'da her sahne ayrı bir klip olarak üretilip birleştirilecek):',
-  `- Her sahne en çok ${REELS_LIMITS.maxScene} saniye (Flow'un tek klip sınırı), en az ${REELS_LIMITS.minScene} saniye; toplam genelde ${REELS_LIMITS.targetMax} saniyeyi geçmesin, kesin üst sınır ${REELS_LIMITS.maxTotal} saniye.`,
+  `- Her sahne en çok ${REELS_LIMITS.maxScene} saniye (Flow'un tek klip sınırı), en az ${REELS_LIMITS.minScene} saniye; sahneler 8 saniye olmak zorunda değil. Toplam süre hedefi ${REELS_LIMITS.targetMax} saniye civarı, kesin üst sınır ${REELS_LIMITS.maxTotal} saniye.`,
   '- İlk 1-2 saniyede dikkat çekici bir olay (kanca); giriş, selamlama, tanıtım yok.',
   '- Saniye saniye aksiyon 0\'dan başlar, aralıklar boşluksuz ve çakışmasız ilerler, son aralık sahnenin son saniyesinde biter.',
   `- Karakter her sahnede konuşur; konuşma sahnenin en az %70'ini kaplar. Türkçe konuşma hızı saniyede yaklaşık ${REELS_LIMITS.speechRate} kelimedir: replik konuşma süresini doldurur ama aşmaz (8 saniyelik sahnede 12-16 kelime). Konuşmanın başladığı ve bittiği saniyeyi yaz.`,
@@ -77,6 +79,7 @@ export function planBlock(plan) {
     if (sc.endFrame) L.push(`Bitiş karesi: ${sc.endFrame}`);
   });
   if (plan.ending && plan.ending.twist) L.push('', `Final: ${plan.ending.twist}`);
+  L.push('', plan.setting ? `SABİT MEKÂN VE IŞIK: Her sahnenin mekân ve ışık bölümüne önce şu cümleyi AYNEN yaz, sahneye özgü ayrıntıyı arkasına ekle: "${plan.setting}". Karakterin görünüşünü değiştirme, yeniden tarif etme.` : '');
   L.push('', 'PLANI ŞABLONA DÖKME: Her sahnenin prompt\'u plandaki sahneyi anlatır. Süre alanına sahnenin süresini, saniye saniye bölümüne plandaki aralıkları AYNEN (aynı saniyelerle), konuşma bölümüne konuşmanın başlama saniyesini ve repliği tırnak içinde KELİMESİ KELİMESİNE yaz. Kapak yazısı yalnız 1. sahnede kullanılır; 2. sahneden itibaren kapak yazısı bölümüne yalnızca "Bu sahnede kapak yazısı yok; ekranda hiçbir yazı olmayacak." yaz.');
   return L.filter(x => x !== '').join('\n').replace(/\n(SAHNE|PLANI|Final)/g, '\n\n$1');
 }
@@ -115,6 +118,22 @@ export function planIssues(plan, scenes = [], { character = '', allow = [] } = {
   return issues;
 }
 
+// Reels açıklaması ve hashtag'ler: tam 5 hashtag (genel etiketler atılır, eksikse marka etiketiyle tamamlanır); kısa açıklama uyarılır
+const GENERIC_TAGS = new Set(['#keşfet', '#kesfet', '#reels', '#viral', '#explore', '#fyp', '#instagram', '#trend', '#reelsinstagram']);
+export function fixPublishing(plan, brandName = '') {
+  const seen = new Set();
+  const tags = (plan.hashtags || []).map(h => String(h || '').trim().replace(/^#?/, '#').replace(/\s+/g, '')).filter(h => h.length > 2 && !GENERIC_TAGS.has(h.toLocaleLowerCase('tr-TR')))
+    .filter(h => { const k = h.toLocaleLowerCase('tr-TR'); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+  const brandTag = '#' + String(brandName || '').replace(/[^\p{L}\p{N}]/gu, '');
+  if (tags.length < 5 && brandTag.length > 2 && !seen.has(brandTag.toLocaleLowerCase('tr-TR'))) tags.push(brandTag);
+  const out = Object.assign({}, plan, { hashtags: tags });
+  const notes = [];
+  if (tags.length < 5) notes.push(`Hashtag sayısı ${tags.length}; 5 olmalı (Yayın panelinden tamamlayabilirsin).`);
+  const len = String(plan.caption || '').length;
+  if (len && len < 1000) notes.push(`Açıklama kısa (${len} karakter); hedef 1200-1800.`);
+  return { plan: out, notes };
+}
+
 // Kural şablonu: kullanıcının kendi prompt yapısı. Başlıklar ve sabit cümleler aynen kalır, [köşeli] alanlar doldurulur.
 const PLACEHOLDER = /\[[^\]\n]+\]/g;
 const foldTr = s => String(s || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
@@ -150,6 +169,8 @@ function toPrompt(row) {
     tool: row.tool || '', aspect: row.aspect || '', ruleId: row.rule_id || '',
     scenes: (() => { try { return sceneList(JSON.parse(row.scenes || '[]')); } catch { return []; } })(),
     plan: row.plan ? parseJson(row.plan, null) : null,
+    // Reels: istenince yapılan İngilizce (sahne sırasıyla); Türkçe sahneler değişince silinir
+    scenesEn: row.scenes_en ? (parseJson(row.scenes_en, []) || []) : [],
     status: row.status || 'taslak', statusLabel: REELS_STATUSES[row.status || 'taslak'] || row.status,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
@@ -182,6 +203,36 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
     return Object.assign({}, worst, { scenes: qs.map(q => ({ ok: q.ok, score: q.score, missing: q.missing })) });
   };
   // Ortak şablonlar (shared) bütün markalarda görünür ve kullanılır
+  // Beğenilen Reels'ten öğrenme: "Marka örneği" ve beğenilen (👍) Reels'lerin esprisi ve replikleri ölçü olur; beğenilmeyenlerin
+  // nedenleri kaçınılacaklar olarak, son yazılan başlıklar da tekrar etmemek için plana girer.
+  function reelsMemory(brandId) {
+    const short = (t, n = 160) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, n);
+    const rows = db.prepare(`SELECT p.id, p.title, p.plan, p.is_example, f.vote, f.reasons, f.note FROM prompts p
+      LEFT JOIN feedback f ON f.brand_id = p.brand_id AND f.target_type = 'prompt' AND f.target_id = p.id
+      WHERE p.brand_id = ? AND p.kind = 'reels' ORDER BY p.updated_at DESC LIMIT 60`).all(brandId);
+    const liked = rows.filter(r => r.plan && (r.is_example || r.vote > 0)).slice(0, 3).map(r => {
+      const pl = parseJson(r.plan, null);
+      if (!pl) return '';
+      return `- ${short(r.title, 80)} · espri: ${short(pl.punchline)} · ${pl.scenes.length} sahne, ${totalSeconds(pl)} sn · replikler: ${pl.scenes.map(x => `"${short(x.line, 90)}"`).join(' / ')}`;
+    }).filter(Boolean);
+    const disliked = rows.filter(r => r.vote < 0).slice(0, 5).map(r => {
+      const why = [...(parseJson(r.reasons, []) || []).map(k => (FEEDBACK_REASONS[k] || {}).label || k), r.note].filter(Boolean).join(', ');
+      return `- ${short(r.title, 80)}${why ? ` (neden: ${short(why, 120)})` : ''}`;
+    });
+    const recent = rows.slice(0, 15).map(r => short(r.title, 70));
+    const favIdeas = db.prepare("SELECT title FROM ideas WHERE brand_id = ? AND format = 'reels' AND favorite = 1 ORDER BY created_at DESC LIMIT 5").all(brandId).map(r => short(r.title, 90));
+    let top = '';
+    try { top = perfTopReels(db, brandId); } catch { /* rapor tabloları yoksa atlanır */ }
+    return [
+      top,
+      favIdeas.length ? `FAVORİ REELS FİKİRLERİ (markanın sevdiği konu ve yaklaşım tarzı): ${favIdeas.join(' · ')}` : '',
+      liked.length ? `BEĞENİLEN REELS'LER (espri tarzını, temposunu ve replik dilini ölçü al; içeriğini kopyalama):\n${liked.join('\n')}` : '',
+      disliked.length ? `BEĞENİLMEYEN REELS'LER (bu yaklaşımları ve nedenlerini tekrarlama):\n${disliked.join('\n')}` : '',
+      recent.length ? `DAHA ÖNCE YAZILAN REELS'LER (konuyu ve esprisini tekrar etme): ${recent.join(' · ')}` : ''
+    ].filter(Boolean).join('\n\n');
+  }
+  // Hızlı modda kalite için ikinci yazım yapılmaz; eksikler kalite rozetlerinde uyarı olarak görünür
+  const qualityRetry = () => !(ai.speedOf && ai.speedOf('yazim') === 'hizli');
   const reelsCheckOpts = brandId => { const b = brands.get(brandId); const ch = reels ? reels.settings(b.id).character : ''; return { character: ch, allow: [b.name, ch].filter(Boolean) }; };
   // Planı gelen ya da düzenlenen hâliyle yeniden düzenler (süreler, konuşma hızına göre uzatma); kullanılamazsa 400
   const cleanPlan = (raw, n = 0) => {
@@ -368,7 +419,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       // 7.6: zorunlu eksik varsa eksikler söylenerek bir kez daha denenir; daha iyi olan tutulur
       let q = checkPrompt(k, c.text, lg, qualityOpts(b.id));
       let retried = false;
-      if (!q.ok) {
+      if (!q.ok && qualityRetry()) {
         try {
           const r2 = await ai.run({ task: 'yazim', brandId: b.id, prompt: prompt + '\n\n' + retryInstruction(q), json: true, modelRef, temperature: 0.7 });
           const c2 = clean(r2.output, k, want.slice(0, 60), lg);
@@ -394,10 +445,11 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       const n = Math.max(0, Math.min(REELS_LIMITS.maxScenes, Math.round(Number(scenes) || 0)));
       const settings = reels ? reels.settings(b.id) : { character: 'Karakter', style: '3d' };
       const book = bookBlock(parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(b.id) || {}).character_book, {}) || {});
-      const ask = planPrompt({ brandName: b.name, memory: brands.memory(b.id), settings, topic: want, scenes: n, extra: book });
+      const ask = planPrompt({ brandName: b.name, memory: brands.memory(b.id), settings, topic: want, scenes: n, extra: [book, reelsMemory(b.id)].filter(Boolean).join('\n\n') });
       const opts = reelsCheckOpts(b.id);
       const attempt = async (prompt, temperature) => {
-        const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature });
+        // Senaryo planı özen ister: hız ayarı Hızlı olsa da en az Dengeli düşünülür
+        const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature, effort: 'medium' });
         const pl = normalizeScenario(r.output, { titleStyle: settings.titleStyle || 'pop' });
         if (!pl) return { r, pl: null, issues: ['x'] };
         if (n >= 1) pl.scenes = pl.scenes.slice(0, n);
@@ -415,6 +467,8 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
         } catch { /* ilk sonuç kalır */ }
       }
       if (!a.pl) throw badRequest('Model kullanılabilir bir senaryo döndürmedi; tekrar dene ya da başka model seç.');
+      const pub = fixPublishing(a.pl, b.name);
+      a.pl = pub.plan; a.issues = a.issues.concat(pub.notes);
       return { plan: a.pl, issues: a.issues, totalSeconds: totalSeconds(a.pl), ai: Object.assign(meta(a.r), { qualityRetried: retried }) };
     },
     // Düzenlenen planı yeniden ölçer (replik süreye sığıyor mu, saniyeler boşluksuz mu); AI çağrısı yok
@@ -422,6 +476,34 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       const b = brands.get(brandId);
       const pl = cleanPlan(plan);
       return { plan: pl, issues: checkQuality(pl, reelsCheckOpts(b.id)), totalSeconds: totalSeconds(pl) };
+    },
+
+    // Karakter ve mekân sabitliği: her sahne için ilk kare görseli prompt'u (Flow'da görselden video). Sabit kısım kodla kurulur
+    // (stil + karakter kitabındaki İngilizce görünüş + plandaki mekân ve ışık, her sahnede birebir aynı); yapay zekâ yalnız
+    // sahnenin 0. saniyesindeki pozu ve kadrajı yazar. Sonuç planın içinde saklanır.
+    async firstFrames(brandId, id, { modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      const r = row(b.id, id);
+      const pl = r.plan ? parseJson(r.plan, null) : null;
+      if (!pl || !pl.scenes || !pl.scenes.length) throw badRequest('İlk kare görselleri senaryo planı olan Reels için yazılır.');
+      const settings = reels ? reels.settings(b.id) : { character: 'Karakter', style: '3d' };
+      const book = parseJson((db.prepare('SELECT character_book FROM brands WHERE id = ?').get(b.id) || {}).character_book, {}) || {};
+      const prompt = ['REELS İLK KARE GÖRSELLERİ', `Marka: ${b.name}. Karakter: ${settings.character}.`,
+        `Korunacak mekân ve ışık (Türkçe): ${pl.setting || '-'}`, '',
+        'Her sahnenin 0. saniyesindeki ilk kareyi İNGİLİZCE ve kısa tarif et: karakterin pozu, yüz ifadesi, elindeki/önündeki nesne, kadraj (close-up / medium / wide) ve kamera açısı. Karakterin görünüşünü, kıyafetini ve rengini YAZMA (sabit tarif ayrıca eklenir). Mekânı yeniden tarif etme; yalnız sahneye özgü nesneleri ekle. Yazı, harf, logo isteme.',
+        "Ayrıca 'settingEn' alanına korunacak mekân ve ışık cümlesinin İngilizcesini yaz (her sahnede aynen kullanılacak).", '',
+        `SAHNELER:\n${pl.scenes.map((x, i) => `${i + 1}. Başlangıç: ${x.start || '-'} | İlk aksiyon: ${(x.beats && x.beats[0] && x.beats[0].action) || '-'} | Kamera: ${(x.beats && x.beats[0] && x.beats[0].camera) || '-'}`).join('\n')}`, '',
+        'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ settingEn: 'English setting and lighting sentence', frames: [{ scene: 1, shot: 'English first-frame description' }] })].join('\n');
+      const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.4 });
+      const frames = Array.isArray(out.output && out.output.frames) ? out.output.frames : [];
+      const settingEn = String((out.output && out.output.settingEn) || '').trim().slice(0, 600);
+      if (frames.length < pl.scenes.length) throw badRequest('Model her sahne için ilk kare döndürmedi; tekrar dene.');
+      const style = (REELS_STYLES[settings.style] || REELS_STYLES['3d']).en;
+      const look = bookImageLine(Object.assign({ name: settings.character }, book)) || `The main character "${settings.character}" keeps exactly the same design as the reference character in every frame.`;
+      const fixed = ['Vertical 9:16, first frame of a video clip.', style, look, settingEn ? `Setting and lighting (identical in every scene): ${settingEn}` : ''].filter(Boolean).join(' ');
+      const scenes = pl.scenes.map((x, i) => Object.assign({}, x, { firstFrame: `${fixed} Shot: ${String(frames[i].shot || '').trim().slice(0, 600)} No text, no letters, no logo, no watermark.` }));
+      db.prepare('UPDATE prompts SET plan = ? WHERE id = ?').run(JSON.stringify(Object.assign({}, pl, { scenes, settingEn })), r.id);
+      return Object.assign(detail(row(b.id, r.id)), { ai: meta(out) });
     },
 
     // Takvime ekle: senaryolu Reels prompt'u takvimde içerik olur (açıklama ve hashtag'lerle)
@@ -512,6 +594,9 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
         if (!sc.length) throw badRequest('En az bir sahne olmalı.');
         scenesJson = JSON.stringify(sc);
         next.text = joinScenes(sc, PROMPT_KINDS[r.kind].english ? (r.lang || 'en') : 'tr');
+        // Planlı Reels'te sahne elle silinirse plan da kısalır (süre, replik ve ilk kare sahneyle birlikte gider)
+        const pl = r.plan ? parseJson(r.plan, null) : null;
+        if (pl && Array.isArray(pl.scenes) && pl.scenes.length > sc.length) db.prepare('UPDATE prompts SET plan = ? WHERE id = ?').run(JSON.stringify(Object.assign({}, pl, { scenes: pl.scenes.slice(0, sc.length) })), r.id);
       }
       // Reels: çekim durumu; açıklama ve hashtag'ler planın içinde saklanır
       const status = 'status' in body ? oneOf(body.status, Object.keys(REELS_STATUSES), 'Durum') : (r.status || 'taslak');
@@ -522,10 +607,12 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
         if ('hashtags' in body) pl.hashtags = (Array.isArray(body.hashtags) ? body.hashtags : String(body.hashtags || '').split(/[\s,]+/)).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 30);
         planJson = JSON.stringify(pl);
       }
-      db.prepare('UPDATE prompts SET status = ?, plan = ? WHERE id = ?').run(status, planJson, r.id);
+      db.prepare('UPDATE prompts SET status = ? WHERE id = ?').run(status, r.id);
+      if (planJson !== (r.plan || '')) db.prepare('UPDATE prompts SET plan = ? WHERE id = ?').run(planJson, r.id);
       const changed = next.text !== r.text || next.textTr !== r.text_tr;
       db.prepare('UPDATE prompts SET title = ?, text = ?, text_tr = ?, favorite = ?, is_example = ?, tool = ?, aspect = ?, model = ?, scenes = ?, updated_at = ? WHERE id = ?')
         .run(next.title, next.text, next.textTr, next.favorite, next.example, tool, aspect, changed ? '' : r.model, scenesJson, now(), r.id);
+      if (changed) db.prepare("UPDATE prompts SET scenes_en = '' WHERE id = ?").run(r.id);
       const u = row(b.id, r.id);
       if (changed) saveVersion(u, 'Elle düzenlendi');
       return detail(u);
@@ -544,7 +631,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       if (!scenes.length) throw badRequest('Model kullanılabilir sahne döndürmedi; tekrar dene.');
       let retried = false;
       // Şablon kontrolü: eksik bölüm ya da doldurulmamış [alan] varsa bir kez daha yazılır, daha iyisi tutulur
-      if (rule) {
+      if (rule && qualityRetry()) {
         const worst = list => Math.min(...list.map(s => ruleCheck(rule.body, s.text).score));
         const q = scenes.map(s => ruleCheck(rule.body, s.text)).find(x => !x.ok);
         if (q) {
@@ -574,7 +661,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
       let c = clean(r.output, k, want.slice(0, 60), 'tr');
       let q = ruleCheck(rule.body, c.text);
       let retried = false;
-      if (!q.ok) {
+      if (!q.ok && qualityRetry()) {
         try {
           const r2 = await ai.run({ task: 'yazim', brandId: b.id, prompt: prompt + '\n\n' + retryInstruction(q), json: true, modelRef, temperature: 0.5 });
           const c2 = clean(r2.output, k, want.slice(0, 60), 'tr');
@@ -649,15 +736,39 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
           : `YALNIZCA sahne ${i + 1}'i şu talimata göre yeniden yaz: ${how}. Beğenilmeyen kısmı değiştir, geri kalanı ve diğer sahnelerle tutarlılığı koru.`;
         note = action === 'extend' ? `Sahne ${i + 1} uzatıldı` : `Sahne ${i + 1} değiştirildi`;
       } else throw badRequest('Geçersiz sahne işlemi.');
+      // Planlı Reels: sahne işlemi planı da günceller (süre, saniye saniye aksiyon, replik); kapak yazısı yalnız ilk sahnede kalır
+      const plan = r.plan ? parseJson(r.plan, null) : null;
+      const at = action === 'add' ? scenes.length : i;
+      if (plan && action === 'add') {
+        if (scenes.length >= REELS_LIMITS.maxScenes) throw badRequest(`Reels en fazla ${REELS_LIMITS.maxScenes} sahne olabilir.`);
+        if (totalSeconds(plan) + REELS_LIMITS.minScene > REELS_LIMITS.maxTotal) throw badRequest(`Video ${totalSeconds(plan)} saniye; yeni sahne ${REELS_LIMITS.maxTotal} saniye üst sınırını aşar.`);
+      }
+      const planAsk = plan ? [planBlock(plan), '',
+        `PLANLI SAHNE KURALI: Değişen sahnenin plandaki karşılığını da 'planScene' alanında ver (duration, start, beats [from, to, action, camera, sound], line, lineFrom, lineTo, endFrame). Sahne en fazla ${REELS_LIMITS.maxScene} saniye; "uzatmak" saniye eklemek değil, akışı ve ayrıntıyı zenginleştirmektir. Toplam süre ${REELS_LIMITS.maxTotal} saniyeyi aşmasın. Sahne prompt'u planScene ile birebir uyumlu olsun (aynı süre, aynı saniye aralıkları, replik kelimesi kelimesine). Konuşma süresi saniyede yaklaşık ${REELS_LIMITS.speechRate} kelimeyi aşmasın.`,
+        at > 0 ? `Bu sahne ${at + 1}. sahne: kapak yazısı bölümüne yalnızca "${NO_COVER}" yaz.` : ''].filter(Boolean).join('\n') : '';
+      const shape = plan ? { title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u', planScene: { duration: 7, start: '...', beats: [{ from: 0, to: 7, action: '...', camera: '...', sound: '' }], line: 'Replik', lineFrom: 0.5, lineTo: 7, endFrame: '...' } } : { title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' };
       const prompt = ['PROMPT STUDIO · SAHNE', `Sen '${b.name}' markası için profesyonel prompt yazarısın.`, '', context(b, r.kind), '', rulesFor(r), '',
-        `İLK İSTEK: ${r.brief || '-'}`, '', 'MEVCUT SAHNELER:', joinScenes(scenes, lg), '', `YAPILACAK: ${ask}`, '',
-        'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ title: 'Sahne adı', prompt: 'Sahnenin tam prompt\'u' })].join('\n');
+        `İLK İSTEK: ${r.brief || '-'}`, '', planAsk, 'MEVCUT SAHNELER:', joinScenes(scenes, lg), '', `YAPILACAK: ${ask}`, '',
+        'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify(shape)].join('\n');
       const out = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef, temperature: 0.8 });
       const sc = sceneList([out.output])[0];
       if (!sc) throw badRequest('Model sahne döndürmedi; tekrar dene.');
-      const next = scenes.slice();
+      let next = scenes.slice();
       if (action === 'add') next.push(sc); else next[i] = Object.assign({}, sc, { title: sc.title || scenes[i].title });
-      db.prepare('UPDATE prompts SET scenes = ?, text = ?, model = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(next), joinScenes(next, lg), out.servedRef || out.ref, now(), r.id);
+      const ru = ruleOf(r.brand_id, r.rule_id);
+      if (plan && ru) next = coverOnlyFirst(next, ru.body);
+      let planJson = r.plan || '';
+      if (plan) {
+        // Modelin verdiği plan sahnesi aynı kurallarla düzenlenir (süre sınırı, konuşma hızına göre uzatma); gelmezse plan sahnesi korunur
+        const ps = out.output && out.output.planScene;
+        const one = ps && typeof ps === 'object' ? normalizeScenario({ title: plan.title || 'Reels', scenes: [ps] }) : null;
+        if (one && one.scenes[0]) {
+          const scenesNext = plan.scenes.slice();
+          if (action === 'add') scenesNext.push(one.scenes[0]); else scenesNext[i] = one.scenes[0];
+          planJson = JSON.stringify(Object.assign({}, plan, { scenes: scenesNext }));
+        }
+      }
+      db.prepare("UPDATE prompts SET scenes = ?, text = ?, model = ?, plan = ?, scenes_en = '', updated_at = ? WHERE id = ?").run(JSON.stringify(next), joinScenes(next, lg), out.servedRef || out.ref, planJson, now(), r.id);
       const u = row(b.id, r.id);
       saveVersion(u, note);
       return Object.assign(detail(u), { ai: meta(out) });
@@ -667,6 +778,21 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
     async translate(brandId, id, { modelRef = null } = {}) {
       const b = brands.get(brandId);
       const r = row(b.id, id);
+      // Reels: Türkçe senaryo asıl kalır; İngilizcesi yalnız istenince yazılır (Flow/Veo İngilizceyi daha iyi anlar).
+      // Replikler ve kapak yazısı Türkçe kalır: karakter Türkçe konuşur, kapakta Türkçe yazı çıkar.
+      if (r.kind === 'reels') {
+        const scs = toPrompt(r).scenes;
+        const src = scs.length ? scs : [{ title: r.title, text: r.text }];
+        const prompt = ['REELS PROMPT ÇEVİRİSİ (Google Flow / Veo için)',
+          'Aşağıdaki Türkçe sahne prompt\'larını sırasını ve bölüm yapısını koruyarak İngilizceye çevir. Video terimlerini İngilizce kullan (shot types, camera moves, lighting). Yeni bilgi ekleme, açıklama yazma.',
+          'TÜRKÇE KALACAKLAR: Karakterin söylediği replikler (tırnak içindeki konuşma metni) ve kapak yazısı metni KELİMESİ KELİMESİNE Türkçe kalır; yanlarına "spoken in Turkish" / "on-screen text in Turkish, exactly" diye belirt. Karakter adı değişmez.',
+          '', `SAHNELER (JSON):\n${JSON.stringify(src.map(x => ({ title: x.title, prompt: x.text })))}`, '', 'Sadece şu JSON biçiminde yanıt ver:', JSON.stringify({ scenes: [{ title: 'Scene title', prompt: 'English prompt' }] })].join('\n');
+        const out = await ai.run({ task: 'ceviri', brandId: b.id, prompt, json: true, modelRef, temperature: 0.2 });
+        const en = sceneList(out.output && out.output.scenes);
+        if (en.length !== src.length) throw badRequest('Model sahnelerin hepsini çevirmedi; tekrar dene.');
+        db.prepare('UPDATE prompts SET scenes_en = ? WHERE id = ?').run(JSON.stringify(en), r.id);
+        return Object.assign(detail(row(b.id, r.id)), { ai: meta(out) });
+      }
       if (!PROMPT_KINDS[r.kind].english) throw badRequest('Bu tür Türkçe kullanılır; çeviri gerekmez.');
       if ((r.lang || 'en') === 'en') throw badRequest('Prompt zaten İngilizce.');
       const tail = SKELETONS[r.kind] && SKELETONS[r.kind].sections.includes('negative') ? `Türkçe kapanışı tam olarak şu İngilizce ifadeyle değiştir: "${NEGATIVE_TAIL}"` : '';

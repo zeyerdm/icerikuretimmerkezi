@@ -28,6 +28,7 @@ test('7.6 üretimde: geçen prompt tekrar yazılmaz; eksikli prompt bir kez yeni
   const provider = fakeProvider([() => (++n === 1 ? { title: 'Kısa', prompt: 'Öğrenciler kahve içiyor' } : { title: 'Uzun', prompt: GOOD_TR })]);
   const s = await startServer({ aiProvider: provider });
   try {
+    await s.request('PUT', '/api/ai/tasks', { tasks: { yazim: { speed: 'dengeli' } } }); // Dengeli: eksikli prompt bir kez daha yazılır (Hızlı modda yalnız uyarı)
     const a = (await s.request('POST', '/api/brands', { name: 'Kalite' })).data.brand;
     await s.request('PUT', `/api/brands/${a.id}/memory`, { banned: ['ucuz'] });
     const p = (await s.request('POST', `/api/brands/${a.id}/prompts`, { kind: 'gorsel', brief: 'Kampüste sabah' })).data.prompt;
