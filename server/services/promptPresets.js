@@ -111,18 +111,27 @@ export function composeRule(spec, { brand = null, presets = {} } = {}) {
     L.push('* Olay: [Görselin anlattığı ana mesaj ya da an.]');
     L.push(`* Bitiş: [Akılda kalan sonuç${CTAS[spec.cta] ? `; "${CTAS[spec.cta]}" çağrısı` : ''}.]`);
   }
-  if (spec.details !== 'yok') {
+  // Sabit kısımlar: kullanıcı bir kez yazar; köşeli alan içermediği için her üretimde kelimesi kelimesine aynen kalır
+  // (yapay zekâya yazdırılmaz, kodla eklenir). Konuya özel ayrıntı ayrı bölümde doldurulur.
+  const fixedText = v => String(v || '').replace(/[[\]]/g, '').replace(/\s+\n/g, '\n').trim().slice(0, 2000);
+  const fPlace = fixedText(spec.fixedPlace); const fChar = fixedText(spec.fixedCharacter); const fStyle = fixedText(spec.fixedStyle);
+  if (fStyle) { L.push('Görsel stil:'); L.push(fStyle); }
+  if (fPlace) {
+    L.push('Mekân ve ışık:');
+    L.push(fPlace);
+    if (spec.details !== 'yok') { L.push('Konuya özel ayrıntılar:'); L.push('[Bu konuya özgü sahnedeki nesneler, ekranlar ve etkileşimler; sabit mekânın içinde.]'); }
+  } else if (spec.details !== 'yok') {
     L.push('Mekân ve görsel betimleme:');
     L.push(spec.details === 'kisa' ? '[Ortam, ışık ve ana nesnelerin 1-2 cümlelik kısa tarifi.]'
       : 'Ön planda [nesneler ve detaylar], orta planda [ana öznenin bulunduğu alan ve etkileşim nesneleri], arka planda [mekânın mimarisi, dekorasyon, ışık kaynakları ve atmosfer] bulunmalı. [Işığın yönü, renk sıcaklığı ve gölgeler.] Ortam boş ya da yapay görünmemeli.');
-  } else {
+  } else if (!fPlace) {
     L.push('Görsel betimleme:');
     L.push('Ayrıntılı mekân betimlemesi yazılmaz; yalnızca aksiyon ve kurgu anlatılır.');
   }
   if (pf.video && spec.camera && CAMERAS[spec.camera]) { L.push('Kamera:'); L.push(CAMERAS[spec.camera]); }
   L.push('Karakter kullanımı:');
-  L.push(spec.mascot === 'var' ? 'Markanın kayıtlı maskotu/ana karakteri kullanılmalı. Karakterin görünümü yeniden tasarlanmamalı; yüz oranları, renkleri, dokusu ve karakteristik özellikleri baştan sona aynı kalmalı.'
-    : spec.mascot === 'insan' ? 'Gerçekçi bir insan sunucu/karakter kullanılır; [kişinin yaşı, görünümü ve kıyafeti]. Gerçek bir ünlü ya da tanınan kişi olmamalı.'
+  L.push(spec.mascot === 'var' ? `Markanın kayıtlı maskotu/ana karakteri kullanılmalı. Karakterin görünümü yeniden tasarlanmamalı; yüz oranları, renkleri, dokusu ve karakteristik özellikleri baştan sona aynı kalmalı.${fChar ? ` ${fChar}` : ''}`
+    : spec.mascot === 'insan' ? `Gerçekçi bir insan sunucu/karakter kullanılır; ${fChar || '[kişinin yaşı, görünümü ve kıyafeti]'}. Gerçek bir ünlü ya da tanınan kişi olmamalı.`
       : 'Maskot ya da karakter kullanılmaz; anlatım ürün, nesne, mekân ve yazılarla yapılır.');
   if (colors.length) { L.push('Renk paleti:'); L.push(`${pal.name}: ${hexName(colors)}. Bütün sahne/tasarım bu renk uyumunda kalır; vurgu rengi ${accent}.`); }
   L.push('Başlık yazısı:');
@@ -150,7 +159,8 @@ export function composeRule(spec, { brand = null, presets = {} } = {}) {
   L.push('Son kontrol:');
   L.push(`Hook, olay ve bitiş net; ${title ? 'başlık yazısı doğru ve okunur; ' : ''}${pf.video ? (sub.id === 'yok' ? 'altyazısız; ' : 'altyazı senkron; ') : ''}${spec.mascot === 'var' ? 'karakter tasarımı sabit; ' : ''}renk paleti tutarlı.`);
   const name = `${pf.label}${dur ? ` · ${dur} sn` : ''}${title ? ` · ${title.name}` : ''}`.slice(0, 80);
-  const kind = pf.video ? (spec.mascot === 'var' ? 'maskot' : 'video') : pf.slides ? 'post' : 'gorsel';
+  // Reels mecrası Prompt Studio'nun ana türüne (Reels) kaydedilir; diğer video mecraları maskot / video
+  const kind = spec.platform === 'reels' ? 'reels' : pf.video ? (spec.mascot === 'var' ? 'maskot' : 'video') : pf.slides ? 'post' : 'gorsel';
   return { name, kind, body: L.join('\n') };
 }
 

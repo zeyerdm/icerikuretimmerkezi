@@ -7,7 +7,8 @@ import { esc, icon, toast, openModal, loadFonts } from '../ui.js';
 let cache = null;
 const loadPresets = async (fresh = false) => { if (!cache || fresh) cache = await api.promptPresets(); return cache; };
 
-const DEFAULT_SPEC = { platform: 'reels', duration: 15, scenes: false, tone: 'enerjik', title: 'karisik-vurgu', subtitle: 'yok', palette: 'marka', details: 'detayli', mascot: 'var', camera: 'hareketli', music: 'trend', cta: 'kaydet', noBrand: true, extra: '' };
+const fixedNote = spec => (String(spec.fixedPlace || '').trim() ? 'Mekân sabit; burada yalnız konuya özel ayrıntıların ne kadar yazılacağını seçersin.' : 'Mekân, ışık ve nesne betimlemesi şablona yazılsın mı?');
+const DEFAULT_SPEC = { platform: 'reels', duration: 15, scenes: false, tone: 'enerjik', title: 'karisik-vurgu', subtitle: 'yok', palette: 'marka', details: 'detayli', mascot: 'var', camera: 'hareketli', music: 'trend', cta: 'kaydet', noBrand: true, extra: '', fixedPlace: '', fixedCharacter: '', fixedStyle: '' };
 
 // Başlık stili önizlemesi: örnek kelimeler; *yıldızlı* kelime vurgu renginde ve ikinci yazı tipinde
 export function titlePreview(st) {
@@ -89,7 +90,12 @@ export async function openRuleBuilder(brand, meta, { rule = null, onSaved = () =
         <button type="button" class="rb-card rb-add" data-preset-new="subtitle">${icon('plus')}<span>Kendi altyazı stilin</span></button></div>`) : '',
       sec('Renk paleti', `<div class="rb-pals">${[{ id: '', name: 'Palet belirtme', colors: [] }, ...P.palette].map(pl => `<button type="button" class="rb-pal ${spec.palette === pl.id ? 'on' : ''}" data-rb="palette" data-v="${esc(pl.id)}">${swatches(pl.id === 'marka' ? brandCols : pl.colors)}<span>${esc(pl.name)}${pl.id === 'marka' && !brandCols.length ? ' (renk yok)' : ''}${pl.custom ? ` <span class="rb-del" role="button" tabindex="0" data-preset-del="${esc(pl.id)}" title="Paleti sil">sil</span>` : ''}</span></button>`).join('')}
         <button type="button" class="rb-pal rb-add" data-preset-new="palette">${icon('plus')}<span>Kendi paletin</span></button></div>`),
-      sec('Betimleme', seg('details', Object.entries(P.details)), 'Mekân, ışık ve nesne betimlemesi şablona yazılsın mı?'),
+      sec('Sabit kısımlar', `<div class="stack-sm">
+          <label class="field"><span class="field-label">Mekân ve ışık</span><textarea class="textarea" rows="3" data-rb-text="fixedPlace" maxlength="2000" placeholder="Ör. Modern yazılım ofisi; ahşap masa, iki monitör, arkada büyük pencere ve yeşil bitkiler. Yumuşak gün ışığı soldan, sıcak tonlar.">${esc(spec.fixedPlace || '')}</textarea></label>
+          <label class="field"><span class="field-label">Karakter (görünüş, kıyafet, tavır)</span><textarea class="textarea" rows="2" data-rb-text="fixedCharacter" maxlength="2000" placeholder="Ör. DEO: mavi peluş ayı, lacivert ceket, meraklı ve enerjik.">${esc(spec.fixedCharacter || '')}</textarea></label>
+          <label class="field"><span class="field-label">Görsel stil</span><textarea class="textarea" rows="2" data-rb-text="fixedStyle" maxlength="2000" placeholder="Ör. Sinematik 3D animasyon, yumuşak gölgeler, gerçekçi dokular.">${esc(spec.fixedStyle || '')}</textarea></label></div>`,
+        'Bir kez yaz; her üretimde kelimesi kelimesine aynen girer. Yapay zekâ bunları yazmaz, yalnız konuya göre değişen kısımları (kanca, olay, replik, konuya özel ayrıntılar) doldurur.'),
+      sec('Betimleme', seg('details', Object.entries(P.details)), fixedNote(spec)),
       sec('Karakter', seg('mascot', [['var', 'Maskot'], ['insan', 'İnsan sunucu'], ['yok', 'Karakter yok']])),
       pf.video ? sec('Kamera ve müzik', `<div class="form-grid">${sel('camera', P.cameras, 'Kamera belirtme')}${sel('music', P.music, 'Müzik belirtme')}</div>`) : '',
       sec('Bitiş çağrısı (CTA)', sel('cta', Object.fromEntries(Object.entries(P.ctas).filter(([k]) => k !== 'yok')), 'Çağrı yok')),

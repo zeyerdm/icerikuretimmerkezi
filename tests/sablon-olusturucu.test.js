@@ -10,7 +10,7 @@ import { ruleHeadings } from '../server/services/prompts.js';
 
 test('composeRule: video, carousel ve görsel için hook-olay-bitiş; seçimler şablona yazılır', () => {
   const v = composeRule({ platform: 'reels', duration: 20, title: 'karisik-vurgu', subtitle: 'kelime-vurgu', palette: 'pastel-pembe', tone: 'enerjik', details: 'detayli', mascot: 'var', noBrand: true, cta: 'kaydet', camera: 'hareketli', music: 'trend', scenes: true });
-  assert.equal(v.kind, 'maskot');
+  assert.equal(v.kind, 'reels', 'Reels mecrası Reels türüne');
   assert.match(v.body, /^SAHNE \[NUMARASI\]/);
   assert.match(v.body, /9:16 video, 20 saniye/);
   assert.match(v.body, /\* Hook \(0–3 saniye\)/); assert.match(v.body, /\* Olay \(3–16 saniye\)/); assert.match(v.body, /\* Bitiş \(16–20 saniye\).*Kaydet/);
@@ -142,4 +142,20 @@ test('Arayüz: şablon oluşturucuda kartlarla seçim, önizleme güncellenir, k
     await page.locator('#qp-tpl option', { hasText: 'Koyu kart' }).waitFor({ state: 'attached' });
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
+});
+
+test('Şablon oluşturucu: sabit kısımlar (mekân, karakter, stil) şablona köşeli alansız girer, üretimde kelimesi kelimesine kalır', async () => {
+  const { composeRule } = await import('../server/services/promptPresets.js');
+  const { compactTemplate, restoreFixed, ruleCheck: check } = await import('../server/services/prompts.js');
+  const place = 'Modern yazılım ofisi; ahşap masa, iki monitör, arkada büyük pencere. Yumuşak gün ışığı soldan.';
+  const r = composeRule({ platform: 'reels', duration: 15, details: 'detayli', mascot: 'var', fixedPlace: place + ' [silinir]', fixedCharacter: 'DEO: mavi peluş ayı, lacivert ceket.', fixedStyle: 'Sinematik 3D animasyon.' });
+  assert.match(r.body, /Mekân ve ışık:\nModern yazılım ofisi; ahşap masa, iki monitör, arkada büyük pencere\. Yumuşak gün ışığı soldan\. silinir/);
+  assert.match(r.body, /Konuya özel ayrıntılar:\n\[/);
+  assert.match(r.body, /Görsel stil:\nSinematik 3D animasyon\./);
+  assert.match(r.body, /aynı kalmalı\. DEO: mavi peluş ayı, lacivert ceket\./);
+  const compact = compactTemplate(r.body);
+  assert.ok(!compact.includes('ahşap masa'), 'sabit mekân modele yazdırılmaz');
+  const out = restoreFixed(compact.replace(/\n\(SABİT BÖLÜM[^\n]*/g, '').replace(/\[[^\]\n]+\]/g, 'dolu'), r.body);
+  assert.ok(out.includes(place));
+  assert.equal(check(r.body, out).ok, true);
 });
