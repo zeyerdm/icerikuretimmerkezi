@@ -2315,3 +2315,20 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .cal-sp-more { align-self: flex-start; border: 1px dashed var(--line-strong, #c9c6d6); background: var(--surface, #fff); color: var(--muted, #555); border-radius: 999px; padding: 0 8px; font: inherit; font-size: 11px; font-weight: 700; line-height: 18px; cursor: pointer; }
 .cal-sp-more:hover { background: color-mix(in srgb, var(--brand) 10%, #fff); color: var(--ink, #1b1f3b); }
 .modal .cal-special { white-space: normal; font-size: 13px; padding: 6px 10px; }
+
+/* Özel gün etiketi (takvim): kalın sol çizgi ve simge yerine kategori renginde nokta, yumuşak zemin, tek satır */
+.cal-card .cal-special { display: flex; align-items: center; gap: 6px; width: 100%; border: 0 !important; border-radius: 6px; padding: 3px 8px; margin: 0 0 2px; font-size: 11.5px; font-weight: 600; line-height: 16px; letter-spacing: 0; box-shadow: none; }
+.cal-card .cal-special .cs-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.cal-card .cal-special .cs-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.cal-card .cal-special:hover { filter: brightness(.97); }
+.cal-card .cal-special.cat-resmi { background: #fdeceb; color: #a12b2b; }
+.cal-card .cal-special.cat-ticari { background: #fdf3df; color: #7a4a00; }
+.cal-card .cal-special.cat-dini { background: #e6f4ee; color: #145c40; }
+.cal-card .cal-special.cat-dunya { background: #e8eefc; color: #2a4fa0; }
+.cal-card .cal-special.cat-sektor { background: #e2f4f1; color: #0b5a50; }
+.cal-card .cal-special.cat-anma { background: #eeeef1; color: #2e2f36; }
+.cal-card .cal-special.cat-donem { background: transparent; color: #5b3fb0; font-weight: 500; padding-left: 6px; }
+.cal-card .cal-special.cat-donem .cs-dot { background: transparent; border: 1.5px solid currentColor; }
+.cal-card .cal-special.imp-yuksek { font-weight: 700; }
+.cal-card .cal-special.imp-dusuk { opacity: 1; font-weight: 500; }
+.cal-card .cal-cell.today .cal-special { background: rgba(255,255,255,.95); }
