@@ -145,7 +145,10 @@ export async function renderPosts(view, brand, sub) {
 
   // Sabit metin havuzları: buton, kapanış cümlesi ve maskot konuşması AI'ya gitmeden havuzdan sırayla dolar
   const tp = brand.textPools || { cta: [], closing: [], speech: [] };
-  view.insertAdjacentHTML('beforeend', `<section class="card mt-4" id="text-pools"><details ${tp.cta.length + tp.closing.length + tp.speech.length ? '' : 'open'}><summary class="card-head"><h3>Sabit metinler <span class="small muted">yapay zekâya gitmez</span></h3><span class="small muted">${tp.cta.length + tp.closing.length + tp.speech.length} cümle</span></summary>
+  // Sabit metinler tasarımların üstünde (önce kurulur, sonra tasarımlar ve şablonlar)
+  const poolAnchor = view.querySelector('.ps-h') || view.querySelector('.ps-start');
+  const poolPos = view.querySelector('.ps-h') ? 'beforebegin' : poolAnchor ? 'afterend' : 'beforeend';
+  (poolAnchor || view).insertAdjacentHTML(poolPos, `<section class="card mb-4" id="text-pools"><details ${tp.cta.length + tp.closing.length + tp.speech.length ? '' : 'open'}><summary class="card-head"><h3>Sabit metinler <span class="small muted">yapay zekâya gitmez</span></h3><span class="small muted">${tp.cta.length + tp.closing.length + tp.speech.length} cümle</span></summary>
     <p class="small muted mb-3">Şablondaki <b>Buton yazısı</b>, <b>Kapanış cümlesi</b> ve <b>Maskot konuşması</b> kutuları her postta buradan sırayla dolar; yapay zekâ yalnızca başlık ve içeriği yazar. Her satıra bir cümle. Boş bırakılan havuz için yapay zekâ yazar.</p>
     <form id="pool-form" class="form-grid">
       ${[['cta', 'Buton / CTA', 'Kaydet ve paylaş\nHemen dene\nProfildeki linke tıkla'], ['closing', 'Kapanış cümlesi', 'Daha fazlası için takipte kal.\nSoruların varsa yoruma yaz.'], ['speech', 'Maskot konuşması', 'Kaydırarak incele 👀\nBunu bilmiyordun değil mi?\nKaydetmeyi unutma!']].map(([k, l, ph]) => `<div class="field"><label for="pool-${k}">${l} <span class="xsmall muted">${tp[k].length}</span></label><textarea class="textarea" id="pool-${k}" name="${k}" rows="5" placeholder="${ph}">${esc(tp[k].join('\n'))}</textarea></div>`).join('')}
@@ -292,7 +295,7 @@ export async function renderPosts(view, brand, sub) {
       const t = templates.find(x => x.id === tm.dataset.tplMenu); if (!t) return;
       const id = esc(t.id);
       const menu = document.createElement('div'); menu.className = 'post-menu'; menu.setAttribute('role', 'menu');
-      menu.innerHTML = `${t.match.frame ? '' : `<button type="button" role="menuitem" data-tpl-default="${id}" data-on="${t.match.isDefault ? '0' : '1'}">★ ${t.match.isDefault ? 'Varsayılanı kaldır' : 'Varsayılan yap'}</button>`}
+      menu.innerHTML = `<button type="button" role="menuitem" data-edit-tpl="${id}">${icon('edit')}Şablonu düzenle</button>${t.match.frame ? '' : `<button type="button" role="menuitem" data-tpl-default="${id}" data-on="${t.match.isDefault ? '0' : '1'}">★ ${t.match.isDefault ? 'Varsayılanı kaldır' : 'Varsayılan yap'}</button>`}
         <button type="button" role="menuitem" data-rename-tpl="${id}">${icon('edit')}Adını değiştir</button>
         <button type="button" role="menuitem" data-match-tpl="${id}">${icon('idea')}Fikirlerle eşleştir</button>
         <button type="button" role="menuitem" data-tpl-versions="${id}">${icon('refresh')}Versiyonlar</button>
@@ -323,6 +326,14 @@ export async function renderPosts(view, brand, sub) {
       return;
     }
     if (e.target.closest('[data-from-idea]')) return fromIdeaFlow(brand, models, templates, posts);
+    // Şablonu düzenle: tasarım listesine düşmeyen bir taslakta açılır; Kaydet'te şablonun üzerine / yeni şablon / yeni tasarım sorulur
+    const editTpl = e.target.closest('[data-edit-tpl]');
+    if (editTpl) {
+      document.querySelectorAll('.post-menu').forEach(x => x.remove());
+      const t = templates.find(x => x.id === editTpl.dataset.editTpl);
+      try { const { post } = await api.createPost(brand.id, { blank: true, templateId: t.id, title: t.name, editTemplate: true }); go(base(brand) + '/' + post.id); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     const useTpl = e.target.closest('[data-use-tpl]');
     if (useTpl) {
       const t = templates.find(x => x.id === useTpl.dataset.useTpl);
@@ -814,7 +825,7 @@ async function renderEditor(view, brand, id, models) {
           <button type="button" class="ed-top-btn icon-only" data-act="undo" title="Geri al (Ctrl+Z)" aria-label="Geri al">${icon('undo')}</button>
           <button type="button" class="ed-top-btn icon-only" data-act="redo" title="Yinele (Ctrl+Shift+Z)" aria-label="Yinele">${icon('redo')}</button>
           <span class="spacer"></span>
-          <h1 class="ed-title" title="${esc(post.title)}${data.topic ? ` · Konu: ${esc(data.topic)}` : ''}">${esc(post.title)}</h1>${data.topic ? `<span class="ed-topic xsmall" title="${esc(data.topic)}">${esc(data.topic.length > 48 ? data.topic.slice(0, 48) + '…' : data.topic)}</span>` : ''}
+          ${post.editingTemplate ? `<span class="ed-tpl-badge" title="Kaydet'e basınca şablonun üzerine, yeni şablon ya da yeni tasarım olarak kaydetmeyi seçersin">Şablon düzenleniyor</span>` : ''}<h1 class="ed-title" title="${esc(post.title)}${data.topic ? ` · Konu: ${esc(data.topic)}` : ''}">${esc(post.title)}</h1>${data.topic ? `<span class="ed-topic xsmall" title="${esc(data.topic)}">${esc(data.topic.length > 48 ? data.topic.slice(0, 48) + '…' : data.topic)}</span>` : ''}
           <button type="button" class="ed-top-btn ed-save" data-act="save">${dirty ? 'Kaydet •' : 'Kaydet'}</button>
           <div class="ed-menu"><button type="button" class="ed-share" data-menu="paylas" aria-haspopup="true">Paylaş</button>
             <div class="ed-drop right" data-drop="paylas" hidden>
@@ -1917,8 +1928,34 @@ async function renderEditor(view, brand, id, models) {
   async function save(btn) {
     post = (await busy(btn, () => api.savePost(brand.id, post.id, { data }))).post;
     data = JSON.parse(JSON.stringify(post.data)); dirty = false;
+    if (post.editingTemplate) return finishTemplateEdit();
     toast('Tasarım kaydedildi.', 'success');
     shell();
+  }
+  // Şablon düzenlemesini kaydet: şablonun üzerine (yeni sürüm), yeni şablon ya da yeni tasarım
+  function finishTemplateEdit() {
+    const tname = (data.template && data.template.name) || post.title;
+    const m = openModal({
+      title: 'Şablon değişikliğini nasıl kaydedeyim?', submitLabel: 'Kaydet',
+      body: `<div class="tpl-choice tpl-choice-3" role="radiogroup" aria-label="Kayıt biçimi">
+          <label class="fi-design on"><input type="radio" name="mode" value="update" checked><span><b>Şablonun üzerine kaydet</b><small>"${esc(tname)}" yeni sürüm olur; önceki üretimler değişmez, Versiyonlar'dan geri dönülür.</small></span></label>
+          <label class="fi-design"><input type="radio" name="mode" value="template"><span><b>Yeni şablon olarak kaydet</b><small>Asıl şablon olduğu gibi kalır; bu hâli ayrı bir şablon olur.</small></span></label>
+          <label class="fi-design"><input type="radio" name="mode" value="design"><span><b>Yeni tasarım olarak kaydet</b><small>Şablon değişmez; bu hâli tasarımlarına eklenir.</small></span></label>
+        </div>
+        <div class="field mt-3" data-mode-box="template" hidden><label for="ft-name">Yeni şablonun adı</label><input class="input" id="ft-name" name="name" maxlength="80" value="${esc(`${tname} (kopya)`.slice(0, 80))}"></div>`,
+      onSubmit: async fd => {
+        const mode = fd.get('mode');
+        const r = await api.finishTemplateEdit(brand.id, post.id, { mode, name: String(fd.get('name') || '').trim() });
+        if (mode === 'design') { post = r.post; data = JSON.parse(JSON.stringify(post.data)); toast('Yeni tasarım olarak kaydedildi; şablon değişmedi.', 'success'); shell(); return; }
+        toast(mode === 'update' ? `"${r.template.name}" şablonu V${r.template.version} oldu.` : `"${r.template.name}" yeni şablon olarak kaydedildi.`, 'success', 4000);
+        go(base(brand));
+      }
+    });
+    m.form.addEventListener('change', e => {
+      if (e.target.name !== 'mode') return;
+      m.form.querySelectorAll('.tpl-choice .fi-design').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+      m.form.querySelectorAll('[data-mode-box]').forEach(b => { b.hidden = b.dataset.modeBox !== e.target.value; });
+    });
   }
 
   view.oninput = e => {

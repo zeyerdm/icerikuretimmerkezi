@@ -84,7 +84,8 @@ export async function renderBrandEditor(view, brandId, initialTab) {
           <button type="button" class="btn" data-action="drive-paste" title="Panodaki linki kutuya yapıştırır">Yapıştır</button>
           ${isNew ? '' : `<button type="button" class="btn" data-action="drive-test" ${driveOk && brand.driveFolderId ? '' : 'disabled'}>Bağlantıyı test et</button>`}
         </div>
-        <span class="hint">Bu markanın dosyaları bu klasöre gönderilir (şimdilik kütüphane görselleri; postlar, başlıklar ve senaryolar geldikçe onlar da). Drive'da klasörü aç, adres çubuğundaki linki kopyalayıp buraya yapıştır. İsteğe bağlı.${driveOk ? '' : ' Gönderebilmek için önce <a href="#/ayarlar">Ayarlar → Google Drive</a> bağlantısını kur.'}</span>
+        <span class="hint">Bu markanın dosyaları bu klasöre gönderilir. Drive'da klasörü aç, adres çubuğundaki linki kopyalayıp buraya yapıştır. İsteğe bağlı.</span>
+        ${driveOk ? '' : `<div class="notice notice-warn mt-2"><div><strong>Google Drive henüz bağlı değil.</strong> Klasör linki tek başına yetmez: uygulamanın Drive'a dosya gönderebilmesi için bir kez <b>Ayarlar → Google Drive</b> bölümündeki kısa kodu kendi Google hesabında yayınlayıp çıkan adresi oraya yapıştırman gerekir (yaklaşık 3 dakika). Sonra bu klasör linki çalışır.</div><a class="btn btn-sm" href="#/ayarlar">Drive bağlantısını kur</a></div>`}
       </div></div>`;
   }
 

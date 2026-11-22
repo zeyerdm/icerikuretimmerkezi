@@ -680,6 +680,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/shared-templates/:tid/to-brand', (req, res) => res.status(201).json({ template: shared.toBrandTemplate(req.brand.id, req.params.tid, req.body || {}) }));
   api.delete('/shared-templates/:tid', (req, res) => { shared.remove(req.params.tid); res.status(204).end(); });
   api.get('/brands/:brandId/post-templates', (req, res) => res.json({ templates: posts.listTemplates(req.brand.id) }));
+  api.post('/brands/:brandId/posts/:id/finish-template-edit', (req, res) => res.json(posts.finishTemplateEdit(req.brand.id, req.params.id, req.body || {})));
   api.post('/brands/:brandId/posts/:id/template', (req, res) => res.status(201).json({ template: posts.saveTemplate(req.brand.id, req.params.id, req.body || {}) }));
   // Şablon versiyonları, paket ve kullanım
   api.post('/brands/:brandId/post-templates/:tid/update-from/:pid', (req, res) => res.json({ template: posts.updateTemplateFromPost(req.brand.id, req.params.tid, req.params.pid, req.body || {}) }));

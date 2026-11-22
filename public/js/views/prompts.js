@@ -212,6 +212,7 @@ export async function renderPrompts(view, brand, sub) {
         <span class="xsmall muted">${timeAgo(p.updatedAt)}</span>
         <button class="btn btn-sm btn-ghost" data-copy="${esc(p.id)}" title="Kopyala">Kopyala</button>
         <button class="btn btn-sm btn-ghost" data-ptxt="${esc(p.id)}" title="Metin dosyası olarak indir">İndir</button>
+        <button class="btn btn-sm btn-ghost icon-btn ps-del" data-pdel="${esc(p.id)}" title="Sil (çöp kutusuna gider)" aria-label="${esc(p.title)} prompt'unu sil">${icon('trash')}</button>
         ${state.settings && state.settings.drive && state.settings.drive.configured && brand.driveFolderId ? `<button class="btn btn-sm btn-ghost" data-pdrive="${esc(p.id)}" title="Markanın Drive klasörüne gönder">Drive</button>` : ''}
       </li>`).join('')}</ul>`
       : emptyState({ icon: 'wand', title: q || filter ? 'Eşleşen prompt yok' : 'Henüz prompt yok', text: q || filter ? 'Aramayı ya da filtreyi değiştir.' : 'Yukarıdan bir tür seçip kısaca ne istediğini yaz.', compact: true });
@@ -255,6 +256,13 @@ export async function renderPrompts(view, brand, sub) {
       filter = f.dataset.filter;
       view.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b === f));
       return loadList();
+    }
+    const pdel = e.target.closest('[data-pdel]');
+    if (pdel) {
+      const p = (view.querySelector('#ps-list')._prompts || []).find(x => x.id === pdel.dataset.pdel);
+      if (!p || !confirm(`"${p.title}" silinsin mi? Çöp kutusuna gider; oradan geri alabilirsin.`)) return;
+      try { await busy(pdel, () => api.deletePrompt(brand.id, p.id)); toast('Prompt silindi; çöp kutusundan geri alınabilir.', 'success'); loadList(); } catch (err) { toast(err.message, 'error'); }
+      return;
     }
     const px = e.target.closest('[data-ptxt],[data-pdrive]');
     if (px) {

@@ -405,7 +405,7 @@ function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, pos
 export function createPostService({ db, ai, brands, assets, workspace }) {
   const toPost = r => {
     const data = parseJson(r.data, {});
-    return { id: r.id, title: r.title, kind: r.kind, kindLabel: POST_KINDS[r.kind] || r.kind, archived: !!r.archived, data, model: r.model, modelLabel: r.model ? ai.labelOf(r.model) : '', createdAt: r.created_at, updatedAt: r.updated_at,
+    return { id: r.id, title: r.title, kind: r.kind, kindLabel: POST_KINDS[r.kind] || r.kind, archived: r.archived === 1, editingTemplate: r.archived === 2, data, model: r.model, modelLabel: r.model ? ai.labelOf(r.model) : '', createdAt: r.created_at, updatedAt: r.updated_at,
       content: (db.prepare('SELECT id, scheduled_at FROM contents WHERE post_id = ? ORDER BY created_at DESC LIMIT 1').get(r.id) || null) };
   };
   const row = (brandId, id) => {
@@ -585,13 +585,17 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     if (hasEnd) out.push(copy(slides[n - 1]));
     return out.slice(0, count);
   };
-  function fromTemplate(b, templateId, title) {
+  // edit: şablonu düzenleme taslağı (archived = 2): tasarım listesinde görünmez; kaydederken şablonun üzerine,
+  // yeni şablon ya da yeni tasarım olarak kaydedilir (finishTemplateEdit)
+  function fromTemplate(b, templateId, title, { edit = false } = {}) {
     const tpl = db.prepare('SELECT * FROM post_templates WHERE id = ? AND brand_id = ?').get(String(templateId), b.id);
     if (!tpl) throw notFound('Şablon bulunamadı.');
     const t = text(title, { field: 'Ad', max: 120 }) || tpl.name;
-    const data = Object.assign(cleanData(parseJson(tpl.data, {}), b.id), { caption: '', hashtags: [] });
-    const r = { id: newId(), brand_id: b.id, title: t, kind: tpl.kind, data: JSON.stringify(data), created_at: now() };
-    db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, \'\', ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.created_at, r.created_at);
+    const data = Object.assign(cleanData(parseJson(tpl.data, {}), b.id), { caption: '', hashtags: [], template: { id: tpl.id, name: tpl.name, version: tpl.version || 1 } }, edit ? { editTemplate: true } : {});
+    const r = { id: newId(), brand_id: b.id, title: t, kind: tpl.kind, data: JSON.stringify(data), created_at: now(), archived: edit ? 2 : 0 };
+    // Yarım kalmış eski düzenleme taslakları (1 günden eski) temizlenir
+    db.prepare("DELETE FROM posts WHERE brand_id = ? AND archived = 2 AND updated_at < ?").run(b.id, new Date(Date.now() - 86400000).toISOString());
+    db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at, archived) VALUES (?, ?, ?, ?, ?, \'\', ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.created_at, r.created_at, r.archived);
     return toPost(Object.assign(r, { model: '', updated_at: r.created_at }));
   }
   const meta = r => ({ model: r.servedRef || r.ref, modelLabel: ai.labelOf(r.servedRef || r.ref), cost: r.cost, ms: r.ms, fallbackUsed: Boolean(r.fallbackUsed) });
@@ -655,7 +659,28 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     kinds: POST_KINDS,
     kindDefaults: KIND_DEFAULTS,
     formats: Object.fromEntries(Object.entries(POST_FORMATS).map(([k, v]) => [k, v])),
-    list: brandId => db.prepare('SELECT * FROM posts WHERE brand_id = ? ORDER BY archived, updated_at DESC').all(brands.get(brandId).id).map(toPost),
+    list: brandId => db.prepare('SELECT * FROM posts WHERE brand_id = ? AND archived < 2 ORDER BY archived, updated_at DESC').all(brands.get(brandId).id).map(toPost),
+    // Şablon düzenleme bitişi: 'update' şablonun üzerine (yeni sürüm), 'template' yeni şablon, 'design' yeni tasarım.
+    // İlk ikisinde taslak silinir (tasarım listesine düşmez).
+    finishTemplateEdit(brandId, id, { mode, name = '', pack = '' } = {}) {
+      const b = brands.get(brandId);
+      const p = row(b.id, id);
+      if (p.archived !== 2) throw badRequest('Bu tasarım bir şablon düzenlemesi değil.');
+      const data = parseJson(p.data, {});
+      const m = oneOf(mode, ['update', 'template', 'design'], 'Kayıt biçimi');
+      if (m === 'design') {
+        delete data.editTemplate;
+        db.prepare('UPDATE posts SET archived = 0, data = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(data), now(), p.id);
+        return { mode: m, post: toPost(row(b.id, p.id)) };
+      }
+      let template;
+      if (m === 'update') {
+        if (!data.template || !data.template.id) throw badRequest('Düzenlenen şablon bulunamadı.');
+        template = this.updateTemplateFromPost(b.id, data.template.id, p.id, { note: 'Şablon düzenlendi' });
+      } else template = this.saveTemplate(b.id, p.id, { name, pack });
+      db.prepare('DELETE FROM posts WHERE id = ?').run(p.id);
+      return { mode: m, template };
+    },
     // Tasarımı arşivle / arşivden çıkar (listede en sonda, ayrı bölümde görünür; silinmez)
     setArchived(brandId, id, on) { const b = brands.get(brandId); const p = row(b.id, id); db.prepare('UPDATE posts SET archived = ? WHERE id = ?').run(on ? 1 : 0, p.id); return toPost(row(b.id, p.id)); },
     get: (brandId, id) => toPost(row(brands.get(brandId).id, id)),
@@ -680,9 +705,9 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), work });
     },
 
-    createBlank(brandId, { title = 'Yeni post', kind = 'post', format = null, templateId = null } = {}) {
+    createBlank(brandId, { title = 'Yeni post', kind = 'post', format = null, templateId = null, editTemplate = false } = {}) {
       const b = brands.get(brandId);
-      if (templateId) return fromTemplate(b, templateId, title);
+      if (templateId) return fromTemplate(b, templateId, title, { edit: Boolean(editTemplate) });
       oneOf(kind, Object.keys(POST_KINDS), 'Tür');
       format = format || KIND_DEFAULTS[kind].format;
       if (!POST_FORMATS[format]) throw badRequest('Geçersiz boyut.');
@@ -818,7 +843,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       const p = row(b.id, id);
       const n = text(name, { field: 'Şablon adı', max: 80 }) || `Şablon ${db.prepare('SELECT COUNT(*) AS n FROM post_templates WHERE brand_id = ?').get(b.id).n + 1}`;
       const data = parseJson(p.data, {});
-      delete data.topic; delete data.template; delete data.idea;
+      delete data.topic; delete data.template; delete data.idea; delete data.editTemplate;
       const r = { id: newId(), name: n, created_at: now() };
       db.prepare('INSERT INTO post_templates (id, brand_id, name, kind, data, created_at, pack) VALUES (?, ?, ?, ?, ?, ?, ?)').run(r.id, b.id, n, p.kind, JSON.stringify(data), r.created_at, text(pack, { field: 'Paket', max: 60 }) || '');
       saveVersionRow(r.id, 1, data, 'İlk sürüm');
@@ -830,7 +855,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       const t = templateAt(b.id, tid);
       const p = row(b.id, postId);
       const data = parseJson(p.data, {});
-      delete data.topic; delete data.template; delete data.idea;
+      delete data.topic; delete data.template; delete data.idea; delete data.editTemplate;
       const cur = db.prepare('SELECT * FROM post_templates WHERE id = ?').get(t.id);
       if (!db.prepare('SELECT 1 FROM post_template_versions WHERE template_id = ? AND version = ?').get(t.id, t.version)) saveVersionRow(t.id, t.version, cur.data, 'İlk sürüm');
       const v = t.version + 1;

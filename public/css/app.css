@@ -2345,3 +2345,9 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 /* Geçmiş gün numaraları gri ama okunur (WCAG AA): ay dışı günlerin soluk rengi de bu renge çekilir */
 .cal-card .cal-month .cal-cell.past .cal-num, .cal-card .cal-month .cal-cell.past.out .cal-num { color: #50535f !important; opacity: 1 !important; }
 .cal-card .cw-col.past .cw-head b, .cal-card .cw-col.past .cw-head span { color: #50535f !important; opacity: 1 !important; }
+
+/* Şablon düzenleme: üst çubukta rozet, kaydetmede üç seçenek */
+.ed-tpl-badge { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.95); color: var(--ink, #1b1f3b); margin-right: 8px; white-space: nowrap; }
+.tpl-choice.tpl-choice-3 { grid-template-columns: 1fr; }
+
+.ps-del:hover { color: #a12b2b; background: #fdecec; }

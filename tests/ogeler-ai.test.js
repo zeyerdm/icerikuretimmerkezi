@@ -332,3 +332,41 @@ test('Serbest esnetilen öğe kaydedilince esnek kalır (fit: stretch korunur)',
     assert.deepEqual([got.w, got.h], [400, 120]);
   } finally { await s.stop(); }
 });
+
+test('Şablonu düzenle: taslak tasarım listesine düşmez; şablonun üzerine / yeni şablon / yeni tasarım olarak kaydedilir', async () => {
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Şablon düzenle' })).data.brand;
+    const src = (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, title: 'Kaynak', kind: 'post' })).data.post;
+    const tpl = (await s.request('POST', `/api/brands/${b.id}/posts/${src.id}/template`, { name: 'Haber kartı' })).data.template;
+    const listCount = async () => (await s.request('GET', `/api/brands/${b.id}/posts`)).data.posts.length;
+    const before = await listCount();
+    const draft = async () => (await s.request('POST', `/api/brands/${b.id}/posts`, { blank: true, templateId: tpl.id, title: tpl.name, editTemplate: true })).data.post;
+    const finish = (id, body) => s.request('POST', `/api/brands/${b.id}/posts/${id}/finish-template-edit`, body);
+    const tpls = async () => (await s.request('GET', `/api/brands/${b.id}/post-templates`)).data.templates.filter(t => !String(t.id).startsWith('post:'));
+
+    // 1) Şablonun üzerine: yeni sürüm, taslak silinir
+    let d = await draft();
+    assert.equal(d.editingTemplate, true);
+    assert.equal(await listCount(), before, 'düzenleme taslağı tasarımlarda görünmez');
+    let r = (await finish(d.id, { mode: 'update' })).data;
+    assert.equal(r.template.version, 2);
+    assert.equal(await listCount(), before);
+    assert.equal((await s.request('GET', `/api/brands/${b.id}/posts/${d.id}`)).status, 404, 'taslak silindi');
+    // 2) Yeni şablon: asıl şablon değişmez
+    d = await draft();
+    r = (await finish(d.id, { mode: 'template', name: 'Haber kartı (koyu)' })).data;
+    assert.deepEqual((await tpls()).map(t => [t.name, t.version]).sort((x, y) => x[0].length - y[0].length), [['Haber kartı', 2], ['Haber kartı (koyu)', 1]]);
+    assert.equal(await listCount(), before);
+    // 3) Yeni tasarım: tasarımlara eklenir, şablon değişmez
+    d = await draft();
+    r = (await finish(d.id, { mode: 'design' })).data;
+    assert.equal(r.post.editingTemplate, false);
+    assert.equal(await listCount(), before + 1);
+    assert.equal((await tpls()).find(t => t.name === 'Haber kartı').version, 2);
+    // Normal tasarım için "şablon düzenlemesi" bitirilemez; geçersiz seçim reddedilir
+    assert.equal((await finish(src.id, { mode: 'update' })).status, 400);
+    d = await draft();
+    assert.equal((await finish(d.id, { mode: 'yok' })).status, 400);
+  } finally { await s.stop(); }
+});

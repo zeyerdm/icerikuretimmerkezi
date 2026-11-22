@@ -298,6 +298,7 @@ export const api = {
   genBatchAction: (id, bid, action) => request('POST', `${b(id)}/gen-batches/${bid}/${action}`, {}),
   genRetry: (id, jid) => request('POST', `${b(id)}/gen-jobs/${jid}/retry`, {}),
   setDesignLock: (id, body) => request('PUT', `${b(id)}/design-lock`, body),
+  finishTemplateEdit: (id, pid, body) => request('POST', `${b(id)}/posts/${pid}/finish-template-edit`, body),
   saveTemplate: (id, pid, name, pack = '') => request('POST', `${b(id)}/posts/${pid}/template`, { name, pack }),
   updateTemplateFrom: (id, tid, pid) => request('POST', `${b(id)}/post-templates/${tid}/update-from/${pid}`, {}),
   templateVersions: (id, tid) => request('GET', `${b(id)}/post-templates/${tid}/versions`),
