@@ -156,6 +156,10 @@ export async function renderSettings(view) {
     const input = view.querySelector('#drive-url');
     const out = view.querySelector('#drive-result');
     if (!input.value.trim()) return toast('Önce Apps Script adresini yapıştır.', 'error');
+    if (/drive\.google\.com\/drive\/folders|drive\.google\.com\/open/i.test(input.value)) {
+      view.querySelector('#drive-result').innerHTML = '<div class="notice notice-warn"><div><strong>Bu bir Drive klasör linki.</strong> Buraya Apps Script\'i yayınlayınca verilen <b>web uygulaması adresi</b> (https://script.google.com/macros/s/…/exec) gelir. Klasör linkini markanın Marka kimliği → Profil sayfasındaki "Google Drive klasörü" kutusuna yaz. Yukarıdaki adımları izle: kodu kopyala → script.google.com\'da yeni proje → yapıştır → Dağıt → Web uygulaması → adresi buraya yapıştır.</div></div>';
+      return;
+    }
     const btn = e.submitter || view.querySelector('#drive-form [type=submit]');
     btn.disabled = true;
     out.innerHTML = '<p class="card-text">Google Drive\'a bağlanılıyor…</p>';
