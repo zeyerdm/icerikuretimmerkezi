@@ -299,7 +299,8 @@ label.btn { cursor: pointer; }
 .error-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--s-2); padding: var(--s-6) var(--s-4); }
 .error-card .empty-icon { background: var(--rose-soft); color: var(--rose-ink); }
 
-.toasts { position: fixed; right: var(--s-5); bottom: var(--s-5); display: flex; flex-direction: column; gap: var(--s-2); z-index: 50; max-width: 380px; }
+/* Bildirimler sağ üstte (üst çubuğun altında): sağ alttaki asistan düğmesiyle çakışmaz */
+.toasts { position: fixed; right: var(--s-5); top: 76px; display: flex; flex-direction: column; gap: var(--s-2); z-index: 60; max-width: 380px; }
 .toast { background: var(--ink); color: #fff; padding: var(--s-3) var(--s-4); border-radius: var(--r-sm); box-shadow: var(--shadow); font-weight: 600; font-size: var(--t-sm); animation: rise .2s ease-out; }
 .toast-error { background: #9c1f3d; }
 .toast-success { background: #0e7d6d; }
@@ -708,7 +709,7 @@ details.disclosure[open] > summary::before { transform: rotate(90deg); }
   .page-head { align-items: flex-start; }
   .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .kv dd { margin-bottom: var(--s-2); }
-  .toasts { left: var(--s-4); right: var(--s-4); bottom: var(--s-4); max-width: none; }
+  .toasts { left: var(--s-4); right: var(--s-4); top: 64px; max-width: none; }
   .modal-foot { flex-wrap: wrap; }
 }
 a.kpi { text-decoration: none; color: inherit; transition: transform .15s, box-shadow .15s; } a.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
@@ -2421,3 +2422,6 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
   body.bb-print #bb-doc * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 }
+
+@keyframes toast-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.toasts .toast { animation: toast-drop .2s ease-out; }
