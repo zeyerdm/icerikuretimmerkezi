@@ -133,8 +133,14 @@ test('işe göre model ataması ve yedek modele geçiş', async () => {
     assert.ok(usage.byModel.some(m => m.k === 'openai:gpt-5' && m.failed === 3), 'birincil model 1 + 2 yeniden denemeyle 3 kez denenip hatası kaydedilmeli');
     assert.ok(usage.byModel.some(m => m.k.startsWith('gemini:')), 'yedek model denenmedi');
 
-    // Yedek yoksa: anlaşılır hata
+    // Yedek atanmamışsa: sağlayıcının hafif modeli de yanıt vermezse bağlı başka sağlayıcıya (Gemini) geçilir
     await s.request('PUT', '/api/ai/tasks', { tasks: { fikir: { primary: 'openai:gpt-5', fallback: '' } } });
+    const c = await s.request('POST', `/api/brands/${brand.id}/chat`, { message: 'merhaba' });
+    assert.equal(c.status, 200, JSON.stringify(c.data));
+    assert.equal(c.data.assistantMessage.content, 'Gemini yanıtı', 'son çare: bağlı başka sağlayıcı');
+
+    // Başka sağlayıcı da yoksa: anlaşılır hata
+    await s.request('DELETE', '/api/ai/keys/gemini');
     const e = await s.request('POST', `/api/brands/${brand.id}/chat`, { message: 'merhaba' });
     assert.equal(e.status, 502);
     assert.match(e.data.error.message, /OpenAI şu an yanıt vermiyor/);

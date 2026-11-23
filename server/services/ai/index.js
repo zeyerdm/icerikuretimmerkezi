@@ -2,6 +2,7 @@
 // Anahtarlar yalnızca sunucuda (ayarlar tablosunda ya da ortam değişkeninde) durur; istemciye hiçbir zaman gönderilmez.
 import { newId, now, badRequest, parseJson, HttpError } from '../../lib/http.js';
 import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMAGE_DEFAULTS, IMAGE_ASPECTS, TTS_MODELS, TTS_VOICES, VIDEO_MODELS, VIDEO_ASPECTS, modelRef, parseRef, catalogModel } from './catalog.js';
+const modelRef_ = modelRef; // run() içinde modelRef parametresi bu adı gölgeler
 import { createGeminiProvider } from './providers/gemini.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
 import { createOpenAiCompatibleProvider } from './providers/openai.js';
@@ -179,13 +180,26 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
         }
       }
     };
+    // Son çare: sağlayıcının bütün modelleri yoğunken (ör. Gemini 503) bağlı başka bir sağlayıcının o işe önerilen modeli.
+    // Model seçimi elle yapıldıysa (modelRef) ya da video girdisi varsa başka sağlayıcıya geçilmez.
+    const usedProviders = new Set([primary, fallback].filter(Boolean).map(r => (parseRef(r) || {}).provider));
+    const crossPid = !modelRef && !videoUrl ? DEFAULT_ORDER.find(pid => !usedProviders.has(pid) && isConfigured(pid) && RECOMMENDED[pid]) : null;
+    const cross = crossPid ? modelRef_(crossPid, RECOMMENDED[crossPid][task] || RECOMMENDED[crossPid].fikir) : null;
+    const chain = [fallback, cross].filter(Boolean);
     try {
       return Object.assign(await attempt(primary), { fallbackUsed: false });
     } catch (err) {
-      if (!fallback || !err.retryable || err.code === 'AI_CANCELLED') throw err;
-      if (sc.onDelta) sc.onDelta(null);
-      const r = await attempt(fallback);
-      return Object.assign(r, { fallbackUsed: true, primaryError: err.message });
+      if (!chain.length || !err.retryable || err.code === 'AI_CANCELLED') throw err;
+      let last = err;
+      for (const ref of chain) {
+        if (sc.signal && sc.signal.aborted) break;
+        if (sc.onDelta) sc.onDelta(null);
+        try { return Object.assign(await attempt(ref), { fallbackUsed: true, primaryError: err.message }); } catch (e2) {
+          last = e2;
+          if (!e2.retryable || e2.code === 'AI_CANCELLED') break;
+        }
+      }
+      throw last === err ? err : Object.assign(last, { message: `${err.message} Yedek model de yanıt vermedi.`.slice(0, 300) });
     }
   }
 

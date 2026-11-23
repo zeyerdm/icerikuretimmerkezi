@@ -404,3 +404,29 @@ test('T.31 kalan: kampanya kanvasında sürükle-bırak konumu kaydeder; bağlam
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('Marka kılavuzu: kimlikteki bilgiler tek belgede; metin olarak indirilir, PDF için yazdırma açılır', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Kılavuz Marka' })).data.brand;
+  await srv.request('PATCH', `/api/brands/${b.id}`, { sector: 'Kahve', slogan: 'Her yudum bir mola', audience: 'Öğrenciler', tone: 'Samimi', colors: { primary: '#ff6b00', secondary: ['#111111'] }, fonts: { heading: 'Poppins', body: 'Inter' } });
+  await srv.request('PUT', `/api/brands/${b.id}/setup/yapi`, { channels: ['instagram', 'tiktok'], contentKinds: ['carousel', 'reels'], hasMascot: false });
+  await srv.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Sınav haftası kahvesi', category: 'egitici', format: 'post' });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
+    await page.locator('.bb-callout a').click();
+    await page.locator('#bb-doc').waitFor();
+    const text = await page.locator('#bb-doc').innerText();
+    for (const t of ['Kılavuz Marka', 'Her yudum bir mola', 'Ses ve dil', 'Görsel kimlik', '#FF6B00', 'Sosyal medya planı', 'Instagram', 'TikTok', 'Sınav haftası kahvesi']) assert.ok(text.includes(t), t);
+    assert.ok(!text.includes('Maskot\n'), 'maskot yoksa maskot bölümü yok');
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('[data-bb-md]').click()]);
+    assert.match(dl.suggestedFilename(), /marka_kilavuzu\.md$/);
+    const md = createRequire(import.meta.url)('node:fs').readFileSync(await dl.path(), 'utf8');
+    assert.match(md, /^# Kılavuz Marka — Marka kimliği kılavuzu/);
+    assert.match(md, /### Instagram/);
+    await page.evaluate(() => { window.__printed = 0; window.print = () => { window.__printed++; }; });
+    await page.locator('[data-bb-pdf]').click();
+    await page.waitForFunction(() => window.__printed === 1);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

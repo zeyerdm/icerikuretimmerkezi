@@ -118,7 +118,8 @@ test('Arayüz: şablon oluşturucuda kartlarla seçim, önizleme güncellenir, k
     await page.locator('[data-rb="subtitle"][data-v="kutulu"]').click();
     await page.locator('[data-rb="mascot"][data-v="yok"]').click();
     await page.waitForFunction(() => { const v = document.querySelector('#rb-body').value; return /zarif dekoratif serif/.test(v) && /yarı saydam koyu kutu/.test(v) && /Maskot ya da karakter kullanılmaz/.test(v); });
-    assert.equal(await page.locator('#rb-kind').inputValue(), 'video');
+    // Tür, şablon metniyle birlikte yeniden kurulur: yük altında bir an geç gelebilir, beklenir
+    await page.waitForFunction(() => document.querySelector('#rb-kind').value === 'video');
     // Elle düzenleme korunur, istenirse yeniden kurulur
     await page.locator('#rb-body').fill((await page.locator('#rb-body').inputValue()) + '\nBenim notum:\nek kural');
     await page.locator('[data-rb="tone"][data-v="mizahi"]').click();
