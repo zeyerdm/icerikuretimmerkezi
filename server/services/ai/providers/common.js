@@ -12,12 +12,14 @@ export function aiError(code, message, { retryable = false, transient = false, s
 
 export const notConfigured = label => aiError('AI_NOT_CONFIGURED', `${label} bağlı değil. Yapay zekâ → Sağlayıcılar bölümünden anahtar ekle.`, { status: 409 });
 
+// Sağlayıcının kendi gerekçesi (kısa) mesaja eklenir: "yoğunluk" sanılan hatanın gerçek nedeni görünsün (kota, model, istek)
+const detail = (status, message) => ` (${status}${message ? ` · ${String(message).replace(/\s+/g, ' ').trim().slice(0, 160)}` : ''})`;
 export function describeStatus(label, status, message) {
-  if (status === 401 || status === 403) return { msg: `${label} anahtarı reddedildi. Anahtarı kontrol et.`, retryable: false };
+  if (status === 401 || status === 403) return { msg: `${label} anahtarı reddedildi. Anahtarı kontrol et.${detail(status, message)}`, retryable: false };
   if (status === 402) return { msg: `${label} bakiyesi yetersiz. Hesabına bakiye ekle.`, retryable: true };
-  if (status === 404) return { msg: `Seçilen model ${label} hesabında bulunamadı. Başka bir model seç.`, retryable: true };
-  if (status === 429) return { msg: `${label} kotası doldu ya da çok sık istek gönderildi. Biraz sonra tekrar dene.`, retryable: true, transient: true };
-  if (status >= 500) return { msg: `${label} şu an yanıt vermiyor (yoğunluk). Biraz sonra tekrar dene.`, retryable: true, transient: true };
+  if (status === 404) return { msg: `Seçilen model ${label} hesabında bulunamadı. Başka bir model seç.${detail(status, message)}`, retryable: true };
+  if (status === 429) return { msg: `${label} kotası doldu ya da çok sık istek gönderildi. Biraz sonra tekrar dene; sürerse ücretsiz kota bitmiş olabilir.${detail(status, message)}`, retryable: true, transient: true };
+  if (status >= 500) return { msg: `${label} şu an yanıt vermiyor (sunucu hatası). Biraz sonra tekrar dene.${detail(status, message)}`, retryable: true, transient: true };
   if (status === 400 && /api key|apikey/i.test(message || '')) return { msg: `${label} anahtarı geçersiz.`, retryable: false };
   return { msg: `${label}: ${String(message || 'istek başarısız oldu').slice(0, 240)}`, retryable: false };
 }
