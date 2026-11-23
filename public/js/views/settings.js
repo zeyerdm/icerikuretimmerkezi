@@ -38,7 +38,7 @@ export function settingsTabs(active) {
 }
 
 export async function renderSettings(view) {
-  const [{ ai }, system, backupData, drive] = await Promise.all([api.settings(), api.system(), api.backups(), api.driveSettings()]);
+  const [{ ai, profile = {} }, system, backupData, drive] = await Promise.all([api.settings(), api.system(), api.backups(), api.driveSettings()]);
   state.settings.ai = ai;
   renderChrome();
   const shortSha = system.sha ? system.sha.slice(0, 7) : 'bilinmiyor';
@@ -51,6 +51,17 @@ export async function renderSettings(view) {
         <div class="card-head"><h3>Görünüm</h3></div>
         <div class="seg" role="radiogroup" aria-label="Tema">${Object.entries(THEMES).map(([k, v]) => `<button type="button" role="radio" data-theme-set="${k}" class="${themePref() === k ? 'active' : ''}" aria-checked="${themePref() === k}">${k === 'acik' ? '☀️ ' : k === 'koyu' ? '🌙 ' : '💻 '}${v}</button>`).join('')}</div>
         <p class="hint mt-2">"Sistem" seçilirse bilgisayarın açık/koyu ayarı izlenir. Üst çubuktaki 🌙 düğmesiyle de hızlıca geçebilirsin.</p>
+      </section>
+      <section class="card" id="profile-card">
+        <div class="card-head"><h3>Profil</h3></div>
+        <form id="profile-form" class="stack-sm">
+          <div class="form-grid">
+            <div class="field"><label for="pf-name">Sosyal medya yöneticisi</label><input class="input" id="pf-name" name="managerName" maxlength="80" value="${esc(profile.managerName || '')}" placeholder="Ad Soyad"></div>
+            <div class="field"><label for="pf-title">Unvan</label><input class="input" id="pf-title" name="managerTitle" maxlength="80" value="${esc(profile.managerTitle || '')}" placeholder="Sosyal Medya Yöneticisi"></div>
+          </div>
+          <p class="hint">Marka kılavuzunun kapağında "Hazırlayan" olarak görünür.</p>
+          <div class="row"><button type="submit" class="btn btn-sm btn-primary">Kaydet</button></div>
+        </form>
       </section>
       <section class="card" id="reminder-card">
         <div class="card-head"><h3>Hatırlatmalar</h3></div>
@@ -199,6 +210,11 @@ export async function renderSettings(view) {
   });
 
   view.querySelector('#theme-card').addEventListener('click', e => { const b = e.target.closest('[data-theme-set]'); if (!b) return; setTheme(b.dataset.themeSet); view.querySelectorAll('[data-theme-set]').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
+  view.querySelector('#profile-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try { await api.saveProfile({ managerName: fd.get('managerName'), managerTitle: fd.get('managerTitle') }); toast('Profil kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
+  });
   view.querySelector('#tour-restart').addEventListener('click', async () => { const { startTour } = await import('../tour.js'); location.hash = '#/'; setTimeout(startTour, 700); });
   view.querySelector('#rm-summary').addEventListener('change', e => { setReminderPrefs({ summary: e.target.checked }); toast('Kaydedildi.', 'success'); });
   view.querySelector('#rm-tasks').addEventListener('change', e => { setReminderPrefs({ tasks: e.target.checked }); toast('Kaydedildi.', 'success'); });

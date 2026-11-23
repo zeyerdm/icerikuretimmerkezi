@@ -6,6 +6,7 @@
 // Cevaplar yeni bir yere değil, var olan kaynaklara yazılır (sunucu: services/brandSetup.js).
 import { api } from '../api.js';
 import { renderBrandBook } from './brandBook.js';
+import { mountBrandNotes } from './brandNotes.js';
 import { esc, icon, toast, pageHead, busy, skeletonPage, emptyState, suggest, openModal } from '../ui.js';
 import { state, refreshBrands, go } from '../app.js';
 import { renderBrandEditor } from './brandEditor.js';
@@ -129,8 +130,9 @@ async function renderDossier(view, brand) {
       ? `<details class="disclosure mb-5" id="ds-ai"><summary>Yapay zekânın doldurdukları (${new Date(ai.finishedAt || ai.startedAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})</summary><ul class="ob-list">${ai.found.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>${ai.notes.length ? `<p class="small muted">${ai.notes.map(esc).join('<br>')}</p>` : ''}</details>`
       : '';
   const aiBtn = aiOn && !(ai && ai.status === 'calisiyor') ? `<button type="button" class="btn btn-sm" data-ai-enrich title="Boş kalan alanlar, maskot tarifi, benzer fikirler ve referanstan örnek tasarım; arka planda, beklemeden">${icon('sparkle')}Yapay zekâ ile tamamla</button>` : '';
-  const bookBtn = `<div class="bb-callout card mb-4"><div class="grow"><b>Marka kılavuzu</b><div class="small muted">Buradaki her şeyi (logo, renk, font, ses ve dil, maskot, sosyal medya planı, örnek tasarımlar ve Reels) müşteriye sunulacak tek bir belgede topla; PDF ya da metin olarak indir.</div></div><a class="btn btn-primary" href="#/m/${esc(brand.id)}/kimlik/kilavuz">${icon('download')}Marka kılavuzunu aç</a></div>`;
-  view.innerHTML = identityHead(brand, 'ozet') + head + bookBtn + aiBox + (aiBtn ? `<div class="row mb-4">${aiBtn}<span class="xsmall muted">Arka planda çalışır; beklemen gerekmez. Yalnız boş alanlara yazar.</span></div>` : '') + `<div class="dossier-grid">${cards.join('')}</div>`;
+  const bookBtn = `<div class="bb-callout card mb-4"><div class="grow"><b>Marka kılavuzu</b><div class="small muted">Buradaki her şeyi (logo, renk, font, ses ve dil, maskot, sosyal medya planı, örnek tasarım ve içerikler, yönetici notları) müşteriye sunulacak tek bir belgede topla; PDF ya da metin olarak indir.</div></div><a class="btn btn-primary" href="#/m/${esc(brand.id)}/kimlik/kilavuz">${icon('download')}Marka kılavuzunu aç</a></div>`;
+  view.innerHTML = identityHead(brand, 'ozet') + head + bookBtn + '<div id="bn-wrap"></div>' + aiBox + (aiBtn ? `<div class="row mb-4">${aiBtn}<span class="xsmall muted">Arka planda çalışır; beklemen gerekmez. Yalnız boş alanlara yazar.</span></div>` : '') + `<div class="dossier-grid">${cards.join('')}</div>`;
+  mountBrandNotes(view.querySelector('#bn-wrap'), brand);
   const eb = view.querySelector('[data-ai-enrich]');
   if (eb) eb.addEventListener('click', async () => { try { await busy(eb, () => api.onboardEnrich(brand.id)); toast('Yapay zekâ arka planda başladı.', 'success'); renderDossier(view, brand); } catch (err) { toast(err.message, 'error'); } });
   if (ai && ai.status === 'calisiyor') {
