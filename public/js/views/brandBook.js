@@ -140,7 +140,9 @@ export async function renderBrandBook(view, brand) {
   view.onclick = e => {
     if (e.target.closest('[data-bb-pdf]')) {
       toast('Yazdırma penceresinde hedef olarak "PDF olarak kaydet"i seç.', 'info', 5000);
-      setTimeout(() => window.print(), 300);
+      document.body.classList.add('bb-print');
+      window.addEventListener('afterprint', () => document.body.classList.remove('bb-print'), { once: true });
+      setTimeout(() => { window.print(); setTimeout(() => document.body.classList.remove('bb-print'), 1000); }, 300);
       return;
     }
     if (e.target.closest('[data-bb-md]')) downloadBlob(new Blob([toMarkdown(data, { channels, pillars, colors, hashtags, today })], { type: 'text/markdown;charset=utf-8' }), `${safeName(b.name)}_marka_kilavuzu.md`);

@@ -2409,14 +2409,15 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .bb-reels ol { margin: 0; padding-left: 18px; font-size: 14px; }
 .bb-foot { padding-top: 24px; font-size: 12px; color: #50535f; text-align: center; }
 @media (max-width: 700px) { .bb-doc { padding: 28px 20px; } .bb-cover h1 { font-size: 38px; } .bb-row { grid-template-columns: 1fr; gap: 0; } .bb-posts { grid-template-columns: repeat(2, 1fr); } }
+/* Yalnız kılavuz yazdırılırken (body.bb-print) devreye girer; diğer sayfaların yazdırması etkilenmez */
 @media print {
-  @page { size: A4; margin: 14mm; }
-  body * { visibility: hidden !important; }
-  #bb-doc, #bb-doc * { visibility: visible !important; }
-  #bb-doc { position: absolute; left: 0; top: 0; width: 100%; max-width: none; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
-  .no-print { display: none !important; }
-  .bb-cover { min-height: 250mm; break-after: page; }
-  .bb-sec { break-inside: auto; }
-  .bb-sec h2, .bb-channel, .bb-reels, .bb-colors figure, .bb-posts figure { break-inside: avoid; }
-  #bb-doc * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body.bb-print * { visibility: hidden !important; }
+  body.bb-print #bb-doc, body.bb-print #bb-doc * { visibility: visible !important; }
+  body.bb-print #bb-doc { position: absolute; left: 0; top: 0; width: 100%; max-width: none; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
+  body.bb-print .no-print { display: none !important; }
+  body.bb-print .bb-cover { min-height: 250mm; break-after: page; }
+  body.bb-print .bb-sec { break-inside: auto; }
+  body.bb-print .bb-sec h2, body.bb-print .bb-channel, body.bb-print .bb-reels, body.bb-print .bb-colors figure, body.bb-print .bb-posts figure { break-inside: avoid; }
+  body.bb-print #bb-doc * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 }
