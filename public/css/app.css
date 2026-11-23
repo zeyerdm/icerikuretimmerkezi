@@ -2427,8 +2427,8 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .toasts .toast { animation: toast-drop .2s ease-out; }
 
 /* Marka kılavuzu: kapakta hazırlayan, kanal örnekleri, yönetici notları */
-.bb-cover-foot { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; padding-top: 40px; }
-.bb-maker { display: flex; align-items: center; gap: 10px; }
+.bb-cover-foot { margin-top: auto; display: flex; justify-content: flex-end; align-items: flex-end; gap: 24px; flex-wrap: wrap; padding-top: 40px; }
+.bb-maker { display: flex; align-items: center; gap: 10px; align-self: flex-start; padding-bottom: 20px; margin-bottom: 48px; border-bottom: 1px solid #ecebe6; }
 .bb-k-logo { width: 40px; height: 40px; border-radius: 10px; }
 .bb-maker div { display: grid; line-height: 1.2; }
 .bb-maker b { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; letter-spacing: .08em; font-size: 14px; color: #0f1733; }
