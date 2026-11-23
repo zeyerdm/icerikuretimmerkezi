@@ -2425,3 +2425,57 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 
 @keyframes toast-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .toasts .toast { animation: toast-drop .2s ease-out; }
+
+/* Marka kılavuzu: kapakta hazırlayan, kanal örnekleri, yönetici notları */
+.bb-cover-foot { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; padding-top: 40px; }
+.bb-maker { display: flex; align-items: center; gap: 10px; }
+.bb-k-logo { width: 40px; height: 40px; border-radius: 10px; }
+.bb-maker div { display: grid; line-height: 1.2; }
+.bb-maker b { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; letter-spacing: .08em; font-size: 14px; color: #0f1733; }
+.bb-maker span { font-size: 12px; color: #50535f; }
+.bb-prep { display: flex; gap: 28px; margin: 0; }
+.bb-prep div { display: grid; }
+.bb-prep dt { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #50535f; font-weight: 700; }
+.bb-prep dd { margin: 2px 0 0; font-weight: 700; color: #1b1f3b; display: grid; }
+.bb-prep dd small { font-weight: 400; color: #50535f; font-size: 12px; }
+.bb-prep .bb-date { margin: 2px 0 0; font-size: 15px; color: #1b1f3b; }
+.bb-example { margin-top: 20px; border-top: 1px solid #ecebe6; padding-top: 12px; }
+.bb-example .bb-posts { margin-bottom: 12px; }
+.bb-contents { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.bb-contents li { border: 1px solid #ecebe6; border-radius: 10px; padding: 10px 14px; }
+.bb-ci-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bb-ci-head span { font-size: 12px; color: #50535f; }
+.bb-contents p { margin: 4px 0 0; font-size: 13px; color: #3a3f63; }
+.bb-contents .bb-tags { color: var(--bb-brand); filter: brightness(.7); }
+.bb-notes { padding-left: 18px; }
+.bb-notes li { margin-bottom: 6px; }
+.bb-notes li.done { color: #50535f; }
+.bb-nd { font-size: 12px; color: #50535f; margin-right: 8px; }
+.bb-ok { color: #1f7a4d; font-size: 12px; }
+.bb-doc.bb-no-notes .bb-notes-sec { display: none; }
+@media print { body.bb-print .bb-example, body.bb-print .bb-contents li { break-inside: avoid; } }
+
+/* Marka sayfası: yönetici notları */
+.bn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.bn-col h4 { margin: 0; }
+.bn-add { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
+.bn-add textarea { flex: 1; }
+.bn-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; max-height: 320px; overflow: auto; }
+.bn-list li { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--border, #e6e4de); border-radius: 10px; padding: 8px 10px; }
+.bn-list li p { margin: 0; white-space: pre-wrap; font-size: 14px; }
+.bn-list li.done p { text-decoration: line-through; opacity: .7; }
+.bn-list li.bn-empty { border-style: dashed; }
+.bn-check { padding-top: 2px; }
+@media (max-width: 760px) { .bn-grid { grid-template-columns: 1fr; } }
+
+/* Marka renkleri: AI palet önerisi */
+.pal-ai .btn { align-self: flex-start; }
+.pal-list { display: grid; gap: 10px; margin-top: 10px; }
+.pal-opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border, #e6e4de); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+.pal-opt:has(input:checked) { border-color: var(--primary, #5b55e6); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #5b55e6) 25%, transparent); }
+.pal-body { display: grid; gap: 6px; flex: 1; }
+.pal-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.pal-sw { height: 44px; border-radius: 8px; border: 1px solid rgba(0,0,0,.08); display: flex; align-items: flex-end; padding: 3px 6px; }
+.pal-sw small { font-size: 10px; background: rgba(255,255,255,.85); color: #1b1f3b; border-radius: 4px; padding: 0 4px; }
+.pal-sample { border-radius: 8px; padding: 8px 10px; border: 1px solid rgba(0,0,0,.08); display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.pal-sample i { width: 28px; height: 10px; border-radius: 5px; margin-left: auto; }

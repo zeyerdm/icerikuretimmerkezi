@@ -87,6 +87,7 @@ const b = id => `/api/brands/${encodeURIComponent(id)}`;
 export const api = {
   meta: () => request('GET', '/api/meta'),
   settings: () => request('GET', '/api/settings'),
+  saveProfile: body => request('PUT', '/api/settings/profile', body),
   saveAi: body => request('PUT', '/api/settings/ai', body),
   removeAiKey: () => request('DELETE', '/api/settings/ai/key'),
   testAi: () => request('POST', '/api/settings/ai/test'),
@@ -196,6 +197,7 @@ export const api = {
   saveFact: (id, fid, body) => request('PUT', `${b(id)}/memory/facts/${fid}`, body),
   deleteFact: (id, fid) => request('DELETE', `${b(id)}/memory/facts/${fid}`),
   identityDraft: body => request('POST', '/api/identity-draft', body),
+  paletteSuggest: body => request('POST', '/api/palette-suggest', body),
   specialDays: (from, to, brandId = '') => request('GET', `/api/special-days?from=${from}&to=${to}${brandId ? `&brandId=${encodeURIComponent(brandId)}` : ''}`),
   performance: brandId => request('GET', '/api/performance' + (brandId ? '?brandId=' + encodeURIComponent(brandId) : '')),
   // 8.9: sunucu tekrarlanan alanları "lookup" ile bir kez gönderir; burada her içeriğe geri eklenir

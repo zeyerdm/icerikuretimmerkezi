@@ -207,7 +207,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
 
   // --- Ayarlar (AI anahtarı yalnızca yazılır, hiçbir zaman geri okunmaz) ---
-  api.get('/settings', (req, res) => res.json({ ai: ai.status(), drive: drive.status(), activeBrandId: settings.get('ui.activeBrandId') || null }));
+  api.get('/settings', (req, res) => res.json({ ai: ai.status(), drive: drive.status(), activeBrandId: settings.get('ui.activeBrandId') || null, profile: profileOf() }));
+  // Profil: Kreatifhane'yi kullanan sosyal medya yöneticisi (marka kılavuzunun kapağında görünür)
+  const profileOf = () => ({ managerName: settings.get('profile.managerName') || '', managerTitle: settings.get('profile.managerTitle') || '' });
+  api.put('/settings/profile', (req, res) => {
+    const b = req.body || {};
+    settings.set('profile.managerName', text(b.managerName, { field: 'Ad soyad', max: 80 }));
+    settings.set('profile.managerTitle', text(b.managerTitle, { field: 'Unvan', max: 80 }));
+    res.json({ profile: profileOf() });
+  });
 
   // --- Google Drive bağlantısı (Apps Script). Adres ve gizli anahtar istemciye ham hâliyle dönmez;
   // yalnızca kullanıcının Apps Script'e yapıştıracağı kod gösterilir. ---
@@ -392,6 +400,13 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const b = req.body || {};
     const brandId = b.brandId ? brands.get(String(b.brandId)).id : null;
     res.json(await identity.draft({ text: b.text, modelRef: mr(b), brandId }));
+  }));
+
+  // Renk paleti önerisi: en az 1 renk sabit, AI 4 ana rengi tamamlar (yeni markada da çalışır)
+  api.post('/palette-suggest', route(async (req, res) => {
+    const b = req.body || {};
+    const brandId = b.brandId ? brands.get(String(b.brandId)).id : null;
+    res.json(await identity.palette({ colors: b.colors, brand: b.brand && typeof b.brand === 'object' ? b.brand : {}, modelRef: mr(b), brandId }));
   }));
 
   // Özel günler: from/to (YYYY-MM-DD) aralığı, en fazla 2 yıl

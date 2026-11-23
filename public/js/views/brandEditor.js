@@ -112,7 +112,9 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     return `
       <div class="form-grid">
         ${colorInput('primary', draft.colors.primary, 'Ana renk')}
-        <div></div>
+        <div class="field pal-ai"><label>Renk paleti</label>
+          <button type="button" class="btn btn-sm" data-action="palette-ai">${icon('sparkle')}AI ile palet öner</button>
+          <span class="hint">Elindeki renk(ler) sabit kalır; AI ana, ikincil, vurgu ve zemin olarak 4 ana rengi tamamlar, yazı renklerini okunaklı seçer.</span></div>
         ${colorList('secondary', 'İkincil renkler', `En fazla ${MAX_COLORS} renk.`)}
         ${colorList('backgrounds', 'Arka plan renkleri', 'Tasarımlarda zemin olarak kullanılır; ilki varsayılan zemindir.')}
         ${colorInput('heading', draft.colors.heading, 'Başlık yazı rengi')}
@@ -203,6 +205,36 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     });
   }
 
+  // AI palet önerisi: kişinin renkleri (ana + ikincil, en az 1) sabit; seçilen palet forma uygulanır, Kaydet'e basılınca kalıcı olur
+  async function paletteAi(btn) {
+    const mine = [draft.colors.primary, ...draft.colors.secondary].filter(c => /^#[0-9a-fA-F]{6}$/.test(c || ''));
+    if (!mine.length) return toast('Önce en az 1 renk gir (ör. logodaki ana renk); palet onun etrafında kurulur.', 'error');
+    let r;
+    try {
+      r = await busyTimer(btn, () => api.paletteSuggest({ colors: mine.slice(0, 3), brandId: isNew ? null : brand.id, brand: { name: draft.name, sector: draft.sector, character: draft.character, audience: draft.audience } }), 'Öneriyor');
+    } catch (err) { return toast(err.message, 'error', 8000); }
+    const sw = (c, role) => `<span class="pal-sw" style="background:${esc(c.hex)}" title="${esc(role)}: ${esc(c.name || '')} ${esc(c.hex)}"><small>${esc(role)}</small></span>`;
+    openModal({
+      title: 'Palet önerileri', submitLabel: 'Seçili paleti uygula',
+      body: `<p class="small muted">Senin rengin${r.fixed.length > 1 ? 'lerin' : ''} (${r.fixed.map(esc).join(', ')}) her palette aynen duruyor. Birini seç; forma uygulanır, beğenirsen Kaydet'e bas.</p>
+        <div class="pal-list">${r.palettes.map((p, i) => `<label class="pal-opt"><input type="radio" name="pal" value="${i}" ${i === 0 ? 'checked' : ''}>
+          <span class="pal-body"><b>${esc(p.name)}</b>
+            <span class="pal-row">${sw(p.primary, 'Ana')}${sw(p.secondary, 'İkincil')}${sw(p.accent, 'Vurgu')}${sw(p.background, 'Zemin')}</span>
+            <span class="pal-sample" style="background:${esc(p.background.hex)}"><b style="color:${esc(p.heading)}">Başlık örneği</b> <span style="color:${esc(p.body)}">gövde metni</span> <i style="background:${esc(p.accent.hex)}"></i></span>
+            ${p.why ? `<span class="xsmall muted">${esc(p.why)}</span>` : ''}</span></label>`).join('')}</div>
+        <p class="xsmall muted mt-2">${esc(aiNote(r.ai))}</p>`,
+      onSubmit: async fd => {
+        const p = r.palettes[Number(fd.get('pal')) || 0];
+        draft.colors.primary = p.primary.hex;
+        draft.colors.secondary = [p.secondary.hex, p.accent.hex, ...draft.colors.secondary.filter(c => ![p.primary.hex, p.secondary.hex, p.accent.hex].includes(c))].slice(0, MAX_COLORS);
+        draft.colors.backgrounds = [p.background.hex, ...draft.colors.backgrounds.filter(c => c !== p.background.hex)].slice(0, MAX_COLORS);
+        draft.colors.heading = p.heading; draft.colors.body = p.body;
+        markDirty(); renderTab();
+        toast(`"${p.name}" uygulandı. Beğendiysen Kaydet'e bas.`, 'success', 6000);
+      }
+    });
+  }
+
   view.oninput = e => {
     const t = e.target;
     if (t.dataset.field) { draft[t.dataset.field] = t.value; markDirty(); }
@@ -263,6 +295,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       } catch (err) { toast(err.message, 'error'); } finally { t.disabled = false; }
     }
     else if (t.dataset.action === 'ai-fill') aiFill();
+    else if (t.dataset.action === 'palette-ai') paletteAi(t);
     else if (t.dataset.addColor) {
       const list = draft.colors[t.dataset.addColor];
       if (list.length < MAX_COLORS) { list.push(t.dataset.addColor === 'backgrounds' ? '#ffffff' : '#888888'); markDirty(); renderTab(); }

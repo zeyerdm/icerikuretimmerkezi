@@ -411,22 +411,61 @@ test('Marka kılavuzu: kimlikteki bilgiler tek belgede; metin olarak indirilir, 
   await srv.request('PATCH', `/api/brands/${b.id}`, { sector: 'Kahve', slogan: 'Her yudum bir mola', audience: 'Öğrenciler', tone: 'Samimi', colors: { primary: '#ff6b00', secondary: ['#111111'] }, fonts: { heading: 'Poppins', body: 'Inter' } });
   await srv.request('PUT', `/api/brands/${b.id}/setup/yapi`, { channels: ['instagram', 'tiktok'], contentKinds: ['carousel', 'reels'], hasMascot: false });
   await srv.request('POST', `/api/brands/${b.id}/ideas`, { title: 'Sınav haftası kahvesi', category: 'egitici', format: 'post' });
+  await srv.request('PUT', '/api/settings/profile', { managerName: 'Deniz Kaya', managerTitle: 'Sosyal Medya Yöneticisi' });
+  await srv.request('POST', '/api/contents', { brandId: b.id, title: 'Kahve molası rehberi', type: 'carousel', scheduledAt: '2026-11-20T09:00:00.000Z', caption: 'Ders arasında en iyi mola nasıl verilir?' });
+  await srv.request('POST', '/api/notes', { brandId: b.id, category: 'marka-sahibi', body: 'Turuncu daha sıcak olsun' });
   const { browser, page, problems } = await open(srv);
   try {
     await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
+    // Marka sayfasında yönetici notu eklenir, yapıldı işaretlenir
+    const col = page.locator('.bn-col[data-kind="yonetici"]');
+    await col.locator('textarea').fill('Menü fotoğrafları eksik, iş verene sor');
+    await col.locator('button[type=submit]').click();
+    await col.locator('.bn-list li', { hasText: 'Menü fotoğrafları' }).waitFor();
+    await page.locator('.bn-col[data-kind="marka-sahibi"] [data-bn-done]').check();
+    await page.waitForFunction(() => document.querySelector('.bn-col[data-kind="marka-sahibi"] li.done'));
     await page.locator('.bb-callout a').click();
     await page.locator('#bb-doc').waitFor();
     const text = await page.locator('#bb-doc').innerText();
     for (const t of ['Kılavuz Marka', 'Her yudum bir mola', 'Ses ve dil', 'Görsel kimlik', '#FF6B00', 'Sosyal medya planı', 'Instagram', 'TikTok', 'Sınav haftası kahvesi']) assert.ok(text.includes(t), t);
     assert.ok(!text.includes('Maskot\n'), 'maskot yoksa maskot bölümü yok');
+    for (const t of ['KREATİFHANE', 'Deniz Kaya', 'Sosyal Medya Yöneticisi', 'örnek çalışmalar', 'Kahve molası rehberi', 'Ders arasında en iyi mola', 'Yönetici notları', 'Çalışma notlarım', 'Menü fotoğrafları eksik', 'Marka sahibi istekleri', '✓ Yapıldı']) assert.ok(text.includes(t), t);
+    // Yönetici notları kapatılınca belgede görünmez ve metin çıktısına girmez
+    await page.locator('[data-bb-notes]').uncheck();
+    assert.equal(await page.locator('.bb-notes-sec').isVisible(), false);
+    const [dl0] = await Promise.all([page.waitForEvent('download'), page.locator('[data-bb-md]').click()]);
+    assert.doesNotMatch(createRequire(import.meta.url)('node:fs').readFileSync(await dl0.path(), 'utf8'), /Yönetici notları/);
+    await page.locator('[data-bb-notes]').check();
     const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('[data-bb-md]').click()]);
     assert.match(dl.suggestedFilename(), /marka_kilavuzu\.md$/);
     const md = createRequire(import.meta.url)('node:fs').readFileSync(await dl.path(), 'utf8');
     assert.match(md, /^# Kılavuz Marka — Marka kimliği kılavuzu/);
     assert.match(md, /### Instagram/);
+    assert.match(md, /Hazırlayan: Deniz Kaya \(Sosyal Medya Yöneticisi\)/);
+    assert.match(md, /## Yönetici notları[\s\S]*- \[x\] .*Turuncu daha sıcak/);
+    assert.match(md, /İçerik: \*\*Kahve molası rehberi\*\*/);
     await page.evaluate(() => { window.__printed = 0; window.print = () => { window.__printed++; }; });
     await page.locator('[data-bb-pdf]').click();
     await page.waitForFunction(() => window.__printed === 1);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('Renk paleti: AI önerisi elindeki rengi korur, seçilen palet forma uygulanır', { skip }, async () => {
+  const provider = fakeProvider([{ palettes: [{ name: 'Canlı', why: 'Enerjik', primary: { hex: '#ff6b00' }, secondary: { hex: '#1d3557', name: 'Lacivert' }, accent: { hex: '#2a9d8f', name: 'Su yeşili' }, background: { hex: '#fffaf3', name: 'Krem' }, heading: '#1d3557', body: '#333333' }] }]);
+  const srv = await startServer({ aiProvider: provider });
+  const b = (await srv.request('POST', '/api/brands', { name: 'Paletli', colors: { primary: '#ff6b00', secondary: [], backgrounds: ['#ffffff'], heading: '#000000', body: '#222222' } })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik/gorsel`);
+    await page.locator('[data-action="palette-ai"]').click();
+    await page.locator('.pal-opt').first().waitFor();
+    assert.match(await page.locator('.modal').innerText(), /Canlı/);
+    await page.locator('.modal [type=submit]').click();
+    await page.waitForFunction(() => document.querySelector('[data-hex="heading"]').value === '#1d3557');
+    assert.equal(await page.locator('[data-hex="primary"]').inputValue(), '#ff6b00');
+    assert.deepEqual(await page.locator('[data-list="secondary"]').evaluateAll(xs => xs.map(x => x.value)), ['#1d3557', '#2a9d8f']);
+    assert.deepEqual(await page.locator('[data-list="backgrounds"]').evaluateAll(xs => xs.map(x => x.value)), ['#fffaf3', '#ffffff']);
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
