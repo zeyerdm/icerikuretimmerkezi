@@ -108,13 +108,13 @@ export async function renderBrandBook(view, brand) {
   const doc = `
     <article class="bb-doc" id="bb-doc" style="--bb-brand:${esc(b.colors.primary || '#5b55e6')};--bb-head:'${esc(b.fonts.heading || 'inherit')}';--bb-body:'${esc(b.fonts.body || 'inherit')}'">
       <header class="bb-cover">
+        <div class="bb-maker"><img src="/img/logo.svg" alt="" class="bb-k-logo"><div><b>KREATİFHANE</b><span>Kreatif Yönetim Platformu</span></div></div>
         ${d.logo ? `<img class="bb-logo" src="${esc(d.logo.url)}" alt="${esc(b.name)} logosu">` : ''}
         <p class="bb-kicker">Marka kimliği kılavuzu</p>
         <h1>${esc(b.name)}</h1>
         ${has(b.slogan) ? `<p class="bb-slogan">“${esc(b.slogan)}”</p>` : ''}
         ${has(b.sector) ? `<p class="bb-sector">${esc(b.sector)}</p>` : ''}
         <div class="bb-cover-foot">
-          <div class="bb-maker"><img src="/img/logo.svg" alt="" class="bb-k-logo"><div><b>KREATİFHANE</b><span>Kreatif Yönetim Platformu</span></div></div>
           <dl class="bb-prep">${has(profile.managerName) ? `<div><dt>Hazırlayan</dt><dd>${esc(profile.managerName)}${has(profile.managerTitle) ? `<small>${esc(profile.managerTitle)}</small>` : ''}</dd></div>` : ''}<div><dt>Tarih</dt><dd class="bb-date">${esc(today)}</dd></div></dl>
         </div>
       </header>
