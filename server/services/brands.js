@@ -96,6 +96,7 @@ export function toBrand(row) {
     competitors: row.competitors,
     slogan: row.slogan,
     isDemo: Boolean(row.is_demo),
+    website: row.website || '',
     driveFolderId: row.drive_folder || '',
     driveFolderUrl: folderUrl(row.drive_folder || ''),
     colors: Object.assign({ primary: '', secondary: [], backgrounds: [], heading: '', body: '' }, parseJson(row.colors, {})),
@@ -187,6 +188,13 @@ export function createBrandService(db, ownerId) {
         .run(next.name, next.sector, next.description, next.audience, next.character, next.tone, next.goals,
           next.competitors, next.slogan, JSON.stringify(colors || current.colors), JSON.stringify(fonts || current.fonts),
           drive, now(), current.id, ownerId);
+      // Web sitesi: http(s) adresi; şemasız yazılırsa https eklenir
+      if ('website' in (body || {})) {
+        const w = String(body.website || '').trim().slice(0, 300);
+        let url = '';
+        if (w) { try { const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(w) ? w : 'https://' + w); if (!/^https?:$/.test(u.protocol) || !u.hostname.includes('.')) throw new Error(); url = u.href; } catch { throw badRequest('Web sitesi adresi geçersiz (ör. ornek.com).'); } }
+        db.prepare('UPDATE brands SET website = ? WHERE id = ? AND owner_id = ?').run(url, current.id, ownerId);
+      }
       // Aylık içerik hedefi (0–200; 0 = hedef yok)
       if ('monthlyGoal' in (body || {})) {
         const g = Math.round(Number(body.monthlyGoal));
@@ -271,10 +279,11 @@ export function createBrandService(db, ownerId) {
         line('İçerik üretim hedefleri', b.goals),
         line('Rakipler ve referans markalar', b.competitors),
         line('Slogan', b.slogan),
+        line('Web sitesi', b.website),
         banned.length ? `ASLA KULLANMA (yasaklı kelime ve ifadeler; metinde, başlıkta, hashtag'de geçmesin): ${banned.join(', ')}` : null,
         preferred.length ? `Tercih edilen ifadeler / imza cümleler (uygun yerde kullan, zorlama): ${preferred.join(' | ')}` : null,
         rivals.length ? 'Rakip analizlerinden boşluklar (bunlardan yararlan; rakibi kopyalama):\n' + rivals.map(r => `- ${r.name}: ${r.a.gaps.slice(0, 3).join('; ')}`).join('\n') : null,
-        facts.length ? 'Marka hakkında bilgiler (doğru kabul et; burada olmayan fiyat, adres, kampanya gibi bilgileri uydurma):\n' + facts.map(f => `- [${f.category}] ${f.title}: ${f.content}`).join('\n') : null,
+        facts.length ? 'Marka hakkında bilgiler (çoğu markanın kendi web sitesinden; doğru kabul et ve metinlerde bunlara sadık kal: ürün/hizmet adlarını, fiyatları, adresi, hikâyeyi buradaki gibi kullan; burada olmayan fiyat, adres, kampanya gibi bilgileri uydurma):\n' + facts.map(f => `- [${f.category}] ${f.title}: ${f.content}`).join('\n') : null,
         line('Ana renk', b.colors.primary),
         line('İkincil renkler', b.colors.secondary.join(', ')),
         line('Başlık / gövde fontu', [b.fonts.heading, b.fonts.body].filter(Boolean).join(' / ')),

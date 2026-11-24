@@ -9,16 +9,19 @@
 // Bütün cevaplar var olan kaynaklara yazılır (profil, hafıza, prompt kimliği, karakter kitabı, kurulum durumu).
 import { badRequest, notFound, parseJson, HEX } from '../lib/http.js';
 import { CHOICES } from './choices.js';
-import { IDEA_FORMATS } from './ideas.js';
+import { IDEA_FORMATS, IDEA_CATEGORIES } from './ideas.js';
+import { FACT_CATEGORIES } from './memory.js';
+import { polish } from './reels/rules.js';
 
 // Atılan görselin türü → kütüphane kategorisi
 export const DROP_KINDS = { logo: 'logo', maskot: 'mascot', palet: 'reference', referans: 'reference', urun: 'product', gorsel: 'brand_image', diger: 'other' };
 const DROP_LABELS = { logo: 'Logo', maskot: 'Maskot', palet: 'Renk paleti', referans: 'Tasarım referansı', urun: 'Ürün fotoğrafı', gorsel: 'Marka görseli', diger: 'Diğer' };
 
 const guessFormat = t => (/reels|video|kısa video|tiktok/i.test(t) ? 'reels' : /youtube/i.test(t) ? 'youtube' : /story|hikâye|hikaye/i.test(t) ? 'story' : /post|carousel|gönderi/i.test(t) ? 'post' : 'genel');
+const pick0 = colors => [...list(colors && colors.palette), ...list(colors && colors.logo)].some(c => HEX.test(c));
 const list = v => (Array.isArray(v) ? v : String(v || '').split(/[,\n]+/)).map(x => String(x).trim()).filter(Boolean);
 
-export function createBrandOnboardService({ db, ai, brands, assets, memory, identity, characterBook, ideas, setup, identityDraft, designRef, readMs = 90000 }) {
+export function createBrandOnboardService({ db, ai, brands, assets, memory, identity, characterBook, ideas, setup, identityDraft, designRef, siteReader = null, readMs = 90000 }) {
   const readState = id => Object.assign({ absorbed: false, skipped: [], answered: [], finished: false, references: [] },
     (parseJson((db.prepare('SELECT setup FROM brands WHERE id = ?').get(id) || {}).setup, {}) || {}).onboard || {});
   const writeState = (id, st) => {
@@ -98,6 +101,43 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
     else throw notFound('Soru bulunamadı.');
   }
 
+  // Metinden (web sitesi / yapıştırılan yazı) bilgi kartları ve ilk içerik fikirleri: tek istek. Fikir havuzu boş başlamaz.
+  async function digest(brandId, source, modelRef) {
+    const b = brands.get(brandId);
+    const s = setup.status(b.id).setup;
+    const existing = ideas.list(b.id).map(i => i.title).slice(0, 60);
+    const prompt = [
+      'MARKA METNİNDEN BİLGİ VE İÇERİK FİKRİ ÇIKARMA',
+      `Aşağıdaki metin "${b.name}" markasının web sitesinden ya da tanıtım yazısından alındı.`,
+      '1) facts: Metinde AÇIKÇA geçen, içerik üretirken işe yarayacak somut bilgileri kart olarak çıkar (ürün ve hizmetler, fiyatlar, adres, çalışma saatleri, marka hikâyesi, sık sorulanlar, kampanyalar). Uydurma; metinde yoksa yazma. En fazla 12 kart; her biri kısa başlık + 1-3 cümle.',
+      `   Kategoriler: ${Object.entries(FACT_CATEGORIES).map(([k, v]) => `${k} (${v})`).join(', ')}.`,
+      '2) ideas: Bu bilgilere dayanan, markanın sosyal medyasında paylaşılabilecek 12 farklı içerik fikri üret. Her biri somut ve markaya özgü olsun (ürünü, hizmeti, hikâyeyi, sık sorulanı kullanan); genel geçer başlık yazma. Türleri karıştır.',
+      `   Türler: ${Object.entries(IDEA_FORMATS).map(([k, v]) => `${k} (${v})`).join(', ')}${s.contentKinds.length ? ` (marka şu içerikleri üretiyor: ${s.contentKinds.join(', ')})` : ''}.`,
+      `   Kategoriler: ${Object.entries(IDEA_CATEGORIES).map(([k, v]) => `${k} (${v})`).join(', ')}.`,
+      existing.length ? `Havuzda zaten olanları tekrar etme:\n${existing.map(t => `- ${t}`).join('\n')}` : '',
+      'Türkçe yaz.', '', `METİN:\n"""\n${String(source).slice(0, 20000)}\n"""`, '',
+      'Sadece şu JSON biçiminde yanıt ver:',
+      JSON.stringify({ facts: [{ category: 'urun', title: '', content: '' }], ideas: [{ title: '', description: 'Bir iki cümle: ne anlatılacak, nasıl', format: 'reels', category: 'egitici' }] })
+    ].filter(x => x !== '').join('\n');
+    const r = await ai.run({ task: 'fikir', brandId: b.id, prompt, json: true, modelRef, temperature: 0.7 });
+    const o = r.output || {};
+    const have = new Set(memory.get(b.id).facts.map(f => f.title.toLocaleLowerCase('tr-TR')));
+    let facts = 0; let added = 0;
+    for (const f of (Array.isArray(o.facts) ? o.facts : []).slice(0, 12)) {
+      const title = polish(String((f && f.title) || '')).slice(0, 120); const content = String((f && f.content) || '').trim().slice(0, 2000);
+      if (!title || !content || have.has(title.toLocaleLowerCase('tr-TR'))) continue;
+      try { memory.addFact(b.id, { category: FACT_CATEGORIES[f.category] ? f.category : 'diger', title, content }); have.add(title.toLocaleLowerCase('tr-TR')); facts++; } catch { break; }
+    }
+    for (const it of (Array.isArray(o.ideas) ? o.ideas : []).slice(0, 15)) {
+      const title = polish(String((it && it.title) || '')).slice(0, 200);
+      if (!title) continue;
+      const idea = ideas.create(b.id, { title, description: String((it && it.description) || '').slice(0, 2000), category: IDEA_CATEGORIES[it.category] ? it.category : 'bilgilendirici', format: IDEA_FORMATS[it.format] ? it.format : guessFormat(title) }, 'site');
+      if (idea.similarTo) { try { ideas.remove(b.id, idea.id); } catch { /* yoksa geç */ } continue; }
+      added++;
+    }
+    return { facts, ideas: added };
+  }
+
   // Arka plan işi: her adım kendi sınırıyla, biri takılsa da öbürleri sürer; sonuçlar adım adım kaydedilir
   async function enrich(brandId, modelRef) {
     const push = (kind, msg) => { try { const st = readState(brandId); if (!st.ai) return; st.ai[kind].push(msg); writeState(brandId, st); } catch { /* marka silinmiş olabilir */ } };
@@ -123,8 +163,15 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
           push('found', 'Maskotun görünüş tarifi ve renkleri çıkarıldı (karakter kitabı)');
         }).catch(err => push('notes', `Maskot okunamadı: ${err.message}`)));
       }
-      const seeds = ideas.list(brandId).slice(0, 3);
+      // Metin varsa önce ondan bilgi kartları ve fikirler; sonra (havuz hâlâ küçükse) benzerleri
+      const fromText = pending.text ? withLimit(digest(brandId, pending.text, modelRef), 'Fikir ve bilgi çıkarma').then(r => {
+        if (r.facts) push('found', `${pending.site ? 'Web sitesinden' : 'Metinden'} ${r.facts} bilgi kartı çıkarıldı (Marka hafızası)`);
+        if (r.ideas) push('found', `${pending.site ? 'Web sitesine' : 'Metne'} dayanan ${r.ideas} içerik fikri havuza eklendi`);
+      }).catch(err => push('notes', `Fikir ve bilgi çıkarılamadı: ${err.message}`)) : Promise.resolve();
+      jobs.push(fromText);
       jobs.push((async () => {
+        await fromText;
+        const seeds = ideas.list(brandId).filter(i => i.source !== 'site').slice(0, 3);
         for (const seed of seeds) {
           if (ideas.list(brandId).length >= 9) break;
           try { const r = await withLimit(ideas.similar(brandId, seed.id, { count: 3, modelRef }), 'Fikir üretimi'); if (r.ideas.length) push('found', `"${seed.title}" fikrinin ${r.ideas.length} benzeri havuza eklendi`); } catch (err) { push('notes', `Fikir üretilemedi: ${err.message}`); break; }
@@ -157,7 +204,7 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
 
     // Elindekileri at: files = [{ id, kind }], colors = { logo: [...], palette: [...] } (tarayıcı görselden çıkarır),
     // text = web sitesi / biyografi, ideas = satır satır fikirler
-    async absorb(brandId, { files = [], colors = {}, text = '', ideas: ideaText = '', modelRef = null } = {}) {
+    async absorb(brandId, { files = [], colors = {}, text = '', site: siteUrl = '', ideas: ideaText = '', modelRef = null } = {}) {
       const b = brands.get(brandId);
       const st = readState(b.id);
       const found = [];
@@ -190,13 +237,37 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
         brands.update(b.id, { colors: Object.assign({}, cur.colors, { primary: pick[0], secondary: pick.slice(1, 6) }) });
         found.push(`Renk paleti (${pick.slice(0, 6).join(', ')})`);
       }
+      // Web sitesi: sayfalar şimdi okunur (yapay zekâsız, birkaç saniye); metin arka plandaki okumaya eklenir
+      let siteText = '';
+      if (String(siteUrl || '').trim() && siteReader) {
+        try {
+          const site = await siteReader.read(siteUrl);
+          siteText = site.text;
+          st.site = { url: site.url, pages: site.pages, readAt: new Date().toISOString() };
+          if (site.pages.map(p => p.title).join('').length + site.text.length < 400) notes.push('Siteden çok az yazı okunabildi (sayfa içeriği tarayıcıda sonradan yükleniyor olabilir). "Hakkımızda" yazısını metin kutusuna yapıştırırsan daha çok bilgi çıkar.');
+          found.push(`Web sitesi okundu: ${site.pages.length} sayfa (${site.pages.map(p => p.title || new URL(p.url).pathname).slice(0, 6).join(', ')})`);
+          const c = site.contacts;
+          const lines = [c.phones.length && `Telefon: ${c.phones.join(', ')}`, c.emails.length && `E-posta: ${c.emails.join(', ')}`, `Web: ${site.url}`, ...Object.entries(c.socials).map(([k, v]) => `${k}: ${v}`)].filter(Boolean);
+          brands.update(b.id, { website: site.url });
+          const old = memory.get(b.id).facts.find(f => f.title === 'İletişim ve sosyal medya');
+          try {
+            if (old) memory.updateFact(b.id, old.id, { content: lines.join('\n') });
+            else memory.addFact(b.id, { category: 'iletisim', title: 'İletişim ve sosyal medya', content: lines.join('\n') });
+            found.push('İletişim ve sosyal medya bağlantıları (bilgi kartı)');
+          } catch { /* kart sınırı */ }
+          const cur0 = brands.get(b.id);
+          if (site.themeColor && !cur0.colors.primary && !pick0(colors)) { brands.update(b.id, { colors: Object.assign({}, cur0.colors, { primary: site.themeColor }) }); found.push(`Ana renk (sitenin teması: ${site.themeColor})`); }
+          if (site.description && !cur0.description) brands.update(b.id, { description: site.description.slice(0, 1500) });
+        } catch (err) { notes.push(`Web sitesi okunamadı: ${err.message}`); }
+      }
       // Yapay zekâ burada beklenmez (yavaş): metin şimdilik açıklama olur; okuma işleri en sona, arka plana bırakılır
       const t = String(text || '').trim();
       if (t && !brands.get(b.id).description) {
         brands.update(b.id, { description: t.slice(0, 1500) });
         found.push('Marka açıklaması (yapıştırdığın metin)');
       }
-      st.pending = { text: t.length >= 40 ? t.slice(0, 20000) : '', mascot: mascotCount > 0 || Boolean(st.pending && st.pending.mascot) };
+      const all = [siteText, t.length >= 40 ? t : ''].filter(Boolean).join('\n\n').slice(0, 20000);
+      st.pending = { text: all, site: Boolean(siteText), mascot: mascotCount > 0 || Boolean(st.pending && st.pending.mascot) };
       // Fikirler
       const lines = String(ideaText || '').split('\n').map(x => x.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean).slice(0, 30);
       let added = 0;
@@ -237,6 +308,20 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
         writeState(b.id, st);
       }
       return Object.assign(service.state(b.id), { done: [], notes, formats: IDEA_FORMATS });
+    },
+    // Var olan markaya sonradan web sitesi okutma: iletişim kartı hemen, profil/bilgi kartları/fikirler arka planda
+    async fromSite(brandId, { url, modelRef = null } = {}) {
+      const b = brands.get(brandId);
+      if (!siteReader) throw badRequest('Web sitesi okuma kapalı.');
+      const r = await service.absorb(b.id, { site: url, modelRef });
+      if (r.notes.some(n => /Web sitesi okunamadı/.test(n))) throw badRequest(r.notes.find(n => /Web sitesi okunamadı/.test(n)).replace('Web sitesi okunamadı: ', ''));
+      const st = readState(b.id);
+      if (aiOn() && !(st.ai && st.ai.status === 'calisiyor')) {
+        st.ai = { status: 'calisiyor', startedAt: new Date().toISOString(), found: [...r.found], notes: [] };
+        writeState(b.id, st);
+        enrich(b.id, modelRef).catch(() => {});
+      }
+      return Object.assign(service.state(b.id), { found: r.found, aiStarted: aiOn() });
     },
     // Marka dosyasından sonradan da başlatılabilir
     enrichNow(brandId, { modelRef = null } = {}) {

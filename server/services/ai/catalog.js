@@ -56,6 +56,10 @@ export const TASKS = {
 
 // Ayar yapılmadıysa: anahtarı olan ilk sağlayıcının bu iş için önerilen modeli
 export const DEFAULT_ORDER = ['anthropic', 'openai', 'gemini', 'openrouter'];
+// Aynı sağlayıcıda ek yedekler: "-latest" modeli yoğunluktan (503) ya da kotadan (429) yanıt vermezse ayrı kapasitesi olan
+// modeller sırayla denenir. Hesapta olmayan model (404) hemen geçilir. Kasım 2026'da ücretsiz anahtarlarda Flash yoğunken
+// Flash-Lite çoğunlukla yanıt veriyor; 2.5 serisi yeni kullanıcılara kapalı olabilir.
+export const STABLE_FALLBACKS = { gemini: ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'] };
 export const RECOMMENDED = {
   anthropic: { fikir: 'claude-sonnet-5-5', yazim: 'claude-sonnet-5-5', ceviri: 'claude-haiku-5-5', denetim: 'claude-haiku-5-5' },
   openai: { fikir: 'gpt-5-mini', yazim: 'gpt-5', ceviri: 'gpt-5-mini', denetim: 'gpt-5-mini' },

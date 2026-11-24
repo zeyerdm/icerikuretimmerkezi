@@ -131,8 +131,19 @@ async function renderDossier(view, brand) {
       : '';
   const aiBtn = aiOn && !(ai && ai.status === 'calisiyor') ? `<button type="button" class="btn btn-sm" data-ai-enrich title="Boş kalan alanlar, maskot tarifi, benzer fikirler ve referanstan örnek tasarım; arka planda, beklemeden">${icon('sparkle')}Yapay zekâ ile tamamla</button>` : '';
   const bookBtn = `<div class="bb-callout card mb-4"><div class="grow"><b>Marka kılavuzu</b><div class="small muted">Buradaki her şeyi (logo, renk, font, ses ve dil, maskot, sosyal medya planı, örnek tasarım ve içerikler, yönetici notları) müşteriye sunulacak tek bir belgede topla; PDF ya da metin olarak indir.</div></div><a class="btn btn-primary" href="#/m/${esc(brand.id)}/kimlik/kilavuz">${icon('download')}Marka kılavuzunu aç</a></div>`;
-  view.innerHTML = identityHead(brand, 'ozet') + head + bookBtn + '<div id="bn-wrap"></div>' + aiBox + (aiBtn ? `<div class="row mb-4">${aiBtn}<span class="xsmall muted">Arka planda çalışır; beklemen gerekmez. Yalnız boş alanlara yazar.</span></div>` : '') + `<div class="dossier-grid">${cards.join('')}</div>`;
+  const siteBtn = `<button type="button" class="btn btn-sm" data-site-read title="Ana sayfa ve önemli alt sayfalar okunur: iletişim, bilgi kartları, boş profil alanları ve içerik fikirleri">${icon('download')}Web sitesinden oku</button>`;
+  view.innerHTML = identityHead(brand, 'ozet') + head + bookBtn + '<div id="bn-wrap"></div>' + aiBox + `<div class="row mb-4">${aiBtn}${siteBtn}<span class="xsmall muted">Arka planda çalışır; beklemen gerekmez. Yalnız boş alanlara yazar.</span></div>` + `<div class="dossier-grid">${cards.join('')}</div>`;
   mountBrandNotes(view.querySelector('#bn-wrap'), brand);
+  view.querySelector('[data-site-read]').addEventListener('click', () => openModal({
+    title: 'Web sitesinden oku', submitLabel: 'Siteyi oku',
+    body: `<div class="field"><label for="sr-url">Web sitesi adresi *</label><input class="input" id="sr-url" name="url" type="url" inputmode="url" maxlength="300" required placeholder="ornek.com"></div>
+      <p class="small muted mt-2">Ana sayfa ve önemli alt sayfalar (hakkımızda, hizmetler, ürünler, iletişim, SSS…) okunur. İletişim ve sosyal medya bağlantıları hemen bilgi kartına yazılır. Yapay zekâ bağlıysa boş profil alanları, ürün/hizmet bilgi kartları ve siteye dayanan içerik fikirleri arka planda eklenir; dolu alanlara dokunulmaz.</p>`,
+    onSubmit: async fd => {
+      const r = await api.onboardSite(brand.id, { url: fd.get('url') });
+      toast(`${r.found.join(' · ')}${r.aiStarted ? ' · Yapay zekâ arka planda bilgi ve fikir çıkarıyor.' : ' · Yapay zekâ bağlı olmadığı için yalnız iletişim bilgileri alındı.'}`, 'success', 9000);
+      renderDossier(view, brand);
+    }
+  }));
   const eb = view.querySelector('[data-ai-enrich]');
   if (eb) eb.addEventListener('click', async () => { try { await busy(eb, () => api.onboardEnrich(brand.id)); toast('Yapay zekâ arka planda başladı.', 'success'); renderDossier(view, brand); } catch (err) { toast(err.message, 'error'); } });
   if (ai && ai.status === 'calisiyor') {

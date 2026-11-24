@@ -90,7 +90,8 @@ export async function renderOnboard(view, brand = null) {
     input.innerHTML = `<div class="stack-sm">
       <label class="dropzone dropzone-sm" id="ob-drop"><input type="file" class="sr-only" id="ob-files" multiple accept="image/png,image/jpeg,image/webp,image/gif"><span>${icon('upload')}</span><span class="strong">Görselleri sürükle bırak ya da tıkla</span><span class="small muted">PNG, JPEG, WEBP, GIF</span></label>
       <div class="ob-files" id="ob-file-list"></div>
-      <div class="form-grid"><div class="field"><label for="ob-text">Web sitesi / biyografi metni (isteğe bağlı)</label><textarea class="textarea" id="ob-text" rows="3" maxlength="20000" placeholder="Hakkımızda yazısı, Instagram biyografisi…"></textarea></div>
+      <div class="field"><label for="ob-site">Web sitesi adresi (isteğe bağlı)</label><input class="input" id="ob-site" type="url" inputmode="url" maxlength="300" placeholder="ornek.com"><span class="hint">Ana sayfa ve önemli alt sayfalar (hakkımızda, hizmetler, ürünler, iletişim…) okunur: profil, bilgi kartları ve ilk içerik fikirleri buradan çıkar; fikir havuzu boş başlamaz.</span></div>
+      <div class="form-grid"><div class="field"><label for="ob-text">Biyografi / tanıtım metni (isteğe bağlı)</label><textarea class="textarea" id="ob-text" rows="3" maxlength="20000" placeholder="Hakkımızda yazısı, Instagram biyografisi…"></textarea></div>
         <div class="field"><label for="ob-ideas">İçerik fikirlerin (isteğe bağlı, her satıra bir)</label><textarea class="textarea" id="ob-ideas" rows="3" maxlength="6000" placeholder="Ör. Barista ipucu: evde süt köpürtme (Reels)"></textarea></div></div>
       <div class="ob-row"><button type="button" class="btn btn-ghost" id="ob-none">Hiçbir şey yok, sorularla devam</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="ob-send">${icon('check')}Gönder</button></div></div>`;
     const listEl = input.querySelector('#ob-file-list');
@@ -108,7 +109,8 @@ export async function renderOnboard(view, brand = null) {
     const send = async btn => {
       const text = input.querySelector('#ob-text').value.trim();
       const ideaText = input.querySelector('#ob-ideas').value.trim();
-      me(files.length || text || ideaText ? [files.length ? `${files.length} görsel (${[...new Set(files.map(f => KINDS[f.kind]))].join(', ')})` : '', text ? 'marka metni' : '', ideaText ? `${ideaText.split('\n').filter(Boolean).length} fikir` : ''].filter(Boolean).join(' · ') : 'Hiçbir şey yok, sorularla devam edelim.');
+      const site = input.querySelector('#ob-site').value.trim();
+      me(files.length || text || ideaText || site ? [site ? `web sitesi (${site})` : '', files.length ? `${files.length} görsel (${[...new Set(files.map(f => KINDS[f.kind]))].join(', ')})` : '', text ? 'marka metni' : '', ideaText ? `${ideaText.split('\n').filter(Boolean).length} fikir` : ''].filter(Boolean).join(' · ') : 'Hiçbir şey yok, sorularla devam edelim.');
       try {
         const r = await busyTimer(btn, async () => {
           const colors = { logo: [], palette: [] };
@@ -130,16 +132,16 @@ export async function renderOnboard(view, brand = null) {
             if (f.kind === 'palet') colors.palette.push(...await dominantColors(f.file, { n: 6 }).catch(() => []));
             if (f.kind === 'logo' && !colors.logo.length) colors.logo.push(...await dominantColors(f.file, { n: 4, skipWhite: true }).catch(() => []));
           }
-          return api.onboardAbsorb(brand.id, { files: up, colors, text, ideas: ideaText });
-        }, files.length ? 'Yüklüyorum' : 'Kaydediyorum');
+          return api.onboardAbsorb(brand.id, { files: up, colors, text, site, ideas: ideaText });
+        }, files.length ? 'Yüklüyorum' : site ? 'Siteyi okuyorum' : 'Kaydediyorum');
         st = r;
         bot(r.found.length ? `Şunları aldım ve yerlerine koydum:<ul class="ob-list">${r.found.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>${r.notes.length ? `<p class="small muted">${r.notes.map(esc).join('<br>')}</p>` : ''}${r.questions.length ? 'Şimdi yalnız eksik kalanları soracağım.' : ''}` : `Tamam, sorularla devam edelim.${r.notes.length ? `<p class="small muted">${r.notes.map(esc).join('<br>')}</p>` : ''}`);
-        if (text || files.some(f => f.kind === 'maskot')) bot(`<span class="small">${r.aiReady ? 'Metni ve maskot görsellerini yapay zekâya en sonda, arka planda okutacağım; şimdi seni bekletmeyelim.' : 'Yapay zekâ bağlı olmadığı için metni ve maskot görsellerini okuyamıyorum; eksikleri sorularla tamamlayacağız.'}</span>`);
+        if (text || site || files.some(f => f.kind === 'maskot')) bot(`<span class="small">${r.aiReady ? 'Site metnini, yazdığın metni ve maskot görsellerini yapay zekâya en sonda, arka planda okutacağım; şimdi seni bekletmeyelim.' : 'Yapay zekâ bağlı olmadığı için metni ve maskot görsellerini okuyamıyorum; eksikleri sorularla tamamlayacağız.'}</span>`);
         next();
       } catch (err) { toast(err.message, 'error'); }
     };
     input.querySelector('#ob-send').addEventListener('click', e => send(e.currentTarget));
-    input.querySelector('#ob-none').addEventListener('click', e => { files.length = 0; input.querySelector('#ob-text').value = ''; input.querySelector('#ob-ideas').value = ''; send(e.currentTarget); });
+    input.querySelector('#ob-none').addEventListener('click', e => { files.length = 0; input.querySelector('#ob-text').value = ''; input.querySelector('#ob-ideas').value = ''; input.querySelector('#ob-site').value = ''; send(e.currentTarget); });
   }
 
   // 3) Eksik sorular

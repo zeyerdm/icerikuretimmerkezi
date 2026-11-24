@@ -281,6 +281,7 @@ export const api = {
   brandSetup: id => request('GET', b(id) + '/setup'),
   onboard: id => request('GET', b(id) + '/onboard'),
   onboardAbsorb: (id, body) => request('POST', b(id) + '/onboard/absorb', body),
+  onboardSite: (id, body) => request('POST', b(id) + '/onboard/site', body),
   onboardAnswer: (id, key, body) => request('PUT', `${b(id)}/onboard/answer/${encodeURIComponent(key)}`, body),
   onboardFinish: (id, body = {}) => request('POST', b(id) + '/onboard/finish', body),
   onboardEnrich: id => request('POST', b(id) + '/onboard/enrich', {}),

@@ -693,6 +693,10 @@ const MIGRATIONS = [
     WHERE p.rating >= 0 AND NOT EXISTS (SELECT 1 FROM ideas i WHERE i.brand_id = p.brand_id AND lower(i.title) = lower(p.text));
   ALTER TABLE gen_jobs ADD COLUMN prompt_id TEXT;
   ALTER TABLE prompts ADD COLUMN scenes_en TEXT NOT NULL DEFAULT '';
+  `,
+  // 49: Markanın web sitesi (kurulumda ya da sonradan girilir; okunan bilgiler bilgi kartı ve fikir olur)
+  `
+  ALTER TABLE brands ADD COLUMN website TEXT NOT NULL DEFAULT '';
   `
 ];
 
