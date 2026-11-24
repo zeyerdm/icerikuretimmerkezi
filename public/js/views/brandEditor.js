@@ -183,24 +183,27 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     if (!models.ov.providers.some(p => p.configured)) return toast('Önce Yapay zekâ → Sağlayıcılar bölümünden bir AI bağla.', 'error');
     openModal({
       title: 'Kimliği AI ile doldur', submitLabel: 'Taslağı çıkar',
-      body: `<div class="field"><label for="af-text">Metin *</label><textarea class="textarea" id="af-text" name="text" rows="9" maxlength="20000" required placeholder="Web sitesi Hakkımızda yazısı, Instagram biyografisi, menü açıklaması, tanıtım metni…"></textarea></div>
+      body: `<div class="field"><label for="af-url">Web sitesi adresi</label><input class="input" id="af-url" name="url" type="url" inputmode="url" maxlength="300" placeholder="ornek.com"><span class="hint">Ana sayfa ve önemli alt sayfalar okunur. Site ya da metinden en az biri yeterli.</span></div>
+        <div class="field mt-3"><label for="af-text">Metin</label><textarea class="textarea" id="af-text" name="text" rows="7" maxlength="20000" placeholder="Web sitesi Hakkımızda yazısı, Instagram biyografisi, menü açıklaması, tanıtım metni…"></textarea></div>
         <div class="form-grid mt-3"><div class="field"><label for="af-model">Model</label>${modelSelect(models, 'yazim', { id: 'af-model' })}</div>
         <label class="check"><input type="checkbox" name="onlyEmpty" checked> Yalnızca boş alanları doldur</label></div>
         <p class="xsmall muted mt-2">Metinde olmayan bilgi uydurulmaz; o alanlar boş kalır. Renk ve font yalnızca metinde açıkça geçiyorsa alınır.</p>`,
       onSubmit: async (fd, form) => {
-        const r = await busyTimer(form.querySelector('[type=submit]'), () => api.identityDraft({ text: fd.get('text'), model: form.querySelector('#af-model').value || null, brandId: isNew ? null : brand.id }), 'Çıkarıyor');
+        if (!String(fd.get('url') || '').trim() && !String(fd.get('text') || '').trim()) throw new Error('Web sitesi adresini ya da bir metin yaz.');
+        const r = await busyTimer(form.querySelector('[type=submit]'), () => api.identityDraft({ url: fd.get('url'), text: fd.get('text'), model: form.querySelector('#af-model').value || null, brandId: isNew ? null : brand.id }), String(fd.get('url') || '').trim() ? 'Siteyi okuyor' : 'Çıkarıyor');
         const onlyEmpty = fd.get('onlyEmpty') === 'on';
         const filled = [];
         for (const [k, v] of Object.entries(r.profile)) if (v && (!onlyEmpty || !String(draft[k] || '').trim())) { draft[k] = v; filled.push(k); }
         if (r.colors.primary && (!onlyEmpty || !draft.colors.primary)) { draft.colors.primary = r.colors.primary; filled.push('renk'); }
         if (r.colors.secondary && (!onlyEmpty || !draft.colors.secondary.length)) { draft.colors.secondary = r.colors.secondary; filled.push('renkler'); }
         for (const k of ['heading', 'body']) if (r.fonts[k] && (!onlyEmpty || !draft.fonts[k])) { draft.fonts[k] = r.fonts[k]; filled.push('font'); }
-        if (!filled.length) return toast(`Doldurulacak yeni bilgi bulunamadı.${r.notes ? ' ' + r.notes : ''}`, 'info', 6000);
+        const siteNote = r.site ? ` ${r.site.pages.length} sayfa okundu.` : '';
+        if (!filled.length) return toast(`Doldurulacak yeni bilgi bulunamadı.${siteNote}${r.notes ? ' ' + r.notes : ''}`, 'info', 6000);
         markDirty();
         tab = 'profil';
         renderTab();
         filled.forEach(k => { const el = view.querySelector(`#f-${k}`); if (el) el.classList.add('ai-filled'); });
-        toast(`${filled.length} alan dolduruldu (${aiNote(r.ai)}). Kontrol edip Kaydet'e bas.${r.notes ? ' Not: ' + r.notes : ''}`, 'success', 8000);
+        toast(`${filled.length} alan dolduruldu (${aiNote(r.ai)}).${siteNote} Kontrol edip Kaydet'e bas.${r.notes ? ' Not: ' + r.notes : ''}`, 'success', 8000);
       }
     });
   }

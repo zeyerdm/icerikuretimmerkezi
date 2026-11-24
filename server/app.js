@@ -48,6 +48,7 @@ import { createRecipeService } from './services/recipes.js';
 import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
+import { createSiteReader } from './services/siteReader.js';
 import { createMemoryService } from './services/memory.js';
 import { createBrandSetupService } from './services/brandSetup.js';
 import { createBrandOnboardService } from './services/brandOnboard.js';
@@ -119,7 +120,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, queueAutostart = true, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, siteFetch, siteAllowPrivate = false, queueAutostart = true, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -171,7 +172,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const thumbnails = createThumbnailService({ ai, brands, identity: promptIdentity });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
-  const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, readMs: onboardReadMs || 90000 });
+  const siteReader = createSiteReader(Object.assign({ allowPrivate: Boolean(siteAllowPrivate) }, siteFetch ? { fetchImpl: siteFetch } : {}));
+  const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, siteReader, readMs: onboardReadMs || 90000 });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
   const app = express();
@@ -399,7 +401,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/identity-draft', route(async (req, res) => {
     const b = req.body || {};
     const brandId = b.brandId ? brands.get(String(b.brandId)).id : null;
-    res.json(await identity.draft({ text: b.text, modelRef: mr(b), brandId }));
+    // Web sitesi adresi verilirse sayfalar okunur, metin yapıştırılanla birleşir
+    let text = String(b.text || '');
+    let site = null;
+    if (String(b.url || '').trim()) { site = await siteReader.read(b.url); text = [site.text, text].filter(x => x.trim()).join('\n\n').slice(0, 20000); }
+    const r = await identity.draft({ text, modelRef: mr(b), brandId });
+    res.json(Object.assign(r, site ? { site: { url: site.url, pages: site.pages, contacts: site.contacts } } : {}));
   }));
 
   // Renk paleti önerisi: en az 1 renk sabit, AI 4 ana rengi tamamlar (yeni markada da çalışır)
@@ -768,6 +775,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/setup', (req, res) => res.json(brandSetup.dossier(req.brand.id)));
   // 11.1–11.4 karşılama sohbeti
   api.get('/brands/:brandId/onboard', (req, res) => res.json(onboard.state(req.brand.id)));
+  api.post('/brands/:brandId/onboard/site', route(async (req, res) => res.json(await onboard.fromSite(req.brand.id, { url: (req.body || {}).url, modelRef: mr(req.body || {}) }))));
   api.post('/brands/:brandId/onboard/absorb', route(async (req, res) => res.json(await onboard.absorb(req.brand.id, Object.assign({}, req.body || {}, { modelRef: mr(req.body || {}) })))));
   api.put('/brands/:brandId/onboard/answer/:key', (req, res) => res.json(onboard.answer(req.brand.id, req.params.key, req.body || {})));
   api.post('/brands/:brandId/onboard/finish', (req, res) => res.json(onboard.finish(req.brand.id, { modelRef: mr(req.body || {}), useAi: (req.body || {}).useAi !== false })));
