@@ -1,7 +1,7 @@
 // AI servis katmanı: birden çok sağlayıcı, işe göre model ataması, yedek modele geçiş, harcama kaydı ve aylık sınır.
 // Anahtarlar yalnızca sunucuda (ayarlar tablosunda ya da ortam değişkeninde) durur; istemciye hiçbir zaman gönderilmez.
 import { newId, now, badRequest, parseJson, HttpError } from '../../lib/http.js';
-import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMAGE_DEFAULTS, IMAGE_ASPECTS, TTS_MODELS, TTS_VOICES, VIDEO_MODELS, VIDEO_ASPECTS, modelRef, parseRef, catalogModel } from './catalog.js';
+import { PROVIDERS, MODELS, TASKS, DEFAULT_ORDER, RECOMMENDED, IMAGE_MODELS, IMAGE_DEFAULTS, STABLE_FALLBACKS, IMAGE_ASPECTS, TTS_MODELS, TTS_VOICES, VIDEO_MODELS, VIDEO_ASPECTS, modelRef, parseRef, catalogModel } from './catalog.js';
 const modelRef_ = modelRef; // run() içinde modelRef parametresi bu adı gölgeler
 import { createGeminiProvider } from './providers/gemini.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
@@ -185,7 +185,10 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     const usedProviders = new Set([primary, fallback].filter(Boolean).map(r => (parseRef(r) || {}).provider));
     const crossPid = !modelRef && !videoUrl ? DEFAULT_ORDER.find(pid => !usedProviders.has(pid) && isConfigured(pid) && RECOMMENDED[pid]) : null;
     const cross = crossPid ? modelRef_(crossPid, RECOMMENDED[crossPid][task] || RECOMMENDED[crossPid].fikir) : null;
-    const chain = [fallback, cross].filter(Boolean);
+    // Aynı sağlayıcının kararlı sürümleri (ör. Gemini 2.5 Flash): kota ya da yoğunluk "-latest" modeline özgüyse bunlar çalışır
+    const pp = parseRef(primary) || {};
+    const stable = (STABLE_FALLBACKS[pp.provider] || []).map(id => `${pp.provider}:${id}`).filter(r => r !== primary && r !== fallback);
+    const chain = [...new Set([fallback, ...stable, cross].filter(Boolean))];
     try {
       return Object.assign(await attempt(primary), { fallbackUsed: false });
     } catch (err) {

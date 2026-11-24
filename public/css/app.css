@@ -2479,3 +2479,14 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .pal-sw small { font-size: 10px; background: rgba(255,255,255,.85); color: #1b1f3b; border-radius: 4px; padding: 0 4px; }
 .pal-sample { border-radius: 8px; padding: 8px 10px; border: 1px solid rgba(0,0,0,.08); display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .pal-sample i { width: 28px; height: 10px; border-radius: 5px; margin-left: auto; }
+
+/* Takvim: içerikli günde özel gün rozeti (içeriklerin yerini almaz) */
+.cal-sp-mini { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; border: 0; background: transparent; padding: 0 2px; font-size: 11px; font-weight: 700; color: #50535f; cursor: pointer; line-height: 1; }
+.cal-sp-mini .cs-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: currentColor; }
+.cal-sp-mini:hover, .cal-sp-mini:focus-visible { text-decoration: underline; }
+.cal-sp-mini.cat-resmi { color: #a12b2b; } .cal-sp-mini.cat-ticari { color: #8a5a00; } .cal-sp-mini.cat-dini { color: #146b4a; }
+.cal-sp-mini.cat-dunya { color: #2a4fa0; } .cal-sp-mini.cat-donem { color: #5b3fb0; } .cal-sp-mini.cat-anma { color: #2e2f36; } .cal-sp-mini.cat-sektor { color: #0d6b5f; }
+.cal-num-row { min-width: 0; }
+.cal-today-tag { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-sp-mini { flex: none; }
+.cal-card .cal-cell.today .cal-sp-mini { color: var(--on-brand, #fff); }

@@ -56,6 +56,9 @@ export const TASKS = {
 
 // Ayar yapılmadıysa: anahtarı olan ilk sağlayıcının bu iş için önerilen modeli
 export const DEFAULT_ORDER = ['anthropic', 'openai', 'gemini', 'openrouter'];
+// Sabit sürümlü yedekler: "-latest" takma adı yeni (önizleme) modele geçince ücretsiz kotası olmayabilir ya da yoğunluktan
+// yanıt vermeyebilir (429/503). Ayrı kotası olan kararlı sürümler aynı anahtarla sırayla denenir.
+export const STABLE_FALLBACKS = { gemini: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'] };
 export const RECOMMENDED = {
   anthropic: { fikir: 'claude-sonnet-5-5', yazim: 'claude-sonnet-5-5', ceviri: 'claude-haiku-5-5', denetim: 'claude-haiku-5-5' },
   openai: { fikir: 'gpt-5-mini', yazim: 'gpt-5', ceviri: 'gpt-5-mini', denetim: 'gpt-5-mini' },

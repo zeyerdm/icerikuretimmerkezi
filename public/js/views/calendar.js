@@ -92,10 +92,11 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
         const top = daySpecials(day).find(x => !x.end || x.date === iso(day));
         const past = startOfDay(day) < startOfDay(today);
         return `<div class="cal-cell ${out ? 'out' : ''} ${past ? 'past' : ''} ${sameDay(day, today) ? 'today' : ''} ${top && top.category !== 'donem' ? `sp-day sp-${esc(top.category)} imp-${esc(top.importance || 'orta')}` : ''}" role="group" tabindex="0" data-day="${day.getTime()}" aria-label="${esc(fmtDate(day, { day: 'numeric', month: 'long' }))}: ${list.length} içerik.${past ? ' Geçmiş gün' : ' İçerik planlamak için Enter'}">
-          <div class="cal-num-row"><div class="cal-num">${day.getDate()}</div>${sameDay(day, today) ? '<span class="cal-today-tag">Bugün</span>' : ''}</div>
+          <div class="cal-num-row"><div class="cal-num">${day.getDate()}</div>${sameDay(day, today) ? '<span class="cal-today-tag">Bugün</span>' : ''}${list.length && daySpecials(day).length ? (() => { const all = daySpecials(day); return `<button type="button" class="cal-sp-mini cat-${esc(all[0].category)}" data-special-more="${esc(iso(day))}" title="${esc(all.map(x => x.name).join('\n'))}" aria-label="Özel gün: ${esc(all.map(x => x.name).join(', '))}"><i class="cs-dot" aria-hidden="true"></i>${all.length > 1 ? all.length : ''}</button>`; })() : ''}</div>
           ${(() => { // hücre sabit yükseklikte: özel günler + içerikler en çok 2 satır, fazlası "+n daha"
-            // Özel günler en çok 2 (küçük boyutta 1); fazlası "+n" işareti: üstüne gelince adları okunur, tıklayınca liste açılır
-            const allSp = daySpecials(day); const cap = size === 'kucuk' ? 1 : 2;
+            // İçerik varsa öncelik içeriklerin: özel günler gün numarasının yanında küçük rozet olur (üstüne gelince adları, tıklayınca liste)
+            // İçerik yoksa özel günler en çok 2 (küçük boyutta 1); fazlası "+n" işareti
+            const allSp = list.length ? [] : daySpecials(day); const cap = size === 'kucuk' ? 1 : 2;
             const sp = allSp.slice(0, cap); const rest = allSp.slice(cap); // ilk adlar her zaman görünür
             const spMore = rest.length ? `<button type="button" class="cal-sp-more" data-special-more="${esc(iso(day))}" title="${esc(rest.map(x => x.name).join('\n'))}" aria-label="${rest.length} özel gün daha: ${esc(rest.map(x => x.name).join(', '))}">+${rest.length} özel gün</button>` : '';
             const room = ROOM[size] - sp.length - (rest.length ? 1 : 0); const shown = list.length <= room ? list.length : Math.max(0, room - 1);
