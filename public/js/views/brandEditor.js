@@ -77,6 +77,12 @@ export async function renderBrandEditor(view, brandId, initialTab) {
           : `<input class="input" id="f-${key}" data-field="${key}" maxlength="${f.max}" value="${esc(draft[key])}" placeholder="${esc(PLACEHOLDERS[key] || '')}" ${f.required ? 'required' : ''}>`}
         ${suggest('f-' + key, (state.meta.choices || {})[key])}
       </div>`).join('')}
+      ${isNew ? '' : `<div class="field full">
+        <label for="f-website">Web sitesi</label>
+        <div class="drive-row"><input class="input" id="f-website" type="url" inputmode="url" data-website value="${esc(draft.website || '')}" maxlength="300" placeholder="ornek.com" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn" data-action="site-read" ${brand.website ? '' : 'disabled'} title="Siteyi yeniden oku: yeni bilgi kartları ve fikirler eklenir, dolu alanlara dokunulmaz">${icon('download')}Siteyi yeniden oku</button></div>
+        <span class="hint">Kaydedince site okunur: iletişim, ürün/hizmet ve hikâye bilgi kartlara, boş profil alanlarına ve siteye dayanan içerik fikirleri havuza eklenir. Post, fikir ve açıklama yazılırken bu bilgilere sadık kalınır.</span>
+      </div>`}
       <div class="field full">
         <label for="f-drive">Google Drive klasörü</label>
         <div class="drive-row">
@@ -164,6 +170,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         go('#/m/' + created.id + '/kur');
         return;
       }
+      const siteChanged = String(draft.website || '').trim() && String(draft.website || '').trim() !== String(brand.website || '');
       const { brand: saved } = await api.updateBrand(brand.id, payload);
       Object.assign(brand, saved, { driveFolder: saved.driveFolderUrl || '' });
       Object.assign(draft, { driveFolder: brand.driveFolder });
@@ -171,6 +178,8 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       await refreshBrands();
       toast('Marka kimliği kaydedildi.', 'success');
       shell();
+      // Yeni ya da değişen web sitesi: okunur, bilgiler ve fikirler eklenir (yapay zekâ kısmı arka planda)
+      if (siteChanged) readSite();
     } catch (err) {
       toast(err.message, 'error');
     } finally { btn.disabled = false; }
@@ -183,7 +192,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     if (!models.ov.providers.some(p => p.configured)) return toast('Önce Yapay zekâ → Sağlayıcılar bölümünden bir AI bağla.', 'error');
     openModal({
       title: 'Kimliği AI ile doldur', submitLabel: 'Taslağı çıkar',
-      body: `<div class="field"><label for="af-url">Web sitesi adresi</label><input class="input" id="af-url" name="url" type="url" inputmode="url" maxlength="300" placeholder="ornek.com"><span class="hint">Ana sayfa ve önemli alt sayfalar okunur. Site ya da metinden en az biri yeterli.</span></div>
+      body: `<div class="field"><label for="af-url">Web sitesi adresi</label><input class="input" id="af-url" name="url" type="url" inputmode="url" maxlength="300" placeholder="ornek.com" value="${esc(draft.website || '')}"><span class="hint">Ana sayfa ve önemli alt sayfalar okunur. Site ya da metinden en az biri yeterli.</span></div>
         <div class="field mt-3"><label for="af-text">Metin</label><textarea class="textarea" id="af-text" name="text" rows="7" maxlength="20000" placeholder="Web sitesi Hakkımızda yazısı, Instagram biyografisi, menü açıklaması, tanıtım metni…"></textarea></div>
         <div class="form-grid mt-3"><div class="field"><label for="af-model">Model</label>${modelSelect(models, 'yazim', { id: 'af-model' })}</div>
         <label class="check"><input type="checkbox" name="onlyEmpty" checked> Yalnızca boş alanları doldur</label></div>
@@ -197,6 +206,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         if (r.colors.primary && (!onlyEmpty || !draft.colors.primary)) { draft.colors.primary = r.colors.primary; filled.push('renk'); }
         if (r.colors.secondary && (!onlyEmpty || !draft.colors.secondary.length)) { draft.colors.secondary = r.colors.secondary; filled.push('renkler'); }
         for (const k of ['heading', 'body']) if (r.fonts[k] && (!onlyEmpty || !draft.fonts[k])) { draft.fonts[k] = r.fonts[k]; filled.push('font'); }
+        if (r.site && !isNew && !String(draft.website || '').trim()) { draft.website = r.site.url; markDirty(); }
         const siteNote = r.site ? ` ${r.site.pages.length} sayfa okundu.` : '';
         if (!filled.length) return toast(`Doldurulacak yeni bilgi bulunamadı.${siteNote}${r.notes ? ' ' + r.notes : ''}`, 'info', 6000);
         markDirty();
@@ -238,10 +248,20 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     });
   }
 
+  async function readSite(btn = null) {
+    if (!brand.website) return;
+    const b0 = btn || view.querySelector('[data-action="site-read"]');
+    try {
+      const r = await busyTimer(b0, () => api.onboardSite(brand.id, { url: brand.website }), 'Siteyi okuyor');
+      toast(`${r.found.join(' · ')}${r.aiStarted ? ' · Yapay zekâ arka planda bilgi kartları, boş alanlar ve içerik fikirleri çıkarıyor (Marka dosyasında görünür).' : ' · Yapay zekâ bağlı olmadığı için yalnız iletişim bilgileri alındı.'}`, 'success', 9000);
+    } catch (err) { toast(`Web sitesi okunamadı: ${err.message}`, 'error', 8000); }
+  }
+
   view.oninput = e => {
     const t = e.target;
     if (t.dataset.field) { draft[t.dataset.field] = t.value; markDirty(); }
     else if (t.dataset.drive !== undefined) { draft.driveFolder = t.value; markDirty(); }
+    else if (t.dataset.website !== undefined) { draft.website = t.value; markDirty(); }
     else if (t.dataset.color) {
       draft.colors[t.dataset.color] = t.value;
       const hex = view.querySelector(`[data-hex="${t.dataset.color}"]`);
@@ -298,6 +318,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
       } catch (err) { toast(err.message, 'error'); } finally { t.disabled = false; }
     }
     else if (t.dataset.action === 'ai-fill') aiFill();
+    else if (t.dataset.action === 'site-read') readSite(t);
     else if (t.dataset.action === 'palette-ai') paletteAi(t);
     else if (t.dataset.addColor) {
       const list = draft.colors[t.dataset.addColor];

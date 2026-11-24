@@ -248,7 +248,13 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
           found.push(`Web sitesi okundu: ${site.pages.length} sayfa (${site.pages.map(p => p.title || new URL(p.url).pathname).slice(0, 6).join(', ')})`);
           const c = site.contacts;
           const lines = [c.phones.length && `Telefon: ${c.phones.join(', ')}`, c.emails.length && `E-posta: ${c.emails.join(', ')}`, `Web: ${site.url}`, ...Object.entries(c.socials).map(([k, v]) => `${k}: ${v}`)].filter(Boolean);
-          if (!memory.get(b.id).facts.some(f => f.title === 'İletişim ve sosyal medya')) { try { memory.addFact(b.id, { category: 'iletisim', title: 'İletişim ve sosyal medya', content: lines.join('\n') }); found.push('İletişim ve sosyal medya bağlantıları (bilgi kartı)'); } catch { /* kart sınırı */ } }
+          brands.update(b.id, { website: site.url });
+          const old = memory.get(b.id).facts.find(f => f.title === 'İletişim ve sosyal medya');
+          try {
+            if (old) memory.updateFact(b.id, old.id, { content: lines.join('\n') });
+            else memory.addFact(b.id, { category: 'iletisim', title: 'İletişim ve sosyal medya', content: lines.join('\n') });
+            found.push('İletişim ve sosyal medya bağlantıları (bilgi kartı)');
+          } catch { /* kart sınırı */ }
           const cur0 = brands.get(b.id);
           if (site.themeColor && !cur0.colors.primary && !pick0(colors)) { brands.update(b.id, { colors: Object.assign({}, cur0.colors, { primary: site.themeColor }) }); found.push(`Ana renk (sitenin teması: ${site.themeColor})`); }
           if (site.description && !cur0.description) brands.update(b.id, { description: site.description.slice(0, 1500) });

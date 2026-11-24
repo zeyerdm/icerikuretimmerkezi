@@ -63,6 +63,10 @@ test('Kurulumda web sitesi: iletişim kartı ve renk hemen; profil, bilgi kartla
     const bb = (await srv.request('GET', `/api/brands/${b.id}`)).data.brand;
     assert.equal(bb.colors.primary, '#7a4b2a');
     assert.equal(bb.description, 'Kampüsün yanında nitelikli kahve');
+    assert.equal(bb.website, s.url + '/', 'okunan site markaya kaydedilir');
+    assert.equal((await srv.request('PATCH', `/api/brands/${b.id}`, { website: 'ftp://x' })).status, 400);
+    assert.equal((await srv.request('PATCH', `/api/brands/${b.id}`, { website: 'ornek.com' })).data.brand.website, 'https://ornek.com/');
+    await srv.request('PATCH', `/api/brands/${b.id}`, { website: s.url });
     await srv.request('POST', `/api/brands/${b.id}/onboard/finish`, {});
     let st;
     for (let i = 0; i < 100; i++) { st = (await srv.request('GET', `/api/brands/${b.id}/onboard`)).data.state; if (st.ai && st.ai.status !== 'calisiyor') break; await new Promise(x => setTimeout(x, 50)); }
@@ -78,6 +82,17 @@ test('Kurulumda web sitesi: iletişim kartı ve renk hemen; profil, bilgi kartla
     assert.match(facts.find(f => f.title === 'İletişim ve sosyal medya').content, /merhaba@kahveduragi\.com[\s\S]*instagram/);
     assert.equal((await srv.request('GET', `/api/brands/${b.id}`)).data.brand.sector, 'Kafe');
     assert.ok(st.ai.found.some(f => /3 içerik fikri/.test(f)), st.ai.found.join(' | '));
+
+    // Post, fikir ve açıklama yazımında kullanılan marka hafızası: site ve siteden gelen bilgiler, sadık kal talimatı
+    const sim = provider.calls.length;
+    await srv.request('POST', `/api/brands/${b.id}/ideas/${ideas[0].id}/similar`, { count: 1 });
+    const memText = provider.calls[sim].prompt;
+    assert.match(memText, /Web sitesi: http/);
+    assert.match(memText, /sadık kal[\s\S]*Menü fiyatları: Filtre kahve 60 TL/);
+    // Sonradan yeniden okuma: iletişim kartı çoğalmaz, güncellenir
+    await srv.request('POST', `/api/brands/${b.id}/onboard/site`, { url: s.url });
+    const facts2 = (await srv.request('GET', `/api/brands/${b.id}/memory`)).data;
+    assert.equal(((facts2.memory || facts2).facts).filter(f => f.title === 'İletişim ve sosyal medya').length, 1);
 
     // Var olan markaya sonradan; okunamayan site açık hata verir
     assert.equal((await srv.request('POST', `/api/brands/${b.id}/onboard/site`, { url: s.url + '/yok' })).status, 400);
