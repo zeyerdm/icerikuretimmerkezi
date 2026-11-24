@@ -28,6 +28,7 @@ function monthStart(d = new Date()) {
 
 // 8.1: geçici hatada (503 yoğunluk, 429, bağlantı) aynı modelle yeniden deneme bekleme süreleri (ms)
 const RETRY_DELAYS = [1500, 4000];
+const BUSY_MS = 3 * 60 * 1000; // yoğun diyen model bu süre en sona alınır
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 export function createAiService(settings, { db, provider: legacyProvider, fetchImpl, providers: overrides = {}, retryDelays = RETRY_DELAYS } = {}) {
@@ -123,6 +124,9 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   // Tek modelle çalıştırır; harcamayı kaydeder
+  const busyUntil = new Map();
+  const isBusy = ref => (busyUntil.get(ref) || 0) > Date.now();
+
   async function runOne(ref, { task, brandId, prompt, json, temperature, images = [], videoUrl = null, effort = null }) {
     const p = parseRef(ref);
     if (!p || !providers[p.provider]) throw badRequest('Geçersiz model seçimi.');
@@ -189,21 +193,28 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     const pp = parseRef(primary) || {};
     const stable = (STABLE_FALLBACKS[pp.provider] || []).map(id => `${pp.provider}:${id}`).filter(r => r !== primary && r !== fallback);
     const chain = [...new Set([fallback, ...stable, cross].filter(Boolean))];
-    try {
-      return Object.assign(await attempt(primary), { fallbackUsed: false });
-    } catch (err) {
-      if (!chain.length || !err.retryable || err.code === 'AI_CANCELLED') throw err;
-      let last = err;
-      for (const ref of chain) {
-        if (sc.signal && sc.signal.aborted) break;
-        if (sc.onDelta) sc.onDelta(null);
-        try { return Object.assign(await attempt(ref), { fallbackUsed: true, primaryError: err.message }); } catch (e2) {
-          last = e2;
-          if (!e2.retryable || e2.code === 'AI_CANCELLED') break;
-        }
+    // Yoğunluk hafızası: az önce yoğun (503/429) ya da hesapta yok (404) diyen model bir süre en sona alınır; istek doğrudan
+    // son çalışan modele gider (ücretsiz anahtarlarda her işte dakikalarca beklenmez). Hafızadaki model yine de en sonda denenir.
+    const order = [primary, ...chain];
+    const seq = [...order.filter(r => !isBusy(r)), ...order.filter(isBusy)];
+    let first = null; let last = null;
+    for (const ref of seq) {
+      if (sc.signal && sc.signal.aborted) break;
+      if (first && sc.onDelta) sc.onDelta(null);
+      try {
+        const r = await (isBusy(ref) ? runOne(ref, args) : attempt(ref));
+        busyUntil.delete(ref);
+        return Object.assign(r, { fallbackUsed: ref !== primary }, first ? { primaryError: first.message } : {});
+      } catch (e) {
+        if (e.code === 'AI_CANCELLED') throw e;
+        if (e.transient || e.status === 404 || /bulunamadı/.test(e.message)) busyUntil.set(ref, Date.now() + (e.transient ? BUSY_MS : 3600000));
+        if (!first) first = e;
+        last = e;
+        if (!e.retryable) break;
       }
-      throw last === err ? err : Object.assign(last, { message: `${err.message} Yedek model de yanıt vermedi.`.slice(0, 300) });
     }
+    if (!last) throw cancelled();
+    throw last === first ? first : Object.assign(last, { message: `${first.message} Yedek model de yanıt vermedi.`.slice(0, 300) });
   }
 
   // --- Görsel üretimi (ayrı model listesi; görsel başına ücret) ---
