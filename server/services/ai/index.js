@@ -214,7 +214,11 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       }
     }
     if (!last) throw cancelled();
-    throw last === first ? first : Object.assign(last, { message: `${first.message} Yedek model de yanıt vermedi.`.slice(0, 300) });
+    if (last === first) throw first;
+    // Hepsi yoğun/kota: sağlayıcının kapasitesi dolu; ne yapılacağı açıkça söylenir (ayrıntı hata günlüğünde)
+    const p0 = PROVIDERS[(parseRef(primary) || {}).provider];
+    if (first.transient && last.transient) throw Object.assign(last, { message: `${p0 ? p0.label : 'Yapay zekâ'} şu an yanıt veremiyor: denenen ${seq.length} modelin hepsi yoğun ya da dakikalık ücretsiz kota dolu. 1-2 dakika bekleyip tekrar dene.${(String(last.message).match(/\(\d{3} ·[^)]*\)?/) || [''])[0] ? ` ${(String(last.message).match(/\(\d{3} ·[^)]*\)?/) || [''])[0]}` : ''}`.slice(0, 400) });
+    throw Object.assign(last, { message: `${first.message} Yedek model de yanıt vermedi.`.slice(0, 300) });
   }
 
   // --- Görsel üretimi (ayrı model listesi; görsel başına ücret) ---

@@ -143,7 +143,7 @@ test('işe göre model ataması ve yedek modele geçiş', async () => {
     await s.request('DELETE', '/api/ai/keys/gemini');
     const e = await s.request('POST', `/api/brands/${brand.id}/chat`, { message: 'merhaba' });
     assert.equal(e.status, 502);
-    assert.match(e.data.error.message, /OpenAI şu an yanıt vermiyor/);
+    assert.match(e.data.error.message, /OpenAI şu an yanıt veremiyor: denenen 2 modelin hepsi yoğun[\s\S]*\(503 · down\)/);
   } finally { await s.stop(); }
 });
 
@@ -249,8 +249,8 @@ test('8.1 geçici hata: aynı modelle yeniden denenir; hep başarısızsa aynı 
     calls.length = 0; mode = 'quota';
     const rq = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
     assert.equal(rq.status, 200, JSON.stringify(rq.data));
-    assert.equal(calls.at(-1), 'gemini-3.1-flash-lite');
-    assert.ok(!calls.includes('gemini-3-flash-preview'), 'çalışan ilk yedekte durulur');
+    assert.equal(calls.at(-1), 'gemini-3.5-flash-lite');
+    assert.ok(!calls.includes('gemini-3.1-flash-lite'), 'çalışan ilk yedekte durulur');
     // Kalıcı hata (anahtar geçersiz): yeniden denenmez, yedeğe geçilmez
     calls.length = 0; mode = 'badkey';
     const r3 = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
