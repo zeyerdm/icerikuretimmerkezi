@@ -240,12 +240,12 @@ test('8.1 geçici hata: aynı modelle yeniden denenir; hep başarısızsa aynı 
     const r2 = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
     assert.equal(r2.status, 200, JSON.stringify(r2.data));
     assert.deepEqual(calls, ['gemini-flash-latest', 'gemini-flash-latest', 'gemini-flash-latest', 'gemini-flash-lite-latest']);
-    // -latest modellerinin ücretsiz kotası yoksa (429, limit 0) aynı anahtarla kararlı Gemini 2.5 Flash'a geçilir
+    // -latest modellerinin ücretsiz kotası yoksa (429, limit 0) aynı anahtarla ayrı kapasiteli modele geçilir
     calls.length = 0; mode = 'quota';
     const rq = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
     assert.equal(rq.status, 200, JSON.stringify(rq.data));
-    assert.equal(calls.at(-1), 'gemini-2.5-flash');
-    assert.ok(!calls.includes('gemini-2.5-flash-lite'), 'çalışan ilk kararlı sürümde durulur');
+    assert.equal(calls.at(-1), 'gemini-3.1-flash-lite');
+    assert.ok(!calls.includes('gemini-3-flash-preview'), 'çalışan ilk yedekte durulur');
     // Kalıcı hata (anahtar geçersiz): yeniden denenmez, yedeğe geçilmez
     calls.length = 0; mode = 'badkey';
     const r3 = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
