@@ -81,5 +81,13 @@ function worked(pf) {
       <section class="card"><div class="card-head"><h3>Tutan giriş cümleleri</h3></div>
         ${pf.hooks.length ? `<ul class="issue-list">${pf.hooks.map(h => `<li>"${esc(h.hook)}" <span class="xsmall muted">· ${esc(h.type)} · ${pct(h.rate)}</span></li>`).join('')}</ul>` : '<p class="card-text">İçeriklere giriş cümlesi yazdıkça burada sıralanır.</p>'}</section>
       <section class="card"><div class="card-head"><h3>Temalar</h3></div>${hbarChart(pf.byTheme.map(x => ({ label: `${x.key} (${x.count})`, value: x.rate })), { empty: 'İçeriklere tema yazdıkça burada karşılaştırılır.' })}</section>
+    </div>
+    <div class="grid-3 mt-5">
+      <section class="card"><div class="card-head"><h3>Kaydetme ve paylaşım</h3><span class="small muted">100 izlenmede</span></div>
+        ${(pf.saveShare || []).length ? `<ul class="issue-list">${pf.saveShare.map(x => `<li><b>${esc(x.label)}</b> <span class="xsmall muted">(${x.count})</span> · kaydetme %${x.saveRate} · paylaşım %${x.shareRate}</li>`).join('')}</ul>` : '<p class="card-text">Sonuçlara kaydetme ve paylaşım sayısı girdikçe burada karşılaştırılır.</p>'}</section>
+      <section class="card"><div class="card-head"><h3>Çok izlendi, az etkileşim</h3></div>
+        ${(pf.lowEngagement || []).length ? `<ul class="issue-list">${pf.lowEngagement.map(x => `<li>${esc(x.title)} <span class="xsmall muted">· ${esc(x.type)} · ${x.views} izlenme · ${pct(x.rate)}</span></li>`).join('')}</ul><p class="xsmall muted mt-2">İlgi çekiyor ama harekete geçirmiyor: sonuna soru, kaydetme nedeni ya da net bir çağrı ekle.</p>` : '<p class="card-text">Böyle bir içerik yok (en az 4 ölçüm gerekir).</p>'}</section>
+      <section class="card"><div class="card-head"><h3>En çok takipçi getirenler</h3></div>
+        ${(pf.follows || []).length ? `<ul class="issue-list">${pf.follows.map(x => `<li>${esc(x.title)} <span class="xsmall muted">· ${esc(x.type)} · +${x.follows} takipçi</span></li>`).join('')}</ul>` : '<p class="card-text">Sonuçlara "Yeni takipçi" girdikçe burada sıralanır.</p>'}</section>
     </div>`;
 }

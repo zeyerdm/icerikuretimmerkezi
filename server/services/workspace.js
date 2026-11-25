@@ -276,7 +276,23 @@ export function createWorkspaceService(db, ownerId, brands) {
         byTheme: group(c => c.theme),
         // Gün ve saat yerel saate göre arayüzde hesaplanır; burada ham yayın zamanları gönderilir
         times: rated.filter(c => c.scheduledAt).map(c => ({ at: c.scheduledAt, rate: c.rate })),
-        hooks: [...rated].filter(c => c.hook).sort((a, b) => b.rate - a.rate).slice(0, 6).map(c => ({ hook: c.hook, rate: c.rate, title: c.title, type: c.typeLabel }))
+        hooks: [...rated].filter(c => c.hook).sort((a, b) => b.rate - a.rate).slice(0, 6).map(c => ({ hook: c.hook, rate: c.rate, title: c.title, type: c.typeLabel })),
+        // Çok izlenip az etkileşim: izlenmesi ortancanın 1,5 katından fazla, etkileşim oranı ortalamanın yarısından az
+        lowEngagement: (() => {
+          const v = rated.map(c => c.metrics.views || c.metrics.reach || 0).sort((x, y) => x - y);
+          if (v.length < 4) return [];
+          const med = v[Math.floor(v.length / 2)]; const a0 = avg(rated);
+          return rated.filter(c => (c.metrics.views || c.metrics.reach || 0) >= med * 1.5 && c.rate <= a0 / 2).slice(0, 5)
+            .map(c => ({ title: c.title, type: c.typeLabel, views: c.metrics.views || c.metrics.reach || 0, rate: c.rate }));
+        })(),
+        // Türe göre kaydetme ve paylaşım oranı (100 izlenmede): Instagram'da en güçlü sinyaller
+        saveShare: (() => {
+          const m = new Map();
+          items.forEach(c => { const base = c.metrics.views || c.metrics.reach; if (!base) return; const k = c.type; if (!m.has(k)) m.set(k, { base: 0, saves: 0, shares: 0, count: 0 }); const g = m.get(k); g.base += base; g.saves += c.metrics.saves || 0; g.shares += c.metrics.shares || 0; g.count++; });
+          return [...m.entries()].map(([k, g]) => ({ key: k, label: CONTENT_TYPES[k] || k, count: g.count, saveRate: Math.round(g.saves / g.base * 1000) / 10, shareRate: Math.round(g.shares / g.base * 1000) / 10 })).sort((x, y) => (y.saveRate + y.shareRate) - (x.saveRate + x.shareRate));
+        })(),
+        // En çok takipçi getirenler
+        follows: items.filter(c => c.metrics.follows).sort((x, y) => y.metrics.follows - x.metrics.follows).slice(0, 5).map(c => ({ title: c.title, type: c.typeLabel, follows: c.metrics.follows, views: c.metrics.views || c.metrics.reach || 0 }))
       };
     },
 
