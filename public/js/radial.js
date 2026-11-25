@@ -4,6 +4,7 @@
 // Klavye: ok tuşları dilimler arasında gezer, Enter çalıştırır, 1–8 doğrudan seçer, Esc kapatır.
 import { esc, icon, openModal, toast } from './ui.js';
 import { commands } from './palette.js';
+import { makeFloating } from './floatDock.js';
 
 const KEY = 'ium.radial';
 export const MAX_SLICES = 8;
@@ -140,4 +141,5 @@ export function initRadial() {
   fab.textContent = '◎';
   fab.addEventListener('click', () => { const r = fab.getBoundingClientRect(); openRadial(r.left + r.width / 2, r.top + r.height / 2); });
   document.body.appendChild(fab);
+  makeFloating(fab, 'ium.float.hizli', { label: 'Hızlı menü (Alt+Q)' });
 }

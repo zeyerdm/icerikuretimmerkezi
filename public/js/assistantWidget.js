@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { esc, icon, toast, errorNotice, busy as busyBtn } from './ui.js';
 import { state, refreshBrands, route, parseRoute } from './app.js';
 import { messageHtml, renderMessages } from './views/home.js';
+import { makeFloating } from './floatDock.js';
 
 const CHIPS = [
   'Haftaya 5 Reels fikri üret',
@@ -65,6 +66,8 @@ function draw() {
       </div>
     </section>
     <button class="ai-fab" aria-expanded="false" aria-label="Asistan: ${esc(brand.name)} asistanı" title="${esc(brand.name)} asistanı">${avatar('ai-fab-av')}<span>Asistan</span></button>`;
+  // Düğme sürüklenip taşınabilir, kenara saklanabilir (konum hatırlanır)
+  makeFloating(host.querySelector('.ai-fab'), 'ium.float.asistan', { label: 'Asistan' });
   loadedFor = null;
 }
 

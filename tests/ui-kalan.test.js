@@ -489,3 +489,86 @@ test('Yönetici notları: liste uzamaz; ilk 3 açık not, fazlası "+n not daha"
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
+
+test('Yüzen düğmeler: Asistan sürüklenir (açılmaz), konum hatırlanır; kenara bırakılınca saklanır, tıklayınca geri gelir', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Yüzen' })).data.brand;
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/takvim`);
+    const fab = page.locator('.ai-fab');
+    await fab.waitFor();
+    const box = await fab.boundingBox();
+    const drag = async (x, y) => { const r = await fab.boundingBox(); await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await page.mouse.down(); await page.mouse.move(x, y, { steps: 8 }); await page.mouse.up(); };
+    await drag(700, 400);
+    const moved = await fab.boundingBox();
+    assert.ok(Math.abs(moved.x + moved.width / 2 - 700) < 3 && Math.abs(moved.y + moved.height / 2 - 400) < 3, 'bırakılan yerde');
+    assert.equal(await page.locator('.ai-widget').evaluate(w => w.classList.contains('is-open')), false, 'sürükleme asistanı açmaz');
+    // Tıklama hâlâ çalışır
+    await fab.click();
+    await page.waitForFunction(() => document.querySelector('.ai-widget').classList.contains('is-open'));
+    await fab.click();
+    // Yeniden yüklenince aynı yerde
+    await page.reload();
+    await fab.waitFor();
+    const again = await fab.boundingBox();
+    assert.ok(Math.abs(again.x - moved.x) < 3 && Math.abs(again.y - moved.y) < 3, 'konum hatırlandı');
+    // Sol kenara bırak → saklanır; tıklayınca son yerine döner (asistan açılmaz)
+    await drag(5, 500);
+    assert.equal(await fab.evaluate(e => e.classList.contains('fd-hidden') && e.classList.contains('fd-left')), true);
+    await fab.click({ force: true });
+    await page.waitForFunction(() => !document.querySelector('.ai-fab').classList.contains('fd-hidden'));
+    const back = await fab.boundingBox();
+    assert.ok(Math.abs(back.x - moved.x) < 3, 'son yerine döndü');
+    assert.equal(await page.locator('.ai-widget').evaluate(w => w.classList.contains('is-open')), false);
+    // Çift tık: varsayılan yer (sağ alt)
+    await fab.dispatchEvent('dblclick');
+    await page.waitForFunction(() => !document.querySelector('.ai-fab').classList.contains('fd-moved'));
+    const home = await fab.boundingBox();
+    assert.ok(Math.abs(home.x - box.x) < 3 && Math.abs(home.y - box.y) < 3);
+    // Hızlı menü düğmesi de taşınabilir
+    assert.equal(await page.locator('.radial-fab').evaluate(e => e.classList.contains('fd')), true);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('Bağlantılı sorular: kanal/içerik seçimine göre sohbet soruları, menü ve Görsel dil soruları; sonradan açılır', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Yazı Markası', sector: 'Hukuk', description: 'Hukuk bürosu' })).data.brand;
+  // Kanallar en başta sorulur (sektör ve açıklamadan hemen sonra)
+  await srv.request('POST', `/api/brands/${b.id}/onboard/absorb`, {});
+  let qs = (await srv.request('GET', `/api/brands/${b.id}/onboard`)).data.questions.map(q => q.key);
+  assert.deepEqual(qs.slice(0, 2), ['channels', 'contentKinds']);
+  assert.ok(qs.includes('hasMascot'), 'içerik türü seçilmeden maskot sorusu açık');
+  // Yalnız LinkedIn ve yazı: görsel içerik yok → maskot sorulmaz
+  await srv.request('PUT', `/api/brands/${b.id}/setup/yapi`, { channels: ['linkedin'], contentKinds: ['yazi'] });
+  qs = (await srv.request('GET', `/api/brands/${b.id}/onboard`)).data.questions.map(q => q.key);
+  assert.ok(!qs.some(k => /^mascot|hasMascot/.test(k)), qs.join(','));
+  assert.deepEqual((await srv.request('GET', `/api/brands/${b.id}`)).data.brand.scope, { channels: ['linkedin'], contentKinds: ['yazi'] });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/takvim`);
+    await page.locator('.sidebar .nav-more').waitFor();
+    const nav = await page.locator('.sidebar').innerText();
+    assert.ok(nav.includes('LinkedIn'), 'seçilen kanal menüde');
+    assert.ok(!nav.includes('YouTube kapağı') && !nav.includes('Prompt Studio'), nav);
+    assert.ok(nav.includes('Post stüdyosu'), 'LinkedIn belgesi için Post stüdyosu açık kalır');
+    // Görsel dil sekmesinde görsel sorular gizli, açıklaması var
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik/prompt`);
+    await page.locator('#pi-form').waitFor();
+    assert.equal(await page.locator('[data-q="visualStyle"]').count(), 0);
+    assert.equal(await page.locator('[data-q="thumbStyle"]').count(), 0);
+    assert.match(await page.locator('.notice').first().innerText(), /gizli/);
+    // Kurulumda görsel içerik seçilmeden maskot sorusu gizli; Reels seçilince açılır
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik/duzenle/yapi`);
+    await page.locator('#su-form').waitFor();
+    assert.equal(await page.locator('[data-needs-visual]').isHidden(), true);
+    await page.locator('.chip-check', { hasText: 'Reels / kısa video' }).click();
+    assert.equal(await page.locator('[data-needs-visual]').isVisible(), true);
+    await page.locator('.chip-check', { hasText: 'YouTube' }).first().click();
+    await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+    await page.waitForURL(new RegExp(`#/m/${b.id}/kimlik$`));
+    await page.waitForFunction(() => /YouTube kapağı/.test(document.querySelector('.sidebar').innerText) && /Prompt Studio/.test(document.querySelector('.sidebar').innerText));
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});

@@ -10,7 +10,16 @@ export async function renderPromptIdentity(view, brand) {
   const { identity, questions: all } = await api.promptIdentity(brand.id);
   // Maskot soruları Marka kimliği → Maskot sekmesinde; burada kaydederken onlar korunur (birleştirilerek yazılır)
   // 11.5: "şu isimler geçmesin" Ses ve hafızadaki yasaklı kelimelerle aynı şey; orada tek yerde sorulur
-  const questions = all.filter(q => q.group !== 'Maskot' && q.key !== 'forbidNames');
+  // Kurulumda seçilmeyen kanal/içerik türünün soruları gösterilmez (cevaplar korunur; Kanallar ve içerikler'den açılır)
+  const sc = brand.scope || { channels: [], contentKinds: [] };
+  const scoped = (sc.channels || []).length || (sc.contentKinds || []).length;
+  const visual = !scoped || (sc.contentKinds || []).some(k => ['post', 'carousel', 'story', 'reels', 'video'].includes(k));
+  const video = !scoped || (sc.contentKinds || []).some(k => ['reels', 'video'].includes(k)) || (sc.channels || []).some(c => ['tiktok', 'youtube'].includes(c));
+  const youtube = !scoped || (sc.channels || []).includes('youtube');
+  const offTopic = q => (q.group === 'YouTube kapağı' && !youtube) || (q.key === 'camera' && !video) || (!visual && q.group !== 'Kontrol kuralları');
+  const questions = all.filter(q => q.group !== 'Maskot' && q.key !== 'forbidNames' && !offTopic(q));
+  const hiddenNote = scoped && all.some(q => q.group !== 'Maskot' && offTopic(q))
+    ? `<p class="notice small mb-3"><span>Kurulumda seçmediğin içerik türlerinin soruları gizli (${[!visual && 'görsel ve video', visual && !video && 'video', !youtube && 'YouTube kapağı'].filter(Boolean).join(', ')}). Açmak için <a href="#/m/${esc(brand.id)}/kimlik/duzenle/yapi">Kanallar ve içerikler</a>.</span></p>` : '';
   let idt = Object.assign({}, identity);
   const groups = [...new Set(questions.map(q => q.group))];
 
@@ -33,6 +42,7 @@ export async function renderPromptIdentity(view, brand) {
     ${identityHead(brand, 'prompt', `${esc(brand.name)} için görsel dil, his ve kontrol kuralları. Prompt Studio'daki her üretim bu tercihlere göre yazılır; model değişse de yapı aynı kalır.`)}
     <div class="row mb-4"><button type="button" class="btn" data-pi-recipes>${icon('star')}Tariflerden başlat</button><button type="button" class="btn" data-pi-save-recipe>${icon('pin')}Tarif olarak kaydet</button></div>
     <p class="small muted mb-3">Metinlerde kullanılmaması gereken kelime ve isimler tek yerde: <a href="#/m/${esc(brand.id)}/kimlik/ses">Ses ve hafıza</a>. Maskot soruları Maskot sekmesinde.</p>
+    ${hiddenNote}
     <form id="pi-form" class="stack">
       ${groups.map(g => `<section class="card"><div class="card-head"><h3>${esc(g)}</h3></div><div class="stack-sm">${questions.filter(q => q.group === g).map(field).join('')}</div></section>`).join('')}
       <div class="save-bar card"><span class="small muted">Boş bıraktığın sorular üretimi etkilemez.</span><button class="btn btn-primary" type="submit">${icon('check')}Kaydet</button></div>
