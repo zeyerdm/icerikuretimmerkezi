@@ -51,6 +51,7 @@ import { createIdentityService } from './services/identity.js';
 import { createSiteReader } from './services/siteReader.js';
 import { createLinkedinService } from './services/linkedin.js';
 import { createInsightService } from './services/insights.js';
+import { createStrategyService, GOAL_KINDS, PURPOSES, PLATFORMS } from './services/strategy.js';
 import { createRemoteAccess, loginPage } from './services/remote.js';
 import { createMemoryService } from './services/memory.js';
 import { createBrandSetupService } from './services/brandSetup.js';
@@ -166,7 +167,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, siteReader, readMs: onboardReadMs || 90000 });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
-  const insights = createInsightService({ db, brands, settings });
+  const strategy = createStrategyService({ db });
+  const insights = createInsightService({ db, brands, settings, strategy });
   const linkedin = createLinkedinService({ db, ai, brands, posts, prompts, workspace, ideas });
   const remote = createRemoteAccess(Object.assign({ settings }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
   const app = express();
@@ -215,6 +217,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     choices: CHOICES,
     ideaPlaces: USE_PLACES,
     contentTypes: CONTENT_TYPES,
+    goalKinds: GOAL_KINDS, purposes: PURPOSES, platforms: PLATFORMS,
     contentStatuses: CONTENT_STATUSES,
     metricFields: METRIC_FIELDS,
     doneStatuses: DONE_STATUSES,
@@ -484,7 +487,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const limit = Math.min(10000, Math.max(1, Number(q.limit) || 2000));
     const contents = workspace.listContents({
       brandId: q.brandId ? String(q.brandId) : null, from: q.from ? String(q.from) : null, to: q.to ? String(q.to) : null,
-      status: q.status ? String(q.status) : null, type: q.type ? String(q.type) : null, unscheduled: q.unscheduled === '1', limit
+      status: q.status ? String(q.status) : null, type: q.type ? String(q.type) : null, unscheduled: q.unscheduled === '1',
+      purpose: q.purpose ? String(q.purpose) : null, pillarId: q.pillarId ? String(q.pillarId) : null, audience: q.audience ? String(q.audience) : null, platform: q.platform ? String(q.platform) : null, limit
     });
     res.json({ contents, truncated: contents.length === limit });
   });
@@ -782,6 +786,15 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.setLists(req.brand.id, req.body || {}) }));
   api.post('/brands/:brandId/memory/facts', (req, res) => res.status(201).json({ fact: memory.addFact(req.brand.id, req.body || {}) }));
   api.put('/brands/:brandId/memory/facts/:id', (req, res) => res.json({ fact: memory.updateFact(req.brand.id, req.params.id, req.body || {}) }));
+  // O3: ölçülebilir hedefler ve içerik sütunları
+  api.get('/brands/:brandId/strategy', (req, res) => res.json(strategy.get(req.brand.id, String(req.query.month || new Date().toISOString().slice(0, 7)))));
+  api.post('/brands/:brandId/goals', (req, res) => res.status(201).json({ goal: strategy.saveGoal(req.brand.id, req.body || {}) }));
+  api.post('/brands/:brandId/goals/copy', (req, res) => res.json(strategy.copyGoals(req.brand.id, (req.body || {}).from, (req.body || {}).to)));
+  api.patch('/brands/:brandId/goals/:id', (req, res) => res.json({ goal: strategy.updateGoal(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/goals/:id', (req, res) => res.json(strategy.deleteGoal(req.brand.id, req.params.id)));
+  api.post('/brands/:brandId/pillars', (req, res) => res.status(201).json({ pillar: strategy.addPillar(req.brand.id, req.body || {}) }));
+  api.patch('/brands/:brandId/pillars/:id', (req, res) => res.json({ pillar: strategy.updatePillar(req.brand.id, req.params.id, req.body || {}) }));
+  api.delete('/brands/:brandId/pillars/:id', (req, res) => res.json(strategy.deletePillar(req.brand.id, req.params.id)));
   api.post('/brands/:brandId/memory/facts/:id/approve', (req, res) => res.json({ fact: memory.approve(req.brand.id, req.params.id) }));
   api.get('/brands/:brandId/memory/facts/:id/history', (req, res) => res.json({ history: memory.history(req.brand.id, req.params.id) }));
   api.delete('/brands/:brandId/memory/facts/:id', (req, res) => { memory.removeFact(req.brand.id, req.params.id); res.status(204).end(); });

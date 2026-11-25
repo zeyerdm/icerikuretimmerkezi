@@ -3,6 +3,7 @@
 // Bütün sorgular sahibe göre süzülür; başka kullanıcının ya da markanın kaydı görünmez.
 import { badRequest, notFound, newId, now, text, oneOf, parseJson, HttpError } from '../lib/http.js';
 import { markIdeaUsed } from './ideas.js';
+import { PURPOSES, PLATFORMS, platformOf } from './strategy.js';
 
 export const CONTENT_TYPES = {
   post: 'Instagram post',
@@ -97,6 +98,8 @@ export function createWorkspaceService(db, ownerId, brands) {
     scheduledAt: r.scheduled_at, notes: r.notes, ideaId: r.idea_id, reelsId: r.reels_id || null, promptId: r.prompt_id || null, postId: r.post_id || null, completedAt: r.completed_at,
     caption: r.caption || '', hashtags: r.hashtags ? r.hashtags.split(' ').filter(Boolean) : [], firstComment: r.first_comment || '',
     checklist: r.checklist ? parseJson(r.checklist, []) : defaultChecklist(r.type),
+    pillarId: r.pillar_id || null, pillarName: r.pillar_name || null, purpose: r.purpose || '', purposeLabel: PURPOSES[r.purpose] || '', audience: r.audience || '',
+    platform: platformOf(r.type, r.platform), platformLabel: PLATFORMS[platformOf(r.type, r.platform)], platformSet: Boolean(r.platform),
     metrics: r.metrics ? parseJson(r.metrics, null) : null, rate: r.metrics ? engagementRate(parseJson(r.metrics, null)) : null, hook: r.hook || '', theme: r.theme || '',
     createdAt: r.created_at, updatedAt: r.updated_at
   }, brandInfo(r));
@@ -113,7 +116,7 @@ export function createWorkspaceService(db, ownerId, brands) {
     createdAt: r.created_at, updatedAt: r.updated_at
   }, brandInfo(r));
 
-  const CONTENT_SELECT = `SELECT c.*, b.name AS brand_name, b.colors AS brand_colors FROM contents c JOIN brands b ON b.id = c.brand_id WHERE b.owner_id = ?`;
+  const CONTENT_SELECT = `SELECT c.*, b.name AS brand_name, b.colors AS brand_colors, p.name AS pillar_name FROM contents c JOIN brands b ON b.id = c.brand_id LEFT JOIN brand_pillars p ON p.id = c.pillar_id WHERE b.owner_id = ?`;
   const TASK_SELECT = `SELECT t.*, b.name AS brand_name, b.colors AS brand_colors FROM tasks t LEFT JOIN brands b ON b.id = t.brand_id WHERE t.owner_id = ?`;
   const NOTE_SELECT = `SELECT n.*, b.name AS brand_name, b.colors AS brand_colors FROM notes n LEFT JOIN brands b ON b.id = n.brand_id WHERE n.owner_id = ?`;
 
@@ -133,11 +136,27 @@ export function createWorkspaceService(db, ownerId, brands) {
     return row;
   };
 
+  // Strateji alanları (O3): sütun bu markanın olmalı; boş değerler "atanmadı" demektir
+  const strategyFields = (brandId, body, row) => {
+    const pick = (k, col, fn) => (k in body ? fn(body[k]) : (row[col] || (col === 'pillar_id' ? null : '')));
+    return {
+      pillar_id: pick('pillarId', 'pillar_id', v => {
+        if (v == null || v === '') return null;
+        const p = db.prepare('SELECT id FROM brand_pillars WHERE id = ? AND brand_id = ?').get(String(v), brandId);
+        if (!p) throw badRequest('Seçilen içerik sütunu bu markaya ait değil.');
+        return p.id;
+      }),
+      purpose: pick('purpose', 'purpose', v => (v == null || v === '' ? '' : oneOf(v, Object.keys(PURPOSES), 'Amaç'))),
+      audience: pick('audience', 'audience', v => text(v, { field: 'Hedef kitle', max: 80 }) || ''),
+      platform: pick('platform', 'platform', v => (v == null || v === '' ? '' : oneOf(v, Object.keys(PLATFORMS), 'Kanal')))
+    };
+  };
+
   const optionalBrand = value => (value == null || value === '' ? null : ownBrand(value).id);
 
   const service = {
     // --- İçerik planı ---
-    listContents({ brandId, from, to, status, type, unscheduled, limit = 2000 } = {}) {
+    listContents({ brandId, from, to, status, type, unscheduled, purpose, pillarId, audience, platform, limit = 2000 } = {}) {
       let sql = CONTENT_SELECT;
       const args = [ownerId];
       if (brandId) { sql += ' AND c.brand_id = ?'; args.push(ownBrand(brandId).id); }
@@ -146,10 +165,16 @@ export function createWorkspaceService(db, ownerId, brands) {
       if (unscheduled) sql += ' AND c.scheduled_at IS NULL';
       if (status) { sql += ' AND c.status = ?'; args.push(oneOf(status, Object.keys(CONTENT_STATUSES), 'Durum')); }
       if (type) { sql += ' AND c.type = ?'; args.push(oneOf(type, Object.keys(CONTENT_TYPES), 'İçerik türü')); }
+      if (purpose) { sql += ' AND c.purpose = ?'; args.push(oneOf(purpose, Object.keys(PURPOSES), 'Amaç')); }
+      if (pillarId) { if (pillarId === 'yok') sql += ' AND c.pillar_id IS NULL'; else { sql += ' AND c.pillar_id = ?'; args.push(String(pillarId)); } }
       // limit null: sınırsız (8.9: Yönetim Merkezi sayımları 2.000'de kesilmesin)
       sql += ' ORDER BY COALESCE(c.scheduled_at, c.created_at) DESC, c.rowid DESC' + (limit == null ? '' : ' LIMIT ?');
       if (limit != null) args.push(limit);
-      return db.prepare(sql).all(...args).map(toContent);
+      const list = db.prepare(sql).all(...args).map(toContent);
+      const plat = platform ? oneOf(platform, Object.keys(PLATFORMS), 'Kanal') : null;
+      // Kanal türden çıkarılabildiği ve kitle Türkçe büyük/küçük harfle yazılabildiği için bu iki süzgeç burada
+      const aud = audience ? String(audience).slice(0, 80).trim().toLocaleLowerCase('tr') : null;
+      return list.filter(c => (!plat || c.platform === plat) && (!aud || c.audience.toLocaleLowerCase('tr') === aud));
     },
 
     getContent(id) { return toContent(getContentRow(id)); },
@@ -205,6 +230,8 @@ export function createWorkspaceService(db, ownerId, brands) {
       db.prepare(`INSERT INTO contents (id, brand_id, idea_id, title, type, status, scheduled_at, notes, completed_at, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(row.id, row.brand_id, row.idea_id, row.title, row.type, row.status, row.scheduled_at, row.notes, row.completed_at, row.created_at, row.updated_at);
+      const st = strategyFields(brand.id, body, {});
+      db.prepare('UPDATE contents SET pillar_id = ?, purpose = ?, audience = ?, platform = ? WHERE id = ?').run(st.pillar_id, st.purpose, st.audience, st.platform, row.id);
       if (body.caption || body.hashtags) {
         db.prepare('UPDATE contents SET caption = ?, hashtags = ? WHERE id = ?').run(text(body.caption, { field: 'Açıklama', max: 2200 }), cleanTags(body.hashtags), row.id);
       }
@@ -247,7 +274,11 @@ export function createWorkspaceService(db, ownerId, brands) {
           next.caption, next.hashtags, next.first_comment, next.checklist, now(), row.id);
       if (next.metrics && next.metrics !== row.metrics) brands.logActivity(next.brand_id, 'content.metrics', `Paylaşım sonucu girildi: ${next.title}`);
       // Marka değişince başka markanın senaryosuna/postuna bağlantı kalmaz
-      if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, prompt_id = NULL, post_id = NULL WHERE id = ?').run(row.id);
+      if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, prompt_id = NULL, post_id = NULL, pillar_id = NULL WHERE id = ?').run(row.id);
+      else if (['pillarId', 'purpose', 'audience', 'platform'].some(k => k in body)) {
+        const st = strategyFields(row.brand_id, body, row);
+        db.prepare('UPDATE contents SET pillar_id = ?, purpose = ?, audience = ?, platform = ? WHERE id = ?').run(st.pillar_id, st.purpose, st.audience, st.platform, row.id);
+      }
       if (!wasDone && isDone) brands.logActivity(next.brand_id, 'content.completed', `${CONTENT_STATUSES[next.status]}: ${next.title}`);
       return toContent(getContentRow(row.id));
     },

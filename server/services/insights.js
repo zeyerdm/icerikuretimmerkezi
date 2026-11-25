@@ -7,7 +7,7 @@ import { badRequest } from '../lib/http.js';
 
 export const INSIGHT_KINDS = {
   plan_bos: 'Plan boşluğu', onay_bekliyor: 'Onay bekleyen içerik', geciken_icerik: 'Tarihi geçen içerik',
-  geciken_gorev: 'Geciken görev', hafiza_onay: 'Onay bekleyen bilgi', ozel_gun: 'Yaklaşan özel gün', uretim_dustu: 'Üretim düştü', tek_tip: 'Tek tip içerik'
+  geciken_gorev: 'Geciken görev', hafiza_onay: 'Onay bekleyen bilgi', ozel_gun: 'Yaklaşan özel gün', uretim_dustu: 'Üretim düştü', tek_tip: 'Tek tip içerik', sutun_dengesi: 'Sütun dengesi', hedef_geride: 'Hedef geride'
 };
 const PRIORITY_RANK = { yuksek: 0, orta: 1, dusuk: 2 };
 const DONE = ['tamamlandi', 'yayinlandi'];
@@ -16,7 +16,7 @@ const isoDay = d => new Date(d).toISOString().slice(0, 10);
 // Haftanın pazartesisi (dönem anahtarı)
 const weekKey = t => { const d = new Date(t); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return isoDay(d); };
 
-export function createInsightService({ db, brands, settings }) {
+export function createInsightService({ db, brands, settings, strategy = null }) {
   const dismissed = () => { try { const v = JSON.parse(settings.get('insights.dismissed') || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; } };
 
   function forBrand(b, t) {
@@ -62,6 +62,25 @@ export function createInsightService({ db, brands, settings }) {
       const [top, n] = Object.entries(by).sort((x, y) => y[1] - x[1])[0];
       if (n / m30.length >= 0.8) add({ key: `tek_tip:${b.id}:${weekKey(t)}`, kind: 'tek_tip', priority: 'dusuk', date: isoDay(t), title: 'İçerikler tek tipe yığıldı',
         text: `Son 30 gündeki ${m30.length} içeriğin ${n} tanesi aynı tür (${top}). Farklı biçim ve konularla çeşitlendir.`, action: { label: 'Fikir havuzunu aç', href: `${base}/fikirler` } });
+    }
+    // 6b) İçerik sütunları: son 30 günde sütun atanmış en az 6 içerik varken hedef payı %15 ve üstü olan bir sütun
+    // hedefinin üçte birine bile ulaşmıyorsa (ör. Eğitici hedef %30, gerçekleşen %5)
+    const pillars = db.prepare('SELECT id, name, share FROM brand_pillars WHERE brand_id = ? AND share >= 15').all(b.id);
+    if (pillars.length) {
+      const since = new Date(t - 30 * DAY).toISOString();
+      const pr = db.prepare('SELECT pillar_id FROM contents WHERE brand_id = ? AND pillar_id IS NOT NULL AND COALESCE(scheduled_at, created_at) >= ? AND COALESCE(scheduled_at, created_at) < ?').all(b.id, since, in7);
+      if (pr.length >= 6) {
+        const low = pillars.map(p => ({ ...p, actual: Math.round(pr.filter(r => r.pillar_id === p.id).length / pr.length * 100) })).filter(p => p.actual < p.share / 3);
+        if (low.length) add({ key: `sutun_dengesi:${b.id}:${weekKey(t)}`, kind: 'sutun_dengesi', priority: 'dusuk', date: isoDay(t), title: 'İçerik sütunları dengesiz',
+          text: low.map(p => `${p.name}: hedef %${p.share}, son 30 gün %${p.actual}`).join(' · ') + '. Bu sütunlardan içerik planla.', action: { label: 'Hedefler ve sütunlar', href: `${base}/kimlik/strateji` } });
+      }
+    }
+    // 6c) Ayın hedefi geride: ayın 20'sinden sonra kendiliğinden ölçülen hedeflerin yarısına ulaşılmadıysa
+    if (strategy && new Date(t).getUTCDate() >= 20) {
+      const month = isoDay(t).slice(0, 7);
+      const behind = strategy.progress(b.id, month).goals.filter(g => g.auto && g.percent != null && g.percent < 50);
+      if (behind.length) add({ key: `hedef_geride:${b.id}:${month}`, kind: 'hedef_geride', priority: 'orta', date: isoDay(t), title: 'Ayın hedefi geride',
+        text: behind.map(g => `${g.label}: %${g.percent}`).join(' · ') + ' (paylaşım sonuçları girilen içeriklere göre).', action: { label: 'Aylık rapor', href: `${base}/rapor` } });
     }
     // 7) Hafızada onay bekleyen bilgi kartları (siteden, yapay zekâdan gelenler): onaylanmadan üretime girmez
     const pend = db.prepare("SELECT COUNT(*) AS n FROM brand_facts WHERE brand_id = ? AND status = 'oneri'").get(b.id).n;
