@@ -423,8 +423,9 @@ test('Marka kılavuzu: kimlikteki bilgiler tek belgede; metin olarak indirilir, 
     await col.locator('button[type=submit]').click();
     await col.locator('.bn-list li', { hasText: 'Menü fotoğrafları' }).waitFor();
     await page.locator('.bn-col[data-kind="marka-sahibi"] [data-bn-done]').check();
-    await page.waitForFunction(() => document.querySelector('.bn-col[data-kind="marka-sahibi"] li.done'));
-    await page.locator('.bb-callout a').click();
+    // Yapılan not "Yapılanlar" altına iner (liste kısa kalır)
+    await page.locator('.bn-col[data-kind="marka-sahibi"] [data-bn-toggle$=":done"]', { hasText: 'Yapılanlar (1)' }).waitFor();
+    await page.locator('.page-head a', { hasText: 'Marka kılavuzu' }).click();
     await page.locator('#bb-doc').waitFor();
     const text = await page.locator('#bb-doc').innerText();
     for (const t of ['Kılavuz Marka', 'Her yudum bir mola', 'Ses ve dil', 'Görsel kimlik', '#FF6B00', 'Sosyal medya planı', 'Instagram', 'TikTok', 'Sınav haftası kahvesi']) assert.ok(text.includes(t), t);
@@ -466,6 +467,25 @@ test('Renk paleti: AI önerisi elindeki rengi korur, seçilen palet forma uygula
     assert.equal(await page.locator('[data-hex="primary"]').inputValue(), '#ff6b00');
     assert.deepEqual(await page.locator('[data-list="secondary"]').evaluateAll(xs => xs.map(x => x.value)), ['#1d3557', '#2a9d8f']);
     assert.deepEqual(await page.locator('[data-list="backgrounds"]').evaluateAll(xs => xs.map(x => x.value)), ['#fffaf3', '#ffffff']);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await srv.stop(); }
+});
+
+test('Yönetici notları: liste uzamaz; ilk 3 açık not, fazlası "+n not daha"; Enter ile eklenir', { skip }, async () => {
+  const srv = await startServer();
+  const b = (await srv.request('POST', '/api/brands', { name: 'Notlu Marka' })).data.brand;
+  for (let i = 1; i <= 6; i++) await srv.request('POST', '/api/notes', { brandId: b.id, category: 'yonetici', body: `Not ${i}` });
+  const { browser, page, problems } = await open(srv);
+  try {
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
+    const col = page.locator('.bn-col[data-kind="yonetici"]');
+    await col.locator('.bn-list li').first().waitFor();
+    assert.equal(await col.locator('.bn-list li').count(), 3);
+    await col.locator('[data-bn-toggle]', { hasText: '+3 not daha' }).click();
+    await page.waitForFunction(() => document.querySelectorAll('.bn-col[data-kind="yonetici"] .bn-list li').length === 6);
+    await col.locator('textarea').fill('Enter ile eklenen');
+    await col.locator('textarea').press('Enter');
+    await col.locator('.bn-list li', { hasText: 'Enter ile eklenen' }).waitFor();
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

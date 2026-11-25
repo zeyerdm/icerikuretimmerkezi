@@ -13,26 +13,20 @@ import { renderBrandEditor } from './brandEditor.js';
 import { renderMemory } from './memory.js';
 import { renderPromptIdentity, characterBookCard } from './promptIdentity.js';
 
-export const ID_TABS = [['ozet', '', 'Marka dosyası'], ['profil', '/profil', 'Profil'], ['gorsel', '/gorsel', 'Görsel kimlik'], ['ses', '/ses', 'Ses ve hafıza'], ['prompt', '/prompt', 'Prompt kimliği'], ['maskot', '/maskot', 'Maskot']];
+export const ID_TABS = [['ozet', '', 'Marka dosyası'], ['profil', '/profil', 'Profil'], ['gorsel', '/gorsel', 'Görsel kimlik'], ['ses', '/ses', 'Ses ve hafıza'], ['prompt', '/prompt', 'Görsel dil'], ['maskot', '/maskot', 'Maskot']];
 
 export function identityHead(brand, active, desc) {
   const base = `#/m/${esc(brand.id)}/kimlik`;
   return pageHead({
     title: 'Marka kimliği',
     desc: desc || `${esc(brand.name)} hakkında yapay zekânın bildiği her şey tek yerde. Burada yazdıkların bütün üretimlere (asistan, Reels, post, prompt, denetçi) kendiliğinden girer.`,
-    actions: `<a class="btn" href="${base}/kurulum">${icon('wand')}Kurulum sihirbazı</a><button type="button" class="btn btn-danger" data-id-action="delete">${icon('trash')}Markayı sil</button>`
+    actions: `<a class="btn" href="${base}/kilavuz">${icon('download')}Marka kılavuzu</a>`
   }) + `<nav class="tabs id-tabs" aria-label="Marka kimliği bölümleri">${ID_TABS.map(([k, p, l]) => `<a href="${base}${p}" class="${k === active ? 'active' : ''}"${k === active ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
 }
 
 // Başlıktaki Markayı sil (başlık her çizimde yeniden oluşur; dinleyici birikmez)
 export function bindIdentityActions(view, brand) {
-  const head = view.querySelector('.page-head');
-  if (!head) return;
-  head.addEventListener('click', async e => {
-    const t = e.target.closest('[data-id-action]');
-    if (!t) return;
-    deleteBrandFlow(brand);
-  });
+  view.querySelectorAll('[data-id-action="delete"]').forEach(b => b.addEventListener('click', () => deleteBrandFlow(brand)));
 }
 
 // Markayı sil: Marka kimliği başlığı, Markalar kartı, marka ana sayfası ve kurulum sohbetinden aynı akış.
@@ -77,7 +71,7 @@ function section({ id, title, step, tab, needs, rows, extra = '', brand }) {
     <div class="card-head"><h3>${esc(title)}</h3>${needs.length ? `<span class="pill pill-warn" title="${esc(needs.join(', '))}">${needs.length} eksik</span>` : '<span class="pill pill-ok"><span class="dot"></span>Tamam</span>'}</div>
     <dl class="dossier-dl">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>${extra}
     ${needs.length ? `<p class="xsmall muted mt-2">Eksik: ${esc(needs.join(', '))}</p>` : ''}
-    <div class="row mt-3">${step ? `<a class="btn btn-sm btn-primary" href="${base}/duzenle/${step}">${icon('edit')}Düzenle</a>` : ''}${tab ? `<a class="btn btn-sm btn-ghost" href="${base}/${tab}">Ayrıntılı</a>` : ''}</div>
+    <div class="row mt-3"><a class="btn btn-sm btn-primary" href="${base}/duzenle/${step}">${icon('edit')}Düzenle</a></div>
   </section>`;
 }
 
@@ -105,7 +99,7 @@ async function renderDossier(view, brand) {
       ['Kanallar', val(d.setup.channels.map(k => d.options.channels[k]))], ['İçerik türleri', val(d.setup.contentKinds.map(k => d.options.contentKinds[k]))],
       ['Maskot', d.setup.hasMascot == null ? dash : d.setup.hasMascot ? 'Var' : 'Yok'], ['Ziyaret edilen mekân', d.setup.hasPlace == null ? dash : d.setup.hasPlace ? 'Var' : 'Yok']] }),
     section({ brand, id: 'kitle', title: 'Kitle ve hedef', step: 'kitle', tab: 'profil', needs: need('kitle'), rows: [['Hedef kitle', val(b.audience)], ['Hedefler', val(b.goals)], ['Rakipler', val(b.competitors)], ['Aylık içerik hedefi', b.monthlyGoal ? esc(String(b.monthlyGoal)) : dash]] }),
-    section({ brand, id: 'ses', title: 'Ses ve dil', step: 'ses', tab: 'ses', needs: need('ses'), rows: [['Karakter', val(b.character)], ['İletişim dili', val(b.tone)], ['Kullanılmayacak kelimeler', val(d.memory.banned)], ['Tercih edilen ifadeler', val(d.memory.preferred)]] }),
+    section({ brand, id: 'ses', title: 'Ses ve dil', step: 'ses', needs: need('ses'), rows: [['Karakter', val(b.character)], ['İletişim dili', val(b.tone)], ['Kullanılmayacak kelimeler', val(d.memory.banned)], ['Tercih edilen ifadeler', val(d.memory.preferred)]] }),
     section({ brand, id: 'gorsel', title: 'Logo, renk ve font', step: 'gorsel', tab: 'gorsel', needs: need('gorsel'), rows: [
       ['Logo', d.logo ? `<img class="ds-logo" src="${esc(d.logo.url)}" alt="${esc(b.name)} logosu">` : dash],
       ['Renkler', swatches.length ? `<span class="swatches">${swatches.map(c => `<span class="swatch" style="background:${esc(c)}" title="${esc(c)}"></span>`).join('')}</span>` : dash],
@@ -129,23 +123,29 @@ async function renderDossier(view, brand) {
     : ai && (ai.found.length || ai.notes.length)
       ? `<details class="disclosure mb-5" id="ds-ai"><summary>Yapay zekânın doldurdukları (${new Date(ai.finishedAt || ai.startedAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})</summary><ul class="ob-list">${ai.found.map(x => `<li>✓ ${esc(x)}</li>`).join('')}</ul>${ai.notes.length ? `<p class="small muted">${ai.notes.map(esc).join('<br>')}</p>` : ''}</details>`
       : '';
-  const aiBtn = aiOn && !(ai && ai.status === 'calisiyor') ? `<button type="button" class="btn btn-sm" data-ai-enrich title="Boş kalan alanlar, maskot tarifi, benzer fikirler ve referanstan örnek tasarım; arka planda, beklemeden">${icon('sparkle')}Yapay zekâ ile tamamla</button>` : '';
-  const bookBtn = `<div class="bb-callout card mb-4"><div class="grow"><b>Marka kılavuzu</b><div class="small muted">Buradaki her şeyi (logo, renk, font, ses ve dil, maskot, sosyal medya planı, örnek tasarım ve içerikler, yönetici notları) müşteriye sunulacak tek bir belgede topla; PDF ya da metin olarak indir.</div></div><a class="btn btn-primary" href="#/m/${esc(brand.id)}/kimlik/kilavuz">${icon('download')}Marka kılavuzunu aç</a></div>`;
-  const siteBtn = `<button type="button" class="btn btn-sm" data-site-read title="Ana sayfa ve önemli alt sayfalar okunur: iletişim, bilgi kartları, boş profil alanları ve içerik fikirleri">${icon('download')}Web sitesinden oku</button>`;
-  view.innerHTML = identityHead(brand, 'ozet') + head + bookBtn + '<div id="bn-wrap"></div>' + aiBox + `<div class="row mb-4">${aiBtn}${siteBtn}<span class="xsmall muted">Arka planda çalışır; beklemen gerekmez. Yalnız boş alanlara yazar.</span></div>` + `<div class="dossier-grid">${cards.join('')}</div>`;
+  // Yapay zekâ ile doldurma tek yerden: web sitesinden oku ya da boş kalanları tamamla (ikisi de arka planda, yalnız boşlara)
+  const running = ai && ai.status === 'calisiyor';
+  const fillBtn = running ? '' : `<div class="row mb-4"><button type="button" class="btn btn-sm" data-ai-fill>${icon('sparkle')}Yapay zekâ ile doldur</button><span class="xsmall muted">Web sitesinden ya da eldeki bilgilerden; arka planda çalışır, yalnız boş alanlara yazar.</span></div>`;
+  const danger = `<section class="card ds-danger mt-5"><div class="grow"><b>Markayı sil</b><div class="small muted">Marka ve bütün içerikleri çöp kutusuna gider; oradan geri alınabilir.</div></div><button type="button" class="btn btn-danger btn-sm" data-id-action="delete">${icon('trash')}Markayı sil</button></section>`;
+  view.innerHTML = identityHead(brand, 'ozet') + head + aiBox + fillBtn + `<div class="dossier-grid">${cards.join('')}</div>` + '<div id="bn-wrap" class="mt-5"></div>' + danger;
   mountBrandNotes(view.querySelector('#bn-wrap'), brand);
-  view.querySelector('[data-site-read]').addEventListener('click', () => openModal({
-    title: 'Web sitesinden oku', submitLabel: 'Siteyi oku',
-    body: `<div class="field"><label for="sr-url">Web sitesi adresi *</label><input class="input" id="sr-url" name="url" type="url" inputmode="url" maxlength="300" required placeholder="ornek.com"></div>
-      <p class="small muted mt-2">Ana sayfa ve önemli alt sayfalar (hakkımızda, hizmetler, ürünler, iletişim, SSS…) okunur. İletişim ve sosyal medya bağlantıları hemen bilgi kartına yazılır. Yapay zekâ bağlıysa boş profil alanları, ürün/hizmet bilgi kartları ve siteye dayanan içerik fikirleri arka planda eklenir; dolu alanlara dokunulmaz.</p>`,
+  const fb = view.querySelector('[data-ai-fill]');
+  if (fb) fb.addEventListener('click', () => openModal({
+    title: 'Yapay zekâ ile doldur', submitLabel: 'Başlat',
+    body: `<div class="stack-sm">
+        <label class="ai-opt"><input type="radio" name="how" value="site" checked><span><b>Web sitesinden oku</b><span class="small muted">Ana sayfa ve önemli alt sayfalar (hakkımızda, hizmetler, ürünler, iletişim, SSS…) okunur: iletişim kartı hemen; boş profil alanları, bilgi kartları ve siteye dayanan içerik fikirleri arka planda.</span></span></label>
+        <div class="field" id="ai-url-wrap"><label for="sr-url">Web sitesi adresi</label><input class="input" id="sr-url" name="url" type="url" inputmode="url" maxlength="300" placeholder="ornek.com" value="${esc(b.website || '')}"></div>
+        <label class="ai-opt ${aiOn ? '' : 'is-disabled'}"><input type="radio" name="how" value="enrich" ${aiOn ? '' : 'disabled'}><span><b>Boş kalanları tamamla</b><span class="small muted">Eldeki bilgilerden boş alanlar, maskot tarifi, benzer fikirler ve referans görselden örnek şablon.${aiOn ? '' : ' (Yapay zekâ bağlı değil)'}</span></span></label>
+      </div>`,
     onSubmit: async fd => {
-      const r = await api.onboardSite(brand.id, { url: fd.get('url') });
+      if (fd.get('how') === 'enrich') { await api.onboardEnrich(brand.id); toast('Yapay zekâ arka planda başladı.', 'success'); return renderDossier(view, brand); }
+      const url = String(fd.get('url') || '').trim();
+      if (!url) throw new Error('Web sitesi adresini yaz.');
+      const r = await api.onboardSite(brand.id, { url });
       toast(`${r.found.join(' · ')}${r.aiStarted ? ' · Yapay zekâ arka planda bilgi ve fikir çıkarıyor.' : ' · Yapay zekâ bağlı olmadığı için yalnız iletişim bilgileri alındı.'}`, 'success', 9000);
       renderDossier(view, brand);
     }
   }));
-  const eb = view.querySelector('[data-ai-enrich]');
-  if (eb) eb.addEventListener('click', async () => { try { await busy(eb, () => api.onboardEnrich(brand.id)); toast('Yapay zekâ arka planda başladı.', 'success'); renderDossier(view, brand); } catch (err) { toast(err.message, 'error'); } });
   if (ai && ai.status === 'calisiyor') {
     const poll = async () => {
       if (!view.isConnected || !view.querySelector('#ds-ai')) return;
@@ -294,7 +294,8 @@ async function renderSetup(view, brand, stepId, edit) {
   }
   const st = d.steps[idx];
   const prev = d.steps[idx - 1];
-  const next = d.steps[idx + 1];
+  // Sıradaki: cevaplanmış (verisi tam) adımlar atlanır; aynı soru iki kez sorulmaz
+  const next = d.steps.slice(idx + 1).find(x => !x.done) || null;
   view.innerHTML = `${pageHead({ title: edit ? `Marka kimliği · ${st.label}` : 'Marka kurulumu', desc: edit ? 'Bölümü düzenle; kaydedince Marka dosyasına dönersin.' : `${esc(brand.name)} kimliğini adım adım kuruyoruz. Her adım kaydedilir; yarıda bırakırsan kaldığın yerden devam edersin.` })}
     ${edit ? '' : `<ol class="setup-steps" aria-label="Kurulum adımları">${d.steps.map((s, i) => `<li class="${s.id === st.id ? 'current' : s.done ? 'done' : ''}"><a href="${base}/kurulum/${s.id}"${s.id === st.id ? ' aria-current="step"' : ''}><span class="ss-num">${s.done && s.id !== st.id ? '✓' : i + 1}</span><span class="ss-label">${esc(s.label)}</span></a></li>`).join('')}</ol>
       <p class="xsmall muted mb-4">Adım ${idx + 1} / ${d.steps.length}${d.setup.channels.length || d.setup.hasMascot != null ? '' : ' · Sonraki adımlar cevaplarına göre eklenir'}</p>`}

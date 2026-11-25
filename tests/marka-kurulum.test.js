@@ -154,7 +154,7 @@ test('kurulum arayüzü: yeni marka → adım adım (dallanma, yükleme) → Mar
     // 11.5: yasaklı kelimeler sihirbazda sorulmaz; tek yer Ses ve hafıza (bağlantı gösterilir)
     assert.ok(await page.getByRole('link', { name: 'Ses ve hafıza' }).first().isVisible());
     await srv.request('PUT', `/api/brands/${brandId}/memory`, { banned: ['ucuz'] });
-    await page.getByRole('button', { name: 'Kaydet ve devam et' }).click(); // ileride tamamlanmamış adım yok → Marka dosyası
+    await page.getByRole('button', { name: 'Kaydet ve bitir' }).click(); // eksik adım kalmadı → Marka dosyası (tamamlananlar yeniden sorulmaz)
     await page.waitForURL(new RegExp(`#/m/${brandId}/kimlik$`));
     await page.locator('.toast', { hasText: 'Kurulum tamamlandı' }).waitFor();
 

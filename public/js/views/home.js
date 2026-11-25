@@ -138,7 +138,6 @@ function identityCard(brand, overview) {
         </div>
       </div>
       <a class="btn btn-sm w-full mt-4" href="#/m/${esc(brand.id)}/kimlik">${c.missing.length ? 'Kimliği tamamla' : 'Kimliği düzenle'}</a>
-      <button type="button" class="btn btn-sm btn-ghost w-full mt-2 danger-text" data-del-brand>${icon('trash')}Markayı sil</button>
     </section>`;
 }
 
