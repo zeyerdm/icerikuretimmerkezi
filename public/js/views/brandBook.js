@@ -21,7 +21,7 @@ const CHANNEL_GUIDE = {
 };
 
 // Markanın seçtiği içerik türü → takvimdeki içerik türleri ve tasarım (post) türleri
-const KIND_MAP = { post: { content: ['post', 'reklam', 'grafik'], post: ['post', 'reklam', 'grafik'] }, carousel: { content: ['carousel'], post: ['carousel'] }, story: { content: ['story'], post: ['story'] }, reels: { content: ['reels'], post: ['kapak'] }, video: { content: ['youtube'], post: ['youtube'] }, yazi: { content: [], post: [] } };
+const KIND_MAP = { post: { content: ['post', 'reklam', 'grafik'], post: ['post', 'reklam', 'grafik'] }, carousel: { content: ['carousel', 'linkedin_belge'], post: ['carousel', 'linkedin'] }, story: { content: ['story'], post: ['story'] }, reels: { content: ['reels'], post: ['kapak'] }, video: { content: ['youtube'], post: ['youtube'] }, yazi: { content: ['linkedin'], post: [] } };
 const dateTr = iso => (iso ? new Date(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
 const clip = (t, n) => { const v = String(t || '').replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n - 1).trimEnd() + '…' : v; };
 

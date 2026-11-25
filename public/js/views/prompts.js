@@ -425,7 +425,7 @@ async function renderDetail(view, brand, id, models) {
               ${p.plan ? `<hr class="sep">
               <div class="field"><label for="pp-caption">Instagram açıklaması</label><textarea class="textarea" id="pp-caption" rows="8" maxlength="2200">${esc(p.plan.caption || '')}</textarea></div>
               <div class="field mt-2"><label for="pp-tags">Hashtag'ler</label><input class="input" id="pp-tags" maxlength="400" value="${esc((p.plan.hashtags || []).join(' '))}"></div>
-              <div class="row mt-2"><button type="button" class="btn btn-sm" data-rl-cap-save>Kaydet</button><button type="button" class="btn btn-sm btn-ghost" data-rl-cap-copy>Kopyala</button></div>` : ''}
+              <div class="row mt-2"><button type="button" class="btn btn-sm" data-rl-cap-save>Kaydet</button><button type="button" class="btn btn-sm btn-ghost" data-rl-cap-copy>Kopyala</button><a class="btn btn-sm btn-ghost" href="#/m/${esc(brand.id)}/linkedin/prompt-${esc(p.id)}">${icon('send')}LinkedIn'e uyarla</a></div>` : ''}
               ${p.plan ? `<hr class="sep">
               <div class="field-label">İlk kare görselleri (karakter ve mekân sabit)</div>
               ${p.plan.scenes.some(x => x.firstFrame) ? `<p class="xsmall muted mb-2">Her sahnenin ilk karesi için görsel prompt'u: stil, karakterin sabit görünüşü ve mekân her sahnede birebir aynı. Görseli üretip Flow'da "görselden video" ile sahneyi başlat.</p>

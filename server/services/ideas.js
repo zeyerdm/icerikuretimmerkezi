@@ -16,9 +16,9 @@ export const IDEA_CATEGORIES = {
   trend: 'Trend',
   ozel_gun: 'Özel gün'
 };
-export const IDEA_FORMATS = { genel: 'Genel', reels: 'Reels', post: 'Post', youtube: 'YouTube', story: 'Hikâye' };
+export const IDEA_FORMATS = { genel: 'Genel', reels: 'Reels', post: 'Post', youtube: 'YouTube', story: 'Hikâye', linkedin: 'LinkedIn' };
 // Fikrin kullanıldığı yerler
-export const USE_PLACES = { takvim: 'Takvim', post: 'Post stüdyosu', prompt: 'Prompt Studio', reels: 'Reels', youtube: 'YouTube kapağı', elle: 'Elle işaretlendi' };
+export const USE_PLACES = { takvim: 'Takvim', post: 'Post stüdyosu', prompt: 'Prompt Studio', reels: 'Reels', youtube: 'YouTube kapağı', linkedin: 'LinkedIn', elle: 'Elle işaretlendi' };
 const SIMILAR = 0.6;
 
 const fold = s => String(s || '').toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/\p{M}/gu, '').replace(/ı/g, 'i').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -32,7 +32,7 @@ export function titleSimilarity(a, b) {
 
 const places = r => String(r.used_in || '').split(',').filter(Boolean);
 // Toplu eklemede AI yokken satırdan tür ve kategori tahmini
-export const guessFormat = t => (/reels|kısa video|tiktok|video/i.test(t) ? 'reels' : /youtube|vlog/i.test(t) ? 'youtube' : /story|hikâye|hikaye/i.test(t) ? 'story' : /post|carousel|gönderi|görsel/i.test(t) ? 'post' : 'genel');
+export const guessFormat = t => (/linkedin/i.test(t) ? 'linkedin' : /reels|kısa video|tiktok|video/i.test(t) ? 'reels' : /youtube|vlog/i.test(t) ? 'youtube' : /story|hikâye|hikaye/i.test(t) ? 'story' : /post|carousel|gönderi|görsel/i.test(t) ? 'post' : 'genel');
 export function guessCategory(t) {
   const s = String(t || '').toLocaleLowerCase('tr-TR');
   if (/bayram|yılbaşı|yilbasi|anneler|babalar|sevgililer|öğretmenler|ramazan|günü kutlu|özel gün/.test(s)) return 'ozel_gun';

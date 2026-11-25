@@ -243,7 +243,7 @@ test('Arayüz: kendi tasarımı silinir (çöp kutusuna gider), hazır şablonla
     assert.equal(await page.locator('.tpl-card [data-post-menu]').count(), 0, 'şablon kartlarında tasarım menüsü yok');
     page.once('dialog', d => d.accept());
     await page.locator(`[data-post-menu="${p1.id}"]`).click(); // kartın sol üstündeki ⋯ menüsü
-    assert.equal(await page.locator('.post-menu [role=menuitem]').count(), 5, 'Aç, Çoğalt, Şablon olarak kaydet, Arşivle, Sil');
+    assert.equal(await page.locator('.post-menu [role=menuitem]').count(), 6, "Aç, Çoğalt, Şablon olarak kaydet, LinkedIn'e uyarla, Arşivle, Sil");
     await page.locator(`.post-menu [data-del-post="${p1.id}"]`).click();
     await page.waitForFunction(() => document.querySelectorAll('.post-card-wrap').length === 1);
     const list = (await s.request('GET', `/api/brands/${b.id}/posts`)).data.posts;

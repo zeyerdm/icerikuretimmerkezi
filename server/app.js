@@ -49,6 +49,7 @@ import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
 import { createSiteReader } from './services/siteReader.js';
+import { createLinkedinService } from './services/linkedin.js';
 import { createRemoteAccess, loginPage } from './services/remote.js';
 import { createMemoryService } from './services/memory.js';
 import { createBrandSetupService } from './services/brandSetup.js';
@@ -164,6 +165,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, siteReader, readMs: onboardReadMs || 90000 });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
+  const linkedin = createLinkedinService({ db, ai, brands, posts, prompts, workspace, ideas });
   const remote = createRemoteAccess(Object.assign({ settings }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
   const app = express();
   app.disable('x-powered-by');
@@ -221,7 +223,8 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     posts: { kinds: posts.kinds, formats: posts.formats, kindDefaults: posts.kindDefaults },
     reviewKinds: review.kinds,
     prompts: { kinds: prompts.kinds, actions: prompts.actions, aspects: prompts.aspects, statuses: prompts.statuses },
-    feedbackReasons: feedback.reasons
+    feedbackReasons: feedback.reasons,
+    linkedin: { voices: linkedin.voices, limits: linkedin.limits }
   }));
 
   // --- Ayarlar (AI anahtarı yalnızca yazılır, hiçbir zaman geri okunmaz) ---
@@ -791,6 +794,9 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.get('/brands/:brandId/setup', (req, res) => res.json(brandSetup.dossier(req.brand.id)));
   // 11.1–11.4 karşılama sohbeti
   api.get('/brands/:brandId/onboard', (req, res) => res.json(onboard.state(req.brand.id)));
+  // LinkedIn: yazı üretimi / uyarlama (kaydetmez) ve takvime kaydetme
+  api.post('/brands/:brandId/linkedin/write', route(async (req, res) => { const b = req.body || {}; res.json(await linkedin.write(req.brand.id, { brief: b.brief, voice: b.voice || 'sirket', person: b.person, source: b.source && typeof b.source === 'object' ? b.source : null, modelRef: mr(b) })); }));
+  api.post('/brands/:brandId/linkedin/save', (req, res) => res.status(201).json(linkedin.save(req.brand.id, req.body || {})));
   api.post('/brands/:brandId/onboard/site', route(async (req, res) => res.json(await onboard.fromSite(req.brand.id, { url: (req.body || {}).url, modelRef: mr(req.body || {}) }))));
   api.post('/brands/:brandId/onboard/absorb', route(async (req, res) => res.json(await onboard.absorb(req.brand.id, Object.assign({}, req.body || {}, { modelRef: mr(req.body || {}) })))));
   api.put('/brands/:brandId/onboard/answer/:key', (req, res) => res.json(onboard.answer(req.brand.id, req.params.key, req.body || {})));
