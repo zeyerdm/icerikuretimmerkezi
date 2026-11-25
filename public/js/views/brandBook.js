@@ -80,7 +80,7 @@ export async function renderBrandBook(view, brand) {
   const channels = channelsOf(d);
   const pillars = pillarsOf(ideas);
   const pools = b.textPools || { cta: [], closing: [], speech: [] };
-  const facts = mem.facts || [];
+  const facts = (mem.facts || []).filter(f => !f.status || f.status === 'onayli'); // müşteriye yalnız onaylı bilgiler
   const fact = cat => facts.filter(f => f.category === cat);
   const hasMascot = d.setup.hasMascot || has(idt.mascotName) || has(book.name);
   const today = new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -193,7 +193,7 @@ function toMarkdown({ d, reels, notes, profile }, { channels, pillars, colors, h
   const kv = (k, v) => { if (has(v)) L.push(`- **${k}:** ${Array.isArray(v) ? v.join(', ') : v}`); };
   const h = t => L.push('', `## ${t}`, '');
   h('Marka'); kv('Marka adı', b.name); kv('Sektör', b.sector); kv('Slogan', b.slogan); if (has(b.description)) L.push('', b.description);
-  (mem.facts || []).filter(f => ['hikaye', 'urun'].includes(f.category)).forEach(f => L.push('', `**${f.title}:** ${f.content}`));
+  (mem.facts || []).filter(f => (!f.status || f.status === 'onayli') && ['hikaye', 'urun'].includes(f.category)).forEach(f => L.push('', `**${f.title}:** ${f.content}`));
   h('Kitle ve hedefler'); kv('Hedef kitle', b.audience); kv('İçerik hedefleri', b.goals); kv('Rakipler ve referans markalar', b.competitors);
   h('Ses ve dil'); kv('Marka karakteri', b.character); kv('İletişim dili', b.tone); kv('Kullandığımız ifadeler', mem.preferred || []); kv('Kullanmadığımız kelimeler', mem.banned || []);
   h('Görsel kimlik'); colors.forEach(([k, c]) => kv(k, String(c).toUpperCase())); kv('Başlık yazı tipi', b.fonts.heading); kv('Gövde yazı tipi', b.fonts.body);

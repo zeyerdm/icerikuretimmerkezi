@@ -83,7 +83,14 @@ test('Kurulumda web sitesi: iletişim kartı ve renk hemen; profil, bilgi kartla
     assert.equal((await srv.request('GET', `/api/brands/${b.id}`)).data.brand.sector, 'Kafe');
     assert.ok(st.ai.found.some(f => /3 içerik fikri/.test(f)), st.ai.found.join(' | '));
 
-    // Post, fikir ve açıklama yazımında kullanılan marka hafızası: site ve siteden gelen bilgiler, sadık kal talimatı
+    // Siteden gelen kartlar öneri olarak gelir (O1): onaylanmadan üretime girmez
+    const menu = facts.find(f => f.title === 'Menü fiyatları');
+    assert.equal(menu.status, 'oneri'); assert.equal(menu.source, 'site');
+    const before = provider.calls.length;
+    await srv.request('POST', `/api/brands/${b.id}/ideas/${ideas[0].id}/similar`, { count: 1 });
+    assert.doesNotMatch(provider.calls[before].prompt, /Menü fiyatları/, 'onaysız öneri yapay zekâya gitmez');
+    assert.equal((await srv.request('POST', `/api/brands/${b.id}/memory/facts/${menu.id}/approve`)).status, 200);
+    // Post, fikir ve açıklama yazımında kullanılan marka hafızası: site ve onaylanan bilgiler, sadık kal talimatı
     const sim = provider.calls.length;
     await srv.request('POST', `/api/brands/${b.id}/ideas/${ideas[0].id}/similar`, { count: 1 });
     const memText = provider.calls[sim].prompt;

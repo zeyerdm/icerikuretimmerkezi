@@ -697,6 +697,27 @@ const MIGRATIONS = [
   // 49: Markanın web sitesi (kurulumda ya da sonradan girilir; okunan bilgiler bilgi kartı ve fikir olur)
   `
   ALTER TABLE brands ADD COLUMN website TEXT NOT NULL DEFAULT '';
+  `,
+  // 50: Üç katmanlı marka hafızası: katman (sabit / öğrenilen / dönemsel), onay durumu, geçerlilik tarihleri, güven
+  //     seviyesi ve değişiklik geçmişi. Mevcut kartlar onaylı ve sabit sayılır (kampanyalar dönemsel); davranış değişmez.
+  `
+  ALTER TABLE brand_facts ADD COLUMN layer TEXT NOT NULL DEFAULT 'sabit';
+  ALTER TABLE brand_facts ADD COLUMN status TEXT NOT NULL DEFAULT 'onayli';
+  ALTER TABLE brand_facts ADD COLUMN valid_from TEXT;
+  ALTER TABLE brand_facts ADD COLUMN valid_to TEXT;
+  ALTER TABLE brand_facts ADD COLUMN confidence TEXT NOT NULL DEFAULT 'yuksek';
+  UPDATE brand_facts SET layer = 'donemsel' WHERE category = 'kampanya';
+  CREATE TABLE brand_fact_history (
+    id TEXT PRIMARY KEY,
+    fact_id TEXT NOT NULL,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    at TEXT NOT NULL,
+    action TEXT NOT NULL,
+    before TEXT,
+    after TEXT,
+    actor TEXT NOT NULL DEFAULT 'kullanici'
+  );
+  CREATE INDEX idx_fact_history ON brand_fact_history(fact_id, at);
   `
 ];
 

@@ -7,7 +7,7 @@ import { badRequest } from '../lib/http.js';
 
 export const INSIGHT_KINDS = {
   plan_bos: 'Plan boşluğu', onay_bekliyor: 'Onay bekleyen içerik', geciken_icerik: 'Tarihi geçen içerik',
-  geciken_gorev: 'Geciken görev', ozel_gun: 'Yaklaşan özel gün', uretim_dustu: 'Üretim düştü', tek_tip: 'Tek tip içerik'
+  geciken_gorev: 'Geciken görev', hafiza_onay: 'Onay bekleyen bilgi', ozel_gun: 'Yaklaşan özel gün', uretim_dustu: 'Üretim düştü', tek_tip: 'Tek tip içerik'
 };
 const PRIORITY_RANK = { yuksek: 0, orta: 1, dusuk: 2 };
 const DONE = ['tamamlandi', 'yayinlandi'];
@@ -63,7 +63,11 @@ export function createInsightService({ db, brands, settings }) {
       if (n / m30.length >= 0.8) add({ key: `tek_tip:${b.id}:${weekKey(t)}`, kind: 'tek_tip', priority: 'dusuk', date: isoDay(t), title: 'İçerikler tek tipe yığıldı',
         text: `Son 30 gündeki ${m30.length} içeriğin ${n} tanesi aynı tür (${top}). Farklı biçim ve konularla çeşitlendir.`, action: { label: 'Fikir havuzunu aç', href: `${base}/fikirler` } });
     }
-    // 7) Önemli özel gün (7 gün içinde) ve o gün markanın planlı içeriği yok
+    // 7) Hafızada onay bekleyen bilgi kartları (siteden, yapay zekâdan gelenler): onaylanmadan üretime girmez
+    const pend = db.prepare("SELECT COUNT(*) AS n FROM brand_facts WHERE brand_id = ? AND status = 'oneri'").get(b.id).n;
+    if (pend) add({ key: `hafiza_onay:${b.id}:${pend}`, kind: 'hafiza_onay', priority: 'orta', date: isoDay(t), title: `${pend} bilgi onay bekliyor`,
+      text: 'Web sitesinden ya da yapay zekâdan gelen bilgiler sen onaylamadan üretimlerde kullanılmaz.', action: { label: 'Gözden geçir', href: `${base}/kimlik/ses` } });
+    // 8) Önemli özel gün (7 gün içinde) ve o gün markanın planlı içeriği yok
     for (const d of specialDays(isoDay(t), isoDay(t + 7 * DAY), { brands: [b] }).filter(x => x.importance === 'yuksek' && x.category !== 'anma' && !x.end)) {
       if (rows.some(r => r.scheduled_at && r.scheduled_at.slice(0, 10) === d.date)) continue;
       const left = Math.round((Date.parse(d.date + 'T12:00:00Z') - t) / DAY);

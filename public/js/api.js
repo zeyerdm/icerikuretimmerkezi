@@ -205,6 +205,8 @@ export const api = {
   addFact: (id, body) => request('POST', b(id) + '/memory/facts', body),
   saveFact: (id, fid, body) => request('PUT', `${b(id)}/memory/facts/${fid}`, body),
   deleteFact: (id, fid) => request('DELETE', `${b(id)}/memory/facts/${fid}`),
+  approveFact: (id, fid) => request('POST', `${b(id)}/memory/facts/${fid}/approve`),
+  factHistory: (id, fid) => request('GET', `${b(id)}/memory/facts/${fid}/history`),
   identityDraft: body => request('POST', '/api/identity-draft', body),
   paletteSuggest: body => request('POST', '/api/palette-suggest', body),
   specialDays: (from, to, brandId = '') => request('GET', `/api/special-days?from=${from}&to=${to}${brandId ? `&brandId=${encodeURIComponent(brandId)}` : ''}`),
