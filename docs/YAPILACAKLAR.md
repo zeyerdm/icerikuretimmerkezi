@@ -32,7 +32,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 - ✅ Kurulumda seçime bağlı sorular, menüde seçilmeyen kanalların gizlenmesi
 - 🔒 Profil / Görsel kimlik sekmeleri ile marka dosyası kartlarının tek düzenleyicide birleşmesi
 - 🔒 Kurulum sohbeti ve kurulum sihirbazı: iki akış tek akışa
-- ⬜ Telefon görünümü taraması (Post stüdyosu, takvim, Prompt Studio)
+- 🟡 Telefon görünümü: marka menüsü düzeltildi; kalan küçük taşmalar (Aylık rapor) sonraya (kullanıcı önceliği: bilgisayar)
 
 ## 03 · Merkezi veri ve marka hafızası
 
@@ -47,7 +47,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 
 - ✅ İş başına model, yedek zinciri, yoğunluk hafızası, hız ayarı, aylık harcama sınırı
 - ⬜ Context Builder: işe göre ilgili hafıza seçimi (ortak katman)
-- ⬜ Intent Router: kural tabanlı işler (tarih, sayım, listeleme) yapay zekâya gitmez
+- ✅ Intent Router (ilk adım): asistanda bugün/yarın/bu hafta takvimi, onay bekleyenler, geciken görev ve içerikler, fikir sayısı, yaklaşan özel günler yapay zekâsız cevaplanır
 - ⬜ Belli bir tutarın üstündeki ücretli işlemde açık onay
 
 ## 05 · Otonom görev yönetimi

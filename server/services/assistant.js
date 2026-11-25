@@ -9,7 +9,7 @@ import { CONTENT_TYPES } from './workspace.js';
 import { PROMPT_KINDS } from './prompts.js';
 import { streamCtx } from '../lib/streamCtx.js';
 import { cancelled } from './ai/providers/common.js';
-import { upcomingText } from './specialDays.js';
+import { upcomingText, specialDays } from './specialDays.js';
 
 const HISTORY_LIMIT = 8;
 const PAST_CHARS = 700; // geçmiş mesajlar kısaltılarak gönderilir (uzun eski yanıtlar her seferinde tekrar ödenmez)
@@ -86,6 +86,49 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
     if (prompts) { const r = prompts.list(brandId, { kind: 'reels' }).slice(0, 5); if (r.length) lines.push('Reels senaryoları:', ...r.map(x => `  [${x.id}] ${short(x.title)}`)); }
     if (posts) { const p = posts.list(brandId).slice(0, 5); if (p.length) lines.push('Post tasarımları:', ...p.map(x => `  [${x.id}] ${short(x.title)}`)); }
     return lines.length ? lines.join('\n') : '(henüz kayıt yok)';
+  }
+
+  // Intent Router (kural tabanlı): yalnız kısa ve açık bilgi soruları; öneri/üretim isteyen her şey yapay zekâya gider
+  function quickAnswer(brand, message) {
+    const m = String(message).toLocaleLowerCase('tr-TR').trim();
+    if (m.length > 90 || /öner|üret|yaz|tasarla|fikir ver|ne paylaşalım|ne yapalım|nasıl|neden|niçin|plan(la|ı) (yap|çıkar|hazırla)/.test(m)) return null;
+    const day = d => new Date(d).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'short' });
+    const time = d => new Date(d).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const DONE = ['tamamlandi', 'yayinlandi'];
+    const contents = (from, to) => workspace ? workspace.listContents({ brandId: brand.id, from, to }) : [];
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const list = (rows, fmt) => rows.slice(0, 10).map(fmt).join('\n') + (rows.length > 10 ? `\n… ve ${rows.length - 10} tane daha` : '');
+    // Bugün / yarın / bu hafta takvimde ne var
+    const span = /(^|\s)bugün/.test(m) ? [0, 1, 'Bugün'] : /(^|\s)yarın/.test(m) ? [1, 2, 'Yarın'] : /bu hafta|önümüzdeki hafta|7 gün/.test(m) ? [0, 7, 'Önümüzdeki 7 günde'] : null;
+    if (span && /ne var|neler var|hangi|planlı|takvim|yayın|paylaşım|içerik/.test(m) && workspace) {
+      const from = new Date(start.getTime() + span[0] * 86400000).toISOString(); const to = new Date(start.getTime() + span[1] * 86400000).toISOString();
+      const rows = contents(from, to);
+      return rows.length ? `${span[2]} ${rows.length} içerik planlı:\n${list(rows, c => `• ${day(c.scheduledAt)} ${time(c.scheduledAt)}: ${c.title} (${c.typeLabel}, ${c.statusLabel})`)}` : `${span[2]} planlı içerik yok.`;
+    }
+    if (/onay bekle/.test(m) && workspace) {
+      const rows = workspace.listContents({ brandId: brand.id, status: 'onay' });
+      return rows.length ? `Onay bekleyen ${rows.length} içerik var:\n${list(rows, c => `• ${c.title} (${c.typeLabel})`)}` : 'Onay bekleyen içerik yok.';
+    }
+    if (/gecik|tarihi geç/.test(m) && /görev|iş|içerik/.test(m) && workspace) {
+      const today = start.toISOString().slice(0, 10);
+      const tasks = workspace.listTasks({ brandId: brand.id }).filter(t => !t.done && t.dueDate && t.dueDate < today);
+      const late = contents(new Date(start.getTime() - 60 * 86400000).toISOString(), new Date().toISOString()).filter(c => !DONE.includes(c.status));
+      const parts = [];
+      if (/görev|iş/.test(m)) parts.push(tasks.length ? `Geciken ${tasks.length} görev:\n${list(tasks, t => `• ${t.title} (son gün ${t.dueDate})`)}` : 'Geciken görev yok.');
+      if (/içerik/.test(m)) parts.push(late.length ? `Tarihi geçmiş ${late.length} içerik:\n${list(late, c => `• ${day(c.scheduledAt)}: ${c.title} (${c.statusLabel})`)}` : 'Tarihi geçmiş içerik yok.');
+      return parts.join('\n\n');
+    }
+    if (/kaç fikir|fikir sayısı|havuzda kaç/.test(m)) {
+      const all = ideas.list(brand.id, { limit: 5000 });
+      const unused = all.filter(i => !i.used).length;
+      return `Fikir havuzunda ${all.length} fikir var; ${unused} tanesi henüz kullanılmadı${all.filter(i => i.favorite).length ? `, ${all.filter(i => i.favorite).length} tanesi favori` : ''}.`;
+    }
+    if (/özel gün/.test(m) && /yaklaşan|hangi|ne zaman|var mı|listele/.test(m)) {
+      const from = start.toISOString().slice(0, 10); const to = new Date(start.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+      const days = specialDays(from, to, { brands: [brand] }).filter(d => d.category !== 'donem');
+      return days.length ? `Önümüzdeki 30 günün özel günleri:\n${list(days, d => `• ${day(d.date + 'T12:00:00')}: ${d.name}${d.importance === 'yuksek' ? ' (önemli)' : ''}`)}` : 'Önümüzdeki 30 günde özel gün yok.';
+    }
+    return null;
   }
 
   // Modelin önerdiği işlemleri doğrular ve uygular. Her işlem kendi sonucunu döndürür: { type, ok, ...ya da error }.
@@ -190,6 +233,11 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
     async send(brandId, rawMessage) {
       const brand = brands.get(brandId);
       const message = text(rawMessage, { field: 'Mesaj', max: 4000, required: true });
+      // Kural tabanlı yönlendirme: kayıtlardan cevaplanabilen bilgi sorusu yapay zekâya gitmez (ücretsiz ve anlık)
+      const quick = quickAnswer(brand, message);
+      if (quick) {
+        return transaction(db, () => ({ userMessage: save(brand.id, 'user', message), assistantMessage: save(brand.id, 'assistant', `${quick}\n\n(Bu cevap kayıtlardan hazırlandı; yapay zekâ kullanılmadı.)`, []) }));
+      }
       const past = history(brand.id, HISTORY_LIMIT);
       const response = await ai.generate(buildPrompt(brand, brands.memory(brand.id, { light: !wantsProduction(message) }), past, message), { json: true, temperature: 0.8, task: 'fikir', brandId: brand.id });
       const reply = typeof (response && response.reply) === 'string' && response.reply.trim()
