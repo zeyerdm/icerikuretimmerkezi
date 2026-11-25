@@ -50,6 +50,7 @@ import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
 import { createSiteReader } from './services/siteReader.js';
 import { createLinkedinService } from './services/linkedin.js';
+import { createInsightService } from './services/insights.js';
 import { createRemoteAccess, loginPage } from './services/remote.js';
 import { createMemoryService } from './services/memory.js';
 import { createBrandSetupService } from './services/brandSetup.js';
@@ -165,6 +166,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, siteReader, readMs: onboardReadMs || 90000 });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
+  const insights = createInsightService({ db, brands, settings });
   const linkedin = createLinkedinService({ db, ai, brands, posts, prompts, workspace, ideas });
   const remote = createRemoteAccess(Object.assign({ settings }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
   const app = express();
@@ -434,6 +436,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const brandId = b.brandId ? brands.get(String(b.brandId)).id : null;
     res.json(await identity.palette({ colors: b.colors, brand: b.brand && typeof b.brand === 'object' ? b.brand : {}, modelRef: mr(b), brandId }));
   }));
+
+  // Proaktif uyarılar (kural tabanlı, yapay zekâsız): bütün markalar ya da tek marka; "Gizle" seçilen süre boyunca
+  api.get('/insights', (req, res) => res.json({ insights: insights.list({ brandId: req.query.brandId ? String(req.query.brandId) : null }), kinds: insights.kinds }));
+  api.post('/insights/dismiss', (req, res) => res.json(insights.dismiss((req.body || {}).key, (req.body || {}).days)));
 
   // Özel günler: from/to (YYYY-MM-DD) aralığı, en fazla 2 yıl
   api.get('/special-days', (req, res) => {

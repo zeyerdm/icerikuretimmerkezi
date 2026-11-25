@@ -251,8 +251,10 @@ test('T.11 hatırlatmalar: özet sayıları ve zil rozeti, şerit günde bir kez
     await page.evaluate(() => localStorage.setItem('ium.reminders', JSON.stringify({ summary: true, notify: true, tasks: true, sound: false })));
     await page.reload();
     // Zil: bugün bekleyen 1 + geciken içerik 1 + bugün biten görev 1 + geciken görev 1 = 4 (yayınlanan sayılmaz)
+    // + öncelikli proaktif uyarılar (plan boşluğu, yaklaşan önemli özel gün…; tarihe göre değişir; geciken iş tekrar sayılmaz)
+    const high = (await srv.request('GET', '/api/insights')).data.insights.filter(i => i.priority === 'yuksek' && !['geciken_icerik', 'geciken_gorev'].includes(i.kind)).length;
     await page.locator('.bell-badge').waitFor();
-    assert.equal(await page.locator('.bell-badge').innerText(), '4');
+    assert.equal(await page.locator('.bell-badge').innerText(), String(4 + high));
     const strip = page.locator('.daily');
     await strip.waitFor();
     assert.match(await strip.innerText(), /1 içeriğin tarihi geçti/);

@@ -90,6 +90,8 @@ export const api = {
   meta: () => request('GET', '/api/meta'),
   settings: () => request('GET', '/api/settings'),
   saveProfile: body => request('PUT', '/api/settings/profile', body),
+  insights: (brandId = null) => request('GET', '/api/insights' + (brandId ? `?brandId=${encodeURIComponent(brandId)}` : '')),
+  dismissInsight: (key, days = 7) => request('POST', '/api/insights/dismiss', { key, days }),
   remote: () => request('GET', '/api/remote'),
   saveRemote: body => request('PUT', '/api/remote', body),
   remoteTunnel: action => request('POST', '/api/remote/tunnel', { action }),
