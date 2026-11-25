@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { THEMES, themePref, setTheme, THEME_ENABLED } from '../theme.js';
 import { esc, icon, toast, openModal, pageHead, emptyState, busy } from '../ui.js';
 import { reminderPrefs, setReminderPrefs } from '../reminders.js';
+import { qrMatrix, drawQr } from '../qr.js';
 import { state, renderChrome, refreshBrands } from '../app.js';
 
 const fmtSize = n => n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
@@ -63,6 +64,7 @@ export async function renderSettings(view) {
           <div class="row"><button type="submit" class="btn btn-sm btn-primary">Kaydet</button></div>
         </form>
       </section>
+      <section class="card" id="remote-card"><div class="card-head"><h3>Telefondan erişim</h3><span id="rm-pill"></span></div><div id="rm-body"><p class="small muted">Yükleniyor…</p></div></section>
       <section class="card" id="reminder-card">
         <div class="card-head"><h3>Hatırlatmalar</h3></div>
         <label class="check"><input type="checkbox" id="rm-summary" ${reminderPrefs().summary ? 'checked' : ''}> Açılışta günün özetini göster (günde bir kez)</label>
@@ -210,6 +212,7 @@ export async function renderSettings(view) {
   });
 
   view.querySelector('#theme-card').addEventListener('click', e => { const b = e.target.closest('[data-theme-set]'); if (!b) return; setTheme(b.dataset.themeSet); view.querySelectorAll('[data-theme-set]').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
+  mountRemote(view.querySelector('#remote-card'));
   view.querySelector('#profile-form').addEventListener('submit', async e => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -311,5 +314,64 @@ export async function renderSettings(view) {
       try { await api.removeUpdateToken(); toast('Erişim anahtarı kaldırıldı.', 'success'); renderSettings(view); } catch (err) { toast(err.message, 'error'); }
       return;
     }
+  };
+}
+
+// Telefondan / her yerden erişim: şifre, Cloudflare tüneli, QR kod. Ayarlar yalnız bilgisayardan değiştirilir.
+const TUNNEL_LABEL = { kapali: 'Tünel kapalı', baslatiliyor: 'Tünel açılıyor…', acik: 'Açık', yok: 'cloudflared kurulu değil', hata: 'Tünel hatası' };
+async function mountRemote(card) {
+  const body = card.querySelector('#rm-body');
+  const pill = card.querySelector('#rm-pill');
+  let st;
+  try { st = await api.remote(); } catch (err) { body.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; return; }
+  const t = st.tunnel;
+  pill.innerHTML = st.enabled ? (t.status === 'acik' ? '<span class="pill pill-ok"><span class="dot"></span>Açık</span>' : '<span class="pill pill-warn"><span class="dot"></span>Açık · tünel bekliyor</span>') : '<span class="pill"><span class="dot"></span>Kapalı</span>';
+  if (st.remoteClient) {
+    body.innerHTML = `<p class="small">Şu an telefondan (uzaktan) bağlısın. Şifre ve tünel ayarları güvenlik için yalnız bilgisayardan değiştirilir; API anahtarları, yedekler ve güncelleme de öyle.</p><div class="row mt-2"><button type="button" class="btn btn-sm" id="rm-logout">Çıkış yap</button></div>`;
+    body.querySelector('#rm-logout').onclick = async () => { try { await api.remoteLogout(); } catch { /* yine de çık */ } location.href = '/giris'; };
+    return;
+  }
+  body.innerHTML = `
+    <p class="small muted">Uygulamayı telefondan, evden uzaktayken de kullan. Bilgisayar açık ve uygulama çalışıyor olmalı. Bağlantı Cloudflare'in ücretsiz tüneliyle şifreli (https) kurulur; giriş için burada belirlediğin şifre sorulur. API anahtarları, yedekler ve güncelleme telefondan değiştirilemez.</p>
+    <form id="rm-form" class="stack-sm mt-2">
+      <div class="form-grid">
+        <div class="field"><label for="rm-pass">${st.hasPassword ? 'Yeni şifre (değiştirmek için)' : 'Şifre'}</label><input class="input" id="rm-pass" type="password" autocomplete="new-password" minlength="${st.minPassword}" maxlength="200" placeholder="En az ${st.minPassword} karakter"></div>
+        <div class="field"><span class="field-label">Seçenekler</span>
+          <label class="check"><input type="checkbox" id="rm-on" ${st.enabled ? 'checked' : ''}> Telefondan erişime izin ver</label>
+          <label class="check mt-1"><input type="checkbox" id="rm-auto" ${st.autoTunnel ? 'checked' : ''}> Uygulama açılınca tüneli kendiliğinden başlat</label></div>
+      </div>
+      <div class="row"><button type="submit" class="btn btn-sm btn-primary">Kaydet</button>${st.sessions ? `<button type="button" class="btn btn-sm btn-ghost" id="rm-revoke">Açık oturumları kapat (${st.sessions})</button>` : ''}</div>
+    </form>
+    ${st.enabled ? `<div class="card-section mt-3">
+      <div class="row-between"><b>Tünel: ${esc(TUNNEL_LABEL[t.status] || t.status)}</b>
+        ${t.status === 'acik' || t.status === 'baslatiliyor' ? '<button type="button" class="btn btn-sm" data-tunnel="stop">Tüneli kapat</button>' : '<button type="button" class="btn btn-sm btn-primary" data-tunnel="start">Tüneli başlat</button>'}</div>
+      ${t.status === 'acik' ? `<div class="rm-link mt-2"><canvas id="rm-qr" width="180" height="180" aria-label="Telefon adresi QR kodu"></canvas><div class="grow"><p class="small">Telefonun kamerasıyla QR kodu okut ya da adresi aç:</p><p class="strong small rm-url">${esc(t.url)}</p><button type="button" class="btn btn-sm" id="rm-copy">Adresi kopyala</button><p class="xsmall muted mt-2">Adres tünel her açıldığında değişir. Telefonda ana ekrana ekleyebilirsin; adres değişince QR'ı yeniden okut.</p></div></div>` : ''}
+      ${t.status === 'yok' ? `<div class="notice notice-warn mt-2"><div><b>Önce cloudflared'ı bir kez kur</b> (Cloudflare'in ücretsiz, resmî aracı; hesap gerekmez):<br>Başlat menüsüne <b>cmd</b> yaz, açılan pencereye şunu yapıştırıp Enter'a bas:<br><code>winget install --id Cloudflare.cloudflared</code><br>Kurulum bitince uygulamayı kapatıp yeniden aç ve "Tüneli başlat"a bas.</div></div>` : ''}
+      ${t.status === 'hata' && t.error ? `<p class="small field-error mt-2">${esc(t.error)}</p>` : ''}
+    </div>` : ''}`;
+  const qr = body.querySelector('#rm-qr');
+  if (qr) { try { const m = qrMatrix(t.url); drawQr(qr.getContext('2d'), m, 0, 0, 180); } catch { qr.remove(); } }
+  body.querySelector('#rm-form').onsubmit = async e => {
+    e.preventDefault();
+    const password = body.querySelector('#rm-pass').value;
+    try {
+      await api.saveRemote({ password, enabled: body.querySelector('#rm-on').checked, autoTunnel: body.querySelector('#rm-auto').checked });
+      toast('Telefondan erişim ayarları kaydedildi.', 'success');
+      mountRemote(card);
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  const rv = body.querySelector('#rm-revoke');
+  if (rv) rv.onclick = async () => { try { await api.remoteRevoke(); toast('Bütün telefon oturumları kapatıldı.', 'success'); mountRemote(card); } catch (err) { toast(err.message, 'error'); } };
+  const cp = body.querySelector('#rm-copy');
+  if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(t.url); toast('Adres kopyalandı.', 'success'); } catch { toast('Kopyalanamadı; adresi elle seç.', 'error'); } };
+  const tb = body.querySelector('[data-tunnel]');
+  if (tb) tb.onclick = async () => {
+    tb.disabled = true;
+    try {
+      await api.remoteTunnel(tb.dataset.tunnel);
+      // Tünel adresi birkaç saniyede gelir
+      for (let i = 0; i < 20; i++) { const s2 = await api.remote(); if (s2.tunnel.status !== 'baslatiliyor') break; await new Promise(r => setTimeout(r, 1000)); }
+      mountRemote(card);
+    } catch (err) { toast(err.message, 'error'); tb.disabled = false; }
   };
 }
