@@ -1014,5 +1014,5 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html', setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));
   app.use(errorHandler);
 
-  return { app, db, backups, remote, close: () => { remote.stopTunnel(); db.close(); } };
+  return { app, db, backups, remote, ai, close: () => { remote.stopTunnel(); db.close(); } };
 }

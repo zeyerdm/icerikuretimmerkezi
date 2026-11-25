@@ -15,7 +15,7 @@ const { createApp } = await import('./app.js');
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const START_PORT = Number(process.env.PORT) || 3000;
 const MAX_TRIES = 10;
-const { app, backups, remote } = createApp();
+const { app, backups, remote, ai } = createApp();
 const PORTS_BUSY = 3; // scripts/start.js bu kodu sürüm hatası saymaz
 
 // Başlat dosyasıyla açıldığında tarayıcı kendiliğinden açılır
@@ -66,6 +66,8 @@ async function start() {
       // Başlatıcıya "açıldım" bilgisi: yeni sürüm açılamazsa başlatıcı önceki sürüme döner
       if (process.send) process.send({ type: 'ready' });
       startDailyBackups();
+      // Günde bir model listesi kontrolü (ücretsiz; kapanan modeller yedek zincirinde atlanır)
+      setTimeout(() => { ai.dailyModelCheck().then(r => { if (r && r.missing.length) console.log(`  Kullanılamayan modeller işaretlendi: ${r.missing.join(', ')}`); }).catch(() => {}); }, 5000).unref();
       // Telefondan erişim açık ve "uygulama açılınca tüneli başlat" seçiliyse tünel kendiliğinden kurulur
       try { if (remote.status().enabled && remote.status().autoTunnel) { remote.startTunnel(port); waitTunnel(); } } catch { /* ayarlardan başlatılabilir */ }
       return;

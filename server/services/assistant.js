@@ -11,7 +11,11 @@ import { streamCtx } from '../lib/streamCtx.js';
 import { cancelled } from './ai/providers/common.js';
 import { upcomingText } from './specialDays.js';
 
-const HISTORY_LIMIT = 12;
+const HISTORY_LIMIT = 8;
+const PAST_CHARS = 700; // geçmiş mesajlar kısaltılarak gönderilir (uzun eski yanıtlar her seferinde tekrar ödenmez)
+// Bağlam seçici: üretim/plan isteyen mesajda tam hafıza (son fikirler, performans, özel günler); sohbet ve sorularda hafif
+// hafıza. Karar kodla verilir, yapay zekâ çağrılmaz.
+export const wantsProduction = m => /fikir|öner|plan|takvim|hafta|ay(?:lık|ın)?\b|içerik|reels|post|carousel|story|hikâye|hikaye|kampanya|özel gün|bayram|tasarla|üret|yaz|senaryo|prompt|görsel/i.test(String(m || ''));
 const MAX_IDEAS_PER_ACTION = 12;
 // AI çağıran ağır işlemler (senaryo, post, prompt) tek mesajda en çok bu kadar
 const MAX_HEAVY = 3;
@@ -41,14 +45,13 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       'MARKA HAFIZASI:',
       memory,
       '',
-      past.length ? 'SON KONUŞMA:\n' + past.map(m => `${m.role === 'user' ? 'Kullanıcı' : 'Asistan'}: ${m.content}`).join('\n') : '',
+      past.length ? 'SON KONUŞMA:\n' + past.map(m => `${m.role === 'user' ? 'Kullanıcı' : 'Asistan'}: ${String(m.content).length > PAST_CHARS ? String(m.content).slice(0, PAST_CHARS) + '…' : m.content}`).join('\n') : '',
       '',
       'MARKANIN SON KAYITLARI (kullanıcı "bu fikir", "bu senaryo" derse buradaki id ile işlem yap):',
       context(brand.id),
       '',
       `BUGÜN: ${new Date().toISOString().slice(0, 10)}`,
-      'YAKLAŞAN ÖZEL GÜNLER VE DÖNEMLER (fikir ve plan önerirken bunları dikkate al; anma günlerinde ticari içerik önerme):',
-      upcomingText(45) || '(yok)',
+      ...(wantsProduction(message) ? ['YAKLAŞAN ÖZEL GÜNLER VE DÖNEMLER (fikir ve plan önerirken bunları dikkate al; anma günlerinde ticari içerik önerme):', upcomingText(45) || '(yok)'] : []),
       '',
       'YAPABİLECEĞİN İŞLEMLER (actions listesine ekle; uygulama gerçekten yapar):',
       `- save_ideas: {ideas: [{title, description, category, format}]} içerik fikirlerini fikir havuzuna kaydeder. Kategoriler: ${categories}. Tür (format): ${Object.keys(IDEA_FORMATS).join(', ')} (istekte geçmiyorsa genel). En fazla ${MAX_IDEAS_PER_ACTION}.`,
@@ -188,7 +191,7 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       const brand = brands.get(brandId);
       const message = text(rawMessage, { field: 'Mesaj', max: 4000, required: true });
       const past = history(brand.id, HISTORY_LIMIT);
-      const response = await ai.generate(buildPrompt(brand, brands.memory(brand.id), past, message), { json: true, temperature: 0.8, task: 'fikir', brandId: brand.id });
+      const response = await ai.generate(buildPrompt(brand, brands.memory(brand.id, { light: !wantsProduction(message) }), past, message), { json: true, temperature: 0.8, task: 'fikir', brandId: brand.id });
       const reply = typeof (response && response.reply) === 'string' && response.reply.trim()
         ? response.reply.trim()
         : 'Yanıt oluşturulamadı, mesajını biraz farklı yazıp tekrar dener misin?';

@@ -251,7 +251,8 @@ export function createBrandService(db, ownerId) {
     },
 
     // Marka hafızası: AI'a gönderilen, yalnızca bu markaya ait bağlam
-    memory(brandId) {
+    // light: sohbet gibi fikir/plan istemeyen işlerde yalnız kimlik, kurallar ve bilgiler (son fikirler ve performans listeleri yok)
+    memory(brandId, { light = false } = {}) {
       const b = service.get(brandId);
       const counts = service.assetCounts(b.id);
       const mascots = db.prepare("SELECT label FROM assets WHERE brand_id = ? AND category = 'mascot' AND label != '' LIMIT 12").all(b.id).map(r => r.label);
@@ -291,11 +292,11 @@ export function createBrandService(db, ownerId) {
         line('Başlık / gövde fontu', [b.fonts.heading, b.fonts.body].filter(Boolean).join(' / ')),
         line('Logo', counts.logo ? 'yüklü' : ''),
         line('Maskot pozları', mascots.join(', ') || (counts.mascot ? `${counts.mascot} görsel` : '')),
-        recentIdeas.length ? 'Daha önce üretilen fikirler (tekrar etme):\n' + recentIdeas.map(i => `- ${i.title} (${i.category})`).join('\n') : null,
-        favIdeas.length ? 'Ekibin beğendiği fikirler (bu tarzı örnek al):\n' + favIdeas.map(i => `- ${i.title}`).join('\n') : null,
-        best.length ? 'Paylaşım sonuçlarına göre EN ÇOK TUTAN içerikler (giriş cümlesi, tema ve yaklaşımlarından öğren; kopyalama):\n' + best.map(perfLine).join('\n') : null,
-        worst.length ? 'En az tutan içerikler (bu yaklaşımlardan kaçın):\n' + worst.map(perfLine).join('\n') : null,
-        perfFocusText(db, b.id) || null
+        !light && recentIdeas.length ? 'Daha önce üretilen fikirler (tekrar etme):\n' + recentIdeas.map(i => `- ${i.title} (${i.category})`).join('\n') : null,
+        !light && favIdeas.length ? 'Ekibin beğendiği fikirler (bu tarzı örnek al):\n' + favIdeas.map(i => `- ${i.title}`).join('\n') : null,
+        !light && best.length ? 'Paylaşım sonuçlarına göre EN ÇOK TUTAN içerikler (giriş cümlesi, tema ve yaklaşımlarından öğren; kopyalama):\n' + best.map(perfLine).join('\n') : null,
+        !light && worst.length ? 'En az tutan içerikler (bu yaklaşımlardan kaçın):\n' + worst.map(perfLine).join('\n') : null,
+        (!light && perfFocusText(db, b.id)) || null
       ].filter(Boolean).join('\n');
     }
   };

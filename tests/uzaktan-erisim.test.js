@@ -16,7 +16,9 @@ function remoteReq(base, method, path, { body, cookie, origin, form } = {}) {
     let data = null;
     if (form) { data = new URLSearchParams(form).toString(); headers['Content-Type'] = 'application/x-www-form-urlencoded'; }
     else if (body !== undefined) { data = JSON.stringify(body); headers['Content-Type'] = 'application/json'; }
-    const r = http.request({ host: u.hostname, port: u.port, method, path, headers }, res => {
+    // Her istek ayrı bağlantı (agent: false): sunucu kapanırken açık kalan bağlantı ECONNRESET vermez
+    headers.Connection = 'close';
+    const r = http.request({ host: u.hostname, port: u.port, method, path, headers, agent: false }, res => {
       let s = ''; res.on('data', c => { s += c; }); res.on('end', () => { let j = null; try { j = JSON.parse(s); } catch { /* html */ } resolve({ status: res.statusCode, headers: res.headers, text: s, data: j }); });
     });
     r.on('error', reject); if (data) r.write(data); r.end();
@@ -110,4 +112,21 @@ test('Tünel: cloudflared çıktısındaki https adresi okunur; kurulu değilse 
     await new Promise(r => setTimeout(r, 50));
     assert.equal((await s3.request('GET', '/api/remote')).data.tunnel.status, 'yok');
   } finally { await s3.stop(); }
+});
+
+test('Yanlış şifre kilidi kalıcı (yeniden başlatmada sürer); farklı kaynaklardan toplam denemeye de genel sınır', async () => {
+  const { createRemoteAccess } = await import('../server/services/remote.js');
+  const store = new Map();
+  const settings = { get: k => store.get(k), set: (k, v) => store.set(k, v), remove: k => store.delete(k) };
+  const a = createRemoteAccess({ settings });
+  a.configure({ password: 'telefon-sifresi-42', enabled: true });
+  for (let i = 0; i < 5; i++) a.login('yanlis', 'ip-1');
+  // "Yeniden başlatma": aynı ayarlarla yeni örnek
+  const b = createRemoteAccess({ settings });
+  assert.ok(b.login('telefon-sifresi-42', 'ip-1').locked > 0, 'kilit yeniden başlatmada sürer');
+  assert.equal(b.login('telefon-sifresi-42', 'ip-2').ok, true, 'başka kaynak kilitlenmez');
+  // IP değiştirerek deneme: 20 yanlışta herkes için 15 dk kilit
+  for (let i = 0; i < 20; i++) b.login('yanlis', `ip-x${i}`);
+  const r = b.login('telefon-sifresi-42', 'ip-yeni');
+  assert.equal(r.ok, false); assert.ok(r.locked > 0);
 });

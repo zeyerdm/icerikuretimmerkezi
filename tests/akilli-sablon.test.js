@@ -89,6 +89,24 @@ test('Toplu üretim kuyruğu: her fikir ayrı post, çift üretim engeli, hata i
   } finally { await s.stop(); }
 });
 
+test('Toplu üretim kuyruğu: kontrollü paralellik, aynı anda en çok 2 iş; aynı iş iki kez işlenmez', async () => {
+  let now = 0; let peak = 0; let calls = 0;
+  const provider = fakeProvider([async () => { calls++; now++; peak = Math.max(peak, now); await new Promise(r => setTimeout(r, 60)); now--; return slidesOut(1); }]);
+  const s = await startServer({ aiProvider: provider, queueAutostart: true });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Paralel' })).data.brand;
+    const ids = [];
+    for (let i = 1; i <= 5; i++) ids.push((await s.request('POST', `/api/brands/${b.id}/ideas`, { title: `Konu ${i} rehberi ${'x'.repeat(i)}`, format: 'post', category: 'egitici' })).data.idea.id);
+    const batch = (await s.request('POST', `/api/brands/${b.id}/gen-batches`, { ideaIds: ids })).data.batchId;
+    let list = [];
+    for (let i = 0; i < 200; i++) { list = (await s.request('GET', `/api/brands/${b.id}/gen-jobs?batch=${batch}`)).data.jobs; if (list.every(j => j.status === 'tamamlandi')) break; await new Promise(r => setTimeout(r, 30)); }
+    assert.ok(list.every(j => j.status === 'tamamlandi'), JSON.stringify(list.map(j => j.status)));
+    assert.equal(peak, 2, 'iki iş birlikte çalıştı, sınır aşılmadı');
+    assert.equal(calls, 5, 'her iş bir kez');
+    assert.equal(new Set(list.map(j => j.postId)).size, 5);
+  } finally { await s.stop(); }
+});
+
 test('Toplu üretim kuyruğu: durdur, devam ettir, iptal', async () => {
   const s = await startServer({ aiProvider: fakeProvider([slidesOut(1)]), queueAutostart: false });
   try {

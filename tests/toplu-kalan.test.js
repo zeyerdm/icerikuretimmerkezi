@@ -25,7 +25,7 @@ test('T.7 kalan: marka hafızasında en çok ve en az tutan içerikler (en az 6 
       const c = (await s.request('POST', '/api/contents', { brandId: b.id, title: `İçerik ${i}`, type: 'post', scheduledAt: `2026-10-0${i + 1}T10:00:00.000Z` })).data.content;
       await s.request('PATCH', `/api/contents/${c.id}`, { metrics: { views: views[i], likes: likes[i] }, hook: `Giriş ${i}`, theme: i < 3 ? 'kampanya' : 'kulis' });
     }
-    await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'merhaba' });
+    await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'Bu hafta ne paylaşalım, fikir öner' });
     const p = provider.calls.at(-1).prompt;
     assert.match(p, /EN ÇOK TUTAN içerikler[\s\S]*- İçerik 0 \(post, etkileşim %40\) · giriş: "Giriş 0" · tema: kampanya/);
     assert.match(p, /En az tutan içerikler \(bu yaklaşımlardan kaçın\):\n- İçerik 5 \(post, etkileşim %0\.5\)/);
