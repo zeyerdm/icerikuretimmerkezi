@@ -200,7 +200,7 @@ export async function renderPosts(view, brand, sub) {
     const k = m.form.querySelector('[name=kind]');
     const f = m.form.querySelector('[name=format]');
     const sl = m.form.querySelector('[data-slides-field]');
-    const sync = () => { if (f) f.value = meta.kindDefaults[k.value].format; if (sl) sl.hidden = k.value !== 'carousel'; };
+    const sync = () => { if (f) f.value = meta.kindDefaults[k.value].format; if (sl) sl.hidden = !['carousel', 'linkedin'].includes(k.value); };
     k.addEventListener('change', sync);
     sync();
   };
@@ -254,7 +254,7 @@ export async function renderPosts(view, brand, sub) {
       const id = pm.dataset.postMenu;
       const menu = document.createElement('div');
       menu.className = 'post-menu'; menu.setAttribute('role', 'menu');
-      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" data-tpl-post="${esc(id)}">${icon('grid')}Şablon olarak kaydet</button><button type="button" role="menuitem" data-arch-post="${esc(id)}">${icon('archive')}${(posts.find(x => x.id === id) || {}).archived ? 'Arşivden çıkar' : 'Arşivle'}</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
+      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" data-tpl-post="${esc(id)}">${icon('grid')}Şablon olarak kaydet</button><a role="menuitem" href="#/m/${esc(brand.id)}/linkedin/post-${esc(id)}">${icon('send')}LinkedIn'e uyarla</a><button type="button" role="menuitem" data-arch-post="${esc(id)}">${icon('archive')}${(posts.find(x => x.id === id) || {}).archived ? 'Arşivden çıkar' : 'Arşivle'}</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
       pm.parentElement.appendChild(menu);
       const close = ev => { if (!menu.contains(ev.target) && ev.target !== pm) { menu.remove(); document.removeEventListener('click', close, true); } };
       setTimeout(() => document.addEventListener('click', close, true), 0);
@@ -530,7 +530,7 @@ async function renderGrid(view, brand) {
   const [{ posts }, { reels }, { contents }, logos] = await Promise.all([api.posts(brand.id), api.reelsList(brand.id), api.contents({ brandId: brand.id }), api.assets(brand.id, 'logo')]);
   const logo = logos.assets[0];
   // YouTube kapakları Instagram ızgarasına girmez
-  const igPosts = posts.filter(p => p.kind !== 'youtube');
+  const igPosts = posts.filter(p => p.kind !== 'youtube' && p.kind !== 'linkedin');
   const postById = new Map(igPosts.map(p => [p.id, p]));
   const reelsById = new Map(reels.map(r => [r.id, r]));
 

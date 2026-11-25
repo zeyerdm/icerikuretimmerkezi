@@ -5,11 +5,11 @@ import { newId, now, text, badRequest, notFound, oneOf, parseJson, HttpError, HE
 import { polish } from './reels/rules.js';
 import { markIdeaUsed, IDEA_FORMATS, IDEA_CATEGORIES } from './ideas.js';
 
-export const POST_KINDS = { carousel: 'Carousel', post: 'Tek görsel post', story: 'Story', kapak: 'Reels kapağı', reklam: 'Reklam', grafik: 'Bilgi grafiği', youtube: 'YouTube kapağı' };
+export const POST_KINDS = { carousel: 'Carousel', post: 'Tek görsel post', story: 'Story', kapak: 'Reels kapağı', reklam: 'Reklam', grafik: 'Bilgi grafiği', youtube: 'YouTube kapağı', linkedin: 'LinkedIn belgesi' };
 // Türün varsayılan boyutu ve takvimdeki içerik türü
 export const KIND_DEFAULTS = { carousel: { format: '4:5', content: 'carousel' }, post: { format: '4:5', content: 'post' }, story: { format: '9:16', content: 'story' },
   kapak: { format: '9:16', content: 'reels' }, reklam: { format: '4:5', content: 'reklam' }, grafik: { format: '4:5', content: 'grafik' },
-  youtube: { format: '16:9', content: 'youtube' } };
+  youtube: { format: '16:9', content: 'youtube' }, linkedin: { format: '4:5', content: 'linkedin_belge' } };
 export const POST_FORMATS = { '4:5': { w: 1080, h: 1350, label: 'Dikey 4:5' }, '1:1': { w: 1080, h: 1080, label: 'Kare 1:1' }, '9:16': { w: 1080, h: 1920, label: 'Story 9:16' }, '16:9': { w: 1280, h: 720, label: 'YouTube 16:9' } };
 const MAX_SLIDES = 10;
 const MAX_LAYERS = 30;
@@ -365,6 +365,17 @@ const KIND_TASK = {
   grafik: 'GÖREV: Tek görsellik bir bilgi grafiği metni yaz: başlık (en fazla 6 kelime) ve "items" alanında 4-6 kısa madde (her biri en fazla 70 karakter, somut bilgi).'
 };
 
+// LinkedIn belgesi (PDF carousel): yerleşim carousel'in aynısı; istem LinkedIn diline çevrilir
+export const layoutKind = k => (k === 'linkedin' ? 'carousel' : k);
+export function linkedinize(prompt) {
+  return String(prompt)
+    .replace(/markasının Instagram içerik yazarısın\./, 'markasının LinkedIn içerik yazarısın. Profesyonel, uzmanlık gösteren ama samimi bir dil kullan; emoji ve Instagram kalıpları kullanma.')
+    .replace(/yüksek etkileşimli bir Instagram carousel yaz/, 'yüksek etkileşimli bir LinkedIn belge (PDF) carousel yaz; okuyucu sayfaları tek tek çevirir, her sayfa tek bir fikir taşır')
+    .replace(/'caption' alanına uzun ve değerli bir Instagram açıklaması \([^)]*\)/, "'caption' alanına LinkedIn paylaşım metni (1300-2000 karakter: ilk satır en fazla 150 karakterlik kanca, ardından boş satır; 1-3 cümlelik kısa paragraflar; belgeden ne öğrenileceğini anlatan özet; sonda tartışma açan tek soru)")
+    .replace(/'hashtags' alanına en fazla 5 hashtag yaz/, "'hashtags' alanına 3-5 profesyonel hashtag yaz")
+    .replace(/kaydetme\/paylaşma ya da yorum yapma çağrısı/, 'yorum yapma ya da bağlantı kurma çağrısı');
+}
+
 // Şablon alanları: alan kimliği ↔ metin anahtarı
 export const FIELD_CODES = { title: 'MAIN_TITLE', subtitle: 'SUB_TITLE', body: 'DESCRIPTION', cta: 'CTA', speech: 'SPEECH', num: 'PAGE_NUMBER', page: 'PAGE_TOTAL', stat: 'STAT', topic: 'TOPIC', item: 'ITEM', closing: 'CLOSING', mascot: 'MASCOT', logo: 'LOGO', main: 'MAIN_IMAGE' };
 function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, notes = '' }) {
@@ -420,11 +431,16 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       mascots: assets.list(b.id, 'mascot').map(a => ({ id: a.id, url: a.url, label: a.label })) };
   };
 
-  async function writeTexts(b, { topic, kind, slides, modelRef, rewriteOf, mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, notes = '' }) {
+  async function writeTexts(b, { topic, kind: kind0, slides, modelRef, rewriteOf, mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, notes = '' }) {
+    // LinkedIn belgesi: carousel gibi çok sayfalı, ama LinkedIn diliyle ve LinkedIn paylaşım metniyle
+    const linked = kind0 === 'linkedin';
+    const kind = layoutKind(kind0);
     const count = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || 6)) : 1;
     // Post metni kısa ve kalıplı: modelin uzun düşünmesine gerek yok (düşük çaba = hızlı yanıt)
     const poses = assets.list(b.id, 'mascot').map(a => polish(a.label)).filter(Boolean).slice(0, 12);
-    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt: postPrompt({ brandName: b.name, memory: brands.memory(b.id), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, notes }), json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.7 });
+    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, notes });
+    if (linked) prompt = linkedinize(prompt);
+    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.7 });
     const out = r.output || {};
     const texts = (Array.isArray(out.slides) ? out.slides : []).map(s => ({ title: polish(s && s.title).slice(0, 160), body: polish(s && s.body).slice(0, 500),
       items: (Array.isArray(s && s.items) ? s.items : []).map(x => polish(x).slice(0, 120)).filter(Boolean).slice(0, 6), cta: polish(s && s.cta).slice(0, 40),
@@ -626,7 +642,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     // Tek görsellik tasarımdan sayfa sayısı istenirse (ör. 5) carousel kurulur: kapak (kanca) + gelişme + kapanış
     const single = Number(slides) === 1 && tpl.kind === 'carousel'; // carousel tasarımından tek görsel: yalnız kapak düzeni
     if (single) tslides.splice(1);
-    const kind = single ? 'post' : tpl.kind === 'carousel' || (tpl.kind === 'post' && Number(slides) >= 2) ? 'carousel' : tpl.kind;
+    const kind = single ? 'post' : layoutKind(tpl.kind) === 'carousel' || (tpl.kind === 'post' && Number(slides) >= 2) ? 'carousel' : tpl.kind;
     const want = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || (tslides.length >= 3 ? tslides.length : 6))) : tslides.length || 1;
     const mascot = mascotMode === 'auto' && tslides.some(s => (s.layers || []).some(l => l.type === 'image' && l.role === 'mascot'));
     const { fields, limits } = templateNeeds(tslides);
@@ -696,7 +712,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       if (!POST_FORMATS[format]) throw badRequest('Geçersiz boyut.');
       const t = text(topic, { field: 'Konu', max: 1000, required: true });
       const w = await writeTexts(b, { topic: t, kind, slides, modelRef, notes });
-      let data = withFrames(b.id, { format, slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format, kind, topic: String(t).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags, topic: t, ...(notes ? { notes } : {}) }, kind, { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta });
+      let data = withFrames(b.id, { format, slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format, kind: layoutKind(kind), topic: String(t).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags, topic: t, ...(notes ? { notes } : {}) }, layoutKind(kind), { title: w.title, cta: (w.texts[w.texts.length - 1] || {}).cta });
       if (mm !== 'auto') data = stripMascot(data);
       const r = { id: newId(), brand_id: b.id, title: w.title, kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
       db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
@@ -735,7 +751,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
         return Object.assign(toPost(row(b.id, p.id)), { ai: meta(w.r) });
       }
       const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: (data.slides || []).length, modelRef, rewriteOf: prev, notes: data.notes || '' });
-      const next = Object.assign({}, data, { slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format: data.format, kind: p.kind, topic: String(data.topic || p.title).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags });
+      const next = Object.assign({}, data, { slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format: data.format, kind: layoutKind(p.kind), topic: String(data.topic || p.title).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags });
       db.prepare('UPDATE posts SET title = ?, data = ?, model = ?, updated_at = ? WHERE id = ?').run(w.title, JSON.stringify(next), w.r.servedRef || w.r.ref, now(), p.id);
       return Object.assign(toPost(row(b.id, p.id)), { ai: meta(w.r) });
     },
@@ -798,7 +814,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       if (tpl) post = await fromTemplateTopic(b, tpl, topic, modelRef, slides, mm, notes);
       else {
         // Şablon yoksa da eski akış: istenen sayfa kadar carousel (kapak kanca + gelişme + kapanış); tek görsel seçildiyse post
-        const kind = idea.format === 'story' ? 'story' : Number(slides) === 1 ? 'post' : 'carousel';
+        const kind = idea.format === 'story' ? 'story' : idea.format === 'linkedin' ? 'linkedin' : Number(slides) === 1 ? 'post' : 'carousel';
         post = await this.create(b.id, { topic, kind, slides: Number(slides) || 5, modelRef, mascot: mm, notes });
       }
       const used = markIdeaUsed(db, b.id, idea.id, 'post');

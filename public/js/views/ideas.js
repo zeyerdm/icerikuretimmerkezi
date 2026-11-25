@@ -57,6 +57,7 @@ export async function renderIdeas(view, brand) {
           </span></div>
         <div class="idea-menu" data-menu="${esc(i.id)}" role="menu" hidden>
           ${aiReady ? `<button type="button" role="menuitem" data-similar="${esc(i.id)}">${icon('sparkle')}Benzerlerini üret…</button>` : ''}
+          <a role="menuitem" href="#/m/${esc(brand.id)}/linkedin/idea-${esc(i.id)}">${icon('send')}LinkedIn yazısı yaz</a>
           <button type="button" role="menuitem" data-used="${esc(i.id)}">${icon('check')}${i.used ? 'Kullanılmadı olarak işaretle' : 'Kullanıldı olarak işaretle'}</button>
           <button type="button" role="menuitem" data-archive="${esc(i.id)}">${icon('archive')}${i.archived ? 'Arşivden çıkar' : 'Arşivle'}</button>
 

@@ -289,6 +289,8 @@ export const api = {
   onboard: id => request('GET', b(id) + '/onboard'),
   onboardAbsorb: (id, body) => request('POST', b(id) + '/onboard/absorb', body),
   onboardSite: (id, body) => request('POST', b(id) + '/onboard/site', body),
+  linkedinWrite: (id, body) => request('POST', b(id) + '/linkedin/write', body),
+  linkedinSave: (id, body) => request('POST', b(id) + '/linkedin/save', body),
   onboardAnswer: (id, key, body) => request('PUT', `${b(id)}/onboard/answer/${encodeURIComponent(key)}`, body),
   onboardFinish: (id, body = {}) => request('POST', b(id) + '/onboard/finish', body),
   onboardEnrich: id => request('POST', b(id) + '/onboard/enrich', {}),
