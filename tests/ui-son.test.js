@@ -259,7 +259,7 @@ test('7.2 Prompt kimliği sekmesi (Marka kimliği içinde): seçim kaydedilir, m
   try {
     await page.goto(srv.base + `/#/m/${brand.id}/kimlik/prompt`);
     await page.getByRole('heading', { name: 'Marka kimliği', level: 1 }).waitFor();
-    assert.equal(await page.locator('.id-tabs a.active').innerText(), 'Prompt kimliği');
+    assert.equal(await page.locator('.id-tabs a.active').innerText(), 'Görsel dil');
     await page.locator('.chip-check', { hasText: 'Gerçekçi fotoğraf' }).click();
     await page.locator('.chip-check', { hasText: 'Samimi' }).click();
     await page.locator('.chip-check', { hasText: 'Enerjik' }).click();

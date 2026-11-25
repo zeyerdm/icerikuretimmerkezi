@@ -264,8 +264,10 @@ test('Markayı sil: Markalar kartından, ad yazılarak; yanlış ad silmez; ana 
   const b = (await srv.request('POST', '/api/brands', { name: 'Kalacak' })).data.brand;
   const { browser, page, problems } = await open(srv);
   try {
-    await page.goto(`${srv.base}/#/m/${b.id}`);
-    await page.locator('[data-del-brand]').waitFor();
+    // Silme tek yerde: Marka dosyasının en altı (ana sayfada ve başlıkta yok)
+    await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
+    await page.locator('.ds-danger [data-id-action="delete"]').waitFor();
+    assert.equal(await page.locator('.page-head [data-id-action]').count(), 0);
     await page.goto(`${srv.base}/#/m/${b.id}/kur`);
     await page.locator('[data-del-brand]', { hasText: 'Vazgeç, markayı sil' }).waitFor();
     await page.goto(`${srv.base}/#/markalar`);
@@ -309,7 +311,7 @@ test('11.3 sohbet: yapay zekâ en sonda ve arka planda; kurulum beklemeden biter
     await page.locator('#ob-ai', { hasText: 'Yapay zekâ bitirdi' }).waitFor({ timeout: 15000 });
     await page.goto(`${srv.base}/#/m/${b.id}/kimlik`);
     await page.locator('#ds-ai').waitFor();
-    assert.ok(await page.locator('[data-ai-enrich]').count(), 'Marka dosyasından yeniden başlatılabilir');
+    assert.ok(await page.locator('[data-ai-fill]').count(), 'Marka dosyasından yeniden başlatılabilir');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });
