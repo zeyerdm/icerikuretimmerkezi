@@ -66,8 +66,8 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 - 🔒 Ölçülebilir marka hedefleri (erişim, takipçi, satış, web trafiği, bilinirlik, etkileşim)
 - 🔒 İçerik sütunları ve içeriğe sütun atama
 - ⬜ Takvim filtreleri: platform, hedef kitle, amaç, sütun
-- 🟡 Performans: etkileşim oranı, giriş cümlesi, tema; ⬜ yayın saati, çok izlenip az etkileşim, kaydetme/paylaşım,
-  tek tip içerik uyarısı
+- ✅ Performans: etkileşim oranı, giriş cümlesi, tema, gün ve saat, çok izlenip az etkileşim, türe göre kaydetme/paylaşım,
+  en çok takipçi getirenler, tek tip içerik uyarısı (bildirim merkezinde)
 - 🟡 Aylık rapor; ⬜ hedef gerçekleşmesi, başarılı sütunlar, gelecek ay önerisi
 - ⬜ Operasyon maliyeti: üretim/tasarım süresi, revizyon sayısı, marka başına toplam, gerçek ve tahmini ayrımı
 

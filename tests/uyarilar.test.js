@@ -51,3 +51,16 @@ test('Uyarılar: tek tip içerik ve aylık hedefe göre haftalık plan eksiği',
     assert.ok(ins.some(i => i.kind === 'tek_tip'), 'son 30 günde 6 içeriğin hepsi post');
   } finally { await s.stop(); }
 });
+
+test('Performans analizi: çok izlenip az etkileşim, türe göre kaydetme/paylaşım, takipçi getirenler', async () => {
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Ölçülü' })).data.brand;
+    const rows = [['A', 'post', { views: 1000, likes: 80, saves: 30, shares: 10, follows: 5 }], ['B', 'reels', { views: 9000, likes: 20, saves: 2, shares: 1, follows: 40 }], ['C', 'post', { views: 1200, likes: 90, saves: 25, shares: 8 }], ['D', 'carousel', { views: 800, likes: 70, saves: 40, shares: 12, follows: 2 }]];
+    for (const [t, type, m] of rows) { const c = (await s.request('POST', '/api/contents', { brandId: b.id, title: t, type, scheduledAt: day(-5) })).data.content; await s.request('PATCH', `/api/contents/${c.id}`, { metrics: m }); }
+    const p = (await s.request('GET', `/api/performance?brandId=${b.id}`)).data;
+    assert.deepEqual(p.lowEngagement.map(x => x.title), ['B']);
+    assert.equal(p.saveShare[0].label, 'Carousel'); assert.equal(p.saveShare[0].saveRate, 5);
+    assert.deepEqual(p.follows.map(x => x.title), ['B', 'A', 'D']);
+  } finally { await s.stop(); }
+});
