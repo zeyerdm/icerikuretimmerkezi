@@ -294,7 +294,8 @@ async function renderSetup(view, brand, stepId, edit) {
   }
   const st = d.steps[idx];
   const prev = d.steps[idx - 1];
-  const next = d.steps[idx + 1];
+  // Sıradaki: cevaplanmış (verisi tam) adımlar atlanır; aynı soru iki kez sorulmaz
+  const next = d.steps.slice(idx + 1).find(x => !x.done) || null;
   view.innerHTML = `${pageHead({ title: edit ? `Marka kimliği · ${st.label}` : 'Marka kurulumu', desc: edit ? 'Bölümü düzenle; kaydedince Marka dosyasına dönersin.' : `${esc(brand.name)} kimliğini adım adım kuruyoruz. Her adım kaydedilir; yarıda bırakırsan kaldığın yerden devam edersin.` })}
     ${edit ? '' : `<ol class="setup-steps" aria-label="Kurulum adımları">${d.steps.map((s, i) => `<li class="${s.id === st.id ? 'current' : s.done ? 'done' : ''}"><a href="${base}/kurulum/${s.id}"${s.id === st.id ? ' aria-current="step"' : ''}><span class="ss-num">${s.done && s.id !== st.id ? '✓' : i + 1}</span><span class="ss-label">${esc(s.label)}</span></a></li>`).join('')}</ol>
       <p class="xsmall muted mb-4">Adım ${idx + 1} / ${d.steps.length}${d.setup.channels.length || d.setup.hasMascot != null ? '' : ' · Sonraki adımlar cevaplarına göre eklenir'}</p>`}
