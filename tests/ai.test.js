@@ -215,7 +215,7 @@ test('8.1 geçici hata: aynı modelle yeniden denenir; hep başarısızsa aynı 
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
     const u = new URL(String(url));
-    if (u.pathname.replace(/\/$/, '').endsWith('/models')) return json({ models: [{ name: 'models/gemini-flash-latest', supportedGenerationMethods: ['generateContent'] }] });
+    if (u.pathname.replace(/\/$/, '').endsWith('/models')) return json({ models: ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3-flash-preview'].map(n => ({ name: 'models/' + n, supportedGenerationMethods: ['generateContent'] })) });
     const model = decodeURIComponent(u.pathname.split('/').pop().split(':')[0]);
     calls.push(model);
     if (model === 'gemini-flash-latest') {
@@ -288,5 +288,29 @@ test('8.2 / 8.3 model listesi sağlığı ve bağlantı denemesi: erişilemeyen 
     assert.equal(ov2.tasks.find(t => t.id === 'fikir').primaryUnavailable, false);
     // Deneme harcaması kaydedilir
     assert.ok((await s.request('GET', '/api/ai/usage')).data.total.calls >= 4);
+  } finally { await s.stop(); }
+});
+
+test('Model kontrolü (yalnız liste, üretim yok): kapanmış yedek model zincirde denenmez', async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    const u = new URL(String(url));
+    if (u.pathname.replace(/\/$/, '').endsWith('/models')) { calls.push('list'); return json({ models: ['gemini-flash-latest', 'gemini-3.5-flash-lite'].map(n => ({ name: 'models/' + n, supportedGenerationMethods: ['generateContent'] })) }); }
+    const model = decodeURIComponent(u.pathname.split('/').pop().split(':')[0]);
+    calls.push(model);
+    if (model === 'gemini-flash-latest') return json({ error: { message: 'high demand' } }, 503);
+    return json({ candidates: [{ content: { parts: [{ text: '{"reply":"Tamam","actions":[]}' }] } }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } });
+  };
+  const s = await startServer({ fetchImpl });
+  try {
+    await connect(s, 'gemini');
+    const r = (await s.request('POST', '/api/ai/check-models')).data;
+    assert.ok(r.missing.includes('gemini:gemini-flash-lite-latest'), 'listede olmayan model işaretlenir');
+    const b = (await s.request('POST', '/api/brands', { name: 'Zincir' })).data.brand;
+    calls.length = 0;
+    const res = await s.request('POST', `/api/brands/${b.id}/chat`, { message: 'selam' });
+    assert.equal(res.status, 200, JSON.stringify(res.data));
+    assert.ok(!calls.includes('gemini-flash-lite-latest'), 'kapanmış model denenmedi: ' + calls.join(','));
+    assert.equal(calls.at(-1), 'gemini-3.5-flash-lite');
   } finally { await s.stop(); }
 });

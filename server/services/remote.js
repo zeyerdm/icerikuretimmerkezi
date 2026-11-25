@@ -17,6 +17,7 @@ const SESSION_DAYS = 30;
 const MAX_SESSIONS = 20;
 const MAX_FAILS = 5;
 const LOCK_MS = 15 * 60 * 1000;
+const GLOBAL_FAILS = 20; // 15 dakikada bütün kaynaklardan toplam yanlış deneme sınırı (IP değiştirerek denemeye karşı)
 const MIN_PASSWORD = 10;
 const TUNNEL_RE = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i;
 
@@ -36,7 +37,14 @@ const cookieOf = req => { const m = String(req.headers.cookie || '').match(new R
 
 export function createRemoteAccess({ settings, spawnImpl = nodeSpawn, binPaths = null } = {}) {
   const json = (k, d) => { try { return JSON.parse(settings.get(k) || '') ?? d; } catch { return d; } };
-  const fails = new Map();
+  // Yanlış deneme sayaçları kalıcı (ayarlar tablosu): sunucu yeniden başlasa da kilit sürer
+  const loadFails = () => { const v = json('remote.fails', {}); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; };
+  const saveFails = v => {
+    const t = Date.now();
+    // Eski kayıtlar atılır (kilidi bitmiş ve 15 dakikadan eski)
+    const keep = Object.fromEntries(Object.entries(v).filter(([k, f]) => f && ((f.until || 0) > t || (f.at || 0) > t - LOCK_MS)).slice(-200));
+    settings.set('remote.fails', JSON.stringify(keep));
+  };
   let tunnel = { status: 'kapali', url: '', error: '' };
   let child = null;
 
@@ -79,15 +87,25 @@ export function createRemoteAccess({ settings, spawnImpl = nodeSpawn, binPaths =
 
     // Giriş: başarılıysa yeni oturum belirteci (ham hâli yalnız çereze yazılır)
     login(password, who = 'genel') {
-      const f = fails.get(who) || { n: 0, until: 0 };
-      if (f.until > Date.now()) return { ok: false, locked: Math.ceil((f.until - Date.now()) / 60000) };
+      const all = loadFails();
+      const key = String(who || 'genel').slice(0, 64);
+      const t = Date.now();
+      const f = all[key] || { n: 0, until: 0, at: 0 };
+      const g = all['*'] || { n: 0, until: 0, at: 0 };
+      if (g.until > t) return { ok: false, locked: Math.ceil((g.until - t) / 60000) };
+      if (f.until > t) return { ok: false, locked: Math.ceil((f.until - t) / 60000) };
       if (!service.enabled() || !verifyPassword(password)) {
-        f.n++;
-        if (f.n >= MAX_FAILS) { f.until = Date.now() + LOCK_MS; f.n = 0; }
-        fails.set(who, f);
-        return { ok: false, locked: f.until > Date.now() ? Math.ceil(LOCK_MS / 60000) : 0 };
+        if (f.at < t - LOCK_MS) f.n = 0;
+        if (g.at < t - LOCK_MS) g.n = 0;
+        f.n++; f.at = t; g.n++; g.at = t;
+        if (f.n >= MAX_FAILS) { f.until = t + LOCK_MS; f.n = 0; }
+        if (g.n >= GLOBAL_FAILS) { g.until = t + LOCK_MS; g.n = 0; }
+        all[key] = f; all['*'] = g;
+        saveFails(all);
+        const until = Math.max(f.until, g.until);
+        return { ok: false, locked: until > t ? Math.ceil((until - t) / 60000) : 0 };
       }
-      fails.delete(who);
+      if (all[key]) { delete all[key]; saveFails(all); }
       const token = crypto.randomBytes(32).toString('base64url');
       saveSessions([...sessions(), { h: sha(token), exp: Date.now() + SESSION_DAYS * 86400000 }]);
       return { ok: true, token, maxAge: SESSION_DAYS * 86400 };

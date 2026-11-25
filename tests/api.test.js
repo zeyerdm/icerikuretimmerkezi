@@ -183,9 +183,14 @@ test('asistan: marka hafızasını kullanır ve fikirleri gerçekten kaydeder', 
     assert.ok(saved.every(i => i.source === 'assistant'));
 
     // İkinci mesajda önceki fikirler "tekrar etme" listesinde ve sohbet geçmişi bağlamda
-    await s.request('POST', `/api/brands/${brand.id}/chat`, { message: 'Teşekkürler' });
+    await s.request('POST', `/api/brands/${brand.id}/chat`, { message: 'Bunlara benzer başka fikir öner' });
     const second = provider.calls[1].prompt;
     assert.ok(second.includes('- Barista ipuçları (egitici)') && second.includes('Kullanıcı: Bu hafta için 5 fikir üret'));
+    // Bağlam seçici: üretim istemeyen sohbet mesajında hafif hafıza (kimlik var; son fikir listesi ve özel günler yok)
+    await s.request('POST', `/api/brands/${brand.id}/chat`, { message: 'Teşekkürler' });
+    const third = provider.calls[2].prompt;
+    assert.ok(third.includes('Kahve Durağı') && third.includes('Esprili'), 'kimlik her zaman gider');
+    assert.ok(!third.includes('tekrar etme') && !third.includes('YAKLAŞAN ÖZEL GÜNLER'), 'sohbette ağır bağlam gönderilmez');
 
     const overview = (await s.request('GET', `/api/brands/${brand.id}/overview`)).data;
     assert.equal(overview.ideaCount, 2);

@@ -195,7 +195,9 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     const chain = [...new Set([fallback, ...stable, cross].filter(Boolean))];
     // Yoğunluk hafızası: az önce yoğun (503/429) ya da hesapta yok (404) diyen model bir süre en sona alınır; istek doğrudan
     // son çalışan modele gider (ücretsiz anahtarlarda her işte dakikalarca beklenmez). Hafızadaki model yine de en sonda denenir.
-    const order = [primary, ...chain];
+    // Kontrolde hesapta bulunamayan (kapanmış) yedekler denenmez; ana model her zaman denenir
+    const off = new Set(unavailable());
+    const order = [primary, ...chain.filter(r => !off.has(r))];
     const seq = [...order.filter(r => !isBusy(r)), ...order.filter(isBusy)];
     let first = null; let last = null;
     for (const ref of seq) {
@@ -324,7 +326,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     } catch { return { error: 'OpenRouter\'a ulaşılamadı.' }; }
   }
 
-  return {
+  const service = {
     openrouterCredits,
     providers,
     tasks: TASKS,
@@ -379,6 +381,15 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       const keep = unavailable().filter(r => !Object.keys(out.providers).includes((parseRef(r) || {}).provider));
       settings.set(UNAVAILABLE, JSON.stringify([...new Set([...keep, ...out.missing])]));
       return Object.assign(out, { unavailable: unavailable() });
+    },
+    // Günde bir kez (açılışta) model listesi kontrolü: ücretsizdir (yalnız liste çekilir, üretim yapılmaz); kapanan
+    // modeller "erişilemez" işaretlenir ve yedek zincirinde atlanır
+    async dailyModelCheck() {
+      const last = Date.parse(settings.get('ai.lastModelCheck') || '') || 0;
+      if (Date.now() - last < 24 * 3600 * 1000) return null;
+      if (!['anthropic', 'openai', 'gemini'].some(isConfigured)) return null;
+      settings.set('ai.lastModelCheck', now());
+      return service.checkModels();
     },
     async smokeTest() {
       const rows = [];
@@ -510,4 +521,5 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       return r.output;
     }
   };
+  return service;
 }

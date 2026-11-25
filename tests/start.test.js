@@ -31,7 +31,8 @@ function runServer(env) {
   let out = '';
   child.stdout.on('data', d => { out += d; });
   child.stderr.on('data', d => { out += d; });
-  const waitFor = (re, ms = 8000) => new Promise((resolve, reject) => {
+  // Yavaş makinelerde (ör. kısıtlı kum havuzu) sunucunun açılması 8 sn'yi geçebiliyor: 30 sn beklenir
+  const waitFor = (re, ms = 30000) => new Promise((resolve, reject) => {
     const t0 = Date.now();
     const tick = () => {
       if (re.test(out)) return resolve(out);

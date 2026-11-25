@@ -11,10 +11,14 @@ const MAX_ATTEMPTS = 2;
 const TYPE_SQL = `(CASE WHEN options LIKE '%"type":"reels"%' THEN 'reels' ELSE 'post' END)`;
 const typeOf = t => (t === 'reels' ? 'reels' : 'post');
 
-export function createGenQueue({ db, brands, posts, ideas, getPrompts = () => null, autostart = true }) {
+// Kontrollü paralellik: aynı anda en çok `concurrency` iş (varsayılan 2). Ücretsiz kotalı sağlayıcıda dakikalık sınıra
+// çarpmamak için düşük tutulur; her iş kendi içinde yine sırayla ilerler.
+export const QUEUE_CONCURRENCY = 2;
+export function createGenQueue({ db, brands, posts, ideas, getPrompts = () => null, autostart = true, concurrency = QUEUE_CONCURRENCY }) {
   // Sunucu yeniden başlarsa yarıda kalan işler kuyruğa döner
   db.prepare("UPDATE gen_jobs SET status = 'bekliyor', updated_at = ? WHERE status = 'isleniyor'").run(now());
-  let running = false;
+  let active = 0;
+  const limit = Math.max(1, Math.min(4, Number(concurrency) || 1));
   let stopped = !autostart;
 
   const toJob = r => {
@@ -26,14 +30,15 @@ export function createGenQueue({ db, brands, posts, ideas, getPrompts = () => nu
       status: r.status, statusLabel: JOB_STATUS[r.status] || r.status, error: r.error, postId: r.post_id, postTitle: post ? post.title : '', attempts: r.attempts, createdAt: r.created_at, updatedAt: r.updated_at };
   };
 
-  async function work() {
-    if (running || stopped) return;
-    running = true;
+  // İşçi: sıradaki işi alır (seçme ve "işleniyor" yapma arasında bekleme yok; aynı iş iki işçiye düşmez)
+  async function worker() {
     try {
       for (;;) {
+        if (stopped) break;
         const r = db.prepare("SELECT * FROM gen_jobs WHERE status IN ('bekliyor', 'yeniden') ORDER BY status = 'yeniden', created_at, rowid LIMIT 1").get();
         if (!r) break;
-        db.prepare("UPDATE gen_jobs SET status = 'isleniyor', attempts = attempts + 1, updated_at = ? WHERE id = ?").run(now(), r.id);
+        const claim = db.prepare("UPDATE gen_jobs SET status = 'isleniyor', attempts = attempts + 1, updated_at = ? WHERE id = ? AND status IN ('bekliyor', 'yeniden')").run(now(), r.id);
+        if (!claim.changes) continue;
         const o = parseJson(r.options, {});
         try {
           // Toplu Reels: fikirden senaryo planı + Flow şablonuna dökülen sahneler (Prompt Studio'da kaydedilir); fikir "kullanıldı" olur
@@ -59,9 +64,14 @@ export function createGenQueue({ db, brands, posts, ideas, getPrompts = () => nu
           db.prepare('UPDATE gen_jobs SET status = ?, error = ?, updated_at = ? WHERE id = ?').run(next, String(err && err.message || err).slice(0, 300), now(), r.id);
         }
       }
-    } finally { running = false; }
+    } finally { active--; }
   }
-  const kick = () => { setImmediate(() => { work().catch(() => {}); }); };
+  function work() {
+    if (stopped) return;
+    const waiting = db.prepare("SELECT COUNT(*) AS n FROM gen_jobs WHERE status IN ('bekliyor', 'yeniden')").get().n;
+    while (active < limit && active < waiting) { active++; worker().catch(() => {}); }
+  }
+  const kick = () => { setImmediate(work); };
 
   return {
     statuses: JOB_STATUS,
@@ -121,6 +131,7 @@ export function createGenQueue({ db, brands, posts, ideas, getPrompts = () => nu
       return toJob(db.prepare('SELECT * FROM gen_jobs WHERE id = ?').get(r.id));
     },
     start() { stopped = false; kick(); },
-    idle: () => !running
+    idle: () => active === 0,
+    concurrency: limit
   };
 }
