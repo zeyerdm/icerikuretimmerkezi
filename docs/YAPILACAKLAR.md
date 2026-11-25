@@ -53,7 +53,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 ## 05 · Otonom görev yönetimi
 
 - 🟡 Günün özeti, yayın ve görev bildirimleri, geciken içerik sayısı
-- ⬜ Proaktif bildirim merkezi (yapay zekâsız kurallar): haftalık plan boşluğu, onay bekleyen içerik, geciken görev,
+- ✅ Proaktif bildirim merkezi (yapay zekâsız kurallar): haftalık plan boşluğu, onay bekleyen içerik, geciken görev,
   yaklaşan özel gün, üretim sıklığında düşüş; marka, tarih, öncelik ve önerilen işlem; tekrar engeli
 - ⬜ Komutla / proaktif çalışma modları
 - ⬜ Performansı düşen içerik türlerinin tespiti, gelecek hafta plan önerisi

@@ -20,11 +20,12 @@ export async function todaySummary(now = new Date()) {
   const start = new Date(now); start.setHours(0, 0, 0, 0);
   const end = new Date(start); end.setDate(end.getDate() + 1);
   const DONE = ['tamamlandi', 'yayinlandi'];
-  const [today, past, tasks, sd] = await Promise.all([
+  const [today, past, tasks, sd, ins] = await Promise.all([
     api.contents({ from: start.toISOString(), to: end.toISOString() }),
     api.contents({ from: new Date(start.getTime() - 60 * 86400000).toISOString(), to: start.toISOString() }),
     api.tasks({}),
-    api.specialDays(iso(start), iso(new Date(start.getTime() + 3 * 86400000))).catch(() => ({ days: [] }))
+    api.specialDays(iso(start), iso(new Date(start.getTime() + 3 * 86400000))).catch(() => ({ days: [] })),
+    api.insights().catch(() => ({ insights: [] }))
   ]);
   const todayKey = iso(start);
   const open = tasks.tasks.filter(t => !t.done && t.dueDate);
@@ -33,13 +34,15 @@ export async function todaySummary(now = new Date()) {
     overdueContents: past.contents.filter(c => !DONE.includes(c.status)),
     tasksToday: open.filter(t => t.dueDate === todayKey),
     overdueTasks: open.filter(t => t.dueDate < todayKey),
-    special: sd.days.filter(d => !d.end || d.date >= todayKey)
+    special: sd.days.filter(d => !d.end || d.date >= todayKey),
+    // Kural tabanlı uyarılar (plan boşluğu, onay bekleyen, üretim düşüşü…); geciken içerik/görev zaten yukarıda listelenir
+    insights: (ins.insights || []).filter(i => !['geciken_icerik', 'geciken_gorev'].includes(i.kind))
   };
 }
 export const pendingCount = s => s.today.filter(c => !['tamamlandi', 'yayinlandi'].includes(c.status)).length + s.overdueContents.length + s.tasksToday.length + s.overdueTasks.length;
 // Zil rozeti: özet açılıp görülen bekleyen işler bir daha sayılmaz; yalnızca yeni bekleyen iş çıkınca rozet döner
 const SEEN = 'ium.bell.seen';
-const pendingIds = s => [...s.today.filter(c => !['tamamlandi', 'yayinlandi'].includes(c.status)).map(c => `c:${c.id}`), ...s.overdueContents.map(c => `o:${c.id}`), ...s.tasksToday.map(t => `t:${t.id}`), ...s.overdueTasks.map(t => `d:${t.id}`)];
+const pendingIds = s => [...(s.insights || []).filter(i => i.priority === 'yuksek').map(i => `i:${i.key}`), ...s.today.filter(c => !['tamamlandi', 'yayinlandi'].includes(c.status)).map(c => `c:${c.id}`), ...s.overdueContents.map(c => `o:${c.id}`), ...s.tasksToday.map(t => `t:${t.id}`), ...s.overdueTasks.map(t => `d:${t.id}`)];
 export const unseenCount = s => { const seen = new Set(store.get(SEEN, [])); return pendingIds(s).filter(id => !seen.has(id)).length; };
 export function markSummarySeen(s) {
   store.set(SEEN, pendingIds(s).slice(0, 500));
@@ -56,13 +59,20 @@ export function openSummary(s) {
   const sec = (title, list, fn, empty) => `<section class="sum-sec"><h4>${title} <span class="muted">${list.length}</span></h4>${list.length ? `<ul class="sum-list">${list.slice(0, 8).map(fn).join('')}</ul>${list.length > 8 ? `<div class="xsmall muted">+${list.length - 8} daha</div>` : ''}` : `<p class="small muted">${empty}</p>`}</section>`;
   openModal({
     title: `Günün özeti · ${fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}`, submitLabel: 'Tamam',
-    body: `${sec('Bugün yayında', s.today, item, 'Bugün planlanmış içerik yok.')}
+    body: `${(s.insights || []).length ? `<section class="sum-sec"><h4>Öneriler ve uyarılar <span class="muted">${s.insights.length}</span></h4><ul class="sum-list ins-list">${s.insights.slice(0, 10).map(i => `<li class="ins-${esc(i.priority)}" data-ins="${esc(i.key)}"><span class="ins-dot" title="${i.priority === 'yuksek' ? 'Öncelikli' : i.priority === 'orta' ? 'Önemli' : 'Bilgi'}"></span><div class="grow"><b>${esc(i.title)}</b> <span class="muted small">· ${esc(i.brandName)}</span><div class="small muted">${esc(i.text)}</div></div><a class="btn btn-sm" href="${esc(i.action.href)}" data-close>${esc(i.action.label)}</a><button type="button" class="btn btn-sm btn-ghost" data-ins-hide="${esc(i.key)}" title="7 gün gösterme">Gizle</button></li>`).join('')}</ul>${s.insights.length > 10 ? `<div class="xsmall muted">+${s.insights.length - 10} daha</div>` : ''}</section>` : ''}
+      ${sec('Bugün yayında', s.today, item, 'Bugün planlanmış içerik yok.')}
       ${s.overdueContents.length ? sec('Tarihi geçmiş, bitmemiş içerikler', s.overdueContents, item, '') : ''}
       ${sec('Bugün biten görevler', s.tasksToday, task, 'Bugün son günü olan görev yok.')}
       ${s.overdueTasks.length ? sec('Geciken görevler', s.overdueTasks, task, '') : ''}
       ${s.special.length ? `<section class="sum-sec"><h4>Yaklaşan özel günler</h4><ul class="sum-list">${s.special.map(d => `<li><a href="#/takvim" data-close>★ ${esc(d.name)} <span class="muted small">· ${esc(fmtDate(d.date + 'T12:00:00', { day: 'numeric', month: 'long', weekday: 'short' }))}</span></a></li>`).join('')}</ul></section>` : ''}
       <p class="xsmall muted mt-3">Uygulama günde ilk açıldığında üstte özet şeridi çıkar; bu pencereyi üst çubuktaki zilden her zaman açabilirsin. Ayarlar → Hatırlatmalar'dan şerit kapatılabilir, bilgisayar bildirimi açılabilir.</p>`,
     onSubmit: async () => {}
+  });
+  // Uyarıyı 7 gün gizle (sunucuda tutulur; aynı uyarı o süre boyunca tekrar çıkmaz)
+  document.querySelector('.modal')?.addEventListener('click', async e => {
+    const b = e.target.closest('[data-ins-hide]'); if (!b) return;
+    e.preventDefault();
+    try { await api.dismissInsight(b.dataset.insHide, 7); b.closest('li').remove(); cache = null; } catch (err) { toast(err.message, 'error'); }
   });
 }
 
@@ -89,6 +99,7 @@ export async function showDailyOnce() {
       s.overdueContents.length ? `<b>${s.overdueContents.length}</b> içeriğin tarihi geçti` : '',
       s.tasksToday.length ? `<b>${s.tasksToday.length}</b> görevin son günü bugün` : '',
       s.overdueTasks.length ? `<b>${s.overdueTasks.length}</b> görevin süresi doldu` : '',
+      (s.insights || []).length ? `<b>${s.insights.length}</b> öneri` : '',
       s.special.length ? `yaklaşan: ${esc(s.special[0].name)} (${esc(fmtDate(s.special[0].date + 'T12:00:00', { day: 'numeric', month: 'long' }))})` : ''
     ].filter(Boolean);
     if (!parts.length) return;
