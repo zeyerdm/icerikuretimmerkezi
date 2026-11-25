@@ -215,7 +215,7 @@ function stepForm(id, d) {
   if (id === 'yapi') return `<div class="stack">
       <fieldset class="field"><legend class="field-label">Hangi kanallarda paylaşıyor?</legend>${checks('channels', d.options.channels, d.setup.channels)}</fieldset>
       <fieldset class="field"><legend class="field-label">Ne tür içerikler üretiyor?</legend>${checks('contentKinds', d.options.contentKinds, d.setup.contentKinds)}</fieldset>
-      <fieldset class="field"><legend class="field-label">Markanın bir maskotu var mı?</legend>${yesNo('hasMascot', d.setup.hasMascot, 'Evet, maskot var', 'Hayır')}</fieldset>
+      <fieldset class="field" data-needs-visual><legend class="field-label">Markanın bir maskotu var mı?</legend>${yesNo('hasMascot', d.setup.hasMascot, 'Evet, maskot var', 'Hayır')}</fieldset>
       <fieldset class="field"><legend class="field-label">Müşterinin geldiği bir mekân var mı? (dükkân, kafe, klinik…)</legend>${yesNo('hasPlace', d.setup.hasPlace, 'Evet', 'Hayır, çevrim içi')}</fieldset></div>`;
   if (id === 'kitle') return `<div class="form-grid">
       <div class="full">${field('su-audience', 'Hedef kitle', area('audience', b.audience, 'maxlength="1000" placeholder="Yaş, ilgi alanı, ihtiyaçlar…"') + suggest('su-audience', C.audience))}</div>
@@ -265,7 +265,7 @@ function readStep(id, form) {
   const all = n => fd.getAll(n).map(String);
   const one = n => (fd.has(n) ? String(fd.get(n)) : undefined);
   const out = {};
-  if (id === 'yapi') return { channels: all('channels'), contentKinds: all('contentKinds'), hasMascot: one('hasMascot') === 'true', hasPlace: one('hasPlace') === 'true' };
+  if (id === 'yapi') { const mh = form.querySelector('[data-needs-visual]'); return { channels: all('channels'), contentKinds: all('contentKinds'), hasMascot: mh && mh.hidden ? null : one('hasMascot') === 'true', hasPlace: one('hasPlace') === 'true' }; }
   if (id === 'gorsel') {
     out.primary = one('primary').trim();
     out.secondary = one('secondary').split(/[\s,]+/).filter(Boolean);
@@ -312,6 +312,14 @@ async function renderSetup(view, brand, stepId, edit) {
       </div>
     </form>`;
   const form = view.querySelector('#su-form');
+  // Bağlantılı soru: görsel içerik (post, carousel, story, Reels, video) seçilmediyse maskot sorulmaz
+  const syncVisual = () => {
+    const mh = form.querySelector('[data-needs-visual]'); if (!mh) return;
+    const kinds = [...form.querySelectorAll('[name="contentKinds"]:checked')].map(x => x.value);
+    mh.hidden = kinds.length > 0 && !kinds.some(k => ['post', 'carousel', 'story', 'reels', 'video'].includes(k));
+  };
+  form.addEventListener('change', e => { if (e.target.name === 'contentKinds') syncVisual(); });
+  syncVisual();
   // Renk seçici ile HEX kutusu birlikte
   form.addEventListener('input', e => {
     const c = e.target.dataset.colorFor;
@@ -361,7 +369,7 @@ async function renderSetup(view, brand, stepId, edit) {
     try {
       const body = readStep(st.id, form);
       const res = await busy(e.submitter, () => api.saveSetupStep(brand.id, st.id, body));
-      if (['temel', 'gorsel'].includes(st.id)) await refreshBrands();
+      if (['temel', 'gorsel', 'yapi'].includes(st.id)) await refreshBrands(); // yapi: menüdeki bölümler kanallara göre açılır
       if (edit) { toast(`${st.label} kaydedildi.`, 'success'); return go(base); }
       // Cevaplar adımları değiştirmiş olabilir (ör. maskot var): sıradaki adım yeni listeden
       const i = res.steps.findIndex(s => s.id === st.id);

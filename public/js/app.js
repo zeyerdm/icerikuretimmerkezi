@@ -96,6 +96,21 @@ export const CENTER_NAV = [
 ];
 
 // Marka çalışma alanı alt menüsü. "Yakında" olanlar tıklanamaz; bitmiş gibi gösterilmez.
+// Kurulumda seçilmeyen kanal/içerik türünün bölümü menüde gizlenir (adresi çalışır; Kanallar ve içerikler'den açılır).
+// Kanal ve tür seçilmemişse (kurulum yapılmamış) her şey görünür.
+const VISUAL_KINDS = ['post', 'carousel', 'story', 'reels', 'video'];
+export function inScope(page, brand) {
+  const sc = (brand && brand.scope) || { channels: [], contentKinds: [] };
+  const ch = sc.channels || []; const ck = sc.contentKinds || [];
+  if (!ch.length && !ck.length) return true;
+  if (page === 'youtube') return ch.includes('youtube') || ck.includes('video');
+  if (page === 'linkedin') return ch.includes('linkedin');
+  if (page === 'prompt') return !ck.length || ck.some(k => ['reels', 'video', 'post', 'carousel', 'story'].includes(k));
+  if (page === 'post') return !ck.length || ck.some(k => ['post', 'carousel', 'story'].includes(k)) || ch.includes('linkedin');
+  return true;
+}
+export const isVisualBrand = brand => { const ck = ((brand && brand.scope) || {}).contentKinds || []; return !ck.length || ck.some(k => VISUAL_KINDS.includes(k)); };
+
 export const BRAND_NAV = [
   { page: 'home', path: '', label: 'Marka ana sayfası', icon: 'home', group: 'yonetim' },
   { page: 'kimlik', path: '/kimlik', label: 'Marka kimliği', icon: 'identity', group: 'yonetim' },
@@ -190,7 +205,7 @@ export function renderChrome() {
     nav.innerHTML = BRAND_GROUPS.map(([g, label]) => {
       const open = g === activeGroup || !closed.includes(g);
       return `<div class="nav-sec ${open ? 'open' : ''}"><button type="button" class="nav-sec-head" data-nav-group="${g}" aria-expanded="${open}">${esc(label)}${icon('chevronDown')}</button>
-        <div class="nav-sec-body">${BRAND_NAV.filter(n => n.group === g && !n.hidden).map(n => navLink(base + n.path, n.label, n.icon, r.page === n.page)).join('')}</div></div>`;
+        <div class="nav-sec-body">${BRAND_NAV.filter(n => n.group === g && !n.hidden && (inScope(n.page, brand) || r.page === n.page)).map(n => navLink(base + n.path, n.label, n.icon, r.page === n.page)).join('')}${g === 'uretim' && BRAND_NAV.some(n => !n.hidden && !inScope(n.page, brand)) ? `<a class="nav-more" href="${base}/kimlik/duzenle/yapi" title="Kurulumda seçilmeyen kanal ve içerik türlerinin bölümleri gizli">+ Kanal ya da içerik türü ekle</a>` : ''}</div></div>`;
     }).join('');
     nav.onclick = e => {
       const h = e.target.closest('[data-nav-group]');

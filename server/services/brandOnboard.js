@@ -45,16 +45,18 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
     const mem = memory.get(b.id);
     const q = [];
     const add = (key, cond, def) => { if (cond && !done.has(key)) q.push(Object.assign({ key }, def)); };
+    // Önce nerede ve ne üretileceği sorulur; sonraki sorular buna bağlıdır (görsel içerik yoksa maskot sorulmaz)
+    const visual = !s.contentKinds.length || s.contentKinds.some(k => ['post', 'carousel', 'story', 'reels', 'video'].includes(k));
     add('sector', !b.sector, { type: 'one', label: 'Bu ne markası?', options: CHOICES.sector, other: true });
     add('description', !b.description, { type: 'text', label: 'Marka ne yapıyor, neyi farklı yapıyor? (bir iki cümle)', long: true });
-    add('logo', !counts.logo, { type: 'upload', label: 'Logon var mı? Varsa buraya at.', category: 'logo' });
-    add('hasMascot', !counts.mascot && idt.hasMascot === undefined && s.hasMascot == null, { type: 'yesno', label: 'Markanın bir maskotu var mı?', yes: 'Evet, var', no: 'Hayır' });
-    add('mascotUpload', (idt.hasMascot || s.hasMascot) && !counts.mascot, { type: 'upload', label: 'Maskotun görsellerini at (farklı pozlar olursa daha iyi).', category: 'mascot', multiple: true });
-    add('mascotName', (idt.hasMascot || counts.mascot) && !(idt.mascotName || book.name), { type: 'text', label: 'Maskotun adı ne?' });
-    add('mascotPersonality', (idt.hasMascot || counts.mascot) && !book.personality, { type: 'many', label: 'Maskot nasıl bir karakter?', options: CHOICES.mascotPersonality, other: true });
-    add('colors', !b.colors.primary, { type: 'color', label: 'Markanın ana rengi ne?' });
     add('channels', !s.channels.length, { type: 'many', label: 'Hangi kanallarda paylaşıyorsun?', options: Object.values(setup.channels), values: Object.keys(setup.channels) });
     add('contentKinds', !s.contentKinds.length, { type: 'many', label: 'Ne tür içerikler üreteceğiz?', options: Object.values(setup.contentKinds), values: Object.keys(setup.contentKinds) });
+    add('logo', !counts.logo, { type: 'upload', label: 'Logon var mı? Varsa buraya at.', category: 'logo' });
+    add('colors', !b.colors.primary, { type: 'color', label: 'Markanın ana rengi ne?' });
+    add('hasMascot', visual && !counts.mascot && idt.hasMascot === undefined && s.hasMascot == null, { type: 'yesno', label: 'Markanın bir maskotu var mı?', yes: 'Evet, var', no: 'Hayır' });
+    add('mascotUpload', visual && (idt.hasMascot || s.hasMascot) && !counts.mascot, { type: 'upload', label: 'Maskotun görsellerini at (farklı pozlar olursa daha iyi).', category: 'mascot', multiple: true });
+    add('mascotName', visual && (idt.hasMascot || counts.mascot) && !(idt.mascotName || book.name), { type: 'text', label: 'Maskotun adı ne?' });
+    add('mascotPersonality', visual && (idt.hasMascot || counts.mascot) && !book.personality, { type: 'many', label: 'Maskot nasıl bir karakter?', options: CHOICES.mascotPersonality, other: true });
     add('audience', !b.audience, { type: 'many', label: 'Kime sesleniyoruz?', options: CHOICES.audience, other: true });
     add('goals', !b.goals, { type: 'many', label: 'İçeriklerden ne bekliyoruz?', options: CHOICES.goals, other: true });
     add('character', !b.character, { type: 'many', label: 'Marka bir insan olsaydı nasıl biri olurdu?', options: CHOICES.character, other: true });

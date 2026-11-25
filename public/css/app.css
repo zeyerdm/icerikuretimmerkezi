@@ -2509,7 +2509,8 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 }
 
 /* LinkedIn sayfası */
-.li-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--s-4); align-items: start; }
+.li-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: var(--s-5); align-items: start; }
+#li-person { min-width: 240px; }
 @media (max-width: 1000px) { .li-grid { grid-template-columns: 1fr; } }
 .li-doc { border: 1px dashed var(--line, #e6e4de); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; justify-items: start; }
 .li-doc p { margin: 0; }
@@ -2544,3 +2545,13 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .ai-opt:has(input:checked) { border-color: var(--primary, #5b55e6); }
 .ai-opt.is-disabled { opacity: .6; cursor: not-allowed; }
 .ds-danger { display: flex; align-items: center; gap: 16px; border-color: #f3d2d2; }
+
+/* Yüzen düğmeler: sürüklenir, kenara saklanır (floatDock.js) */
+.fd { touch-action: none; user-select: none; -webkit-user-select: none; }
+.fd.fd-moved { position: fixed; z-index: 61; }
+.fd.fd-dragging { cursor: grabbing; opacity: .9; transition: none; box-shadow: 0 16px 36px rgba(27, 31, 59, .28); }
+.fd.fd-hidden { transition: transform .2s ease, opacity .2s ease; opacity: .75; }
+.fd.fd-hidden.fd-left { transform: translateX(-72%); border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.fd.fd-hidden.fd-right { transform: translateX(72%); border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.fd.fd-hidden:hover, .fd.fd-hidden:focus-visible { transform: translateX(0); opacity: 1; }
+.nav-more { display: block; padding: 6px 12px; font-size: 12px; color: var(--muted, #7a7d8c); text-decoration: none; } .nav-more:hover { color: var(--primary, #5b55e6); text-decoration: underline; }

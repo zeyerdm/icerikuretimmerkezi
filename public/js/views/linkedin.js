@@ -53,36 +53,46 @@ export async function renderLinkedin(view, brand, sub = null) {
   let source = pre ? pre[1] : 'konu';
   let draft = { contentId: null, title: '', text: '', tags: [], voice: 'sirket', scheduledAt: nextWorkdayMorning(), type: 'linkedin' };
 
+  const showList = sub === 'yazilar';
   view.innerHTML = `
-    ${pageHead({ title: 'LinkedIn', desc: 'LinkedIn\'e özgü yazı üret ya da hazır bir içeriği LinkedIn diline uyarla. Marka hafızasına ve web sitesinden gelen bilgilere sadık kalınır; kopyalayıp LinkedIn\'e yapıştır ya da takvime kaydet.' })}
-    <div class="li-grid">
-      <section class="card">
-        <div class="card-head"><h3>Yeni yazı</h3></div>
-        <span class="field-label">Kaynak</span>
-        <div class="chips" role="radiogroup" aria-label="Kaynak">${SOURCES.map(([k, v]) => `<button type="button" role="radio" class="chip ${k === source ? 'active' : ''}" aria-checked="${k === source}" data-src="${k}">${v}</button>`).join('')}</div>
-        <div class="field mt-2" id="li-pick-wrap" ${source === 'konu' ? 'hidden' : ''}><label for="li-pick">Uyarlanacak içerik</label><select class="select" id="li-pick"></select></div>
-        <div class="field mt-2"><label for="li-brief" id="li-brief-label">${source === 'konu' ? 'Konu' : 'Ek not (isteğe bağlı)'}</label><textarea class="textarea" id="li-brief" rows="3" maxlength="2000" placeholder="Ör. Yapay zekâ ile içtihat aramada 3 sık yapılan hata"></textarea></div>
-        <div class="form-grid mt-2">
-          <div class="field full"><span class="field-label">Ses</span><div class="seg seg-sm li-voice" role="radiogroup">${Object.entries(VOICES).map(([k, v]) => `<button type="button" role="radio" data-voice="${k}" class="${k === 'sirket' ? 'active' : ''}" aria-checked="${k === 'sirket'}">${esc(v)}</button>`).join('')}</div></div>
-          <div class="field full" id="li-person-wrap" hidden><label for="li-person">Kimin adına</label><input class="input" id="li-person" maxlength="120" placeholder="Ör. Ayşe Yılmaz, Kurucu"></div>
+    ${pageHead({ title: 'LinkedIn', desc: `${esc(brand.name)} için LinkedIn'e özgü yazı: kanca, kısa paragraflar, tartışma açan soru ve 3-5 hashtag. Hazır bir fikri, tasarımı, Reels'i ya da takvim içeriğini LinkedIn diline uyarlar; marka hafızasına ve web sitesindeki bilgilere sadık kalır.`,
+      actions: `<a class="btn" href="#/m/${esc(brand.id)}/post" title="Post stüdyosunda Yeni → LinkedIn belgesi: sayfalar LinkedIn diliyle yazılır, PDF olarak indirilir">${icon('palette')}LinkedIn belgesi (PDF)</a>` })}
+    <section class="card mb-4">
+      <div class="tabs mb-3" role="tablist" aria-label="LinkedIn"><button type="button" role="tab" class="${showList ? '' : 'active'}" aria-selected="${!showList}" data-li-tab="yeni">Yeni yazı</button><button type="button" role="tab" class="${showList ? 'active' : ''}" aria-selected="${showList}" data-li-tab="yazilar">Yazılarım (${mine.length})</button></div>
+      <div id="li-pane-yeni" ${showList ? 'hidden' : ''}>
+        <div class="ps-step">Neyden yazalım?</div>
+        <div class="chips mb-3" role="radiogroup" aria-label="Kaynak">${SOURCES.map(([k, v]) => `<button type="button" role="radio" class="chip ${k === source ? 'active' : ''}" aria-checked="${k === source}" data-src="${k}">${v}</button>`).join('')}</div>
+        <div class="ps-compose">
+          <div class="ps-compose-top" id="li-pick-wrap" ${source === 'konu' ? 'hidden' : ''}><label class="small strong" for="li-pick">Uyarlanacak içerik</label><select class="select grow" id="li-pick"></select></div>
+          <label class="sr-only" for="li-brief" id="li-brief-label">${source === 'konu' ? 'Konu' : 'Ek not (isteğe bağlı)'}</label>
+          <textarea class="textarea ps-brief" id="li-brief" maxlength="2000" placeholder="${source === 'konu' ? 'Konuyu yaz. Ör. Yapay zekâ ile içtihat aramada 3 sık yapılan hata' : 'İsteğe bağlı ek not. Ör. Rakam ver, sonda soru sor'}"></textarea>
+          <div class="ps-compose-foot">${models ? modelSelect(models, 'yazim', { id: 'li-model' }) : ''}
+            <select class="select w-auto" id="li-voice" aria-label="Ses">${Object.entries(VOICES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
+            <input class="input w-auto" id="li-person" maxlength="120" placeholder="Kimin adına? Ör. Ayşe Yılmaz, Kurucu" aria-label="Kimin adına" hidden>
+            <span class="spacer"></span><span class="xsmall muted" id="li-ai"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="li-manual" title="Yapay zekâsız, kendin yaz">Kendim yazacağım</button>
+            <button type="button" class="btn btn-primary" id="li-write">${icon('sparkle')}LinkedIn yazısı yaz</button></div>
         </div>
-        ${models ? `<div class="field mt-2"><label for="li-model">Model</label>${modelSelect(models, 'yazim', { id: 'li-model' })}</div>` : ''}
-        <div class="row mt-3"><button type="button" class="btn btn-primary" id="li-write">${icon('sparkle')}LinkedIn yazısı yaz</button><span class="xsmall muted" id="li-ai"></span></div>
-        <div class="li-doc mt-4"><b>LinkedIn belgesi (PDF carousel)</b><p class="small muted">Kaydırmalı PDF postları LinkedIn'de çok iyi çalışır. Post stüdyosunda <b>Yeni → LinkedIn belgesi</b> seç; sayfalar LinkedIn diliyle yazılır, bitince <b>PDF olarak indir</b> ve paylaşım metnini buraya uyarla.</p><a class="btn btn-sm" href="#/m/${esc(brand.id)}/post">${icon('palette')}Post stüdyosuna git</a></div>
-      </section>
-      <section class="card" id="li-editor">
-        <div class="card-head"><h3 id="li-ed-title">Yazı</h3><span class="xsmall muted" id="li-count"></span></div>
-        <div class="field"><label for="li-title">Başlık (takvimde görünür)</label><input class="input" id="li-title" maxlength="200"></div>
-        <div class="field mt-2"><label for="li-text">Metin</label><textarea class="textarea li-text" id="li-text" rows="14" maxlength="${L.max}" placeholder="Yaz düğmesine bas ya da kendin yaz. İlk satır kanca olsun."></textarea></div>
-        <div class="field mt-2"><label for="li-tags">Hashtag'ler</label><input class="input" id="li-tags" placeholder="#pazarlama #girişimcilik #yapayzeka"></div>
-        <ul class="li-issues mt-2" id="li-issues" aria-live="polite"></ul>
-        <div class="li-preview mt-3" aria-label="LinkedIn önizleme"><div class="li-pv-head"><span class="li-av">${esc((brand.name || '?').charAt(0).toLocaleUpperCase('tr-TR'))}</span><div><b>${esc(brand.name)}</b><span class="xsmall muted">LinkedIn önizleme</span></div></div><div class="li-pv-body" id="li-pv"></div></div>
-        <div class="form-grid mt-3"><div class="field"><label for="li-when">Yayın zamanı</label><input class="input" id="li-when" type="datetime-local"></div><div class="field"><span class="field-label">&nbsp;</span><span class="xsmall muted">LinkedIn'de hafta içi sabahları (08-10) daha çok görülür.</span></div></div>
-        <div class="row mt-3 wrap"><button type="button" class="btn" id="li-copy">${icon('copy')}Kopyala</button><button type="button" class="btn btn-primary" id="li-save">${icon('calendar')}Takvime kaydet</button><button type="button" class="btn btn-ghost" id="li-draft">Taslak olarak kaydet</button><button type="button" class="btn btn-ghost" id="li-new" hidden>Yeni yazı</button></div>
-      </section>
-    </div>
-    <section class="card mt-4"><div class="card-head"><h3>LinkedIn yazıları</h3><span class="xsmall muted">${mine.length}</span></div>
-      ${mine.length ? `<ul class="li-list">${mine.map(c => `<li><button type="button" class="li-item" data-open="${esc(c.id)}"><b>${esc(c.title)}</b><span class="xsmall muted">${esc(c.typeLabel)} · ${c.scheduledAt ? esc(new Date(c.scheduledAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) : 'tarih yok'} · ${esc(c.statusLabel)}</span><span class="small li-snip">${esc(String(c.caption || '').slice(0, 140))}</span></button></li>`).join('')}</ul>` : '<p class="small muted">Henüz LinkedIn yazısı yok. Soldan bir yazı üret; kaydettiklerin burada ve takvimde görünür.</p>'}
+      </div>
+      <div id="li-pane-yazilar" ${showList ? '' : 'hidden'}>
+        ${mine.length ? `<ul class="li-list">${mine.map(c => `<li><button type="button" class="li-item" data-open="${esc(c.id)}"><b>${esc(c.title)}</b><span class="xsmall muted">${esc(c.typeLabel)} · ${c.scheduledAt ? esc(new Date(c.scheduledAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) : 'tarih yok'} · ${esc(c.statusLabel)}</span><span class="small li-snip">${esc(String(c.caption || '').slice(0, 140))}</span></button></li>`).join('')}</ul>` : '<p class="small muted">Henüz LinkedIn yazısı yok. "Yeni yazı" sekmesinden üret; kaydettiklerin burada ve takvimde görünür.</p>'}
+      </div>
+    </section>
+    <section class="card" id="li-editor" hidden>
+      <div class="card-head"><h3 id="li-ed-title">Yazı</h3><span class="xsmall muted" id="li-count"></span></div>
+      <div class="li-grid">
+        <div>
+          <div class="field"><label for="li-title">Başlık (takvimde görünür)</label><input class="input" id="li-title" maxlength="200"></div>
+          <div class="field mt-2"><label for="li-text">Metin</label><textarea class="textarea li-text" id="li-text" rows="16" maxlength="${L.max}" placeholder="İlk satır kanca olsun."></textarea></div>
+          <div class="field mt-2"><label for="li-tags">Hashtag'ler</label><input class="input" id="li-tags" placeholder="#pazarlama #girişimcilik #yapayzeka"></div>
+          <ul class="li-issues mt-2" id="li-issues" aria-live="polite"></ul>
+        </div>
+        <div>
+          <div class="li-preview" aria-label="LinkedIn önizleme"><div class="li-pv-head"><span class="li-av">${esc((brand.name || '?').charAt(0).toLocaleUpperCase('tr-TR'))}</span><div><b>${esc(brand.name)}</b><span class="xsmall muted">LinkedIn önizleme</span></div></div><div class="li-pv-body" id="li-pv"></div></div>
+          <div class="field mt-3"><label for="li-when">Yayın zamanı</label><input class="input" id="li-when" type="datetime-local"><span class="hint">LinkedIn'de hafta içi sabahları (08-10) daha çok görülür.</span></div>
+          <div class="row mt-3 wrap"><button type="button" class="btn" id="li-copy">${icon('copy')}Kopyala</button><button type="button" class="btn btn-primary" id="li-save">${icon('calendar')}Takvime kaydet</button><button type="button" class="btn btn-ghost" id="li-draft">Taslak olarak kaydet</button><button type="button" class="btn btn-ghost" id="li-new" hidden>Yeni yazı</button></div>
+        </div>
+      </div>
     </section>`;
 
   const $ = sel => view.querySelector(sel);
@@ -108,6 +118,7 @@ export async function renderLinkedin(view, brand, sub = null) {
     $('#li-title').value = draft.title || ''; $('#li-text').value = draft.text || ''; $('#li-tags').value = (draft.tags || []).join(' ');
     $('#li-when').value = draft.scheduledAt || '';
     $('#li-ed-title').textContent = draft.contentId ? 'Yazıyı düzenle' : 'Yazı';
+    $('#li-editor').hidden = !(draft.contentId || draft.text || d.show);
     $('#li-save').innerHTML = `${icon('calendar')}${draft.contentId ? 'Kaydet' : 'Takvime kaydet'}`;
     $('#li-draft').hidden = Boolean(draft.contentId);
     $('#li-new').hidden = !draft.contentId;
@@ -116,6 +127,7 @@ export async function renderLinkedin(view, brand, sub = null) {
   load({ scheduledAt: nextWorkdayMorning() });
 
   view.oninput = e => { if (['li-text', 'li-tags'].includes(e.target.id)) render(); };
+  view.onchange = e => { if (e.target.id === 'li-voice') { draft.voice = e.target.value; $('#li-person').hidden = draft.voice !== 'kisisel'; } };
   view.onclick = async e => {
     const src = e.target.closest('[data-src]');
     if (src) {
@@ -123,14 +135,12 @@ export async function renderLinkedin(view, brand, sub = null) {
       view.querySelectorAll('[data-src]').forEach(b => { b.classList.toggle('active', b === src); b.setAttribute('aria-checked', String(b === src)); });
       $('#li-pick-wrap').hidden = source === 'konu';
       $('#li-brief-label').textContent = source === 'konu' ? 'Konu' : 'Ek not (isteğe bağlı)';
+      $('#li-brief').placeholder = source === 'konu' ? 'Konuyu yaz. Ör. Yapay zekâ ile içtihat aramada 3 sık yapılan hata' : 'İsteğe bağlı ek not. Ör. Rakam ver, sonda soru sor';
       fillPick(); return;
     }
-    const v = e.target.closest('[data-voice]');
-    if (v) {
-      draft.voice = v.dataset.voice;
-      view.querySelectorAll('[data-voice]').forEach(b => { b.classList.toggle('active', b === v); b.setAttribute('aria-checked', String(b === v)); });
-      $('#li-person-wrap').hidden = draft.voice !== 'kisisel'; return;
-    }
+    const tab = e.target.closest('[data-li-tab]');
+    if (tab) { const t = tab.dataset.liTab; view.querySelectorAll('[data-li-tab]').forEach(b => { b.classList.toggle('active', b === tab); b.setAttribute('aria-selected', String(b === tab)); }); $('#li-pane-yeni').hidden = t !== 'yeni'; $('#li-pane-yazilar').hidden = t !== 'yazilar'; return; }
+    if (e.target.closest('#li-manual')) { load({ contentId: null, show: true, title: $('#li-brief').value.trim().slice(0, 80), text: '', tags: [], type: 'linkedin', scheduledAt: nextWorkdayMorning() }); $('#li-text').focus(); return; }
     if (e.target.closest('[data-more]')) { const r = $('.li-rest'); if (r) { r.hidden = false; e.target.closest('.li-pv-text').hidden = true; } return; }
     const op = e.target.closest('[data-open]');
     if (op) {
@@ -166,7 +176,7 @@ export async function renderLinkedin(view, brand, sub = null) {
       try {
         const r = await busyTimer(btn, () => api.linkedinSave(brand.id, { contentId: draft.contentId, title: $('#li-title').value.trim() || 'LinkedIn yazısı', text: t, hashtags: tagsOf($('#li-tags').value), scheduledAt: when, voice: draft.voice, type: draft.type || 'linkedin' }), 'Kaydediyor');
         toast(when ? 'Takvime kaydedildi.' : 'Taslak olarak kaydedildi (takvimde tarihsiz).', 'success');
-        renderLinkedin(view, brand).then(() => { /* liste yenilendi */ });
+        renderLinkedin(view, brand, 'yazilar').then(() => { /* liste yenilendi */ });
         return r;
       } catch (err) { toast(err.message, 'error'); }
     }

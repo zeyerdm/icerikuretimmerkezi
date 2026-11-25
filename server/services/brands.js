@@ -97,6 +97,8 @@ export function toBrand(row) {
     slogan: row.slogan,
     isDemo: Boolean(row.is_demo),
     website: row.website || '',
+    // Kurulumda seçilen kanal ve içerik türleri: menü ve sorular buna göre açılır/kapanır (boşsa hepsi açık)
+    scope: (({ channels = [], contentKinds = [] }) => ({ channels, contentKinds }))(parseJson(row.setup, {}) || {}),
     driveFolderId: row.drive_folder || '',
     driveFolderUrl: folderUrl(row.drive_folder || ''),
     colors: Object.assign({ primary: '', secondary: [], backgrounds: [], heading: '', body: '' }, parseJson(row.colors, {})),
