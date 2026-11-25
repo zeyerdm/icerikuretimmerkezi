@@ -36,12 +36,12 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 
 ## 03 · Merkezi veri ve marka hafızası
 
-- 🔒 Üç katman: sabit marka bilgisi / öğrenilmiş tercih / dönemsel bilgi
-- 🔒 Her kayıtta: kaynak, oluşturulma, güncellenme, geçerlilik başlangıç-bitiş, onay durumu, güven seviyesi
-- 🔒 Öğrenilmiş tercih onaysız kesin kurala dönüşmez
-- ⬜ Süresi dolan dönemsel bilgi ve kampanyaların tespiti
-- ⬜ Hafıza düzenleme, onay ve arşiv ekranı; değişiklik geçmişi
-- ⬜ Asistan yalnız ilgili ve geçerli hafızayı kullanır; çelişkide kullanıcıya sorar
+- ✅ Üç katman: sabit marka bilgisi / öğrenilmiş tercih / dönemsel bilgi (göç 50)
+- ✅ Her kayıtta: kaynak, oluşturulma, güncellenme, geçerlilik başlangıç-bitiş, onay durumu, güven seviyesi
+- ✅ Siteden/yapay zekâdan gelen bilgi onaysız üretime girmez (öneri → onay)
+- ✅ Süresi dolan dönemsel bilgi arşive geçer (silinmez); onay bekleyenler bildirim merkezinde
+- ✅ Hafıza düzenleme, onay ve arşiv ekranı; değişiklik geçmişi
+- ✅ Yapay zekâya yalnız onaylı ve geçerli kartlar; çelişkide öneri olarak kalır, kullanıcı onaylar
 
 ## 04 · Yapay zekâ mimarisi ve maliyet
 

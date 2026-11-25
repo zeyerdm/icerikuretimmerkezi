@@ -104,7 +104,8 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
   }
 
   // Metinden (web sitesi / yapıştırılan yazı) bilgi kartları ve ilk içerik fikirleri: tek istek. Fikir havuzu boş başlamaz.
-  async function digest(brandId, source, modelRef) {
+  // Çıkarılan bilgi kartları öneri olarak gelir (kaynak: web sitesi ya da yapay zekâ); kullanıcı onaylayınca yapay zekâya gider
+  async function digest(brandId, source, modelRef, fromSite = false) {
     const b = brands.get(brandId);
     const s = setup.status(b.id).setup;
     const existing = ideas.list(b.id).map(i => i.title).slice(0, 60);
@@ -128,7 +129,7 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
     for (const f of (Array.isArray(o.facts) ? o.facts : []).slice(0, 12)) {
       const title = polish(String((f && f.title) || '')).slice(0, 120); const content = String((f && f.content) || '').trim().slice(0, 2000);
       if (!title || !content || have.has(title.toLocaleLowerCase('tr-TR'))) continue;
-      try { memory.addFact(b.id, { category: FACT_CATEGORIES[f.category] ? f.category : 'diger', title, content }); have.add(title.toLocaleLowerCase('tr-TR')); facts++; } catch { break; }
+      try { memory.addFact(b.id, { category: FACT_CATEGORIES[f.category] ? f.category : 'diger', title, content }, fromSite ? 'site' : 'ai'); have.add(title.toLocaleLowerCase('tr-TR')); facts++; } catch { break; }
     }
     for (const it of (Array.isArray(o.ideas) ? o.ideas : []).slice(0, 15)) {
       const title = polish(String((it && it.title) || '')).slice(0, 200);
@@ -166,8 +167,8 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
         }).catch(err => push('notes', `Maskot okunamadı: ${err.message}`)));
       }
       // Metin varsa önce ondan bilgi kartları ve fikirler; sonra (havuz hâlâ küçükse) benzerleri
-      const fromText = pending.text ? withLimit(digest(brandId, pending.text, modelRef), 'Fikir ve bilgi çıkarma').then(r => {
-        if (r.facts) push('found', `${pending.site ? 'Web sitesinden' : 'Metinden'} ${r.facts} bilgi kartı çıkarıldı (Marka hafızası)`);
+      const fromText = pending.text ? withLimit(digest(brandId, pending.text, modelRef, Boolean(pending.site)), 'Fikir ve bilgi çıkarma').then(r => {
+        if (r.facts) push('found', `${pending.site ? 'Web sitesinden' : 'Metinden'} ${r.facts} bilgi kartı çıkarıldı; onayın bekleniyor (Ses ve hafıza → Onay bekleyenler)`);
         if (r.ideas) push('found', `${pending.site ? 'Web sitesine' : 'Metne'} dayanan ${r.ideas} içerik fikri havuza eklendi`);
       }).catch(err => push('notes', `Fikir ve bilgi çıkarılamadı: ${err.message}`)) : Promise.resolve();
       jobs.push(fromText);
@@ -254,7 +255,7 @@ export function createBrandOnboardService({ db, ai, brands, assets, memory, iden
           const old = memory.get(b.id).facts.find(f => f.title === 'İletişim ve sosyal medya');
           try {
             if (old) memory.updateFact(b.id, old.id, { content: lines.join('\n') });
-            else memory.addFact(b.id, { category: 'iletisim', title: 'İletişim ve sosyal medya', content: lines.join('\n') });
+            else memory.addFact(b.id, { category: 'iletisim', title: 'İletişim ve sosyal medya', content: lines.join('\n') }, 'site');
             found.push('İletişim ve sosyal medya bağlantıları (bilgi kartı)');
           } catch { /* kart sınırı */ }
           const cur0 = brands.get(b.id);

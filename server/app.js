@@ -778,10 +778,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   // --- Akıllı marka hafızası ---
   api.put('/brands/:brandId/text-pools', (req, res) => res.json({ textPools: brands.setTextPools(req.brand.id, req.body || {}) }));
   api.put('/brands/:brandId/design-lock', (req, res) => res.json({ designLock: brands.setDesignLock(req.brand.id, req.body || {}) }));
-  api.get('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.get(req.brand.id), categories: memory.categories }));
+  api.get('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.get(req.brand.id), categories: memory.categories, layers: memory.layers, statuses: memory.statuses }));
   api.put('/brands/:brandId/memory', (req, res) => res.json({ memory: memory.setLists(req.brand.id, req.body || {}) }));
   api.post('/brands/:brandId/memory/facts', (req, res) => res.status(201).json({ fact: memory.addFact(req.brand.id, req.body || {}) }));
   api.put('/brands/:brandId/memory/facts/:id', (req, res) => res.json({ fact: memory.updateFact(req.brand.id, req.params.id, req.body || {}) }));
+  api.post('/brands/:brandId/memory/facts/:id/approve', (req, res) => res.json({ fact: memory.approve(req.brand.id, req.params.id) }));
+  api.get('/brands/:brandId/memory/facts/:id/history', (req, res) => res.json({ history: memory.history(req.brand.id, req.params.id) }));
   api.delete('/brands/:brandId/memory/facts/:id', (req, res) => { memory.removeFact(req.brand.id, req.params.id); res.status(204).end(); });
 
   // --- Görsel üretimi ---

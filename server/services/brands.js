@@ -267,7 +267,9 @@ export function createBrandService(db, ownerId) {
       const hm = db.prepare('SELECT banned_words, preferred_phrases FROM brands WHERE id = ?').get(b.id) || {};
       const banned = parseJson(hm.banned_words, []);
       const preferred = parseJson(hm.preferred_phrases, []);
-      const facts = db.prepare('SELECT category, title, content FROM brand_facts WHERE brand_id = ? ORDER BY category, updated_at DESC LIMIT 40').all(b.id);
+      // Yalnız onaylı ve bugün geçerli bilgi kartları (öneriler ve arşiv yapay zekâya gitmez; göç 50)
+      const day = new Date().toISOString().slice(0, 10);
+      const facts = db.prepare("SELECT category, title, content FROM brand_facts WHERE brand_id = ? AND status = 'onayli' AND (valid_from IS NULL OR valid_from <= ?) AND (valid_to IS NULL OR valid_to >= ?) ORDER BY category, updated_at DESC LIMIT 40").all(b.id, day, day);
       const rivals = db.prepare("SELECT name, analysis FROM competitors WHERE brand_id = ? AND analysis <> '' ORDER BY updated_at DESC LIMIT 5").all(b.id)
         .map(r => ({ name: r.name, a: parseJson(r.analysis, {}) })).filter(r => (r.a.gaps || []).length);
       const worst = measured.length >= 6 ? measured.slice(-3).reverse() : [];
