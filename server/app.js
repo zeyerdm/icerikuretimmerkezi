@@ -49,6 +49,7 @@ import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
 import { createSiteReader } from './services/siteReader.js';
+import { createRemoteAccess, loginPage } from './services/remote.js';
 import { createMemoryService } from './services/memory.js';
 import { createBrandSetupService } from './services/brandSetup.js';
 import { createBrandOnboardService } from './services/brandOnboard.js';
@@ -61,7 +62,6 @@ import { checkForUpdate, readVersion, readConfig, previousVersion, UpdateError, 
 import { DEMO_BRAND, DEMO_ASSETS, DEMO_IDEAS, DEMO_CONTENTS, DEMO_TASKS, DEMO_NOTES, demoAssetBuffer } from './demo/index.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 function createSettingsStore(db, cipher) {
   const raw = key => (db.prepare('SELECT value FROM settings WHERE key = ?').get(key) || {}).value;
@@ -87,19 +87,7 @@ function ensureOwner(db) {
   return id;
 }
 
-// Yerel sunucu güvenliği: yalnızca localhost adına gelen istekler kabul edilir (DNS rebinding'e karşı)
-// ve veri değiştiren istekler başka bir siteden gönderilemez (CSRF'ye karşı).
-function localOnly(req, res, next) {
-  const host = String(req.headers.host || '').replace(/:\d+$/, '');
-  if (!LOCAL_HOSTS.has(host)) return res.status(403).json({ error: { code: 'FORBIDDEN_HOST', message: 'Bu sunucu yalnızca bu bilgisayardan kullanılabilir.' } });
-  const origin = req.headers.origin;
-  if (origin && !['GET', 'HEAD'].includes(req.method)) {
-    let ok = false;
-    try { ok = LOCAL_HOSTS.has(new URL(origin).hostname) || LOCAL_HOSTS.has('[' + new URL(origin).hostname + ']'); } catch { ok = false; }
-    if (!ok) return res.status(403).json({ error: { code: 'FORBIDDEN_ORIGIN', message: 'Başka bir siteden gelen istek reddedildi.' } });
-  }
-  next();
-}
+// Yerel sunucu güvenliği (localhost adı, CSRF) ve isteğe bağlı uzaktan erişim: services/remote.js
 
 function securityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -120,7 +108,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, siteFetch, siteAllowPrivate = false, queueAutostart = true, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, siteFetch, siteAllowPrivate = false, remoteSpawn, remoteBins, queueAutostart = true, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -176,14 +164,42 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, siteReader, readMs: onboardReadMs || 90000 });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
+  const remote = createRemoteAccess(Object.assign({ settings }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
   const app = express();
   app.disable('x-powered-by');
-  app.use(localOnly, securityHeaders);
+  app.set('trust proxy', false);
+  app.use((req, res, next) => remote.middleware(req, res, next), securityHeaders);
+
+  // --- Telefondan / her yerden erişim: giriş (yalnız uzak adreste anlamlı) ---
+  app.get('/giris', (req, res) => {
+    if (!req.remote) return res.redirect(302, '/');
+    if (remote.authed(req)) return res.redirect(302, '/');
+    const e = String(req.query.hata || '');
+    res.type('html').send(loginPage({ error: e === 'kilit' ? `Çok fazla yanlış deneme. ${Number(req.query.dk) || 15} dakika sonra tekrar dene.` : e ? 'Şifre yanlış.' : '' }));
+  });
+  app.post('/api/remote/login', express.urlencoded({ extended: false, limit: '4kb' }), (req, res) => {
+    if (!req.remote) return res.redirect(303, '/');
+    const r = remote.login((req.body || {}).password, String(req.headers['cf-connecting-ip'] || 'genel'));
+    if (!r.ok) return res.redirect(303, r.locked ? `/giris?hata=kilit&dk=${r.locked}` : '/giris?hata=1');
+    res.setHeader('Set-Cookie', `${remote.COOKIE}=${r.token}; Path=/; Max-Age=${r.maxAge}; HttpOnly; Secure; SameSite=Lax`);
+    res.redirect(303, '/');
+  });
+  app.post('/api/remote/logout', (req, res) => {
+    remote.logout(req);
+    res.setHeader('Set-Cookie', `${remote.COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
+    res.json({ ok: true });
+  });
   app.use(express.json({ limit: '200kb' }));
 
   const api = express.Router();
 
   api.get('/health', (req, res) => res.json({ ok: true }));
+
+  // Uzaktan erişim ayarları (değiştirmek yalnız bilgisayardan; telefondan yalnız durum ve çıkış)
+  api.get('/remote', (req, res) => res.json(Object.assign(remote.status(), { remoteClient: Boolean(req.remote) })));
+  api.put('/remote', (req, res) => { const b = req.body || {}; res.json(remote.configure({ enabled: 'enabled' in b ? Boolean(b.enabled) : null, password: b.password, autoTunnel: 'autoTunnel' in b ? Boolean(b.autoTunnel) : null })); });
+  api.post('/remote/tunnel', (req, res) => res.json((req.body || {}).action === 'stop' ? remote.stopTunnel() : remote.startTunnel(req.socket.localPort)));
+  api.post('/remote/sessions/revoke', (req, res) => res.json(remote.revokeAll()));
 
   // Arayüzün ihtiyaç duyduğu sabit listeler (kategoriler, fontlar, alan adları)
   api.get('/meta', (req, res) => res.json({
@@ -992,5 +1008,5 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html', setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));
   app.use(errorHandler);
 
-  return { app, db, backups, close: () => db.close() };
+  return { app, db, backups, remote, close: () => { remote.stopTunnel(); db.close(); } };
 }

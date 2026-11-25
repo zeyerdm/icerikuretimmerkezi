@@ -35,6 +35,8 @@ async function request(method, url, body, headers = {}) {
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const e = (data && data.error) || {};
+    // Telefondan erişimde oturum düştüyse giriş sayfasına
+    if (res.status === 401 && e.code === 'LOGIN_REQUIRED') location.href = '/giris';
     throw new ApiError(res.status, e.code || 'ERROR', e.message || 'İstek başarısız oldu.');
   }
   return data;
@@ -88,6 +90,11 @@ export const api = {
   meta: () => request('GET', '/api/meta'),
   settings: () => request('GET', '/api/settings'),
   saveProfile: body => request('PUT', '/api/settings/profile', body),
+  remote: () => request('GET', '/api/remote'),
+  saveRemote: body => request('PUT', '/api/remote', body),
+  remoteTunnel: action => request('POST', '/api/remote/tunnel', { action }),
+  remoteRevoke: () => request('POST', '/api/remote/sessions/revoke'),
+  remoteLogout: () => request('POST', '/api/remote/logout'),
   saveAi: body => request('PUT', '/api/settings/ai', body),
   removeAiKey: () => request('DELETE', '/api/settings/ai/key'),
   testAi: () => request('POST', '/api/settings/ai/test'),

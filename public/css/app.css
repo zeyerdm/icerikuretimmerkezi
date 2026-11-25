@@ -2490,3 +2490,20 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .cal-today-tag { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-sp-mini { flex: none; }
 .cal-card .cal-cell.today .cal-sp-mini { color: var(--on-brand, #fff); }
+
+/* Ayarlar: telefondan erişim */
+.rm-link { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.rm-link canvas { width: 180px; height: 180px; border: 8px solid #fff; border-radius: 8px; background: #fff; flex: none; }
+.rm-url { word-break: break-all; }
+
+/* Telefon ve dar ekran: karşılama metni tam genişlik, "Bu hafta" kutusu altta (üst üste binmez) */
+@media (max-width: 1280px) {
+  .ops .welcome .w-text { max-width: 100%; }
+  .ops .welcome { display: flex; flex-direction: column-reverse; align-items: stretch; gap: var(--s-4); }
+  .ops .w-side, .w-side { display: grid; position: static; transform: none; width: auto; max-width: 520px; }
+}
+@media (max-width: 760px) {
+  .ops .welcome h1 { font-size: var(--t-lg, 20px); }
+  .welcome .w-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rm-link canvas { width: 150px; height: 150px; }
+}
