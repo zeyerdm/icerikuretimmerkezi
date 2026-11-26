@@ -131,7 +131,7 @@ function wireHistory(form, content) {
         </div>
         ${t.ai.byModel.length ? `<details class="mb-2"><summary class="xsmall">Model ve işe göre</summary><ul class="xsmall">${t.ai.byModel.map(m => `<li>${esc(m.model)} · ${esc(m.task)}: ${m.calls} çağrı${m.usd ? ` · $${m.usd.toFixed(4)}` : ''}</li>`).join('')}</ul></details>` : ''}
         ${t.events.length ? `<ol class="review-list">${t.events.map(e => `<li><span aria-hidden="true">${EV_ICON[e.kind] || '•'}</span> <b>${esc(e.title)}</b>${e.note ? ` <span class="small">${esc(e.note)}</span>` : ''} <span class="xsmall muted">· ${esc(when(e.at))}</span>${e.link ? ` <a class="xsmall" href="${esc(e.link)}" data-close>aç</a>` : ''}</li>`).join('')}</ol>` : '<p class="small muted">Kayıt yok.</p>'}
-        <p class="xsmall muted mt-2">Maliyet; bu içerik ve bağlı post, prompt ya da senaryo için kaydı tutulan çağrılardan tahmin edilir (fiyatı bilinmeyen model $0 sayılır). Toplu üretim kuyruğundaki işler henüz bağlanmıyor.</p>`;
+        <p class="xsmall muted mt-2">Maliyet; bu içerik ve bağlı post, prompt ya da senaryo için kaydı tutulan çağrılardan tahmin edilir (fiyatı bilinmeyen model $0 sayılır). Toplu üretim kuyruğundaki işler de oluşan post ya da prompt'a bağlanır.</p>`;
     } catch (err) { body.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; loaded = false; }
   });
 }

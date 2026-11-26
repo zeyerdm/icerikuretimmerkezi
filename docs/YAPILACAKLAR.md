@@ -61,7 +61,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 ## 06 · İçerik yönetimi, strateji ve raporlama
 
 - 🟡 Takvim içeriği fikir, post, prompt ve Reels'e bağlı (`idea_id`, `post_id`, `prompt_id`, `reels_id`)
-- ✅ İçerik projesi (O2, göç 52; takvim içeriği = proje): zaman çizelgesi (fikir, prompt ve sürümleri, senaryo ve sürümleri, tasarım, düzenleme, onay, durum, tarih, yayın, performans), yayın bağlantısı, içerik bazında yapay zekâ çağrı / token / tahmini maliyet (içerik + bağlı post, prompt, senaryo), revizyon sayısı, fikirden tamamlanmaya süre; içerik penceresinde "Geçmiş". ⬜ Toplu üretim kuyruğundaki işlerin maliyeti henüz bağlanmıyor
+- ✅ İçerik projesi (O2, göç 52; takvim içeriği = proje): zaman çizelgesi (fikir, prompt ve sürümleri, senaryo ve sürümleri, tasarım, düzenleme, onay, durum, tarih, yayın, performans), yayın bağlantısı, içerik bazında yapay zekâ çağrı / token / tahmini maliyet (içerik + bağlı post, prompt, senaryo), revizyon sayısı, fikirden tamamlanmaya süre; içerik penceresinde "Geçmiş"; toplu üretim kuyruğundaki işler de oluşan post / prompt'a bağlanır
   içerik detay ekranı
 - ✅ Ölçülebilir marka hedefleri (erişim, takipçi, satış, web trafiği, bilinirlik, etkileşim; göç 51). Erişim, takipçi ve etkileşim paylaşım sonuçlarından hesaplanır, diğerleri elle girilir
 - ✅ İçerik sütunları (hedef pay %) ve içeriğe sütun, amaç, kitle, kanal atama (kanal boşsa türden çıkarılır)
