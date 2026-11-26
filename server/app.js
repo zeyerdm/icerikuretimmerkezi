@@ -528,6 +528,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   });
   api.get('/contents/:id', (req, res) => res.json({ content: workspace.getContent(req.params.id) }));
   // 8.11 Onay akışı
+  api.get('/operations', (req, res) => res.json(workspace.operations({ month: req.query.month ? String(req.query.month) : null, brandId: req.query.brandId ? String(req.query.brandId) : null })));
   api.get('/contents/:id/timeline', (req, res) => res.json(workspace.timeline(req.params.id)));
   api.get('/contents/:id/reviews', (req, res) => res.json({ reviews: workspace.reviews(req.params.id) }));
   api.post('/contents/:id/review', (req, res) => res.status(201).json(workspace.review(req.params.id, req.body || {})));

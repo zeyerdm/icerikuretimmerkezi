@@ -346,6 +346,28 @@ export function createWorkspaceService(db, ownerId, brands) {
       return toContent(getContentRow(row.id));
     },
 
+    // Operasyon maliyeti (Aşama 06): marka başına ay özeti. Süre: oluşturmadan tamamlanmaya (gün). Revizyon: metin
+    // düzenlemesi ve "düzeltme istendi". Yapay zekâ: markaya yazılan bütün çağrılar.
+    // Tutar ayrımı: OpenRouter tutarı kendisi bildirir (gerçek); diğerleri token ve katalog fiyatından (tahmini).
+    operations({ month, brandId = null } = {}) {
+      const m = String(month || new Date().toISOString().slice(0, 7));
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(m)) throw badRequest('Ay YYYY-AA biçiminde olmalı.');
+      const list = brandId ? [ownBrand(brandId)] : brands.list().filter(b => !b.isDemo);
+      const rows = list.map(b => {
+        const done = db.prepare('SELECT created_at, completed_at FROM contents WHERE brand_id = ? AND substr(completed_at, 1, 7) = ?').all(b.id, m);
+        const created = db.prepare('SELECT COUNT(*) AS n FROM contents WHERE brand_id = ? AND substr(created_at, 1, 7) = ?').get(b.id, m).n;
+        const days = done.map(r => (Date.parse(r.completed_at) - Date.parse(r.created_at)) / 864e5).filter(x => x >= 0);
+        const revisions = db.prepare("SELECT COUNT(*) AS n FROM content_events e JOIN contents c ON c.id = e.content_id WHERE c.brand_id = ? AND e.kind = 'metin' AND substr(e.at, 1, 7) = ?").get(b.id, m).n
+          + db.prepare("SELECT COUNT(*) AS n FROM content_reviews r JOIN contents c ON c.id = r.content_id WHERE c.brand_id = ? AND r.action = 'duzelt' AND substr(r.created_at, 1, 7) = ?").get(b.id, m).n;
+        const ai = db.prepare("SELECT COUNT(*) AS calls, COALESCE(SUM(cost_usd), 0) AS usd, COALESCE(SUM(CASE WHEN provider = 'openrouter' THEN cost_usd ELSE 0 END), 0) AS real FROM ai_usage WHERE brand_id = ? AND substr(created_at, 1, 7) = ?").get(b.id, m);
+        const r4 = v => Math.round(v * 10000) / 10000;
+        return { brandId: b.id, brandName: b.name, created, completed: done.length, avgDays: days.length ? Math.round(days.reduce((a, x) => a + x, 0) / days.length * 10) / 10 : null,
+          revisions, aiCalls: ai.calls, aiUsd: r4(ai.usd), aiRealUsd: r4(ai.real), aiEstimatedUsd: r4(ai.usd - ai.real), usdPerContent: done.length ? r4(ai.usd / done.length) : null };
+      });
+      const sum = k => rows.reduce((a, r) => a + (r[k] || 0), 0);
+      return { month: m, brands: rows, total: { created: sum('created'), completed: sum('completed'), revisions: sum('revisions'), aiCalls: sum('aiCalls'), aiUsd: Math.round(sum('aiUsd') * 10000) / 10000 } };
+    },
+
     // "Ne işe yaradı": sonucu girilmiş içeriklerden özet (marka verilirse yalnızca o marka)
     performance({ brandId = null } = {}) {
       let sql = CONTENT_SELECT + " AND c.metrics <> ''";

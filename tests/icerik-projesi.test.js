@@ -113,3 +113,25 @@ test('Arayüz: içerik penceresinde yayın bağlantısı kaydedilir, Geçmiş za
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await s.stop(); }
 });
+
+test('Operasyon maliyeti: marka başına ay özeti (içerik, süre, revizyon, yapay zekâ çağrısı ve tutar)', async () => {
+  const provider = fakeProvider([p => (p.includes('Instagram içerik yazarısın') ? CAPTION : REELS)]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Operasyonlu' })).data.brand;
+    const c = (await s.request('POST', '/api/contents', { brandId: b.id, title: 'İş', type: 'post', scheduledAt: new Date().toISOString() })).data.content;
+    await s.request('POST', `/api/contents/${c.id}/write`, {});
+    await s.request('PATCH', `/api/contents/${c.id}`, { caption: 'Düzeltilmiş' });
+    await s.request('POST', `/api/contents/${c.id}/review`, { action: 'gonder', force: true });
+    await s.request('POST', `/api/contents/${c.id}/review`, { action: 'duzelt', note: 'Fiyat yanlış' });
+    await s.request('PATCH', `/api/contents/${c.id}`, { status: 'yayinlandi' });
+    const month = new Date().toISOString().slice(0, 7);
+    const ops = (await s.request('GET', `/api/operations?month=${month}&brandId=${b.id}`)).data;
+    const r = ops.brands[0];
+    assert.equal(r.brandName, 'Operasyonlu'); assert.equal(r.created, 1); assert.equal(r.completed, 1);
+    assert.equal(r.revisions, 2, 'metin düzenlemesi + düzeltme istendi');
+    assert.equal(r.aiCalls, 1); assert.equal(typeof r.avgDays, 'number');
+    assert.equal(r.aiRealUsd + r.aiEstimatedUsd, r.aiUsd);
+    assert.equal((await s.request('GET', '/api/operations?month=2026-13')).status, 400);
+  } finally { await s.stop(); }
+});
