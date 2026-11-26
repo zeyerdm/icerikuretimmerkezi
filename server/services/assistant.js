@@ -21,7 +21,7 @@ const MAX_IDEAS_PER_ACTION = 12;
 const MAX_HEAVY = 3;
 const HEAVY = ['create_reels', 'create_post', 'create_prompt', 'create_image'];
 
-export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null, images = null, memory = null }) {
+export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null, images = null, memory = null, getInsights = () => null }) {
   const toMessage = r => ({ id: r.id, role: r.role, content: r.content, actions: parseJson(r.actions, []), createdAt: r.created_at });
   const save = (brandId, role, content, actions = []) => {
     const row = { id: newId(), brand_id: brandId, role, content, actions: JSON.stringify(actions), created_at: now() };
@@ -91,6 +91,13 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
   // Intent Router (kural tabanlı): yalnız kısa ve açık bilgi soruları; öneri/üretim isteyen her şey yapay zekâya gider
   function quickAnswer(brand, message) {
     const m = String(message).toLocaleLowerCase('tr-TR').trim();
+    // Komutla çalışma modu: öneri ve uyarılar istek üzerine (bildirim merkezinin kuralları, yapay zekâsız)
+    if (/^(bugün )?(öneriler|uyarılar|bildirimler|ne yapmalıyım|neler yapmalıyım|ne yapayım|öncelikler)( neler)?\??$/.test(m) && getInsights()) {
+      const rows = getInsights().list({ brandId: brand.id });
+      if (!rows.length) return 'Şu an öneri ya da uyarı yok; takvim, onaylar ve görevler yolunda.';
+      const tag = { yuksek: 'Öncelikli', orta: 'Önemli', dusuk: 'Bilgi' };
+      return `${rows.length} öneri / uyarı:\n` + rows.slice(0, 10).map(i => `- [${tag[i.priority] || i.priority}] ${i.title}: ${i.text}`).join('\n') + (rows.length > 10 ? `\n… ve ${rows.length - 10} tane daha` : '');
+    }
     if (m.length > 90 || /öner|üret|yaz|tasarla|fikir ver|ne paylaşalım|ne yapalım|nasıl|neden|niçin|plan(la|ı) (yap|çıkar|hazırla)/.test(m)) return null;
     const day = d => new Date(d).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'short' });
     const time = d => new Date(d).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });

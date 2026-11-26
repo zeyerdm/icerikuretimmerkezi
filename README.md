@@ -94,6 +94,15 @@ npm test
 
 API testleri (marka kimliği, veri izolasyonu, güvenli yükleme, AI anahtarı güvenliği, asistan, yedekleme, güncelleme ve geri alma) her zaman çalışır. Arayüz testleri bilgisayarda Playwright kuruluysa çalışır, yoksa atlanır.
 
+**Arayüz testleri için Playwright kurulumu** (bir kez; uygulamanın kendisi Playwright'a ihtiyaç duymaz, `package.json`'a eklenmez):
+
+```
+npm install --no-save playwright@1.56.1 axe-core@4.10.2
+npx playwright install chromium
+```
+
+Linux'ta tarayıcının sistem kitaplıkları için `npx playwright install --with-deps chromium`. Yavaş bilgisayarda arayüz testleri uzun sürebilir; bir test dosyası tek başına `node --test tests/ui.test.js` ile çalıştırılabilir.
+
 GitHub'da her değişiklik Linux (arayüz testleri dahil) ve Windows'ta otomatik test edilir (`.github/workflows/test.yml`); testleri geçmeyen değişiklik `main`'e alınmaz.
 
 Bu proje `zeyerdm/icerikuretici` (DevOrtak) projesinden bağımsızdır; onun dosyalarına, verilerine veya ayarlarına dokunmaz.

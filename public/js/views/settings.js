@@ -72,6 +72,10 @@ export async function renderSettings(view) {
         <label class="check mt-2"><input type="checkbox" id="rm-tasks" ${reminderPrefs().tasks ? 'checked' : ''}> Görev hatırlatması: son günü gelen ve geciken görevler için günde bir kez bildirim (09:00'dan sonra)</label>
         <label class="check mt-2"><input type="checkbox" id="rm-sound" ${reminderPrefs().sound ? 'checked' : ''}> Ses efektleri (kaydetme, görev tamamlama, bildirim, hata)</label>
         <p class="hint mt-2">${typeof Notification === 'undefined' ? 'Bu tarayıcı bildirimleri desteklemiyor.' : 'Bildirimler uygulama açıkken (sekme arka planda olsa da) gelir; ilk açışta tarayıcı izin ister.'}</p>
+        <fieldset class="field mt-3"><legend class="field-label">Çalışma modu (öneri ve uyarılar)</legend>
+          <label class="check"><input type="radio" name="ins-mode" value="proaktif" id="ins-mode-p"> Proaktif: uyarılar kendiliğinden öne çıkar (zil sayacı, günün özeti şeridi)</label>
+          <label class="check mt-1"><input type="radio" name="ins-mode" value="komut" id="ins-mode-k"> Komutla: yalnız sen isteyince (Günün özeti penceresi ya da asistana "öneriler" yaz)</label>
+        </fieldset>
         <div class="row mt-3"><button type="button" class="btn btn-sm" id="tour-restart">${icon('sparkle')}Tanıtım turunu yeniden başlat</button></div>
       </section>
       <section class="card" id="ai-card">
@@ -219,6 +223,10 @@ export async function renderSettings(view) {
     try { await api.saveProfile({ managerName: fd.get('managerName'), managerTitle: fd.get('managerTitle') }); toast('Profil kaydedildi.', 'success'); } catch (err) { toast(err.message, 'error'); }
   });
   view.querySelector('#tour-restart').addEventListener('click', async () => { const { startTour } = await import('../tour.js'); location.hash = '#/'; setTimeout(startTour, 700); });
+  api.insights().then(r => { const el = view.querySelector(r.mode === 'komut' ? '#ins-mode-k' : '#ins-mode-p'); if (el) el.checked = true; }).catch(() => {});
+  view.querySelectorAll('[name="ins-mode"]').forEach(el => el.addEventListener('change', async () => {
+    try { await api.setInsightMode(el.value); toast(el.value === 'komut' ? 'Komutla mod: uyarılar yalnız istenince görünür.' : 'Proaktif mod: uyarılar kendiliğinden öne çıkar.', 'success'); } catch (err) { toast(err.message, 'error'); }
+  }));
   view.querySelector('#rm-summary').addEventListener('change', e => { setReminderPrefs({ summary: e.target.checked }); toast('Kaydedildi.', 'success'); });
   view.querySelector('#rm-tasks').addEventListener('change', e => { setReminderPrefs({ tasks: e.target.checked }); toast('Kaydedildi.', 'success'); });
   view.querySelector('#rm-sound').addEventListener('change', e => { setReminderPrefs({ sound: e.target.checked }); toast(e.target.checked ? 'Ses efektleri açık.' : 'Ses efektleri kapalı.', 'success'); });

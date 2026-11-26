@@ -88,3 +88,45 @@ test('Uyarı: marka kimliği kurulmadı / eksik bilgi; tamamlanınca sayı deği
     assert.ok(after < before, `${after} < ${before}`);
   } finally { await s.stop(); }
 });
+
+// Çalışma modları: proaktif (varsayılan) / komut; komutla modda asistana "öneriler" yazınca yapay zekâsız liste
+test('Çalışma modu: varsayılan proaktif, komut seçilebilir; asistan "öneriler" sorusunu kayıtlardan cevaplar', async () => {
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Modlu' })).data.brand;
+    assert.equal((await s.request('GET', '/api/insights')).data.mode, 'proaktif');
+    assert.equal((await s.request('PUT', '/api/insights/mode', { mode: 'x' })).status, 400);
+    assert.equal((await s.request('PUT', '/api/insights/mode', { mode: 'komut' })).data.mode, 'komut');
+    assert.equal((await s.request('GET', '/api/insights')).data.mode, 'komut');
+    const r = await s.request('POST', `/api/brands/${b.id}/chat`, { message: "öneriler" });
+    assert.ok(r.status < 300, JSON.stringify(r.data));
+    const text = r.data.assistantMessage.content;
+    assert.match(text, /^\d+ öneri \/ uyarı:\n/); assert.match(text, /\n- \[Önemli\] Marka kimliği kurulmadı/);
+    assert.match(text, /yapay zekâ kullanılmadı/);
+  } finally { await s.stop(); }
+});
+
+// Performansı düşen içerik türü ve gelecek hafta önerisi (yapay zekâsız)
+test('Uyarı: içerik türünün etkileşimi düşünce ve gelecek hafta için tür / sütun önerisi', async () => {
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Ölçülü' })).data.brand;
+    const pil = (await s.request('POST', `/api/brands/${b.id}/pillars`, { name: 'Eğitici', share: 50 })).data.pillar;
+    const mk = async (type, daysAgo, likes) => {
+      const c = (await s.request('POST', '/api/contents', { brandId: b.id, title: `${type} ${daysAgo}`, type, status: 'yayinlandi', scheduledAt: day(-daysAgo) })).data.content;
+      await s.request('PATCH', `/api/contents/${c.id}`, { metrics: { views: 100, likes } });
+    };
+    // Reels: önce %8, son 30 günde %2 → düştü; Carousel: istikrarlı %6
+    await mk('reels', 50, 8); await mk('reels', 60, 8); await mk('reels', 5, 2); await mk('reels', 10, 2);
+    await mk('carousel', 8, 6); await mk('carousel', 12, 6);
+    const list = (await s.request('GET', `/api/insights?brandId=${b.id}`)).data.insights;
+    const drop = list.find(i => i.kind === 'tur_dustu');
+    assert.ok(drop, JSON.stringify(list.map(i => i.kind)));
+    assert.equal(drop.title, 'Reels etkileşimi düştü'); assert.match(drop.text, /%2 \(önceki 60 gün %8\)/);
+    assert.ok(!list.some(i => i.kind === 'tur_dustu' && /Carousel/.test(i.title)));
+    const plan = list.find(i => i.kind === 'hafta_plani');
+    assert.ok(plan); assert.match(plan.title, /^Gelecek hafta: \d+ içerik$/);
+    assert.match(plan.text, /En çok tutan türler: Carousel \(%6\), Reels \(%5\)/); assert.match(plan.text, /Geride kalan sütunlar: Eğitici \(hedef %50\)/);
+    assert.ok(pil.id);
+  } finally { await s.stop(); }
+});

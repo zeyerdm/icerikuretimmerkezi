@@ -3,15 +3,17 @@
 // aynı uyarı tekrar üretilmez; "Gizle" denen anahtar seçilen süre boyunca görünmez (ayarlar tablosunda tutulur).
 // Kritik hiçbir işlem burada yapılmaz; yalnız öneri verilir.
 import { specialDays } from './specialDays.js';
-import { badRequest } from '../lib/http.js';
+import { badRequest, parseJson } from '../lib/http.js';
+import { CONTENT_TYPES, engagementRate } from './workspace.js';
 
 export const INSIGHT_KINDS = {
   plan_bos: 'Plan boşluğu', onay_bekliyor: 'Onay bekleyen içerik', geciken_icerik: 'Tarihi geçen içerik',
-  geciken_gorev: 'Geciken görev', hafiza_onay: 'Onay bekleyen bilgi', ozel_gun: 'Yaklaşan özel gün', uretim_dustu: 'Üretim düştü', tek_tip: 'Tek tip içerik', sutun_dengesi: 'Sütun dengesi', hedef_geride: 'Hedef geride', kimlik_eksik: 'Eksik marka bilgisi'
+  geciken_gorev: 'Geciken görev', hafiza_onay: 'Onay bekleyen bilgi', ozel_gun: 'Yaklaşan özel gün', uretim_dustu: 'Üretim düştü', tek_tip: 'Tek tip içerik', sutun_dengesi: 'Sütun dengesi', hedef_geride: 'Hedef geride', kimlik_eksik: 'Eksik marka bilgisi', tur_dustu: 'Performans düştü', hafta_plani: 'Gelecek hafta önerisi'
 };
 const PRIORITY_RANK = { yuksek: 0, orta: 1, dusuk: 2 };
 const DONE = ['tamamlandi', 'yayinlandi'];
 const DAY = 86400000;
+const pct = v => String(Math.round(v * 10) / 10).replace('.', ',');
 const isoDay = d => new Date(d).toISOString().slice(0, 10);
 // Haftanın pazartesisi (dönem anahtarı)
 const weekKey = t => { const d = new Date(t); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return isoDay(d); };
@@ -23,7 +25,7 @@ export function createInsightService({ db, brands, settings, strategy = null, se
     const out = [];
     const add = (o) => out.push(Object.assign({ brandId: b.id, brandName: b.name, brandColor: (b.colors && b.colors.primary) || '' }, o));
     const base = `#/m/${b.id}`;
-    const rows = db.prepare('SELECT id, title, type, status, scheduled_at, created_at, updated_at FROM contents WHERE brand_id = ?').all(b.id);
+    const rows = db.prepare('SELECT id, title, type, status, scheduled_at, created_at, updated_at, metrics, pillar_id FROM contents WHERE brand_id = ?').all(b.id);
     const now = new Date(t).toISOString();
     const in7 = new Date(t + 7 * DAY).toISOString();
     // 1) Önümüzdeki 7 gün: aylık hedef varsa haftalık paya göre, yoksa son 30 günde üretim olduğu hâlde hiç plan yoksa
@@ -95,6 +97,38 @@ export function createInsightService({ db, brands, settings, strategy = null, se
         else if (n) add({ key: `kimlik_eksik:${b.id}:${n}`, kind: 'kimlik_eksik', priority: missing.some(x => x.id === 'temel') ? 'orta' : 'dusuk', date: isoDay(t), title: `Marka kimliğinde ${n} eksik bilgi`,
           text: missing.slice(0, 3).map(x => `${x.label}: ${x.needs.slice(0, 3).join(', ')}`).join(' · ') + (missing.length > 3 ? ` ve ${missing.length - 3} bölüm daha` : ''),
           action: { label: 'Eksikleri tamamla', href: `${base}/kimlik/kurulum/${missing[0].id}` } });
+      }
+    }
+    // 6e) Performansı düşen içerik türü: son 30 günün ortalama etkileşimi, önceki 60 günün en az %30 altında (her iki
+    //     dönemde en az 2 ölçüm)
+    const rated = rows.filter(r => r.metrics && r.scheduled_at && r.scheduled_at < now).map(r => ({ ...r, rate: engagementRate(parseJson(r.metrics, null)) })).filter(r => r.rate != null);
+    const avg = list => (list.length ? list.reduce((n, r) => n + r.rate, 0) / list.length : null);
+    const d30 = new Date(t - 30 * DAY).toISOString(); const d90 = new Date(t - 90 * DAY).toISOString();
+    for (const type of [...new Set(rated.map(r => r.type))]) {
+      const recent = rated.filter(r => r.type === type && r.scheduled_at >= d30);
+      const before = rated.filter(r => r.type === type && r.scheduled_at < d30 && r.scheduled_at >= d90);
+      if (recent.length < 2 || before.length < 2) continue;
+      const a = avg(recent); const p = avg(before);
+      if (p > 0 && a <= p * 0.7) add({ key: `tur_dustu:${b.id}:${type}:${weekKey(t)}`, kind: 'tur_dustu', priority: 'orta', date: isoDay(t), title: `${CONTENT_TYPES[type] || type} etkileşimi düştü`,
+        text: `Son 30 gün ortalama %${pct(a)} (önceki 60 gün %${pct(p)}). Giriş cümlesini, temayı ya da paylaşım saatini değiştir; Analizler'de en çok tutanlara bak.`,
+        action: { label: 'Analizleri aç', href: `${base}/analiz` } });
+    }
+    // 6f) Gelecek hafta önerisi (haftalık, bilgi): kaç içerik, hangi türler (son 90 günün en çok tutanları), hangi sütunlar
+    //     (hedef payın altında kalanlar). Yeterli veri yoksa çıkmaz.
+    {
+      const by = {};
+      rated.filter(r => r.scheduled_at >= d90).forEach(r => { (by[r.type] = by[r.type] || []).push(r); });
+      const bestTypes = Object.entries(by).filter(([, l]) => l.length >= 2).map(([k, l]) => [k, avg(l)]).sort((x, y) => y[1] - x[1]).slice(0, 2);
+      const recent28 = rows.filter(r => r.scheduled_at && r.scheduled_at >= new Date(t - 28 * DAY).toISOString() && r.scheduled_at < now).length;
+      const count = weekly || Math.max(1, Math.round(recent28 / 4));
+      const pil = db.prepare('SELECT id, name, share FROM brand_pillars WHERE brand_id = ? AND share > 0').all(b.id);
+      const p30 = rows.filter(r => r.pillar_id && (r.scheduled_at || r.created_at) >= d30);
+      const lagging = pil.filter(p => (p30.length ? p30.filter(r => r.pillar_id === p.id).length / p30.length * 100 : 0) < p.share).sort((x, y) => y.share - x.share).slice(0, 2);
+      if ((bestTypes.length || lagging.length) && (recent28 || weekly)) {
+        add({ key: `hafta_plani:${b.id}:${weekKey(t + 7 * DAY)}`, kind: 'hafta_plani', priority: 'dusuk', date: isoDay(t), title: `Gelecek hafta: ${count} içerik`,
+          text: [bestTypes.length ? `En çok tutan türler: ${bestTypes.map(([k, v]) => `${CONTENT_TYPES[k] || k} (%${pct(v)})`).join(', ')}` : null,
+            lagging.length ? `Geride kalan sütunlar: ${lagging.map(p => `${p.name} (hedef %${p.share})`).join(', ')}` : null].filter(Boolean).join(' · ') + '.',
+          action: { label: 'Haftayı planla', href: `${base}/takvim` } });
       }
     }
     // 7) Hafızada onay bekleyen bilgi kartları (siteden, yapay zekâdan gelenler): onaylanmadan üretime girmez

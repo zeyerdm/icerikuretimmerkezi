@@ -6,6 +6,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 export const usageCtx = new AsyncLocalStorage();
 export const usageScope = () => usageCtx.getStore() || null;
+// Ücretli işlem onayı (Aşama 04): istek bağlamında kullanıcı bu işlemin tutarını onayladı mı (confirmCost).
+// Bağlam yoksa (arka plan işi, toplu kuyruk) onay istenmez; onay kuyruğa alınırken alınır.
+export const costCtx = new AsyncLocalStorage();
 // Yanıt gövdesi (akışlı ya da akışsız) bağlama bildirilir: yeni oluşan kaydın kimliği buradan okunur
 export function noteBody(body) {
   const s = usageScope();

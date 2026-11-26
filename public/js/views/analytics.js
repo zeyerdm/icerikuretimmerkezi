@@ -7,7 +7,7 @@ import * as S from '../stats.js';
 
 export async function renderAnalytics(view, { brand } = {}) {
   view.innerHTML = skeletonPage({ cards: 4, height: 260 });
-  const [d, pf] = await Promise.all([api.dashboard(brand ? brand.id : null), api.performance(brand ? brand.id : null)]);
+  const [d, pf, ops] = await Promise.all([api.dashboard(brand ? brand.id : null), api.performance(brand ? brand.id : null), api.operations(new Date().toISOString().slice(0, 7), brand ? brand.id : null).catch(() => null)]);
   const perf = S.performance(d);
   const k = S.counts(d);
   const series = [{ name: 'Üretilen (içerik + fikir)', color: 'var(--c-violet)' }, { name: 'Tamamlanan içerik', color: 'var(--c-teal)' }];
@@ -89,5 +89,10 @@ function worked(pf) {
         ${(pf.lowEngagement || []).length ? `<ul class="issue-list">${pf.lowEngagement.map(x => `<li>${esc(x.title)} <span class="xsmall muted">· ${esc(x.type)} · ${x.views} izlenme · ${pct(x.rate)}</span></li>`).join('')}</ul><p class="xsmall muted mt-2">İlgi çekiyor ama harekete geçirmiyor: sonuna soru, kaydetme nedeni ya da net bir çağrı ekle.</p>` : '<p class="card-text">Böyle bir içerik yok (en az 4 ölçüm gerekir).</p>'}</section>
       <section class="card"><div class="card-head"><h3>En çok takipçi getirenler</h3></div>
         ${(pf.follows || []).length ? `<ul class="issue-list">${pf.follows.map(x => `<li>${esc(x.title)} <span class="xsmall muted">· ${esc(x.type)} · +${x.follows} takipçi</span></li>`).join('')}</ul>` : '<p class="card-text">Sonuçlara "Yeni takipçi" girdikçe burada sıralanır.</p>'}</section>
-    </div>`;
+    </div>
+    ${ops ? `<section class="card mt-5" id="ops-card"><div class="card-head"><h3>Operasyon maliyeti · bu ay</h3><span class="small muted">Yapay zekâ tutarı: OpenRouter'da gerçek, diğerlerinde tahmini</span></div>
+      <div class="table-wrap"><table class="table rep-table"><thead><tr><th>Marka</th><th>Yeni içerik</th><th>Tamamlanan</th><th>Ort. süre</th><th>Revizyon</th><th>AI çağrısı</th><th>AI tutarı</th><th>İçerik başına</th></tr></thead>
+      <tbody>${ops.brands.map(r => `<tr><td>${esc(r.brandName)}</td><td>${r.created}</td><td>${r.completed}</td><td>${r.avgDays != null ? `${String(r.avgDays).replace('.', ',')} gün` : '—'}</td><td>${r.revisions}</td><td>${r.aiCalls}</td>
+        <td>$${r.aiUsd.toFixed(4)}${r.aiUsd ? `<div class="xsmall muted">gerçek $${r.aiRealUsd.toFixed(4)} · tahmini $${r.aiEstimatedUsd.toFixed(4)}</div>` : ''}</td><td>${r.usdPerContent != null ? `$${r.usdPerContent.toFixed(4)}` : '—'}</td></tr>`).join('')}</tbody></table></div>
+      <p class="xsmall muted mt-2">Süre: içeriğin oluşturulmasından tamamlanmasına. Revizyon: yayın metni düzenlemeleri ve "düzeltme istendi". İnsan emeği (saat) kaydı tutulmadığı için tutara katılmaz.</p></section>` : ''}`;
 }
