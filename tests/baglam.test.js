@@ -29,6 +29,9 @@ test('Bağlam: işe göre bölümler (tam, hafif, metin, denetim, görsel); içe
     // Görsel: renk var, fikir listesi yok
     const gorsel = m({ task: 'gorsel' });
     assert.match(gorsel, /Ana renk: #aa3300/); assert.match(gorsel, /ASLA KULLANMA/); assert.doesNotMatch(gorsel, /Daha önce üretilen fikirler/);
+    // Tasarım (post): metin bağlamı + görsel kimlik
+    const tas = m({ task: 'tasarim' });
+    assert.match(tas, /Ana renk: #aa3300/); assert.match(tas, /Latte 100 TL/); assert.doesNotMatch(tas, /Daha önce üretilen fikirler/);
     // Denetim: kurallar ve bilgiler
     const den = m({ task: 'denetim' });
     assert.match(den, /ASLA KULLANMA/); assert.match(den, /Latte 100 TL/); assert.doesNotMatch(den, /Ana renk/);

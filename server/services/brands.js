@@ -255,6 +255,7 @@ export function createBrandService(db, ownerId) {
     //  - tam (varsayılan; fikir, plan, senaryo, analiz): hepsi + içerik sütunları
     //  - hafif (light: sohbet gibi üretim istemeyen işler): kimlik, kurallar, rakip boşlukları, bilgiler, görsel kimlik
     //  - metin (açıklama, LinkedIn, post metni): kimlik, kurallar, bilgiler, performans (en çok / en az tutanlar, odak)
+    //  - tasarim (post stüdyosu: metin + maskot pozları, renk, logo)
     //  - denetim (denetçi, karşılaştırma): kimlik, kurallar, bilgiler
     //  - gorsel (kapak, görsel / video prompt'u): kimlik, kurallar, bilgiler, renk-font-logo-maskot
     memory(brandId, { light = false, task = null } = {}) {
@@ -262,7 +263,7 @@ export function createBrandService(db, ownerId) {
       const ALL = ['kimlik', 'kurallar', 'rakip', 'bilgi', 'gorsel', 'fikirler', 'performans', 'strateji'];
       const PROFILE = {
         tam: ALL, hafif: ['kimlik', 'kurallar', 'rakip', 'bilgi', 'gorsel'],
-        metin: ['kimlik', 'kurallar', 'bilgi', 'performans'], denetim: ['kimlik', 'kurallar', 'bilgi'], gorsel: ['kimlik', 'kurallar', 'bilgi', 'gorsel']
+        metin: ['kimlik', 'kurallar', 'bilgi', 'performans'], tasarim: ['kimlik', 'kurallar', 'bilgi', 'performans', 'gorsel'], denetim: ['kimlik', 'kurallar', 'bilgi'], gorsel: ['kimlik', 'kurallar', 'bilgi', 'gorsel']
       };
       const want = new Set(PROFILE[task] || (light ? PROFILE.hafif : PROFILE.tam));
       const on = k => want.has(k);
