@@ -88,3 +88,20 @@ test('Uyarı: marka kimliği kurulmadı / eksik bilgi; tamamlanınca sayı deği
     assert.ok(after < before, `${after} < ${before}`);
   } finally { await s.stop(); }
 });
+
+// Çalışma modları: proaktif (varsayılan) / komut; komutla modda asistana "öneriler" yazınca yapay zekâsız liste
+test('Çalışma modu: varsayılan proaktif, komut seçilebilir; asistan "öneriler" sorusunu kayıtlardan cevaplar', async () => {
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Modlu' })).data.brand;
+    assert.equal((await s.request('GET', '/api/insights')).data.mode, 'proaktif');
+    assert.equal((await s.request('PUT', '/api/insights/mode', { mode: 'x' })).status, 400);
+    assert.equal((await s.request('PUT', '/api/insights/mode', { mode: 'komut' })).data.mode, 'komut');
+    assert.equal((await s.request('GET', '/api/insights')).data.mode, 'komut');
+    const r = await s.request('POST', `/api/brands/${b.id}/chat`, { message: "öneriler" });
+    assert.ok(r.status < 300, JSON.stringify(r.data));
+    const text = r.data.assistantMessage.content;
+    assert.match(text, /^\d+ öneri \/ uyarı:\n/); assert.match(text, /\n- \[Önemli\] Marka kimliği kurulmadı/);
+    assert.match(text, /yapay zekâ kullanılmadı/);
+  } finally { await s.stop(); }
+});

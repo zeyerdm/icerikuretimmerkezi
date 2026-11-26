@@ -103,6 +103,7 @@ export const api = {
   settings: () => request('GET', '/api/settings'),
   saveProfile: body => request('PUT', '/api/settings/profile', body),
   insights: (brandId = null) => request('GET', '/api/insights' + (brandId ? `?brandId=${encodeURIComponent(brandId)}` : '')),
+  setInsightMode: mode => request('PUT', '/api/insights/mode', { mode }),
   dismissInsight: (key, days = 7) => request('POST', '/api/insights/dismiss', { key, days }),
   remote: () => request('GET', '/api/remote'),
   saveRemote: body => request('PUT', '/api/remote', body),

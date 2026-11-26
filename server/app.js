@@ -166,7 +166,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const identity = createIdentityService({ ai });
   const siteReader = createSiteReader(Object.assign({ allowPrivate: Boolean(siteAllowPrivate) }, siteFetch ? { fetchImpl: siteFetch } : {}));
   const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, siteReader, readMs: onboardReadMs || 90000 });
-  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
+  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory, getInsights: () => insights });
 
   const strategy = createStrategyService({ db });
   const insights = createInsightService({ db, brands, settings, strategy, setup: brandSetup });
@@ -468,7 +468,14 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
 
   // Proaktif uyarılar (kural tabanlı, yapay zekâsız): bütün markalar ya da tek marka; "Gizle" seçilen süre boyunca
-  api.get('/insights', (req, res) => res.json({ insights: insights.list({ brandId: req.query.brandId ? String(req.query.brandId) : null }), kinds: insights.kinds }));
+  // Çalışma modu: proaktif (uyarılar kendiliğinden öne çıkar) ya da komut (yalnız istenince: Günün özeti, asistana "öneriler")
+  const insightMode = () => (settings.get('insights.mode') === 'komut' ? 'komut' : 'proaktif');
+  api.get('/insights', (req, res) => res.json({ insights: insights.list({ brandId: req.query.brandId ? String(req.query.brandId) : null }), kinds: insights.kinds, mode: insightMode() }));
+  api.put('/insights/mode', (req, res) => {
+    const m = (req.body || {}).mode;
+    if (!['proaktif', 'komut'].includes(m)) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Mod proaktif ya da komut olmalı.' } });
+    settings.set('insights.mode', m); res.json({ mode: m });
+  });
   api.post('/insights/dismiss', (req, res) => res.json(insights.dismiss((req.body || {}).key, (req.body || {}).days)));
 
   // Özel günler: from/to (YYYY-MM-DD) aralığı, en fazla 2 yıl

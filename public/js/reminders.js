@@ -36,13 +36,15 @@ export async function todaySummary(now = new Date()) {
     overdueTasks: open.filter(t => t.dueDate < todayKey),
     special: sd.days.filter(d => !d.end || d.date >= todayKey),
     // Kural tabanlı uyarılar (plan boşluğu, onay bekleyen, üretim düşüşü…); geciken içerik/görev zaten yukarıda listelenir
-    insights: (ins.insights || []).filter(i => !['geciken_icerik', 'geciken_gorev'].includes(i.kind))
+    insights: (ins.insights || []).filter(i => !['geciken_icerik', 'geciken_gorev'].includes(i.kind)),
+    // Komutla modda uyarılar zil sayacına ve şeride girmez; yalnız özet açılınca ya da asistana sorulunca görünür
+    mode: ins.mode === 'komut' ? 'komut' : 'proaktif'
   };
 }
 export const pendingCount = s => s.today.filter(c => !['tamamlandi', 'yayinlandi'].includes(c.status)).length + s.overdueContents.length + s.tasksToday.length + s.overdueTasks.length;
 // Zil rozeti: özet açılıp görülen bekleyen işler bir daha sayılmaz; yalnızca yeni bekleyen iş çıkınca rozet döner
 const SEEN = 'ium.bell.seen';
-const pendingIds = s => [...(s.insights || []).filter(i => i.priority === 'yuksek').map(i => `i:${i.key}`), ...s.today.filter(c => !['tamamlandi', 'yayinlandi'].includes(c.status)).map(c => `c:${c.id}`), ...s.overdueContents.map(c => `o:${c.id}`), ...s.tasksToday.map(t => `t:${t.id}`), ...s.overdueTasks.map(t => `d:${t.id}`)];
+const pendingIds = s => [...(s.mode === 'komut' ? [] : (s.insights || [])).filter(i => i.priority === 'yuksek').map(i => `i:${i.key}`), ...s.today.filter(c => !['tamamlandi', 'yayinlandi'].includes(c.status)).map(c => `c:${c.id}`), ...s.overdueContents.map(c => `o:${c.id}`), ...s.tasksToday.map(t => `t:${t.id}`), ...s.overdueTasks.map(t => `d:${t.id}`)];
 export const unseenCount = s => { const seen = new Set(store.get(SEEN, [])); return pendingIds(s).filter(id => !seen.has(id)).length; };
 export function markSummarySeen(s) {
   store.set(SEEN, pendingIds(s).slice(0, 500));
@@ -99,7 +101,7 @@ export async function showDailyOnce() {
       s.overdueContents.length ? `<b>${s.overdueContents.length}</b> içeriğin tarihi geçti` : '',
       s.tasksToday.length ? `<b>${s.tasksToday.length}</b> görevin son günü bugün` : '',
       s.overdueTasks.length ? `<b>${s.overdueTasks.length}</b> görevin süresi doldu` : '',
-      (s.insights || []).length ? `<b>${s.insights.length}</b> öneri` : '',
+      s.mode !== 'komut' && (s.insights || []).length ? `<b>${s.insights.length}</b> öneri` : '',
       s.special.length ? `yaklaşan: ${esc(s.special[0].name)} (${esc(fmtDate(s.special[0].date + 'T12:00:00', { day: 'numeric', month: 'long' }))})` : ''
     ].filter(Boolean);
     if (!parts.length) return;
