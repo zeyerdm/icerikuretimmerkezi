@@ -22,7 +22,7 @@ export function createCaptionService({ db, ai, brands, workspace, reels }) {
         }
       }
       const prompt = [
-        `Sen '${b.name}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI:', brands.memory(b.id), '',
+        `Sen '${b.name}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI:', brands.memory(b.id, { task: 'metin' }), '',
         `İÇERİK: ${c.title} (${c.typeLabel})`,
         c.notes ? `NOT: ${c.notes}` : '',
         c.hook ? `GİRİŞ CÜMLESİ: ${c.hook}` : '',

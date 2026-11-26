@@ -438,7 +438,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     const count = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || 6)) : 1;
     // Post metni kısa ve kalıplı: modelin uzun düşünmesine gerek yok (düşük çaba = hızlı yanıt)
     const poses = assets.list(b.id, 'mascot').map(a => polish(a.label)).filter(Boolean).slice(0, 12);
-    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, notes });
+    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, notes });
     if (linked) prompt = linkedinize(prompt);
     const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.7 });
     const out = r.output || {};
@@ -767,7 +767,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       if (!list.length) throw badRequest('Değiştirilecek metin yok. Bir metin seç ya da sayfaya metin ekle.');
       const prompt = [
         `Sen "${b.name}" markasının sosyal medya editörüsün. Bir ${kind === 'carousel' ? 'carousel' : 'post'} tasarımındaki metinleri komuta göre düzenle.`,
-        brands.memory(b.id) ? `Marka sesi ve kuralları:\n${String(brands.memory(b.id)).slice(0, 2000)}` : '',
+        (m => (m ? `Marka sesi ve kuralları:\n${String(m).slice(0, 2000)}` : ''))(brands.memory(b.id, { task: 'tasarim' })),
         topic ? `Konu: ${String(topic).slice(0, 200)}` : '',
         `Komut: ${AI_EDIT_COMMANDS[cmd]}${free ? `\nKullanıcının isteği: ${free}` : ''}`,
         'Kurallar: Yalnızca metinleri değiştir; yeni metin kutusu ekleme, kutu silme. Her metin kendi karakter sınırını (max) aşmasın. Türkçe yaz, emoji ve hashtag ekleme (metinde zaten varsa koru). Değişmesi gerekmeyen metni listeye koyma.',

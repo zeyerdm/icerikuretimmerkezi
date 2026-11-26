@@ -364,7 +364,7 @@ export function createPromptService({ db, ai, brands, reels, workspace = null, i
 
   // Marka bağlamı: kimlik hafızası + (maskot/Reels için) karakter adı ve görsel stil
   function context(b, kind) {
-    const lines = ['MARKA HAFIZASI:', brands.memory(b.id)];
+    const lines = ['MARKA HAFIZASI:', brands.memory(b.id, { task: 'gorsel' })];
     // Karakter ve Reels görsel stili (3D/2D/gerçekçi) yalnız maskot, video ve Reels prompt'larına girer;
     // görsel/ürün/post/reklam prompt'larına girince istenmediği halde "3D Pixar" görünümü dayatıyordu.
     if (reels && ['maskot', 'reels'].includes(kind)) {

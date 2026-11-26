@@ -76,6 +76,14 @@ test('Toplu üretim kuyruğu: her fikir ayrı post, çift üretim engeli, hata i
     const bad = list.find(j => j.status === 'hata');
     assert.equal(bad.attempts, 2); assert.match(bad.error, /model hatası/); assert.equal(bad.statusLabel, 'Hata oluştu');
     assert.ok(new Set(list.filter(j => j.postId).map(j => j.postId)).size === 2, 'her fikir ayrı post');
+    // O2: kuyruktaki işin yapay zekâ kullanımı oluşan posta bağlanır (içerik maliyeti için)
+    {
+      const { DatabaseSync } = await import('node:sqlite');
+      const fs = await import('node:fs'); const path = await import('node:path');
+      const db = new DatabaseSync(path.join(s.dataDir, fs.readdirSync(s.dataDir).find(f => f.endsWith('.db'))));
+      for (const j of list.filter(x => x.postId)) assert.ok(db.prepare('SELECT COUNT(*) AS n FROM ai_usage WHERE ref = ?').get(`post:${j.postId}`).n >= 1, 'kullanım posta bağlı');
+      db.close();
+    }
     // Tekrar kuyruğa almak: tamamlanmış fikir atlanır
     r = await s.request('POST', `/api/brands/${b.id}/gen-batches`, { ideaIds: [ids[0]] });
     assert.equal(r.status, 201); assert.equal(r.data.added.length, 0); assert.equal(r.data.skipped[0].reason, 'Daha önce üretildi');

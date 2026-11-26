@@ -66,7 +66,7 @@ export function createLinkedinService({ db, ai, brands, posts, prompts, workspac
       if (!topic && !src) throw badRequest('Bir konu yaz ya da uyarlanacak bir içerik seç.');
       const who = String(person || '').trim().slice(0, 120);
       const prompt = [
-        `Sen '${b.name}' markasının LinkedIn içerik yazarısın.`, '', 'MARKA HAFIZASI:', brands.memory(b.id), '',
+        `Sen '${b.name}' markasının LinkedIn içerik yazarısın.`, '', 'MARKA HAFIZASI:', brands.memory(b.id, { task: 'metin' }), '',
         voice === 'kisisel'
           ? `SES: ${who ? `${who} adına` : 'Markanın kurucusu/yöneticisi adına'}, birinci tekil şahıs ("ben", "ekibimizle"). Kişisel deneyim, öğrenilen ders, sektör gözlemi; samimi ama profesyonel. Satış dili kullanma.`
           : 'SES: Şirket sayfası, birinci çoğul şahıs ("biz"). Uzmanlık, değer ve güven veren; kurumsal ama soğuk olmayan bir dil. Doğrudan satış yapma; bilgi ve içgörü ver.',

@@ -4,6 +4,7 @@
 // Aynı fikir bekleyen, işlenen ya da tamamlanmış bir işte varsa yeniden kuyruğa alınmaz (çift üretim engeli).
 import { newId, now, badRequest, notFound, parseJson, text } from '../lib/http.js';
 import { markIdeaUsed } from './ideas.js';
+import { usageCtx } from '../lib/usageCtx.js';
 
 export const JOB_STATUS = { bekliyor: 'Bekliyor', isleniyor: 'İşleniyor', tamamlandi: 'Tamamlandı', hata: 'Hata oluştu', yeniden: 'Yeniden denenecek', durduruldu: 'Durduruldu' };
 const MAX_BATCH = 50;
@@ -40,6 +41,13 @@ export function createGenQueue({ db, brands, posts, ideas, getPrompts = () => nu
         const claim = db.prepare("UPDATE gen_jobs SET status = 'isleniyor', attempts = attempts + 1, updated_at = ? WHERE id = ? AND status IN ('bekliyor', 'yeniden')").run(now(), r.id);
         if (!claim.changes) continue;
         const o = parseJson(r.options, {});
+        // O2: işin yapay zekâ kullanımı kendi bağlamında toplanır, sonunda oluşan prompt'a / posta bağlanır (içerik maliyeti)
+        const scope = { ids: [], contentId: null, ref: null };
+        const tag = ref => {
+          if (!scope.ids.length) return;
+          const ids = scope.ids.splice(0, 500);
+          db.prepare(`UPDATE ai_usage SET ref = ? WHERE ref IS NULL AND id IN (${ids.map(() => '?').join(',')})`).run(ref, ...ids);
+        };
         try {
           // Toplu Reels: fikirden senaryo planı + Flow şablonuna dökülen sahneler (Prompt Studio'da kaydedilir); fikir "kullanıldı" olur
           if (o.type === 'reels') {
@@ -48,13 +56,17 @@ export function createGenQueue({ db, brands, posts, ideas, getPrompts = () => nu
             const idea = db.prepare('SELECT title, description FROM ideas WHERE id = ?').get(r.idea_id);
             if (!idea) throw new Error('Fikir bulunamadı.');
             const brief = idea.title + (idea.description ? `\n${idea.description}` : '');
-            const pl = await prompts.plan(r.brand_id, { brief, scenes: o.scenes || 4, modelRef: o.modelRef || null });
-            const p = await prompts.create(r.brand_id, { kind: 'reels', brief, plan: pl.plan, modelRef: o.modelRef || null });
+            const p = await usageCtx.run(scope, async () => {
+              const pl = await prompts.plan(r.brand_id, { brief, scenes: o.scenes || 4, modelRef: o.modelRef || null });
+              return prompts.create(r.brand_id, { kind: 'reels', brief, plan: pl.plan, modelRef: o.modelRef || null });
+            });
+            tag(`prompt:${p.id}`);
             db.prepare("UPDATE gen_jobs SET status = 'tamamlandi', error = '', prompt_id = ?, updated_at = ? WHERE id = ?").run(p.id, now(), r.id);
             try { markIdeaUsed(db, r.brand_id, r.idea_id, 'reels'); } catch { /* fikir silinmiş olabilir */ }
             continue;
           }
-          const res = await posts.fromIdea(r.brand_id, { ideaId: r.idea_id, templateId: r.template_id || null, templateVersion: r.template_version || null, slides: o.slides || null, mascot: o.mascot || 'auto', modelRef: o.modelRef || null });
+          const res = await usageCtx.run(scope, () => posts.fromIdea(r.brand_id, { ideaId: r.idea_id, templateId: r.template_id || null, templateVersion: r.template_version || null, slides: o.slides || null, mascot: o.mascot || 'auto', modelRef: o.modelRef || null }));
+          tag(`post:${res.post.id}`);
           // İş bu sırada durdurulduysa sonuç yine kaydedilir (üretim tamamlandı)
           db.prepare("UPDATE gen_jobs SET status = 'tamamlandi', error = '', post_id = ?, updated_at = ? WHERE id = ?").run(res.post.id, now(), r.id);
         } catch (err) {

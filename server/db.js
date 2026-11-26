@@ -776,7 +776,42 @@ export function openDb(file) {
   db.exec('PRAGMA foreign_keys = ON;');
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
   migrate(db);
+  repairSchema(db);
   return db;
+}
+
+// Şema onarımı: veritabanı sürüm numarası ilerde olduğu hâlde bir göçün tablosu ya da sütunu eksikse (ör. başka bir
+// kopyadan gelen ya da yarıda kalmış veri: "no such table: brand_pillars") eksikler eklenir. Başvuru şeması bütün
+// göçler boş bir bellek veritabanında çalıştırılarak çıkarılır. Yalnız ekleme yapılır; hiçbir veri silinmez.
+let referenceSchema = null;
+function reference() {
+  if (referenceSchema) return referenceSchema;
+  const ref = new DatabaseSync(':memory:');
+  try {
+    for (const m of MIGRATIONS) ref.exec(m);
+    const objs = ref.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'").all();
+    const cols = Object.fromEntries(objs.filter(o => o.type === 'table').map(o => [o.name, ref.prepare(`PRAGMA table_info("${o.name}")`).all()]));
+    referenceSchema = { objs, cols };
+  } finally { ref.close(); }
+  return referenceSchema;
+}
+export function repairSchema(db) {
+  const { objs, cols } = reference();
+  const have = new Set(db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all().map(r => r.name));
+  const fixed = [];
+  for (const o of objs.filter(x => x.type === 'table' && !have.has(x.name))) { db.exec(o.sql); fixed.push(`tablo ${o.name}`); have.add(o.name); }
+  for (const [t, list] of Object.entries(cols)) {
+    const present = new Set(db.prepare(`PRAGMA table_info("${t}")`).all().map(c => c.name));
+    for (const c of list.filter(x => !present.has(x.name))) {
+      // NOT NULL yalnız varsayılan değer varsa eklenebilir
+      const def = c.dflt_value != null ? ` DEFAULT ${c.dflt_value}` : '';
+      db.exec(`ALTER TABLE "${t}" ADD COLUMN "${c.name}" ${c.type || ''}${c.notnull && def ? ' NOT NULL' : ''}${def}`);
+      fixed.push(`sütun ${t}.${c.name}`);
+    }
+  }
+  for (const o of objs.filter(x => x.type === 'index' && !have.has(x.name))) { try { db.exec(o.sql); fixed.push(`dizin ${o.name}`); } catch { /* dizin oluşturulamazsa çalışma sürer */ } }
+  if (fixed.length) console.log(`  Veritabanı onarıldı (eksikler eklendi): ${fixed.join(', ')}`);
+  return fixed;
 }
 
 function migrate(db) {
