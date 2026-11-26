@@ -36,6 +36,16 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
         <div class="field full"><label for="c-status">Durum</label><select class="select" id="c-status" name="status">${options(m.contentStatuses, c.status || 'taslak')}</select></div>
         <div class="field full"><label for="c-notes">Not</label><textarea class="textarea" id="c-notes" name="notes" maxlength="2000" placeholder="Görsel fikri, metin taslağı, hatırlatma…">${esc(c.notes || '')}</textarea></div>
       </div>
+      <details class="disclosure mt-4" id="c-strategy" ${c.pillarId || c.purpose || c.audience ? 'open' : ''}>
+        <summary>Strateji <span class="muted xsmall">sütun, amaç, kitle, kanal (isteğe bağlı)</span></summary>
+        <div class="form-grid">
+          <div class="field"><label for="c-pillar">İçerik sütunu</label><select class="select" id="c-pillar" name="pillarId"><option value="">Atanmadı</option>${c.pillarId ? `<option value="${esc(c.pillarId)}" selected>${esc(c.pillarName || '')}</option>` : ''}</select></div>
+          <div class="field"><label for="c-purpose">Amaç</label><select class="select" id="c-purpose" name="purpose"><option value="">Belirtilmedi</option>${options(m.purposes || {}, c.purpose || '')}</select></div>
+          <div class="field"><label for="c-audience">Hedef kitle</label><input class="input" id="c-audience" name="audience" maxlength="80" value="${esc(c.audience || '')}" placeholder="Ör. Üniversite öğrencileri"></div>
+          <div class="field"><label for="c-platform">Kanal</label><select class="select" id="c-platform" name="platform"><option value="">İçerik türüne göre</option>${options(m.platforms || {}, c.platformSet ? c.platform : '')}</select></div>
+        </div>
+        <p class="xsmall muted mt-1" id="c-pillar-note"></p>
+      </details>
       ${content ? `<details class="disclosure mt-4" open>
         <summary>Yayın metni</summary>
         <div class="field"><label for="c-caption">Açıklama <span class="xsmall muted" id="c-cap-count">${(c.caption || '').length}/2200</span></label><textarea class="textarea" id="c-caption" name="caption" rows="6" maxlength="2200" placeholder="Instagram açıklaması">${esc(c.caption || '')}</textarea></div>
@@ -72,7 +82,8 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
       const d = fd.get('date');
       // Tarih yerel saatle girilir, sunucuya ISO (UTC) olarak gider
       const scheduledAt = d ? new Date(`${d}T${fd.get('time') || '12:00'}`).toISOString() : null;
-      const body = { title: fd.get('title'), type: fd.get('type'), status: fd.get('status'), notes: fd.get('notes'), scheduledAt };
+      const body = { title: fd.get('title'), type: fd.get('type'), status: fd.get('status'), notes: fd.get('notes'), scheduledAt,
+        pillarId: fd.get('pillarId') || null, purpose: fd.get('purpose') || '', audience: fd.get('audience') || '', platform: fd.get('platform') || '' };
       if (!lockBrand) body.brandId = fd.get('brandId'); else if (!content) body.brandId = selectedBrand;
       if (content) {
         const metrics = {};
@@ -86,7 +97,24 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
       onSaved && onSaved();
     }
   });
+  wirePillars(modal.form, selectedBrand, c.pillarId);
   if (content) { wireContentCard(modal.form, content); wireReview(modal.form, content, onSaved); wireSets(modal.form, content.brandId); }
+}
+
+// İçerik sütunları markaya göre yüklenir; marka değişince liste yenilenir (başka markanın sütunu seçilemez)
+async function wirePillars(form, brandId, selected) {
+  const sel = form.querySelector('#c-pillar');
+  const note = form.querySelector('#c-pillar-note');
+  const load = async id => {
+    let pillars = [];
+    try { pillars = (await api.strategy(id, new Date().toISOString().slice(0, 7))).pillars; } catch { /* sütun gelmezse yalnız "Atanmadı" */ }
+    const keep = sel.value || selected;
+    sel.innerHTML = '<option value="">Atanmadı</option>' + pillars.map(p => `<option value="${esc(p.id)}" ${p.id === keep ? 'selected' : ''}>${esc(p.name)}${p.share ? ` (%${p.share})` : ''}</option>`).join('');
+    note.innerHTML = pillars.length ? '' : `Bu markanın içerik sütunu yok. <a href="#/m/${esc(id)}/kimlik/strateji" data-close>Hedefler ve sütunlar</a> bölümünden eklenir.`;
+  };
+  await load(brandId);
+  const b = form.querySelector('#c-brand');
+  if (b) b.addEventListener('change', () => { sel.value = ''; selected = null; load(b.value); });
 }
 
 // 8.15 Hashtag grupları ve imza kapanışları: tek tıkla ekleme; "Setleri düzenle" ile marka için yönetilir

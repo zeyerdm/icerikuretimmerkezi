@@ -718,6 +718,38 @@ const MIGRATIONS = [
     actor TEXT NOT NULL DEFAULT 'kullanici'
   );
   CREATE INDEX idx_fact_history ON brand_fact_history(fact_id, at);
+  `,
+  // 51: Ölçülebilir hedefler ve içerik sütunları (O3). Hedef: marka + tür + ay, hedef değer ve elle girilen gerçekleşen
+  // (izlenme/erişim/takipçi/etkileşim takvimdeki sonuçlardan hesaplanır). Sütun: ad, hedef pay (%), açıklama.
+  // İçeriğe sütun, amaç, kitle ve kanal atanabilir (hepsi boş olabilir; eski içerikler etkilenmez).
+  `
+  CREATE TABLE brand_goals (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    month TEXT NOT NULL,
+    target REAL NOT NULL,
+    actual REAL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX idx_brand_goals ON brand_goals(brand_id, month, kind);
+  CREATE TABLE brand_pillars (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    share INTEGER NOT NULL DEFAULT 0,
+    description TEXT NOT NULL DEFAULT '',
+    sort INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_brand_pillars ON brand_pillars(brand_id, sort);
+  ALTER TABLE contents ADD COLUMN pillar_id TEXT REFERENCES brand_pillars(id) ON DELETE SET NULL;
+  ALTER TABLE contents ADD COLUMN purpose TEXT NOT NULL DEFAULT '';
+  ALTER TABLE contents ADD COLUMN audience TEXT NOT NULL DEFAULT '';
+  ALTER TABLE contents ADD COLUMN platform TEXT NOT NULL DEFAULT '';
   `
 ];
 

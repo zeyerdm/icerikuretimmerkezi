@@ -19,7 +19,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 - ⬜ Playwright kurulum adımının belgelenmesi (arayüz testleri için)
 - ⬜ Büyük dosyalar (yalnız gerektiği yerde, adım adım): `public/js/views/posts.js` (2271), `server/app.js` (1018,
   bütün rotalar), `server/services/posts.js` (937), `server/services/prompts.js` (935), `server/db.js` (737, 49 göç)
-- 🔒 Reels ↔ Prompt Studio: eski `services/reels` ve `reels` tablosu paralel yaşıyor (ürün kararı)
+- ⬜ Reels ↔ Prompt Studio: eski Reels bölümü salt okunur arşive alınacak (karar verildi)
 - ⬜ Uzaktan erişim: yanlış şifre kilidi kalıcı olsun (şu an bellekte), IP başlığı olmadan genel sınır, çerez davranışı
 - ⬜ Toplu üretim kuyruğunda kontrollü paralellik (şu an sıralı)
 - ⬜ Asistan isteminin küçültülmesi (her mesajda tüm hafıza + 12 mesaj + 45 gün özel gün + bütün işlem şeması)
@@ -30,8 +30,8 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 
 - ✅ Marka sayfalarındaki tekrarlar (tek Düzenle, tek "Yapay zekâ ile doldur", silme tek yerde)
 - ✅ Kurulumda seçime bağlı sorular, menüde seçilmeyen kanalların gizlenmesi
-- 🔒 Profil / Görsel kimlik sekmeleri ile marka dosyası kartlarının tek düzenleyicide birleşmesi
-- 🔒 Kurulum sohbeti ve kurulum sihirbazı: iki akış tek akışa
+- ⬜ Profil / Görsel kimlik sekmeleri ile marka dosyası kartlarının tek düzenleyicide birleşmesi (onaylandı)
+- ⬜ Kurulum sihirbazı yalnız eksikleri tamamlar; kişinin vermesi gereken bilgi için bildirim; elle doldurma öncelikli (onaylandı)
 - 🟡 Telefon görünümü: marka menüsü düzeltildi; kalan küçük taşmalar (Aylık rapor) sonraya (kullanıcı önceliği: bilgisayar)
 
 ## 03 · Merkezi veri ve marka hafızası
@@ -61,14 +61,14 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 ## 06 · İçerik yönetimi, strateji ve raporlama
 
 - 🟡 Takvim içeriği fikir, post, prompt ve Reels'e bağlı (`idea_id`, `post_id`, `prompt_id`, `reels_id`)
-- 🔒 İçerik projesi kimliği; içerik bazında model, token ve maliyet; revizyon ve sürüm geçmişi; yayın bağlantısı;
+- ⬜ (O2 onaylandı: takvim içeriği = proje) İçerik projesi kimliği; içerik bazında model, token ve maliyet; revizyon ve sürüm geçmişi; yayın bağlantısı;
   içerik detay ekranı
-- 🔒 Ölçülebilir marka hedefleri (erişim, takipçi, satış, web trafiği, bilinirlik, etkileşim)
-- 🔒 İçerik sütunları ve içeriğe sütun atama
-- ⬜ Takvim filtreleri: platform, hedef kitle, amaç, sütun
+- ✅ Ölçülebilir marka hedefleri (erişim, takipçi, satış, web trafiği, bilinirlik, etkileşim; göç 51). Erişim, takipçi ve etkileşim paylaşım sonuçlarından hesaplanır, diğerleri elle girilir
+- ✅ İçerik sütunları (hedef pay %) ve içeriğe sütun, amaç, kitle, kanal atama (kanal boşsa türden çıkarılır)
+- ✅ Takvim süzgeçleri: kanal, hedef kitle, amaç, sütun
 - ✅ Performans: etkileşim oranı, giriş cümlesi, tema, gün ve saat, çok izlenip az etkileşim, türe göre kaydetme/paylaşım,
   en çok takipçi getirenler, tek tip içerik uyarısı (bildirim merkezinde)
-- 🟡 Aylık rapor; ⬜ hedef gerçekleşmesi, başarılı sütunlar, gelecek ay önerisi
+- ✅ Aylık rapor: hedef gerçekleşmesi, sütun dağılımı, kurallarla gelecek ay önerisi (yapay zekâsız); bildirim merkezinde sütun dengesi ve ay hedefi geride uyarıları
 - ⬜ Operasyon maliyeti: üretim/tasarım süresi, revizyon sayısı, marka başına toplam, gerçek ve tahmini ayrımı
 
 ## 07 · Uygulama ve test
@@ -85,11 +85,18 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 5. Akıllı içerik arşivi (arşiv, arama, uyarlama var; doğal dille arama ve benzerlik yok)
 6. Görsel otomasyon oluşturucu
 
+## Verilen kararlar (26 Kasım 2026)
+
+- O1 üç katmanlı hafıza: evet (yapıldı) · O3 hedefler ve sütunlar: evet
+- O2 içerik projesi: **A**, takvim içeriği = proje (ayrı proje tablosu yok)
+- Eski Reels bölümü: **salt okunur arşiv** (yeni Reels yalnız Prompt Studio'da; veri silinmez)
+- Uygulamanın uzaktan/telefon erişimi: **şimdilik kaldır** (kod geri açılabilir kalır; en son yeniden düşünülecek)
+- Büyük dosyalar: yalnız dokunulan yerde, parça parça
+- Konuşmadan otomatik altyazı: şimdilik gerek yok (listeden çıkarıldı)
+- Profil / Görsel kimlik ile marka dosyası: tek düzenleyici · Kurulum sihirbazı yalnız eksikleri tamamlar, elle doldurma öncelikli, yapay zekâ az
+
 ## Bekleyen kararlar (kullanıcıya toplu sorulacak)
 
-- Reels ↔ Prompt Studio: eski Reels bölümü (sayfalar, `services/reels`, `reels` tablosu) salt okunur arşive mi alınsın?
 - Hazır görsel şablonları: Prompt Studio'da mı kalsın, Post stüdyosuna mı taşınsın?
 - Yapay zekâ platformu: [AI_PLATFORM_KARARI.md](AI_PLATFORM_KARARI.md) önerisi
 - Lisans: uygulama ticari ve kapalı kaynak (AGPL ve görünür atıf şartlı kod alınmaz)
-- Konuşmadan otomatik altyazı
-- 03 ve 06'daki şema tasarımları (onay paketi hazırlanınca)

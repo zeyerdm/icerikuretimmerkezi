@@ -148,7 +148,7 @@ export function parseRoute(hash = location.hash || '#/') {
     if (rest === '') return { layer: 'brand', page: 'home', brandId: id };
     // 9.x Marka kimliği: Marka dosyası, sekmeler, kurulum sihirbazı ve bölüm düzenleme
     let km;
-    if ((km = rest.match(/^\/kimlik(?:\/(profil|gorsel|ses|prompt|maskot|kilavuz)|\/(kurulum|duzenle)(?:\/([a-z]+))?)?$/))) return { layer: 'brand', page: 'kimlik', brandId: id, tab: km[1] || km[2] || 'ozet', step: km[3] || null };
+    if ((km = rest.match(/^\/kimlik(?:\/(profil|gorsel|ses|prompt|maskot|kilavuz|strateji)|\/(kurulum|duzenle)(?:\/([a-z]+))?)?$/))) return { layer: 'brand', page: 'kimlik', brandId: id, tab: km[1] || km[2] || 'ozet', step: km[3] || null };
     // Eski adresler: Hafıza ve Prompt kimliği artık Marka kimliğinin sekmeleri
     if (rest === '/kur') return { layer: 'brand', page: 'kur', brandId: id };
     if (rest === '/hafiza') return { redirect: `#/m/${m[1]}/kimlik/ses` };

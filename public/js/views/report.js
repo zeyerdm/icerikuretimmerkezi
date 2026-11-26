@@ -12,13 +12,37 @@ export async function renderReport(view, brand) {
   const aiReady = models.ov.providers.some(p => p.configured);
   const mkey = m => `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
   let perf = { entries: [], report: null, kinds: {}, metrics: {} };
-  const loadPerf = async () => { perf = await api.perf(brand.id, mkey(month)); };
+  let strat = null;
+  const loadPerf = async () => { [perf, strat] = await Promise.all([api.perf(brand.id, mkey(month)), api.strategy(brand.id, mkey(month)).catch(() => null)]); };
   await loadPerf();
   const inMonth = (iso, m) => { if (!iso) return false; const d = new Date(iso); return d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth(); };
   const pct = (a, b) => (b ? Math.round(a / b * 100) : 0);
 
   // Bu ayın en çok tutan içerikleri (elle giriş + ekran görüntüsü) ve AI'ın sonraki ay önerileri
   const fmtN = n => Number(n).toLocaleString('tr-TR');
+  // O3: hedef gerçekleşmesi, sütun dağılımı ve kurallarla gelecek ay önerisi (yapay zekâsız)
+  function strategySection() {
+    const p = strat && strat.progress;
+    if (!p || (!p.goals.length && !p.pillars.length)) return '';
+    const fmtV = (v, u) => (v == null ? '—' : u === '%' ? '%' + String(v).replace('.', ',') : fmtN(v));
+    const low = p.assigned >= 3 ? p.pillars.filter(x => x.share && x.actualShare < x.share * 0.6) : [];
+    const high = p.assigned >= 3 ? p.pillars.filter(x => x.share && x.actualShare > x.share * 1.5) : [];
+    const tips = [
+      ...p.goals.filter(g => g.percent != null && g.percent < 80).map(g => `${g.label} hedefin %${g.percent}'inde kaldı; gelecek ay bu hedefe dönük içerik amacı seç.`),
+      ...low.map(x => `"${x.name}" sütunu hedef payın altında (%${x.actualShare} / %${x.share}): gelecek ay bu sütundan daha çok içerik planla.`),
+      ...high.map(x => `"${x.name}" sütunu hedefin çok üstünde (%${x.actualShare} / %${x.share}).`),
+      p.unassigned && p.contentCount ? `${p.unassigned} içeriğe sütun atanmadı; dağılım bunlar olmadan hesaplandı.` : null
+    ].filter(Boolean);
+    return `<section><h2>Hedefler ve içerik sütunları</h2>
+      ${p.goals.length ? `<table class="table rep-table"><thead><tr><th>Hedef</th><th>Hedef değer</th><th>Gerçekleşen</th><th>Oran</th></tr></thead>
+        <tbody>${p.goals.map(g => `<tr><td>${esc(g.label)}</td><td>${fmtV(g.target, g.unit)}</td><td>${fmtV(g.actual, g.unit)}${g.auto ? '' : ' <span class="xsmall muted">(elle)</span>'}</td><td>${g.percent != null ? `<span class="rep-bar"><i style="width:${Math.min(100, g.percent)}%"></i></span> %${g.percent}` : '—'}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${p.pillars.length ? `<table class="table rep-table mt-3"><thead><tr><th>Sütun</th><th>Hedef pay</th><th>Gerçekleşen</th><th>İçerik</th></tr></thead>
+        <tbody>${p.pillars.map(x => `<tr><td>${esc(x.name)}</td><td>%${x.share}</td><td><span class="rep-bar"><i style="width:${x.actualShare}%"></i></span> %${x.actualShare}</td><td>${x.count}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${tips.length ? `<h3 class="mt-3">Gelecek ay için</h3><ul class="rep-list">${tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+      <p class="xsmall muted no-print"><a href="#/m/${esc(brand.id)}/kimlik/strateji">Hedefleri ve sütunları düzenle</a></p>
+    </section>`;
+  }
+
   function perfSection() {
     const { entries, report: rep, kinds, metrics } = perf;
     const mk = Object.keys(metrics);
@@ -101,6 +125,7 @@ export async function renderReport(view, brand) {
         </section>
         ${perfSection()}
         <section><h2>Öne çıkanlar</h2><ul class="rep-list">${highlights.map(h => `<li>${esc(h)}</li>`).join('')}</ul></section>
+        ${strategySection()}
         ${planned.length ? `
         <section><h2>Türe göre</h2><table class="table rep-table"><thead><tr><th>Tür</th><th>Planlanan</th><th>Tamamlanan</th><th>Oran</th></tr></thead>
           <tbody>${byType.map(t => `<tr><td>${esc(t.label)}</td><td>${t.n}</td><td>${t.done}</td><td><span class="rep-bar"><i style="width:${pct(t.done, t.n)}%"></i></span> %${pct(t.done, t.n)}</td></tr>`).join('')}</tbody></table></section>

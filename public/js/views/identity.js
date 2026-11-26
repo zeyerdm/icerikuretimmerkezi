@@ -11,9 +11,10 @@ import { esc, icon, toast, pageHead, busy, skeletonPage, emptyState, suggest, op
 import { state, refreshBrands, go } from '../app.js';
 import { renderBrandEditor } from './brandEditor.js';
 import { renderMemory } from './memory.js';
+import { renderStrategy } from './strategy.js';
 import { renderPromptIdentity, characterBookCard } from './promptIdentity.js';
 
-export const ID_TABS = [['ozet', '', 'Marka dosyası'], ['profil', '/profil', 'Profil'], ['gorsel', '/gorsel', 'Görsel kimlik'], ['ses', '/ses', 'Ses ve hafıza'], ['prompt', '/prompt', 'Görsel dil'], ['maskot', '/maskot', 'Maskot']];
+export const ID_TABS = [['ozet', '', 'Marka dosyası'], ['profil', '/profil', 'Profil'], ['gorsel', '/gorsel', 'Görsel kimlik'], ['ses', '/ses', 'Ses ve hafıza'], ['prompt', '/prompt', 'Görsel dil'], ['maskot', '/maskot', 'Maskot'], ['strateji', '/strateji', 'Hedefler ve sütunlar']];
 
 export function identityHead(brand, active, desc) {
   const base = `#/m/${esc(brand.id)}/kimlik`;
@@ -48,6 +49,7 @@ export async function renderIdentity(view, brand, tab = 'ozet', step = null) {
   view.onclick = view.onkeydown = view.oninput = view.onchange = null;
   if (tab === 'profil' || tab === 'gorsel') return renderBrandEditor(view, brand.id, tab);
   if (tab === 'ses') return renderMemory(view, brand);
+  if (tab === 'strateji') return renderStrategy(view, brand);
   if (tab === 'prompt') return renderPromptIdentity(view, brand);
   if (tab === 'maskot') return renderMascot(view, brand);
   if (tab === 'kilavuz') return renderBrandBook(view, brand);
