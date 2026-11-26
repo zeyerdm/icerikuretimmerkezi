@@ -111,15 +111,15 @@ test('Arayüz: şablon oluşturucuda kartlarla seçim, önizleme güncellenir, k
   try {
     await page.goto(`${s.base}/#/m/${b.id}/prompt`);
     await page.locator('[data-builder]').click();
-    await page.waitForFunction(() => /Instagram Reels için 9:16/.test(document.querySelector('#rb-body').value));
+    await page.waitForFunction(() => /Instagram Reels için 9:16/.test((document.querySelector('#rb-body') || {}).value || ''));
     await page.locator('[data-rb="platform"][data-v="tiktok"]').click();
-    await page.waitForFunction(() => /TikTok için 9:16/.test(document.querySelector('#rb-body').value));
+    await page.waitForFunction(() => /TikTok için 9:16/.test((document.querySelector('#rb-body') || {}).value || ''));
     await page.locator('[data-rb="title"][data-v="zarif-serif"]').click();
     await page.locator('[data-rb="subtitle"][data-v="kutulu"]').click();
     await page.locator('[data-rb="mascot"][data-v="yok"]').click();
-    await page.waitForFunction(() => { const v = document.querySelector('#rb-body').value; return /zarif dekoratif serif/.test(v) && /yarı saydam koyu kutu/.test(v) && /Maskot ya da karakter kullanılmaz/.test(v); });
+    await page.waitForFunction(() => { const v = (document.querySelector('#rb-body') || {}).value || ''; return /zarif dekoratif serif/.test(v) && /yarı saydam koyu kutu/.test(v) && /Maskot ya da karakter kullanılmaz/.test(v); });
     // Tür, şablon metniyle birlikte yeniden kurulur: yük altında bir an geç gelebilir, beklenir
-    await page.waitForFunction(() => document.querySelector('#rb-kind').value === 'video');
+    await page.waitForFunction(() => (document.querySelector('#rb-kind') || {}).value === 'video');
     // Elle düzenleme korunur, istenirse yeniden kurulur
     await page.locator('#rb-body').fill((await page.locator('#rb-body').inputValue()) + '\nBenim notum:\nek kural');
     await page.locator('[data-rb="tone"][data-v="mizahi"]').click();
