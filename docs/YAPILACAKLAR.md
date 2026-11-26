@@ -20,7 +20,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 - ⬜ Büyük dosyalar (yalnız gerektiği yerde, adım adım): `public/js/views/posts.js` (2271), `server/app.js` (1018,
   bütün rotalar), `server/services/posts.js` (937), `server/services/prompts.js` (935), `server/db.js` (737, 49 göç)
 - ⬜ Reels ↔ Prompt Studio: eski Reels bölümü salt okunur arşive alınacak (karar verildi)
-- ⬜ Uzaktan erişim: yanlış şifre kilidi kalıcı olsun (şu an bellekte), IP başlığı olmadan genel sınır, çerez davranışı
+- ✅ Uzaktan erişim: kalıcı ve genel yanlış şifre kilidi. **Kullanıcı kararıyla şimdilik kapalı** (uzak istek reddedilir, tünel kurulmaz, Ayarlar'da kart yok; kayıtlı ayarlar silinmez, `REMOTE_ACCESS=1` ile açılır)
 - ⬜ Toplu üretim kuyruğunda kontrollü paralellik (şu an sıralı)
 - ⬜ Asistan isteminin küçültülmesi (her mesajda tüm hafıza + 12 mesaj + 45 gün özel gün + bütün işlem şeması)
 - 🟡 Model ve fiyat kataloğunun güncelliği (Gemini için yedek modeller güncellendi; otomatik kontrol yok)

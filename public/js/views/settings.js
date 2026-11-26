@@ -324,6 +324,8 @@ async function mountRemote(card) {
   const pill = card.querySelector('#rm-pill');
   let st;
   try { st = await api.remote(); } catch (err) { body.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; return; }
+  // Özellik şimdilik kapalı: kart gösterilmez (ayarlar ve şifre silinmez)
+  if (st.available === false) { card.remove(); return; }
   const t = st.tunnel;
   pill.innerHTML = st.enabled ? (t.status === 'acik' ? '<span class="pill pill-ok"><span class="dot"></span>Açık</span>' : '<span class="pill pill-warn"><span class="dot"></span>Açık · tünel bekliyor</span>') : '<span class="pill"><span class="dot"></span>Kapalı</span>';
   if (st.remoteClient) {

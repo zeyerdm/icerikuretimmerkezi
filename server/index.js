@@ -69,7 +69,7 @@ async function start() {
       // Günde bir model listesi kontrolü (ücretsiz; kapanan modeller yedek zincirinde atlanır)
       setTimeout(() => { ai.dailyModelCheck().then(r => { if (r && r.missing.length) console.log(`  Kullanılamayan modeller işaretlendi: ${r.missing.join(', ')}`); }).catch(() => {}); }, 5000).unref();
       // Telefondan erişim açık ve "uygulama açılınca tüneli başlat" seçiliyse tünel kendiliğinden kurulur
-      try { if (remote.status().enabled && remote.status().autoTunnel) { remote.startTunnel(port); waitTunnel(); } } catch { /* ayarlardan başlatılabilir */ }
+      try { if (remote.available && remote.status().enabled && remote.status().autoTunnel) { remote.startTunnel(port); waitTunnel(); } } catch { /* ayarlardan başlatılabilir */ }
       return;
     } catch (err) {
       if (err.code !== 'EADDRINUSE') { console.error(err); process.exit(1); }

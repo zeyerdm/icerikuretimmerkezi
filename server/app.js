@@ -111,7 +111,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, siteFetch, siteAllowPrivate = false, remoteSpawn, remoteBins, queueAutostart = true, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, siteFetch, siteAllowPrivate = false, remoteSpawn, remoteBins, remoteAccess = process.env.REMOTE_ACCESS === '1', queueAutostart = true, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -170,7 +170,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const strategy = createStrategyService({ db });
   const insights = createInsightService({ db, brands, settings, strategy });
   const linkedin = createLinkedinService({ db, ai, brands, posts, prompts, workspace, ideas });
-  const remote = createRemoteAccess(Object.assign({ settings }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
+  const remote = createRemoteAccess(Object.assign({ settings, available: remoteAccess }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', false);
