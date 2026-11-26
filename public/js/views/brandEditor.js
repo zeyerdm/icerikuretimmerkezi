@@ -1,4 +1,6 @@
-// Marka kimliğinin Profil ve Görsel kimlik sekmeleri (renk, font, canlı önizleme). Kütüphane: views/library.js
+// Marka kimliğinin tek düzenleme sayfası (O4.5): profil, web sitesi ve Drive, logo, renk, font ve canlı önizleme aynı sayfada.
+// Marka dosyasındaki kartların Düzenle düğmeleri buraya gelir (#/m/<id>/kimlik/profil, görsel bölüm için /kimlik/gorsel).
+// Yeni marka oluştururken yalnız profil bölümü gösterilir. Kütüphane: views/library.js
 import { api } from '../api.js';
 import { aiModels, modelSelect, busyTimer, aiNote } from '../aiPicker.js';
 import { esc, icon, toast, loadFonts, pageHead, skeletonPage, openModal, suggest } from '../ui.js';
@@ -41,10 +43,9 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   let dirty = false;
 
   function shell() {
-    // Profil ve Görsel kimlik, Marka kimliği sayfasının sekmeleri; Kütüphane kendi sayfası
     view.innerHTML = isNew
       ? `${pageHead({ title: 'Yeni marka', desc: 'Kimliği bir kez tanımla; bütün üretimler buna göre yapılsın.' })}<div id="tab-body"></div>`
-      : `${identityHead(brand, tab)}<div id="tab-body"></div>`;
+      : `${identityHead(brand, 'ozet', `${esc(brand.name)} kimliğini tek sayfada düzenle: profil, web sitesi ve Drive, logo, renk ve font. Kaydedince bütün üretimlere girer. <a href="#/m/${esc(brand.id)}/kimlik">Marka dosyasına dön</a>`)}<div id="tab-body"></div>`;
     if (!isNew) bindIdentityActions(view, brand);
     renderTab();
   }
@@ -54,7 +55,8 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     body.innerHTML = `
       <div class="editor">
         <div>
-          <div class="card">${tab === 'profil' ? profileForm() : visualForm()}</div>
+          <div class="card" id="ed-profil">${isNew ? '' : '<h2 class="card-title mb-3">Profil</h2>'}${profileForm()}</div>
+          ${isNew ? '' : `<div class="card mt-4" id="ed-gorsel"><h2 class="card-title mb-3">Logo, renk ve font</h2>${visualForm()}</div>`}
           <div class="card save-bar">
             <span class="small muted" id="dirty-note">${dirty ? 'Kaydedilmemiş değişiklikler var' : (isNew ? 'Marka adı zorunlu; diğer alanları sonra da doldurabilirsin.' : 'Tüm değişiklikler kayıtlı')}</span>
             <button class="btn btn-primary" data-action="save">${isNew ? 'Markayı oluştur' : 'Kaydet'}</button>
@@ -63,6 +65,8 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         <aside class="preview">${previewCard()}</aside>
       </div>`;
     loadFonts([draft.fonts.heading, draft.fonts.body]);
+    // Görsel bölümünden gelindiyse (ör. Logo, renk ve font kartının Düzenle'si) o bölüme kaydır
+    if (tab === 'gorsel' && !isNew) { const g = view.querySelector('#ed-gorsel'); if (g && g.scrollIntoView) g.scrollIntoView({ block: 'start' }); tab = 'gorsel-shown'; }
   }
 
   function profileForm() {
@@ -117,6 +121,9 @@ export async function renderBrandEditor(view, brandId, initialTab) {
   function visualForm() {
     return `
       <div class="form-grid">
+        <div class="field full"><span class="field-label">Logo</span><div class="row">${logoUrl ? `<img class="ds-logo" src="${esc(logoUrl)}" alt="Mevcut logo">` : '<span class="small muted">Henüz logo yok.</span>'}
+          <label class="btn btn-sm">${icon('upload')}${logoUrl ? 'Yeni logo yükle' : 'Logo yükle'}<input type="file" class="sr-only" data-upload-logo accept="image/png,image/jpeg,image/webp,image/gif"></label></div>
+          <span class="hint">Yüklenen logo kütüphaneye gider ve hemen kullanılır.</span></div>
         ${colorInput('primary', draft.colors.primary, 'Ana renk')}
         <div class="field pal-ai"><label>Renk paleti</label>
           <button type="button" class="btn btn-sm" data-action="palette-ai">${icon('sparkle')}AI ile palet öner</button>
@@ -128,7 +135,7 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         ${fontSelect('heading', 'Başlık fontu')}
         ${fontSelect('body', 'Gövde fontu')}
       </div>
-      <p class="small muted mt-4">Logo, maskot, sticker ve görselleri <b>Varlık kütüphanesi</b> sekmesinden yükleyebilirsin.</p>`;
+      <p class="small muted mt-4">Maskot, sticker ve diğer görselleri <b>Kütüphane</b> sayfasından yükleyebilirsin.</p>`;
   }
 
   function previewCard() {
@@ -208,7 +215,6 @@ export async function renderBrandEditor(view, brandId, initialTab) {
         const siteNote = r.site ? ` ${r.site.pages.length} sayfa okundu.` : '';
         if (!filled.length) return toast(`Doldurulacak yeni bilgi bulunamadı.${siteNote}${r.notes ? ' ' + r.notes : ''}`, 'info', 6000);
         markDirty();
-        tab = 'profil';
         renderTab();
         filled.forEach(k => { const el = view.querySelector(`#f-${k}`); if (el) el.classList.add('ai-filled'); });
         toast(`${filled.length} alan dolduruldu (${aiNote(r.ai)}).${siteNote} Kontrol edip Kaydet'e bas.${r.notes ? ' Not: ' + r.notes : ''}`, 'success', 8000);
@@ -277,24 +283,24 @@ export async function renderBrandEditor(view, brandId, initialTab) {
     }
   };
 
-  view.onchange = e => {
+  view.onchange = async e => {
     const t = e.target;
+    if (t.dataset.uploadLogo !== undefined && t.files && t.files[0]) {
+      try {
+        const f = t.files[0];
+        const r = await api.uploadAsset(brand.id, f, 'logo', f.name.replace(/\.[^.]+$/, '').slice(0, 80));
+        logoUrl = (r.asset && r.asset.url) || logoUrl;
+        toast('Logo yüklendi.', 'success');
+        renderTab();
+        await refreshBrands();
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     if (t.dataset.font !== undefined && t.dataset.font) { draft.fonts[t.dataset.font] = t.value; markDirty(); }
     if (t.dataset.hex && t.value === '') { draft.colors[t.dataset.hex] = ''; markDirty(); }
   };
 
   view.onclick = async e => {
-    // Profil ↔ Görsel kimlik aynı düzenleyicide: sekme değişince yazılanlar (kaydedilmemiş olsa da) kaybolmaz
-    const link = e.target.closest('.id-tabs a');
-    const m = link && !isNew && link.getAttribute('href').match(/\/kimlik\/(profil|gorsel)$/);
-    if (m) {
-      e.preventDefault();
-      if (m[1] === tab) return;
-      tab = m[1];
-      history.replaceState(null, '', link.getAttribute('href'));
-      shell();
-      return;
-    }
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.action === 'save') save(t);

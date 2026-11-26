@@ -168,13 +168,19 @@ test('kurulum arayüzü: yeni marka → adım adım (dallanma, yükleme) → Mar
     assert.match(await page.locator('#ds-bilgiler').innerText(), /Latte 110 TL/);
     assert.equal(await page.locator('.sidebar a[href$="/hafiza"], .sidebar a[href$="/prompt-kimligi"]').count(), 0, 'menüde tek Marka kimliği');
 
-    // Düzenle: aynı sayfa, kaydedince Marka dosyasına döner
+    // Düzenle: tek düzenleme sayfası (profil + görsel); kaydedip Marka dosyasına dönülür
     await page.locator('#ds-temel').getByRole('link', { name: 'Düzenle' }).click();
-    await page.waitForURL(/\/kimlik\/duzenle\/temel$/);
-    await page.getByLabel('Sloganı var mı?').fill('Her yudum bir mola');
+    await page.waitForURL(/\/kimlik\/profil$/);
+    await page.getByLabel('Marka sloganı').fill('Her yudum bir mola');
     await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+    await page.getByText('Tüm değişiklikler kayıtlı').waitFor();
+    await page.getByRole('link', { name: 'Marka dosyasına dön' }).click();
     await page.waitForURL(new RegExp(`#/m/${brandId}/kimlik$`));
     assert.match(await page.locator('#ds-temel').innerText(), /Her yudum bir mola/);
+    // Kurulum sihirbazının bölüm sayfası adresle açılmaya devam eder
+    await page.goto(`${srv.base}/#/m/${brandId}/kimlik/duzenle/temel`);
+    await page.getByLabel('Sloganı var mı?').waitFor();
+    await page.goto(`${srv.base}/#/m/${brandId}/kimlik`);
 
     // Sekmeler ve eski adresler
     await page.getByRole('link', { name: 'Ses ve hafıza' }).click();
@@ -187,13 +193,17 @@ test('kurulum arayüzü: yeni marka → adım adım (dallanma, yükleme) → Mar
     await page.getByRole('link', { name: 'Maskot', exact: true }).click();
     await page.locator('#cb-card').waitFor();
     assert.match(await page.locator('.dossier-dl').innerText(), /Çekirdek/);
-    // Profil ↔ Görsel kimlik geçişinde kaydedilmemiş yazı kaybolmaz
-    await page.getByRole('link', { name: 'Profil', exact: true }).click();
+    // O4.5: Profil ve Görsel kimlik ayrı sekme değil; Marka dosyasındaki Düzenle tek düzenleme sayfasını açar
+    assert.equal(await page.locator('.id-tabs').getByRole('link', { name: 'Profil', exact: true }).count(), 0);
+    assert.equal(await page.locator('.id-tabs').getByRole('link', { name: 'Görsel kimlik' }).count(), 0);
+    await page.getByRole('link', { name: 'Marka dosyası' }).click();
+    await page.locator('#ds-kitle').getByRole('link', { name: 'Düzenle' }).click();
+    await page.waitForURL(/\/kimlik\/profil$/);
+    // Profil ve görsel aynı sayfada: kaydedilmemiş yazı görsel bölüme inince kaybolmaz
     await page.getByLabel('Hedef kitle').fill('Kaydedilmemiş yazı');
-    await page.getByRole('link', { name: 'Görsel kimlik' }).click();
-    await page.waitForURL(/\/kimlik\/gorsel$/);
-    await page.getByRole('link', { name: 'Profil', exact: true }).click();
+    await page.locator('#ed-gorsel').getByRole('button', { name: 'Renk ekle' }).first().click();
     assert.equal(await page.getByLabel('Hedef kitle').inputValue(), 'Kaydedilmemiş yazı');
+    assert.ok(await page.locator('#ed-gorsel [data-upload-logo]').count(), 'logo yükleme düzenleme sayfasında');
     assert.deepEqual(problems, []);
   } finally { await browser.close(); await srv.stop(); }
 });

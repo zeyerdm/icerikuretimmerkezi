@@ -64,3 +64,27 @@ test('Performans analizi: çok izlenip az etkileşim, türe göre kaydetme/payla
     assert.deepEqual(p.follows.map(x => x.title), ['B', 'A', 'D']);
   } finally { await s.stop(); }
 });
+
+// O4.6: marka kimliğinde kişinin vermesi gereken eksik bilgi bildirim merkezinde; sihirbaz eksik adımı açar
+test('Uyarı: marka kimliği kurulmadı / eksik bilgi; tamamlanınca sayı değişir, bağlantı eksik adıma gider', async () => {
+  const s = await startServer();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Eksikli' })).data.brand;
+    const get = async () => (await s.request('GET', `/api/insights?brandId=${b.id}`)).data.insights.filter(i => i.kind === 'kimlik_eksik');
+    let ins = await get();
+    assert.equal(ins.length, 1); assert.equal(ins[0].title, 'Marka kimliği kurulmadı');
+    assert.match(ins[0].action.href, /\/kimlik\/kurulum$/);
+    // Bir adım kaydedilince kurulum başlamış sayılır; kalan eksikler sayılır ve ilk eksik adıma bağlanır
+    assert.equal((await s.request('PUT', `/api/brands/${b.id}/setup/temel`, { name: 'Eksikli', sector: 'Kafe', description: 'Kampüste kahve', slogan: 'Mola' })).status, 200);
+    ins = await get();
+    assert.equal(ins.length, 1);
+    const m = ins[0].title.match(/^Marka kimliğinde (\d+) eksik bilgi$/);
+    assert.ok(m, ins[0].title);
+    assert.doesNotMatch(ins[0].text, /^Marka:/, 'tamamlanan adım listede yok');
+    assert.match(ins[0].action.href, /\/kimlik\/kurulum\/[a-z]+$/);
+    const before = Number(m[1]);
+    await s.request('PUT', `/api/brands/${b.id}/setup/kitle`, { audience: 'Öğrenciler', goals: 'Bilinirlik', competitors: 'Zincirler', monthlyGoal: 12 });
+    const after = Number(((await get())[0] || { title: 'Marka kimliğinde 0 eksik bilgi' }).title.match(/(\d+)/)[1]);
+    assert.ok(after < before, `${after} < ${before}`);
+  } finally { await s.stop(); }
+});
