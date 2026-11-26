@@ -250,10 +250,22 @@ export function createBrandService(db, ownerId) {
         .all(brandId, limit);
     },
 
-    // Marka hafızası: AI'a gönderilen, yalnızca bu markaya ait bağlam
-    // light: sohbet gibi fikir/plan istemeyen işlerde yalnız kimlik, kurallar ve bilgiler (son fikirler ve performans listeleri yok)
-    memory(brandId, { light = false } = {}) {
+    // Marka hafızası: AI'a gönderilen, yalnızca bu markaya ait bağlam.
+    // Context Builder (Aşama 04): işe göre yalnız ilgili bölümler gider (istem kısalır, maliyet düşer, model dağılmaz).
+    //  - tam (varsayılan; fikir, plan, senaryo, analiz): hepsi + içerik sütunları
+    //  - hafif (light: sohbet gibi üretim istemeyen işler): kimlik, kurallar, rakip boşlukları, bilgiler, görsel kimlik
+    //  - metin (açıklama, LinkedIn, post metni): kimlik, kurallar, bilgiler, performans (en çok / en az tutanlar, odak)
+    //  - denetim (denetçi, karşılaştırma): kimlik, kurallar, bilgiler
+    //  - gorsel (kapak, görsel / video prompt'u): kimlik, kurallar, bilgiler, renk-font-logo-maskot
+    memory(brandId, { light = false, task = null } = {}) {
       const b = service.get(brandId);
+      const ALL = ['kimlik', 'kurallar', 'rakip', 'bilgi', 'gorsel', 'fikirler', 'performans', 'strateji'];
+      const PROFILE = {
+        tam: ALL, hafif: ['kimlik', 'kurallar', 'rakip', 'bilgi', 'gorsel'],
+        metin: ['kimlik', 'kurallar', 'bilgi', 'performans'], denetim: ['kimlik', 'kurallar', 'bilgi'], gorsel: ['kimlik', 'kurallar', 'bilgi', 'gorsel']
+      };
+      const want = new Set(PROFILE[task] || (light ? PROFILE.hafif : PROFILE.tam));
+      const on = k => want.has(k);
       const counts = service.assetCounts(b.id);
       const mascots = db.prepare("SELECT label FROM assets WHERE brand_id = ? AND category = 'mascot' AND label != '' LIMIT 12").all(b.id).map(r => r.label);
       const recentIdeas = db.prepare('SELECT title, category FROM ideas WHERE brand_id = ? ORDER BY created_at DESC LIMIT 20').all(b.id);
@@ -273,6 +285,8 @@ export function createBrandService(db, ownerId) {
       const rivals = db.prepare("SELECT name, analysis FROM competitors WHERE brand_id = ? AND analysis <> '' ORDER BY updated_at DESC LIMIT 5").all(b.id)
         .map(r => ({ name: r.name, a: parseJson(r.analysis, {}) })).filter(r => (r.a.gaps || []).length);
       const worst = measured.length >= 6 ? measured.slice(-3).reverse() : [];
+      // O3 içerik sütunları: fikir ve plan üretiminde dengeli dağılım için
+      const pillars = on('strateji') ? db.prepare('SELECT name, share, description FROM brand_pillars WHERE brand_id = ? ORDER BY sort, created_at').all(b.id) : [];
       const line = (label, v) => (v ? `${label}: ${v}` : null);
       return [
         line('Marka adı', b.name),
@@ -282,23 +296,24 @@ export function createBrandService(db, ownerId) {
         line('Marka karakteri', b.character),
         line('İletişim dili', b.tone),
         line('İçerik üretim hedefleri', b.goals),
-        line('Rakipler ve referans markalar', b.competitors),
+        on('rakip') ? line('Rakipler ve referans markalar', b.competitors) : null,
         line('Slogan', b.slogan),
         line('Web sitesi', b.website),
-        banned.length ? `ASLA KULLANMA (yasaklı kelime ve ifadeler; metinde, başlıkta, hashtag'de geçmesin): ${banned.join(', ')}` : null,
-        preferred.length ? `Tercih edilen ifadeler / imza cümleler (uygun yerde kullan, zorlama): ${preferred.join(' | ')}` : null,
-        rivals.length ? 'Rakip analizlerinden boşluklar (bunlardan yararlan; rakibi kopyalama):\n' + rivals.map(r => `- ${r.name}: ${r.a.gaps.slice(0, 3).join('; ')}`).join('\n') : null,
-        facts.length ? 'Marka hakkında bilgiler (çoğu markanın kendi web sitesinden; doğru kabul et ve metinlerde bunlara sadık kal: ürün/hizmet adlarını, fiyatları, adresi, hikâyeyi buradaki gibi kullan; burada olmayan fiyat, adres, kampanya gibi bilgileri uydurma):\n' + facts.map(f => `- [${f.category}] ${f.title}: ${f.content}`).join('\n') : null,
-        line('Ana renk', b.colors.primary),
-        line('İkincil renkler', b.colors.secondary.join(', ')),
-        line('Başlık / gövde fontu', [b.fonts.heading, b.fonts.body].filter(Boolean).join(' / ')),
-        line('Logo', counts.logo ? 'yüklü' : ''),
-        line('Maskot pozları', mascots.join(', ') || (counts.mascot ? `${counts.mascot} görsel` : '')),
-        !light && recentIdeas.length ? 'Daha önce üretilen fikirler (tekrar etme):\n' + recentIdeas.map(i => `- ${i.title} (${i.category})`).join('\n') : null,
-        !light && favIdeas.length ? 'Ekibin beğendiği fikirler (bu tarzı örnek al):\n' + favIdeas.map(i => `- ${i.title}`).join('\n') : null,
-        !light && best.length ? 'Paylaşım sonuçlarına göre EN ÇOK TUTAN içerikler (giriş cümlesi, tema ve yaklaşımlarından öğren; kopyalama):\n' + best.map(perfLine).join('\n') : null,
-        !light && worst.length ? 'En az tutan içerikler (bu yaklaşımlardan kaçın):\n' + worst.map(perfLine).join('\n') : null,
-        (!light && perfFocusText(db, b.id)) || null
+        on('kurallar') && banned.length ? `ASLA KULLANMA (yasaklı kelime ve ifadeler; metinde, başlıkta, hashtag'de geçmesin): ${banned.join(', ')}` : null,
+        on('kurallar') && preferred.length ? `Tercih edilen ifadeler / imza cümleler (uygun yerde kullan, zorlama): ${preferred.join(' | ')}` : null,
+        on('rakip') && rivals.length ? 'Rakip analizlerinden boşluklar (bunlardan yararlan; rakibi kopyalama):\n' + rivals.map(r => `- ${r.name}: ${r.a.gaps.slice(0, 3).join('; ')}`).join('\n') : null,
+        on('bilgi') && facts.length ? 'Marka hakkında bilgiler (çoğu markanın kendi web sitesinden; doğru kabul et ve metinlerde bunlara sadık kal: ürün/hizmet adlarını, fiyatları, adresi, hikâyeyi buradaki gibi kullan; burada olmayan fiyat, adres, kampanya gibi bilgileri uydurma):\n' + facts.map(f => `- [${f.category}] ${f.title}: ${f.content}`).join('\n') : null,
+        on('gorsel') ? line('Ana renk', b.colors.primary) : null,
+        on('gorsel') ? line('İkincil renkler', b.colors.secondary.join(', ')) : null,
+        on('gorsel') ? line('Başlık / gövde fontu', [b.fonts.heading, b.fonts.body].filter(Boolean).join(' / ')) : null,
+        on('gorsel') ? line('Logo', counts.logo ? 'yüklü' : '') : null,
+        on('gorsel') ? line('Maskot pozları', mascots.join(', ') || (counts.mascot ? `${counts.mascot} görsel` : '')) : null,
+        pillars.length ? 'İçerik sütunları ve hedef payları (fikir ve planları bunlara dengeli dağıt):\n' + pillars.map(p => `- ${p.name}${p.share ? ` (%${p.share})` : ''}${p.description ? `: ${p.description}` : ''}`).join('\n') : null,
+        on('fikirler') && recentIdeas.length ? 'Daha önce üretilen fikirler (tekrar etme):\n' + recentIdeas.map(i => `- ${i.title} (${i.category})`).join('\n') : null,
+        on('fikirler') && favIdeas.length ? 'Ekibin beğendiği fikirler (bu tarzı örnek al):\n' + favIdeas.map(i => `- ${i.title}`).join('\n') : null,
+        on('performans') && best.length ? 'Paylaşım sonuçlarına göre EN ÇOK TUTAN içerikler (giriş cümlesi, tema ve yaklaşımlarından öğren; kopyalama):\n' + best.map(perfLine).join('\n') : null,
+        on('performans') && worst.length ? 'En az tutan içerikler (bu yaklaşımlardan kaçın):\n' + worst.map(perfLine).join('\n') : null,
+        (on('performans') && perfFocusText(db, b.id)) || null
       ].filter(Boolean).join('\n');
     }
   };

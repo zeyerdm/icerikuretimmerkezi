@@ -46,7 +46,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 ## 04 · Yapay zekâ mimarisi ve maliyet
 
 - ✅ İş başına model, yedek zinciri, yoğunluk hafızası, hız ayarı, aylık harcama sınırı
-- ⬜ Context Builder: işe göre ilgili hafıza seçimi (ortak katman)
+- ✅ Context Builder: işe göre ilgili hafıza seçimi (`brands.memory(id, { task })`: tam / hafif / metin / denetim / görsel). Açıklama, LinkedIn ve post metninde renk-font ve fikir listesi gitmez; kapak ve görsel prompt'unda fikir ve performans listeleri gitmez; fikir ve planlara içerik sütunları girer. Ölçüm (örnek marka): metin −%46, görsel −%36
 - ✅ Intent Router (ilk adım): asistanda bugün/yarın/bu hafta takvimi, onay bekleyenler, geciken görev ve içerikler, fikir sayısı, yaklaşan özel günler yapay zekâsız cevaplanır
 - ⬜ Belli bir tutarın üstündeki ücretli işlemde açık onay
 

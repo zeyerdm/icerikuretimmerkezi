@@ -22,7 +22,7 @@ export function createThumbnailService({ ai, brands, identity = null }) {
       const prompt = [
         'YOUTUBE KAPAK FİKİRLERİ',
         `Sen '${b.name}' markasının YouTube kanalı için kapak (thumbnail) tasarımcısısın. Amaç: küçük önizlemede bile okunan, tıklamayı artıran ama yanıltmayan kapaklar.`,
-        '', 'MARKA HAFIZASI:', brands.memory(b.id), '',
+        '', 'MARKA HAFIZASI:', brands.memory(b.id, { task: 'gorsel' }), '',
         // 9.5: markanın kapak tarzı tercihi
         identity && identity.get(b.id).thumbStyle ? `KANALIN KAPAK TARZI (fikirlerin çoğu buna uysun): ${({ yuz: 'yakın yüz ve büyük yazı', minimal: 'minimal, tek nesne', karsilastirma: 'karşılaştırma (önce/sonra)', kesik: 'renkli zemin üstünde kesilmiş figür', metin: 'yazı ağırlıklı' })[identity.get(b.id).thumbStyle]}` : '',
         link ? 'Ekteki YouTube videosunu izle: videonun asıl vaadini, en çarpıcı anlarını ve öne çıkan kişileri/nesneleri çıkar; fikirleri bu içeriğe dayandır, videoda olmayan bir şey vaat etme.' : '',

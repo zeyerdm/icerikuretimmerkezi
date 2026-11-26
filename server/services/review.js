@@ -39,7 +39,7 @@ export function createReviewService({ ai, brands, memory = null }) {
       const t = text(raw, { field: 'Metin', max: 12000, required: true });
       const prompt = [
         'İÇERİK DENETİMİ', `Sen '${b.name}' markasının içerik editörüsün. Aşağıdaki ${REVIEW_KINDS[kind].label.toLocaleLowerCase('tr-TR')} metnini marka kimliğine göre değerlendir.`, '',
-        'MARKA HAFIZASI:', brands.memory(b.id), '',
+        'MARKA HAFIZASI:', brands.memory(b.id, { task: 'denetim' }), '',
         'KONTROL ET: marka diline ve hitap biçimine uygunluk, hedef kitleye uygunluk, anlaşılırlık ve akıcılık, Türkçe yazım ve noktalama, gereksiz tekrar, abartılı veya yanıltıcı iddia, gerçek kişi/başka marka adı, ilk cümlenin dikkat çekiciliği.',
         'Yalnızca gerçek sorunları yaz; sorun yoksa issues boş olsun. Her sorun için somut bir düzeltme önerisi ver.', '',
         `METİN:\n${t}`, '',
