@@ -19,8 +19,8 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 - ⬜ Playwright kurulum adımının belgelenmesi (arayüz testleri için)
 - ⬜ Büyük dosyalar (yalnız gerektiği yerde, adım adım): `public/js/views/posts.js` (2271), `server/app.js` (1018,
   bütün rotalar), `server/services/posts.js` (937), `server/services/prompts.js` (935), `server/db.js` (737, 49 göç)
-- ⬜ Reels ↔ Prompt Studio: eski Reels bölümü salt okunur arşive alınacak (karar verildi)
-- ⬜ Uzaktan erişim: yanlış şifre kilidi kalıcı olsun (şu an bellekte), IP başlığı olmadan genel sınır, çerez davranışı
+- ✅ Reels ↔ Prompt Studio: eski Reels bölümü salt okunur arşiv. Menüde yok, liste ve fikir havuzu Prompt Studio'ya yönlenir; eski senaryo sayfasında arşiv notu, yeniden yazma yok; seslendirme, video, dışa aktarma, sürüme dönme, takvime ekleme çalışır. Veri ve API korunur (eski kayıtlar ve testler için)
+- ✅ Uzaktan erişim: kalıcı ve genel yanlış şifre kilidi. **Kullanıcı kararıyla şimdilik kapalı** (uzak istek reddedilir, tünel kurulmaz, Ayarlar'da kart yok; kayıtlı ayarlar silinmez, `REMOTE_ACCESS=1` ile açılır)
 - ⬜ Toplu üretim kuyruğunda kontrollü paralellik (şu an sıralı)
 - ⬜ Asistan isteminin küçültülmesi (her mesajda tüm hafıza + 12 mesaj + 45 gün özel gün + bütün işlem şeması)
 - 🟡 Model ve fiyat kataloğunun güncelliği (Gemini için yedek modeller güncellendi; otomatik kontrol yok)
@@ -61,7 +61,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 ## 06 · İçerik yönetimi, strateji ve raporlama
 
 - 🟡 Takvim içeriği fikir, post, prompt ve Reels'e bağlı (`idea_id`, `post_id`, `prompt_id`, `reels_id`)
-- ⬜ (O2 onaylandı: takvim içeriği = proje) İçerik projesi kimliği; içerik bazında model, token ve maliyet; revizyon ve sürüm geçmişi; yayın bağlantısı;
+- ✅ İçerik projesi (O2, göç 52; takvim içeriği = proje): zaman çizelgesi (fikir, prompt ve sürümleri, senaryo ve sürümleri, tasarım, düzenleme, onay, durum, tarih, yayın, performans), yayın bağlantısı, içerik bazında yapay zekâ çağrı / token / tahmini maliyet (içerik + bağlı post, prompt, senaryo), revizyon sayısı, fikirden tamamlanmaya süre; içerik penceresinde "Geçmiş". ⬜ Toplu üretim kuyruğundaki işlerin maliyeti henüz bağlanmıyor
   içerik detay ekranı
 - ✅ Ölçülebilir marka hedefleri (erişim, takipçi, satış, web trafiği, bilinirlik, etkileşim; göç 51). Erişim, takipçi ve etkileşim paylaşım sonuçlarından hesaplanır, diğerleri elle girilir
 - ✅ İçerik sütunları (hedef pay %) ve içeriğe sütun, amaç, kitle, kanal atama (kanal boşsa türden çıkarılır)

@@ -291,12 +291,11 @@ async function renderDetail(view, brand, id, models) {
     view.innerHTML = `
       <div class="ed ed-doc-mode">
         <header class="ed-top">
-          <a class="ed-top-btn" href="${base(brand)}/liste" title="Senaryolar">${icon('back')}<span>Senaryolar</span></a>
+          <a class="ed-top-btn" href="#/m/${esc(brand.id)}/prompt" title="Prompt Studio">${icon('back')}<span>Prompt Studio</span></a>
           <div class="ed-menu"><button type="button" class="ed-top-btn" data-menu="dosya" aria-haspopup="true">Dosya</button>
             <div class="ed-drop" data-drop="dosya" hidden>
               <div class="ed-drop-head"><b>${esc(r.title)}</b><span class="xsmall">${esc(meta.formats[d.format] || '')} · ${r.totalSeconds} saniye · ${d.scenes.length} sahne${r.modelLabel ? ` · ${esc(r.modelLabel)}` : ''}</span></div>
               <button type="button" data-rail="surumler">${icon('refresh')}Sürüm geçmişi</button>
-              <button type="button" data-rail="yaz">${icon('sparkle')}Senaryoyu yeniden yaz</button>
               <hr><button type="button" class="danger" data-delete>${icon('trash')}Senaryoyu sil</button>
             </div></div>
           <select class="select w-auto ed-top-select" id="rs-status" aria-label="Durum">${Object.entries(meta.statuses).map(([k, v]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>
@@ -317,15 +316,14 @@ async function renderDetail(view, brand, id, models) {
               </div>
             </div></div>
         </header>
+        <div class="notice notice-info reels-archive-note" role="note"><div><b>Arşiv:</b> Bu senaryo eski Reels bölümünden. Yeni Reels senaryoları Prompt Studio'da yazılır; burada senaryo yeniden yazılmaz. Seslendirme, video, dışa aktarma, sürüme dönme ve takvime ekleme çalışır.</div><a class="btn btn-sm" href="#/m/${esc(brand.id)}/prompt">Prompt Studio'ya git</a></div>
         <div class="ed-body ${panel ? 'has-panel' : ''}">
-          <nav class="ed-rail" aria-label="Araçlar">${[['ozet', 'Özet', 'notes'], ['yaz', 'Yeniden yaz', 'sparkle'], ['baslik', 'Başlık', 'edit'], ['aciklama', 'Açıklama', 'palette'], ['kalite', `Kalite${r.issues.length ? ` (${r.issues.length})` : ''}`, 'check'], ['ses', 'Seslendirme', 'mic'], ...(vg.configured ? [['video', 'Video üret', 'film']] : []), ['surumler', 'Sürümler', 'refresh']].map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
+          <nav class="ed-rail" aria-label="Araçlar">${[['ozet', 'Özet', 'notes'], ['baslik', 'Başlık', 'edit'], ['aciklama', 'Açıklama', 'palette'], ['kalite', `Kalite${r.issues.length ? ` (${r.issues.length})` : ''}`, 'check'], ['ses', 'Seslendirme', 'mic'], ...(vg.configured ? [['video', 'Video üret', 'film']] : []), ['surumler', 'Sürümler', 'refresh']].map(([k, label, ic]) => `<button type="button" class="${panel === k ? 'active' : ''}" data-rail="${k}" aria-pressed="${panel === k}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>
           <aside class="ed-panel" ${panel ? '' : 'hidden'}>
             ${panelBox('ozet', 'Özet', `<dl class="kv">
               <dt>Konu</dt><dd>${esc(d.topic || '-')}</dd><dt>Asıl espri</dt><dd>${esc(d.punchline || '-')}</dd><dt>Neden paylaşılır</dt><dd>${esc(d.why || '-')}</dd>
               <dt>Görsel ortam</dt><dd>${esc(d.setting || '-')}</dd><dt>Müzik</dt><dd>${esc(d.music || '-')}</dd></dl>
               <h4 class="ed-sub">Final</h4><dl class="kv"><dt>Tamamlanma</dt><dd>${esc((d.ending || {}).resolution || '-')}</dd><dt>Kapanış</dt><dd>${esc((d.ending || {}).twist || '-')}</dd><dt>Son kare</dt><dd>${esc((d.ending || {}).lastFrame || '-')}${(d.ending || {}).loop ? ` · Döngü: ${esc(d.ending.loop)}` : ''}</dd></dl>`)}
-            ${panelBox('yaz', 'Yeniden yaz', aiReady ? `<p class="small muted mb-2">Seçtiğin modelle; her yeniden yazma yeni bir sürüm olur.</p><div class="stack-sm">${modelSelect(models, 'yazim', { id: 'rg-model' })}<button class="btn btn-primary" data-regen>${icon('refresh')}Senaryoyu baştan yaz</button></div>
-              <p class="hint mt-2">Tek bir sahneyi değiştirmek için sahnenin üstündeki "Bu sahneyi yeniden yaz"ı kullan; diğer sahneler korunur.</p>` : '<div class="notice"><div>AI bağlı değil.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>')}
             ${panelBox('baslik', 'Ekran başlığı', `<div class="field"><label for="rs-title">Başlık (en fazla 5 kelime)</label><input class="input" id="rs-title" value="${esc(d.screenTitle || '')}" maxlength="80"></div>
               <div class="form-grid mt-3"><div class="field"><label for="rs-key">Vurgulu kelime</label><input class="input" id="rs-key" value="${esc(d.titleKeyword || '')}" maxlength="40"></div>
               <div class="field"><label for="rs-tstyle">Stil</label><select class="select" id="rs-tstyle">${Object.entries(meta.titleStyles).map(([k, v]) => `<option value="${k}" ${k === d.titleStyle ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div></div>
@@ -369,7 +367,7 @@ async function renderDetail(view, brand, id, models) {
               ${d.scenes.map((sc, i) => { const from = offset; offset += sc.duration; const p = r.prompts[i]; return `
           <section class="card scene-card" data-scene="${i}">
             <div class="card-head"><h3>Sahne ${i + 1} <span class="muted small">· ${fmt(from)}–${fmt(offset)} · ${sc.duration} sn</span></h3>
-              ${aiReady ? `<button class="btn btn-sm" data-regen-scene="${i}">${icon('refresh')}Bu sahneyi yeniden yaz</button>` : ''}</div>
+</div>
             ${sc.start ? `<p class="small"><b>${i === 0 ? 'Başlangıç' : 'Önceki sahneden'}:</b> ${esc(sc.start)}</p>` : ''}
             <div class="table-wrap mt-2"><table class="table beats"><thead><tr><th>Zaman</th><th>Aksiyon</th><th>Kamera</th><th>Ses</th></tr></thead>
               <tbody>${(sc.beats || []).map(b => `<tr><td class="nowrap">${fmt(from + b.from)}–${fmt(from + b.to)}</td><td>${esc(b.action)}</td><td class="small">${esc(b.camera || '-')}</td><td class="small">${esc(b.sound || '-')}</td></tr>`).join('')}</tbody></table></div>
@@ -484,16 +482,6 @@ async function renderDetail(view, brand, id, models) {
         draw();
         toast(`${res.ai.modelLabel} ile seslendirildi.`, 'success');
       } catch (err) { toast(err.message, 'error', 6000); }
-      return;
-    }
-    const regen = e.target.closest('[data-regen]');
-    if (regen) {
-      try { apply(await busyTimer(regen, () => api.regenerateReels(brand.id, r.id, { model: model('#rg-model') }))); } catch (err) { toast(err.message, 'error'); }
-      return;
-    }
-    const rs = e.target.closest('[data-regen-scene]');
-    if (rs) {
-      try { apply(await busyTimer(rs, () => api.regenerateReels(brand.id, r.id, { sceneIndex: Number(rs.dataset.regenScene), model: model('#rg-model') }))); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const tr = e.target.closest('[data-save-tr]');

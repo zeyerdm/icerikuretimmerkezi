@@ -75,7 +75,12 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
         <div class="form-grid mt-3">
           <div class="field full"><label for="c-hook">Giriş cümlesi (ilk saniye / ilk satır)</label><input class="input" id="c-hook" name="hook" maxlength="300" value="${esc(c.hook || '')}" placeholder="Ör. Vize sabahı bu kuyruğu gören herkes aynı şeyi düşündü…"></div>
           <div class="field full"><label for="c-theme">Tema</label><input class="input" id="c-theme" name="theme" maxlength="60" value="${esc(c.theme || '')}" placeholder="Ör. sınav haftası, kampanya, kulis"></div>
+          <div class="field full"><label for="c-url">Yayın bağlantısı</label><input class="input" id="c-url" name="publishedUrl" type="url" maxlength="500" value="${esc(c.publishedUrl || '')}" placeholder="https://www.instagram.com/p/…"></div>
         </div>
+      </details>
+      <details class="disclosure mt-4" id="c-history">
+        <summary>Geçmiş <span class="muted xsmall">ilk fikirden yayına, yapay zekâ maliyeti</span></summary>
+        <div id="c-history-body"><p class="small muted">Açınca yüklenir.</p></div>
       </details>` : ''}`,
     danger: content ? { label: 'Sil', confirm: 'Bu içerik silinsin mi?', onClick: async () => { await api.deleteContent(content.id); onSaved && onSaved(); } } : null,
     onSubmit: async fd => {
@@ -88,7 +93,7 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
       if (content) {
         const metrics = {};
         Object.keys(m.metricFields).forEach(k => { const v = fd.get('m_' + k); if (v !== null && v !== '') metrics[k] = Number(v); });
-        Object.assign(body, { metrics: Object.keys(metrics).length ? metrics : null, hook: fd.get('hook') || '', theme: fd.get('theme') || '',
+        Object.assign(body, { metrics: Object.keys(metrics).length ? metrics : null, hook: fd.get('hook') || '', theme: fd.get('theme') || '', publishedUrl: fd.get('publishedUrl') || '',
           caption: fd.get('caption') || '', hashtags: fd.get('hashtags') || '', firstComment: fd.get('firstComment') || '',
           checklist: [...document.querySelectorAll('#c-checklist .check-item')].map(li => ({ label: li.querySelector('[data-ck-label]').textContent, done: li.querySelector('[data-ck-done]').checked })) });
         await api.updateContent(content.id, body);
@@ -98,7 +103,37 @@ export function contentModal({ content, date, brandId, lockBrand, title, ideaId,
     }
   });
   wirePillars(modal.form, selectedBrand, c.pillarId);
+  if (content) wireHistory(modal.form, content);
   if (content) { wireContentCard(modal.form, content); wireReview(modal.form, content, onSaved); wireSets(modal.form, content.brandId); }
+}
+
+// O2 · İçeriğin geçmişi: zaman çizelgesi, yapay zekâ maliyeti, süre ve revizyon sayısı (açılınca bir kez yüklenir)
+const EV_ICON = { fikir: '💡', prompt: '✍️', senaryo: '🎬', tasarim: '🎨', olusturuldu: '📅', durum: '🔁', tarih: '🗓️', onay: '✅', metin: '📝', yayin: '🔗', performans: '📈', marka: '🏷️' };
+function wireHistory(form, content) {
+  const box = form.querySelector('#c-history');
+  const body = form.querySelector('#c-history-body');
+  let loaded = false;
+  box.addEventListener('toggle', async () => {
+    if (!box.open || loaded) return;
+    loaded = true;
+    try {
+      const t = await api.contentTimeline(content.id);
+      const when = at => new Date(at).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const usd = t.ai.usd ? `$${t.ai.usd.toFixed(4)}` : '$0';
+      body.innerHTML = `
+        <div class="row small mb-2 hist-stats">
+          <span><b>${t.ai.calls}</b> yapay zekâ çağrısı${t.ai.failed ? ` (${t.ai.failed} başarısız)` : ''}</span>
+          <span>Tahmini maliyet: <b>${usd}</b></span>
+          <span><b>${(t.ai.inputTokens + t.ai.outputTokens).toLocaleString('tr-TR')}</b> token</span>
+          <span><b>${t.revisions}</b> revizyon</span>
+          ${t.duration.days != null ? `<span>Fikirden tamamlanmaya: <b>${t.duration.days} gün</b></span>` : ''}
+          ${t.publishedUrl ? `<a href="${esc(t.publishedUrl)}" target="_blank" rel="noopener noreferrer">Yayını aç</a>` : ''}
+        </div>
+        ${t.ai.byModel.length ? `<details class="mb-2"><summary class="xsmall">Model ve işe göre</summary><ul class="xsmall">${t.ai.byModel.map(m => `<li>${esc(m.model)} · ${esc(m.task)}: ${m.calls} çağrı${m.usd ? ` · $${m.usd.toFixed(4)}` : ''}</li>`).join('')}</ul></details>` : ''}
+        ${t.events.length ? `<ol class="review-list">${t.events.map(e => `<li><span aria-hidden="true">${EV_ICON[e.kind] || '•'}</span> <b>${esc(e.title)}</b>${e.note ? ` <span class="small">${esc(e.note)}</span>` : ''} <span class="xsmall muted">· ${esc(when(e.at))}</span>${e.link ? ` <a class="xsmall" href="${esc(e.link)}" data-close>aç</a>` : ''}</li>`).join('')}</ol>` : '<p class="small muted">Kayıt yok.</p>'}
+        <p class="xsmall muted mt-2">Maliyet; bu içerik ve bağlı post, prompt ya da senaryo için kaydı tutulan çağrılardan tahmin edilir (fiyatı bilinmeyen model $0 sayılır). Toplu üretim kuyruğundaki işler henüz bağlanmıyor.</p>`;
+    } catch (err) { body.innerHTML = `<p class="small muted">${esc(err.message)}</p>`; loaded = false; }
+  });
 }
 
 // İçerik sütunları markaya göre yüklenir; marka değişince liste yenilenir (başka markanın sütunu seçilemez)

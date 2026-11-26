@@ -101,8 +101,18 @@ export function createWorkspaceService(db, ownerId, brands) {
     pillarId: r.pillar_id || null, pillarName: r.pillar_name || null, purpose: r.purpose || '', purposeLabel: PURPOSES[r.purpose] || '', audience: r.audience || '',
     platform: platformOf(r.type, r.platform), platformLabel: PLATFORMS[platformOf(r.type, r.platform)], platformSet: Boolean(r.platform),
     metrics: r.metrics ? parseJson(r.metrics, null) : null, rate: r.metrics ? engagementRate(parseJson(r.metrics, null)) : null, hook: r.hook || '', theme: r.theme || '',
+    publishedUrl: r.published_url || '',
     createdAt: r.created_at, updatedAt: r.updated_at
   }, brandInfo(r));
+
+  // O2 · İçeriğin zaman çizelgesi: kendi olayları (content_events) + onay kayıtları + bağlı fikir, prompt, post, senaryo
+  const logEvent = (contentId, kind, note = '', ref = null) =>
+    db.prepare('INSERT INTO content_events (id, content_id, at, kind, note, ref) VALUES (?, ?, ?, ?, ?, ?)').run(newId(), contentId, now(), kind, String(note).slice(0, 300), ref);
+  const cleanUrl = v => {
+    const u = text(v, { field: 'Yayın bağlantısı', max: 500 });
+    if (u && !/^https?:\/\/[^\s]+$/i.test(u)) throw badRequest('Yayın bağlantısı http(s):// ile başlamalı.');
+    return u;
+  };
 
   const toTask = r => Object.assign({
     id: r.id, title: r.title, description: r.description, dueDate: r.due_date,
@@ -179,6 +189,47 @@ export function createWorkspaceService(db, ownerId, brands) {
 
     getContent(id) { return toContent(getContentRow(id)); },
 
+    // O2 · İçerik projesi: ilk fikirden yayına zaman çizelgesi, yapay zekâ maliyeti ve süre (yalnız kayıtlardan)
+    timeline(id) {
+      const row = getContentRow(id);
+      const ev = [];
+      const add = (at, kind, title, note = '', link = null) => { if (at) ev.push({ at, kind, title, note, link }); };
+      const base = `#/m/${row.brand_id}`;
+      const KIND = { olusturuldu: 'Takvime eklendi', durum: 'Durum', tarih: 'Tarih', yayin: 'Yayın bağlantısı', performans: 'Performans', metin: 'Düzenleme', marka: 'Marka' };
+      for (const e of db.prepare('SELECT * FROM content_events WHERE content_id = ? ORDER BY at, rowid').all(row.id)) add(e.at, e.kind, KIND[e.kind] || e.kind, e.note);
+      for (const r of db.prepare('SELECT * FROM content_reviews WHERE content_id = ? ORDER BY created_at, rowid').all(row.id)) add(r.created_at, 'onay', (REVIEW_ACTIONS[r.action] || {}).label || r.action, r.note);
+      if (row.idea_id) { const i = db.prepare('SELECT title, created_at FROM ideas WHERE id = ?').get(row.idea_id); if (i) add(i.created_at, 'fikir', 'İlk fikir', i.title, `${base}/fikirler`); }
+      if (row.prompt_id) {
+        const p = db.prepare('SELECT title, created_at FROM prompts WHERE id = ?').get(row.prompt_id);
+        if (p) {
+          add(p.created_at, 'prompt', 'Prompt oluşturuldu', p.title, `${base}/prompt/${row.prompt_id}`);
+          for (const v of db.prepare('SELECT note, created_at FROM prompt_versions WHERE prompt_id = ? ORDER BY created_at, rowid').all(row.prompt_id)) add(v.created_at, 'prompt', 'Prompt sürümü', v.note);
+        }
+      }
+      if (row.post_id) { const p = db.prepare('SELECT title, created_at, updated_at FROM posts WHERE id = ?').get(row.post_id); if (p) { add(p.created_at, 'tasarim', 'Tasarım oluşturuldu', p.title, `${base}/post/${row.post_id}`); if (p.updated_at !== p.created_at) add(p.updated_at, 'tasarim', 'Tasarım son düzenleme'); } }
+      if (row.reels_id) {
+        const r = db.prepare('SELECT title, created_at FROM reels WHERE id = ?').get(row.reels_id);
+        if (r) {
+          add(r.created_at, 'senaryo', 'Senaryo oluşturuldu', r.title, `${base}/reels/${row.reels_id}`);
+          for (const v of db.prepare('SELECT note, created_at FROM reels_versions WHERE reels_id = ? ORDER BY created_at, rowid').all(row.reels_id)) add(v.created_at, 'senaryo', 'Senaryo sürümü', v.note);
+        }
+      }
+      ev.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+      // Yapay zekâ: içerik için yapılanlar + bağlı post / prompt / senaryo için yapılanlar
+      const refs = [row.post_id && `post:${row.post_id}`, row.prompt_id && `prompt:${row.prompt_id}`, row.reels_id && `reels:${row.reels_id}`].filter(Boolean);
+      const where = `content_id = ?${refs.length ? ` OR ref IN (${refs.map(() => '?').join(',')})` : ''}`;
+      const args = [row.id, ...refs];
+      const tot = db.prepare(`SELECT COUNT(*) AS calls, COALESCE(SUM(cost_usd), 0) AS usd, COALESCE(SUM(input_tokens), 0) AS input, COALESCE(SUM(output_tokens), 0) AS output, COALESCE(SUM(ok = 0), 0) AS failed FROM ai_usage WHERE ${where}`).get(...args);
+      const byModel = db.prepare(`SELECT provider, model, task, COUNT(*) AS calls, COALESCE(SUM(cost_usd), 0) AS usd FROM ai_usage WHERE ${where} GROUP BY provider, model, task ORDER BY usd DESC, calls DESC LIMIT 20`).all(...args);
+      const end = row.completed_at || null;
+      return {
+        contentId: row.id, publishedUrl: row.published_url || '', events: ev,
+        ai: { calls: tot.calls, failed: tot.failed, usd: Math.round(tot.usd * 10000) / 10000, inputTokens: tot.input, outputTokens: tot.output, byModel },
+        revisions: ev.filter(e => e.kind === 'metin' || (e.kind === 'onay' && /düzelt/i.test(e.title)) || e.title === 'Prompt sürümü' || e.title === 'Senaryo sürümü').length,
+        duration: { from: (ev[0] && ev[0].at) || row.created_at, to: end, days: end ? Math.max(0, Math.round((Date.parse(end) - Date.parse((ev[0] && ev[0].at) || row.created_at)) / 864e5)) : null }
+      };
+    },
+
     // 8.11 Onay geçmişi (eskiden yeniye)
     reviews(id) {
       const row = getContentRow(id);
@@ -237,6 +288,7 @@ export function createWorkspaceService(db, ownerId, brands) {
       }
       // 10.6: takvime giren fikir kullanıldı sayılır (rastgele seçimlere girmez)
       if (ideaId) markIdeaUsed(db, brand.id, ideaId, 'takvim');
+      logEvent(row.id, 'olusturuldu', `${CONTENT_TYPES[row.type]} planlandı`);
       brands.logActivity(brand.id, 'content.created', `${CONTENT_TYPES[row.type]} planlandı: ${row.title}`);
       return toContent(getContentRow(row.id));
     },
@@ -256,7 +308,8 @@ export function createWorkspaceService(db, ownerId, brands) {
         caption: 'caption' in body ? text(body.caption, { field: 'Açıklama', max: 2200 }) : (row.caption || ''),
         hashtags: 'hashtags' in body ? cleanTags(body.hashtags) : (row.hashtags || ''),
         first_comment: 'firstComment' in body ? text(body.firstComment, { field: 'İlk yorum', max: 2200 }) : (row.first_comment || ''),
-        checklist: 'checklist' in body ? cleanChecklist(body.checklist) : (row.checklist || '')
+        checklist: 'checklist' in body ? cleanChecklist(body.checklist) : (row.checklist || ''),
+        published_url: 'publishedUrl' in body ? cleanUrl(body.publishedUrl) : (row.published_url || '')
       };
       // Sayılar değişmediyse giriş zamanı korunur
       if ('metrics' in body && next.metrics && row.metrics) {
@@ -273,9 +326,16 @@ export function createWorkspaceService(db, ownerId, brands) {
       const st = ['pillarId', 'purpose', 'audience', 'platform'].some(k => k in body)
         ? strategyFields(next.brand_id, body, next.brand_id !== row.brand_id ? Object.assign({}, row, { pillar_id: null }) : row) : null;
       db.prepare(`UPDATE contents SET brand_id = ?, idea_id = ?, title = ?, type = ?, status = ?, scheduled_at = ?, notes = ?, completed_at = ?, metrics = ?, hook = ?, theme = ?,
-        caption = ?, hashtags = ?, first_comment = ?, checklist = ?, updated_at = ? WHERE id = ?`)
+        caption = ?, hashtags = ?, first_comment = ?, checklist = ?, published_url = ?, updated_at = ? WHERE id = ?`)
         .run(next.brand_id, next.idea_id, next.title, next.type, next.status, next.scheduled_at, next.notes, next.completed_at, next.metrics, next.hook, next.theme,
-          next.caption, next.hashtags, next.first_comment, next.checklist, now(), row.id);
+          next.caption, next.hashtags, next.first_comment, next.checklist, next.published_url, now(), row.id);
+      // Zaman çizelgesi: yalnız gerçekten değişenler
+      if (next.status !== row.status) logEvent(row.id, 'durum', `${CONTENT_STATUSES[row.status] || row.status} → ${CONTENT_STATUSES[next.status] || next.status}`);
+      if (next.scheduled_at !== row.scheduled_at) logEvent(row.id, 'tarih', next.scheduled_at ? `Yayın tarihi: ${next.scheduled_at}` : 'Tarih kaldırıldı');
+      if (next.published_url !== (row.published_url || '')) logEvent(row.id, 'yayin', next.published_url || 'Yayın bağlantısı kaldırıldı');
+      if (next.metrics && next.metrics !== row.metrics) logEvent(row.id, 'performans', 'Paylaşım sonucu girildi');
+      if (next.caption !== (row.caption || '') || next.hashtags !== (row.hashtags || '') || next.first_comment !== (row.first_comment || '')) logEvent(row.id, 'metin', 'Yayın metni düzenlendi');
+      if (next.brand_id !== row.brand_id) logEvent(row.id, 'marka', 'Marka değiştirildi');
       if (next.metrics && next.metrics !== row.metrics) brands.logActivity(next.brand_id, 'content.metrics', `Paylaşım sonucu girildi: ${next.title}`);
       // Marka değişince başka markanın senaryosuna/postuna bağlantı kalmaz
       if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, prompt_id = NULL, post_id = NULL, pillar_id = NULL WHERE id = ?').run(row.id);

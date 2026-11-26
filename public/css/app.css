@@ -2569,3 +2569,4 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 @media (max-width: 760px) { .nav .nav-sec-body > a { width: 40px; flex: none; } }
 @media (max-width: 760px) { .nav .nav-sec, .nav .nav-sec .nav-sec-body { display: contents !important; } }
 .mem-pending { border-color: #f0d9a8; } .mem-conflict { color: #a12b2b; margin-top: 4px; } .mem-fact.is-archived { opacity: .7; }
+.hist-stats { flex-wrap: wrap; gap: var(--s-3); }

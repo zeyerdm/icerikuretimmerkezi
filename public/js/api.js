@@ -228,6 +228,7 @@ export const api = {
   contents: (params = {}) => request('GET', '/api/contents?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString()),
   content: id => request('GET', '/api/contents/' + encodeURIComponent(id)),
   contentReviews: id => request('GET', `/api/contents/${encodeURIComponent(id)}/reviews`),
+  contentTimeline: id => request('GET', `/api/contents/${id}/timeline`),
   reviewContent: (id, body) => request('POST', `/api/contents/${encodeURIComponent(id)}/review`, body),
   createContent: body => request('POST', '/api/contents', body),
   updateContent: (id, body) => request('PATCH', '/api/contents/' + encodeURIComponent(id), body),

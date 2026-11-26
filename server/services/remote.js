@@ -9,7 +9,7 @@
 import crypto from 'node:crypto';
 import { spawn as nodeSpawn } from 'node:child_process';
 import fs from 'node:fs';
-import { badRequest } from '../lib/http.js';
+import { badRequest, HttpError } from '../lib/http.js';
 
 export const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const COOKIE = 'kh_oturum';
@@ -35,7 +35,10 @@ const hostOf = req => String(req.headers.host || '').replace(/:\d+$/, '').toLowe
 const sha = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 const cookieOf = req => { const m = String(req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([A-Za-z0-9_-]+)`)); return m ? m[1] : ''; };
 
-export function createRemoteAccess({ settings, spawnImpl = nodeSpawn, binPaths = null } = {}) {
+// available: false iken özellik kapalıdır (kullanıcı kararı, 26 Kasım 2026: "şimdilik kaldır"): uzak istek kabul edilmez,
+// tünel kurulmaz, ayar değiştirilemez. Kayıtlı şifre ve ayarlar silinmez; REMOTE_ACCESS=1 ile yeniden açılır.
+export function createRemoteAccess({ settings, spawnImpl = nodeSpawn, binPaths = null, available = true } = {}) {
+  const off = () => new HttpError(403, 'REMOTE_OFF', 'Telefondan erişim şimdilik kapalı.');
   const json = (k, d) => { try { return JSON.parse(settings.get(k) || '') ?? d; } catch { return d; } };
   // Yanlış deneme sayaçları kalıcı (ayarlar tablosu): sunucu yeniden başlasa da kilit sürer
   const loadFails = () => { const v = json('remote.fails', {}); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; };
@@ -62,11 +65,13 @@ export function createRemoteAccess({ settings, spawnImpl = nodeSpawn, binPaths =
 
   const service = {
     COOKIE,
-    enabled: () => settings.get('remote.enabled') === '1' && Boolean(settings.get('remote.password')),
+    available,
+    enabled: () => available && settings.get('remote.enabled') === '1' && Boolean(settings.get('remote.password')),
     status() {
-      return { enabled: service.enabled(), hasPassword: Boolean(settings.get('remote.password')), autoTunnel: settings.get('remote.autoTunnel') === '1', sessions: sessions().length, tunnel: Object.assign({}, tunnel), minPassword: MIN_PASSWORD };
+      return { available, enabled: service.enabled(), hasPassword: Boolean(settings.get('remote.password')), autoTunnel: settings.get('remote.autoTunnel') === '1', sessions: sessions().length, tunnel: Object.assign({}, tunnel), minPassword: MIN_PASSWORD };
     },
     configure({ enabled, password, autoTunnel } = {}) {
+      if (!available) throw off();
       if (password != null && password !== '') {
         const pw = String(password);
         if (pw.length < MIN_PASSWORD) throw badRequest(`Şifre en az ${MIN_PASSWORD} karakter olmalı.`);
@@ -115,6 +120,7 @@ export function createRemoteAccess({ settings, spawnImpl = nodeSpawn, binPaths =
 
     // Cloudflare hızlı tüneli: cloudflared kuruluysa başlatılır, verdiği https adresi okunur
     startTunnel(port) {
+      if (!available) throw off();
       if (!service.enabled()) throw badRequest('Önce uzaktan erişimi aç (şifre belirle).');
       if (child) return service.status();
       const bins = binPaths || ['cloudflared', ...(process.platform === 'win32' ? ['C:\\Program Files (x86)\\cloudflared\\cloudflared.exe', 'C:\\Program Files\\cloudflared\\cloudflared.exe'] : [])];

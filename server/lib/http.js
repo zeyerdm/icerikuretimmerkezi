@@ -1,6 +1,7 @@
 // Ortak HTTP yardımcıları: tutarlı hata yanıtı, doğrulama, kimlik ve zaman
 import { randomUUID } from 'node:crypto';
 import { streamCtx } from './streamCtx.js';
+import { noteBody } from './usageCtx.js';
 
 export class HttpError extends Error {
   constructor(status, code, message, details) {
@@ -48,7 +49,7 @@ async function streamRoute(fn, req, res) {
   // İşleyicinin res.status(...).json(...) çağrıları "done" olayına çevrilir
   const shim = {
     status(c) { code = c; return shim; },
-    json(body) { finish('done', { status: code, body }); return shim; },
+    json(body) { noteBody(body); finish('done', { status: code, body }); return shim; },
     end() { finish('done', { status: code, body: null }); return shim; },
     set() { return shim; }, setHeader() { return shim; }, get locals() { return res.locals; }
   };

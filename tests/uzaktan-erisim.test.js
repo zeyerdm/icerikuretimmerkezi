@@ -26,7 +26,7 @@ function remoteReq(base, method, path, { body, cookie, origin, form } = {}) {
 }
 
 test('Uzaktan erişim: kapalıyken reddedilir; açılınca şifreli oturum, kilit, engelli işlemler, CSRF', async () => {
-  const s = await startServer();
+  const s = await startServer({ remoteAccess: true });
   try {
     // Varsayılan kapalı: uzak adres eskisi gibi reddedilir
     assert.equal((await remoteReq(s.base, 'GET', '/api/health')).status, 403);
@@ -51,7 +51,7 @@ test('Uzaktan erişim: kapalıyken reddedilir; açılınca şifreli oturum, kili
   } finally { await s.stop(); }
 
   // Yeni sunucu (kilit bellekte): doğru şifreyle giriş
-  const s2 = await startServer();
+  const s2 = await startServer({ remoteAccess: true });
   try {
     await s2.request('PUT', '/api/remote', { password: 'telefon-sifresi-42', enabled: true });
     const ok = await remoteReq(s2.base, 'POST', '/api/remote/login', { form: { password: 'telefon-sifresi-42' }, origin: `https://${HOST}` });
@@ -91,7 +91,7 @@ test('Tünel: cloudflared çıktısındaki https adresi okunur; kurulu değilse 
     setTimeout(() => c.stderr.emit('data', Buffer.from('INF |  https://kirmizi-elma-12.trycloudflare.com  |')), 10);
     return c;
   };
-  const s = await startServer({ remoteSpawn: fakeSpawn, remoteBins: ['cloudflared'] });
+  const s = await startServer({ remoteAccess: true, remoteSpawn: fakeSpawn, remoteBins: ['cloudflared'] });
   try {
     assert.equal((await s.request('POST', '/api/remote/tunnel', { action: 'start' })).status, 400, 'erişim kapalıyken tünel açılmaz');
     await s.request('PUT', '/api/remote', { password: 'telefon-sifresi-42', enabled: true });
@@ -105,7 +105,7 @@ test('Tünel: cloudflared çıktısındaki https adresi okunur; kurulu değilse 
     assert.equal((await s.request('POST', '/api/remote/tunnel', { action: 'stop' })).data.tunnel.status, 'kapali');
   } finally { await s.stop(); }
   const missing = (bin) => { const c = new EventEmitter(); c.stdout = new EventEmitter(); c.stderr = new EventEmitter(); setTimeout(() => c.emit('error', Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' })), 5); return c; };
-  const s3 = await startServer({ remoteSpawn: missing, remoteBins: ['cloudflared'] });
+  const s3 = await startServer({ remoteAccess: true, remoteSpawn: missing, remoteBins: ['cloudflared'] });
   try {
     await s3.request('PUT', '/api/remote', { password: 'telefon-sifresi-42', enabled: true });
     await s3.request('POST', '/api/remote/tunnel', { action: 'start' });
@@ -129,4 +129,23 @@ test('Yanlış şifre kilidi kalıcı (yeniden başlatmada sürer); farklı kayn
   for (let i = 0; i < 20; i++) b.login('yanlis', `ip-x${i}`);
   const r = b.login('telefon-sifresi-42', 'ip-yeni');
   assert.equal(r.ok, false); assert.ok(r.locked > 0);
+});
+
+// Kullanıcı kararı (26 Kasım 2026): özellik şimdilik kapalı. Önceden açılmış olsa bile uzak istek reddedilir, tünel
+// kurulmaz, ayar değiştirilemez; kayıtlı ayarlar silinmez (REMOTE_ACCESS=1 ile geri açılır).
+test('Uzaktan erişim şimdilik kapalı: varsayılan sunucu uzak isteği reddeder, ayarlar korunur', async () => {
+  const fs = await import('node:fs'); const os = await import('node:os'); const path = await import('node:path');
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ium-remote-off-'));
+  const on = await startServer({ remoteAccess: true, dataDir });
+  try { assert.equal((await on.request('PUT', '/api/remote', { password: 'telefon-sifresi-42', enabled: true })).data.enabled, true); } finally { await on.stop(); }
+  const s = await startServer({ dataDir });
+  try {
+    const st = (await s.request('GET', '/api/remote')).data;
+    assert.equal(st.available, false); assert.equal(st.enabled, false); assert.equal(st.hasPassword, true, 'kayıtlı şifre silinmez');
+    assert.equal((await remoteReq(s.base, 'GET', '/api/health')).status, 403);
+    assert.equal((await remoteReq(s.base, 'GET', '/giris')).status, 403);
+    assert.equal((await s.request('PUT', '/api/remote', { enabled: true })).status, 403);
+    assert.equal((await s.request('POST', '/api/remote/tunnel', { action: 'start' })).status, 403);
+    assert.equal((await s.request('GET', '/api/health')).status, 200, 'bilgisayardan kullanım değişmez');
+  } finally { await s.stop(); }
 });

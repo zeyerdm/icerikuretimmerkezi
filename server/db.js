@@ -750,6 +750,24 @@ const MIGRATIONS = [
   ALTER TABLE contents ADD COLUMN purpose TEXT NOT NULL DEFAULT '';
   ALTER TABLE contents ADD COLUMN audience TEXT NOT NULL DEFAULT '';
   ALTER TABLE contents ADD COLUMN platform TEXT NOT NULL DEFAULT '';
+  `,
+  // 52: İçerik projesi (O2; takvim içeriği = proje). Yayın bağlantısı; yapay zekâ harcamasının içeriğe ve bağlı kayda
+  // (post, prompt, senaryo) bağlanması; içeriğin zaman çizelgesi (durum, tarih, yayın, sonuç, metin yazımı…).
+  `
+  ALTER TABLE contents ADD COLUMN published_url TEXT NOT NULL DEFAULT '';
+  ALTER TABLE ai_usage ADD COLUMN content_id TEXT;
+  ALTER TABLE ai_usage ADD COLUMN ref TEXT;
+  CREATE INDEX idx_ai_usage_content ON ai_usage(content_id);
+  CREATE INDEX idx_ai_usage_ref ON ai_usage(ref);
+  CREATE TABLE content_events (
+    id TEXT PRIMARY KEY,
+    content_id TEXT NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
+    at TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    ref TEXT
+  );
+  CREATE INDEX idx_content_events ON content_events(content_id, at);
   `
 ];
 

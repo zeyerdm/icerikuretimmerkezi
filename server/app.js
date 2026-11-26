@@ -51,6 +51,7 @@ import { createIdentityService } from './services/identity.js';
 import { createSiteReader } from './services/siteReader.js';
 import { createLinkedinService } from './services/linkedin.js';
 import { createInsightService } from './services/insights.js';
+import { usageCtx, scopeFromPath } from './lib/usageCtx.js';
 import { createStrategyService, GOAL_KINDS, PURPOSES, PLATFORMS } from './services/strategy.js';
 import { createRemoteAccess, loginPage } from './services/remote.js';
 import { createMemoryService } from './services/memory.js';
@@ -111,7 +112,7 @@ function securityHeaders(req, res, next) {
 
 const TOKEN_SETTING = 'update.githubToken';
 
-export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, siteFetch, siteAllowPrivate = false, remoteSpawn, remoteBins, queueAutostart = true, restart = code => process.exit(code) } = {}) {
+export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'data'), root = ROOT, aiProvider, aiProviders, fetchImpl, updateFetch, driveFetch, aiRetryDelays, videoPollMs, onboardReadMs, siteFetch, siteAllowPrivate = false, remoteSpawn, remoteBins, remoteAccess = process.env.REMOTE_ACCESS === '1', queueAutostart = true, restart = code => process.exit(code) } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = openDb(path.join(dataDir, 'app.db'));
   const ownerId = ensureOwner(db);
@@ -170,7 +171,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const strategy = createStrategyService({ db });
   const insights = createInsightService({ db, brands, settings, strategy });
   const linkedin = createLinkedinService({ db, ai, brands, posts, prompts, workspace, ideas });
-  const remote = createRemoteAccess(Object.assign({ settings }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
+  const remote = createRemoteAccess(Object.assign({ settings, available: remoteAccess }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', false);
@@ -198,6 +199,26 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   app.use(express.json({ limit: '200kb' }));
 
   const api = express.Router();
+
+  // O2: yapay zekâ harcaması istek bağlamıyla içeriğe ya da bağlı kayda (post, prompt, senaryo) yazılır
+  api.use((req, res, next) => {
+    if (req.method === 'GET') return next();
+    const sc = scopeFromPath(req.path, req.body);
+    if (!sc) return next();
+    const store = Object.assign({ ids: [] }, sc);
+    if (sc.create) {
+      store.onBody = body => {
+        const rec = body && body[sc.create];
+        if (!rec || !rec.id || !store.ids.length || store.tagged) return;
+        store.tagged = true;
+        const ids = store.ids.slice(0, 500);
+        db.prepare(`UPDATE ai_usage SET ref = ? WHERE ref IS NULL AND id IN (${ids.map(() => '?').join(',')})`).run(`${sc.create}:${rec.id}`, ...ids);
+      };
+      const json = res.json.bind(res);
+      res.json = body => { store.onBody(body); return json(body); };
+    }
+    usageCtx.run(store, next);
+  });
 
   api.get('/health', (req, res) => res.json({ ok: true }));
 
@@ -494,6 +515,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   });
   api.get('/contents/:id', (req, res) => res.json({ content: workspace.getContent(req.params.id) }));
   // 8.11 Onay akışı
+  api.get('/contents/:id/timeline', (req, res) => res.json(workspace.timeline(req.params.id)));
   api.get('/contents/:id/reviews', (req, res) => res.json({ reviews: workspace.reviews(req.params.id) }));
   api.post('/contents/:id/review', (req, res) => res.status(201).json(workspace.review(req.params.id, req.body || {})));
   api.post('/contents', (req, res) => res.status(201).json({ content: workspace.createContent(req.body || {}) }));
