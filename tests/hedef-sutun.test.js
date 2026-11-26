@@ -143,6 +143,7 @@ test('Arayüz: hedef ve sütun ekle, içeriğe sütun ata, takvimde süz, rapord
     await page.reload(); await page.locator('.cal-card').waitFor();
     await page.getByRole('button', { name: /^Süzgeç/ }).click();
     await page.selectOption('[data-flt="platform"]', 'youtube');
+    await page.getByRole('button', { name: 'Süzgeç (1)' }).waitFor(); // süzgeçli çizim bitti
     await page.locator('[data-item]', { hasText: 'Diğer içerik' }).first().waitFor();
     assert.equal(await page.locator('[data-item]', { hasText: 'Sütunsuz içerik' }).count(), 0);
     await page.getByRole('button', { name: 'Temizle' }).click();
