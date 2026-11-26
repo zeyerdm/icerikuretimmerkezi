@@ -98,6 +98,12 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 
 ## Bekleyen kararlar (kullanıcıya toplu sorulacak)
 
-- Hazır görsel şablonları: Prompt Studio'da mı kalsın, Post stüdyosuna mı taşınsın?
-- Yapay zekâ platformu: [AI_PLATFORM_KARARI.md](AI_PLATFORM_KARARI.md) önerisi
-- Lisans: uygulama ticari ve kapalı kaynak (AGPL ve görünür atıf şartlı kod alınmaz)
+- Hazır görsel şablonları (26 Kasım cevabı: "Canva tarzı bir yapı olabilir; kullanılması gereken yerlerden erişilsin;
+  bir de ana sayfa gibi bir şablon sayfası olabilir; tam emin değilim"): önce taslak öneri hazırlanacak (tek şablon
+  galerisi + Post, Prompt Studio, Kampanya kanvasından kısayol), onaydan sonra yapılır
+- Lisans: şimdilik karar yok; bugünkü kural geçerli (AGPL ve görünür atıf şartlı kod alınmaz)
+- Ücretli işlem onay sınırı: acelesi yok (kullanıcı ücretsiz sürümleri kullanıyor); varsayılan $0,10 kaldı, ücretsiz
+  kullanım etkilenmez
+- Antigravity'deki yerel değişiklikler: kullanıcı GitHub'a gönderecek (`antigravity` dalı), sonra birleştirilecek
+
+Yapay zekâ platformu kararı 18 Kasım'da verildi: [AI_PLATFORM_KARARI.md](AI_PLATFORM_KARARI.md).

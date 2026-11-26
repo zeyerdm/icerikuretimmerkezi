@@ -41,7 +41,10 @@ test('8.14 video üretimi: anahtar yokken kapalı; başlat → sorgula → indir
     assert.equal((await s.request('POST', `/api/brands/${b.id}/reels/${r.id}/video`, { sceneIndex: 9 })).status, 400);
     assert.equal((await s.request('POST', `/api/brands/${b.id}/reels/${r.id}/video`, { sceneIndex: 0, aspect: '4:3' })).status, 400);
 
-    const job = (await s.request('POST', `/api/brands/${b.id}/reels/${r.id}/video`, { sceneIndex: 1, aspect: '9:16' })).data.job;
+    // Ücretli işlem onayı: video ($1,20) işlem başına sınırı ($0,10) aşar; önce sorulur, onayla başlar
+    const ask = await s.request('POST', `/api/brands/${b.id}/reels/${r.id}/video`, { sceneIndex: 1, aspect: '9:16' });
+    assert.equal(ask.status, 409); assert.equal(ask.data.error.code, 'COST_CONFIRM');
+    const job = (await s.request('POST', `/api/brands/${b.id}/reels/${r.id}/video`, { sceneIndex: 1, aspect: '9:16', confirmCost: true })).data.job;
     assert.equal(job.status, 'bekliyor');
     const start = v.calls.find(c => c.path.endsWith(':predictLongRunning'));
     assert.match(start.path, /veo-3\.0-fast-generate-001:predictLongRunning$/);
@@ -74,7 +77,7 @@ test('8.14 sağlayıcı hata döndürünce iş "Hata" olur ve tutar yazılmaz', 
     await s.request('PUT', '/api/ai/keys/gemini', { apiKey: 'AIzaTEST0123456789abcdefghijklmnop' });
     const b = (await s.request('POST', '/api/brands', { name: 'Hatalı' })).data.brand;
     const r = (await s.request('POST', `/api/brands/${b.id}/reels`, { topic: 'Vize' })).data.reels;
-    await s.request('POST', `/api/brands/${b.id}/reels/${r.id}/video`, { sceneIndex: 0 });
+    await s.request('POST', `/api/brands/${b.id}/reels/${r.id}/video`, { sceneIndex: 0, confirmCost: true });
     await s.request('GET', `/api/brands/${b.id}/video-jobs`);
     const j = (await s.request('GET', `/api/brands/${b.id}/video-jobs`)).data.jobs[0];
     assert.equal(j.status, 'hata');
