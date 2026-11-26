@@ -51,7 +51,7 @@ import { createIdentityService } from './services/identity.js';
 import { createSiteReader } from './services/siteReader.js';
 import { createLinkedinService } from './services/linkedin.js';
 import { createInsightService } from './services/insights.js';
-import { usageCtx, scopeFromPath } from './lib/usageCtx.js';
+import { usageCtx, scopeFromPath, costCtx } from './lib/usageCtx.js';
 import { createStrategyService, GOAL_KINDS, PURPOSES, PLATFORMS } from './services/strategy.js';
 import { createRemoteAccess, loginPage } from './services/remote.js';
 import { createMemoryService } from './services/memory.js';
@@ -199,6 +199,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   app.use(express.json({ limit: '200kb' }));
 
   const api = express.Router();
+
+  // Ücretli işlem onayı: istemci onay verdiyse (confirmCost) bu istekteki işlemler sorulmadan çalışır
+  api.use((req, res, next) => {
+    if (req.method === 'GET') return next();
+    costCtx.run({ confirmed: Boolean((req.body && req.body.confirmCost) || req.query.confirmCost === '1') }, next);
+  });
 
   // O2: yapay zekâ harcaması istek bağlamıyla içeriğe ya da bağlı kayda (post, prompt, senaryo) yazılır
   api.use((req, res, next) => {
@@ -766,7 +772,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.put('/brands/:brandId/post-templates/:tid/match', (req, res) => res.json({ template: posts.setTemplateMatch(req.brand.id, req.params.tid, req.body || {}) }));
   // Toplu üretim kuyruğu
   api.get('/brands/:brandId/gen-jobs', (req, res) => res.json({ jobs: queue.list(req.brand.id, { batchId: req.query.batch || null, type: req.query.type }), batches: queue.batches(req.brand.id, { type: req.query.type }), statuses: queue.statuses }));
-  api.post('/brands/:brandId/gen-batches', (req, res) => { const b = req.body || {}; res.status(201).json(queue.createBatch(req.brand.id, { ideaIds: b.ideaIds, category: b.category || null, format: b.format || null, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides, mascot: b.mascot, modelRef: b.model || null, force: Boolean(b.force), type: b.type === 'reels' ? 'reels' : 'post', scenes: b.scenes })); });
+  api.post('/brands/:brandId/gen-batches', (req, res) => { const b = req.body || {}; if (Array.isArray(b.ideaIds) && b.ideaIds.length) ai.guardBatch(b.ideaIds.length * (b.type === 'reels' ? 2 : 1), b.model || null); res.status(201).json(queue.createBatch(req.brand.id, { ideaIds: b.ideaIds, category: b.category || null, format: b.format || null, templateId: b.templateId || null, templateVersion: b.templateVersion || null, slides: b.slides, mascot: b.mascot, modelRef: b.model || null, force: Boolean(b.force), type: b.type === 'reels' ? 'reels' : 'post', scenes: b.scenes })); });
   api.post('/brands/:brandId/gen-batches/:bid/:action', (req, res) => {
     const a = req.params.action;
     if (!['pause', 'resume', 'cancel'].includes(a)) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Geçersiz işlem.' } });

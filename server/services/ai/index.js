@@ -8,7 +8,7 @@ import { createAnthropicProvider } from './providers/anthropic.js';
 import { createOpenAiCompatibleProvider } from './providers/openai.js';
 import { cancelled } from './providers/common.js';
 import { currentStream } from '../../lib/streamCtx.js';
-import { usageScope } from '../../lib/usageCtx.js';
+import { usageScope, costCtx } from '../../lib/usageCtx.js';
 
 const TASKS_SETTING = 'ai.tasks';
 const BUDGET_SETTING = 'ai.budget';
@@ -91,13 +91,23 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     if (sc && sc.ids) sc.ids.push(id);
   }
 
-  const budget = () => Object.assign({ monthlyUsd: 0, warnPercent: 80 }, parseJson(settings.get(BUDGET_SETTING) || '{}', {}));
+  const budget = () => Object.assign({ monthlyUsd: 0, warnPercent: 80, confirmUsd: 0.1 }, parseJson(settings.get(BUDGET_SETTING) || '{}', {}));
+  // Ücretli işlem onayı: tahmini tutar sınırı aşarsa (ve istekte onay yoksa) 409 COST_CONFIRM; istemci sorar, onaylanınca tekrar gönderir.
+  // 0 = hiç sorma. Arka plan işlerinde (bağlam yok) sorulmaz.
+  function guardCost(estimate, what) {
+    const st = costCtx.getStore();
+    if (!st || st.confirmed || !(estimate > 0)) return;
+    const lim = Number(budget().confirmUsd) || 0;
+    if (lim > 0 && estimate > lim) throw new HttpError(409, 'COST_CONFIRM', `${what} yaklaşık $${estimate.toFixed(3)} tutacak (işlem başına onay sınırı $${lim}). Devam edilsin mi?`);
+  }
+  // Metin işi tahmini: istem uzunluğu (≈3,5 karakter / token) + ortalama çıktı
+  const estimateText = (ref, chars, out = 2500) => { const p = ref ? priceFor(ref) : null; return p ? ((chars / 3.5) * p.input + out * p.output) / 1e6 : 0; };
   const monthSpend = () => (db ? db.prepare('SELECT COALESCE(SUM(cost_usd), 0) AS s FROM ai_usage WHERE created_at >= ?').get(monthStart()).s : 0);
   function budgetStatus() {
     const b = budget();
     const spent = monthSpend();
     const percent = b.monthlyUsd > 0 ? Math.round((spent / b.monthlyUsd) * 100) : null;
-    return { monthlyUsd: b.monthlyUsd, warnPercent: b.warnPercent, spent, percent, warning: percent != null && percent >= b.warnPercent, blocked: percent != null && spent >= b.monthlyUsd };
+    return { monthlyUsd: b.monthlyUsd, warnPercent: b.warnPercent, confirmUsd: b.confirmUsd, spent, percent, warning: percent != null && percent >= b.warnPercent, blocked: percent != null && spent >= b.monthlyUsd };
   }
   function checkBudget() {
     const s = budgetStatus();
@@ -169,6 +179,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       primary = modelRef;
     }
     if (!primary) throw new HttpError(409, 'AI_NOT_CONFIGURED', 'AI bağlı değil. Yapay zekâ → Sağlayıcılar bölümünden bir anahtar ekle.');
+    guardCost(estimateText(primary, String(prompt || '').length), 'Bu yapay zekâ işlemi');
     // Yedek: işe atanmış yedek model; yoksa aynı sağlayıcının hafif modeli (ör. Gemini Flash → Flash Lite)
     let fb = a.fallback && a.fallback !== primary ? a.fallback : null;
     if (!fb) {
@@ -256,6 +267,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     if (!isConfigured(p.provider)) throw new HttpError(409, 'AI_NOT_CONFIGURED', `${PROVIDERS[p.provider].label} bağlı değil.`);
     if (!IMAGE_ASPECTS[aspect]) throw badRequest('Geçersiz görsel oranı.');
     const cat = imageCatalog(chosen);
+    guardCost(cat ? cat.perImage : 0, 'Bu görsel');
     const started = Date.now();
     try {
       const r = await providers[p.provider].image({ model: p.id, prompt, aspect: keepAspect ? null : aspect, refs: cat && cat.refs === false ? [] : refs });
@@ -304,6 +316,7 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
     const cat = videoCat(chosen);
     if (!cat) throw badRequest('Geçersiz video modeli.');
     if (!VIDEO_ASPECTS[aspect]) throw badRequest('Geçersiz video oranı.');
+    guardCost(cat.perSecond * cat.seconds, `${cat.seconds} saniyelik video`);
     const r = await providers.gemini.videoStart({ model: cat.id, prompt, aspect });
     return { operation: r.operation, ref: chosen, label: cat.label };
   }
@@ -333,6 +346,11 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   }
 
   const service = {
+    // Toplu iş onayı: kuyruğa alırken toplam tahmini tutar (arka plandaki işler ayrıca sorulmaz)
+    guardBatch(calls, modelRef = null, task = 'yazim') {
+      const ref = modelRef || assignment(task).primary;
+      guardCost(calls * estimateText(ref, 8000, 3000), `${calls} yapay zekâ işlemi (toplu üretim)`);
+    },
     openrouterCredits,
     providers,
     tasks: TASKS,
@@ -468,8 +486,13 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
       settings.set(TASKS_SETTING, JSON.stringify(current));
     },
 
-    setBudget({ monthlyUsd, warnPercent }) {
+    setBudget({ monthlyUsd, warnPercent, confirmUsd }) {
       const b = budget();
+      if (confirmUsd !== undefined) {
+        const c = Number(confirmUsd);
+        if (!Number.isFinite(c) || c < 0 || c > 1000) throw badRequest('İşlem başına onay sınırı 0 ile 1000 $ arasında olmalı (0 = sorma).');
+        b.confirmUsd = Math.round(c * 1000) / 1000;
+      }
       if (monthlyUsd !== undefined) {
         const v = Number(monthlyUsd);
         if (!Number.isFinite(v) || v < 0 || v > 100000) throw badRequest('Aylık sınır 0 ile 100000 $ arasında olmalı (0 = sınırsız).');

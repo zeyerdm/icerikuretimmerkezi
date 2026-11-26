@@ -393,6 +393,7 @@ async function renderSpend(body, ov, view, month) {
       <form id="budget-form" class="row card-section">
         <div class="field"><label for="b-limit">Aylık sınır ($, 0 = sınırsız)</label><input class="input w-sm" id="b-limit" type="number" min="0" step="0.5" value="${b.monthlyUsd}"></div>
         <div class="field"><label for="b-warn">Uyarı eşiği (%)</label><input class="input w-sm" id="b-warn" type="number" min="10" max="100" step="5" value="${b.warnPercent}"></div>
+        <div class="field"><label for="b-confirm">İşlem başına onay sınırı ($, 0 = sorma)</label><input class="input w-sm" id="b-confirm" type="number" min="0" max="1000" step="0.01" value="${b.confirmUsd != null ? b.confirmUsd : 0.1}"><span class="hint">Tek işlemin tahmini tutarı bunu aşarsa (ör. video, pahalı model) önce sorulur.</span></div>
         <button class="btn btn-primary" type="submit" style="align-self:flex-end">Kaydet</button>
       </form>
     </section>
@@ -417,7 +418,7 @@ async function renderSpend(body, ov, view, month) {
   body.querySelector('#budget-form').addEventListener('submit', async e => {
     e.preventDefault();
     try {
-      await busy(e.submitter, () => api.aiSaveBudget({ monthlyUsd: Number(body.querySelector('#b-limit').value || 0), warnPercent: Number(body.querySelector('#b-warn').value || 80) }));
+      await busy(e.submitter, () => api.aiSaveBudget({ monthlyUsd: Number(body.querySelector('#b-limit').value || 0), warnPercent: Number(body.querySelector('#b-warn').value || 80), confirmUsd: Number(body.querySelector('#b-confirm').value || 0) }));
       toast('Sınır kaydedildi.', 'success');
       await refreshChrome();
       renderAi(view, 'harcama');

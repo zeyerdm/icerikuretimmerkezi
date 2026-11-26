@@ -37,9 +37,16 @@ async function request(method, url, body, headers = {}) {
     const e = (data && data.error) || {};
     // Telefondan erişimde oturum düştüyse giriş sayfasına
     if (res.status === 401 && e.code === 'LOGIN_REQUIRED') location.href = '/giris';
+    // Ücretli işlem onayı: tahmini tutar sınırı aşıyor; kullanıcı onaylarsa aynı istek onayla tekrar gönderilir
+    if (e.code === 'COST_CONFIRM') return confirmCost(e.message, () => request(method, url + (body instanceof Blob ? (url.includes('?') ? '&' : '?') + 'confirmCost=1' : ''), body instanceof Blob ? body : Object.assign({}, body || {}, { confirmCost: true }), headers));
     throw new ApiError(res.status, e.code || 'ERROR', e.message || 'İstek başarısız oldu.');
   }
   return data;
+}
+
+function confirmCost(message, again) {
+  if (typeof confirm === 'function' && confirm(message)) return again();
+  throw new ApiError(409, 'AI_CANCELLED', 'Vazgeçildi; ücretli işlem yapılmadı.');
 }
 
 // 8.4 Akışlı istek: sunucu metni parça parça (SSE) gönderir; signal ile iptal edilir. Sonuç normal istekle aynıdır.
@@ -54,7 +61,11 @@ export async function streamRequest(method, url, body, { onDelta = () => {}, onR
   }
   if (!(res.headers.get('content-type') || '').includes('text/event-stream')) {
     const data = await res.json().catch(() => null);
-    if (!res.ok) { const e = (data && data.error) || {}; throw new ApiError(res.status, e.code || 'ERROR', e.message || 'İstek başarısız oldu.'); }
+    if (!res.ok) {
+      const e = (data && data.error) || {};
+      if (e.code === 'COST_CONFIRM') return confirmCost(e.message, () => streamRequest(method, url, Object.assign({}, body || {}, { confirmCost: true }), { onDelta, onReset, signal }));
+      throw new ApiError(res.status, e.code || 'ERROR', e.message || 'İstek başarısız oldu.');
+    }
     return data;
   }
   const reader = res.body.getReader();
@@ -74,6 +85,7 @@ export async function streamRequest(method, url, body, { onDelta = () => {}, onR
         if (ev === 'delta') onDelta(data.t || '');
         else if (ev === 'reset') onReset();
         else if (ev === 'done') { if (data.status >= 400) throw new ApiError(data.status, 'ERROR', 'İstek başarısız oldu.'); return data.body; }
+        else if (ev === 'error' && data.error && data.error.code === 'COST_CONFIRM') { reader.cancel().catch(() => {}); return confirmCost(data.error.message, () => streamRequest(method, url, Object.assign({}, body || {}, { confirmCost: true }), { onDelta, onReset, signal })); }
         else if (ev === 'error') { const e = data.error || {}; throw new ApiError(data.status || 500, e.code || 'ERROR', e.message || 'İstek başarısız oldu.'); }
       }
     }
