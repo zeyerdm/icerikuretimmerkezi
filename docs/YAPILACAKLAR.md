@@ -30,8 +30,8 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 
 - ✅ Marka sayfalarındaki tekrarlar (tek Düzenle, tek "Yapay zekâ ile doldur", silme tek yerde)
 - ✅ Kurulumda seçime bağlı sorular, menüde seçilmeyen kanalların gizlenmesi
-- ⬜ Profil / Görsel kimlik sekmeleri ile marka dosyası kartlarının tek düzenleyicide birleşmesi (onaylandı)
-- ⬜ Kurulum sihirbazı yalnız eksikleri tamamlar; kişinin vermesi gereken bilgi için bildirim; elle doldurma öncelikli (onaylandı)
+- ✅ Profil / Görsel kimlik ayrı sekme değil: marka dosyası kartlarının Düzenle'si tek düzenleme sayfasını açar (profil, web sitesi, Drive, logo yükleme, renk, palet, font, canlı önizleme)
+- ✅ Kurulum sihirbazı tamamlanan adımları atlar, yalnız eksikleri açar; kişinin vermesi gereken eksik bilgi bildirim merkezinde ("Eksikleri tamamla" doğrudan ilk eksik adıma); elle doldurma öncelikli, yapay zekâ isteğe bağlı
 - 🟡 Telefon görünümü: marka menüsü düzeltildi; kalan küçük taşmalar (Aylık rapor) sonraya (kullanıcı önceliği: bilgisayar)
 
 ## 03 · Merkezi veri ve marka hafızası

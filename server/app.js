@@ -169,7 +169,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory });
 
   const strategy = createStrategyService({ db });
-  const insights = createInsightService({ db, brands, settings, strategy });
+  const insights = createInsightService({ db, brands, settings, strategy, setup: brandSetup });
   const linkedin = createLinkedinService({ db, ai, brands, posts, prompts, workspace, ideas });
   const remote = createRemoteAccess(Object.assign({ settings, available: remoteAccess }, remoteSpawn ? { spawnImpl: remoteSpawn } : {}, remoteBins ? { binPaths: remoteBins } : {}));
   const app = express();

@@ -7,7 +7,7 @@ import { badRequest } from '../lib/http.js';
 
 export const INSIGHT_KINDS = {
   plan_bos: 'Plan boşluğu', onay_bekliyor: 'Onay bekleyen içerik', geciken_icerik: 'Tarihi geçen içerik',
-  geciken_gorev: 'Geciken görev', hafiza_onay: 'Onay bekleyen bilgi', ozel_gun: 'Yaklaşan özel gün', uretim_dustu: 'Üretim düştü', tek_tip: 'Tek tip içerik', sutun_dengesi: 'Sütun dengesi', hedef_geride: 'Hedef geride'
+  geciken_gorev: 'Geciken görev', hafiza_onay: 'Onay bekleyen bilgi', ozel_gun: 'Yaklaşan özel gün', uretim_dustu: 'Üretim düştü', tek_tip: 'Tek tip içerik', sutun_dengesi: 'Sütun dengesi', hedef_geride: 'Hedef geride', kimlik_eksik: 'Eksik marka bilgisi'
 };
 const PRIORITY_RANK = { yuksek: 0, orta: 1, dusuk: 2 };
 const DONE = ['tamamlandi', 'yayinlandi'];
@@ -16,7 +16,7 @@ const isoDay = d => new Date(d).toISOString().slice(0, 10);
 // Haftanın pazartesisi (dönem anahtarı)
 const weekKey = t => { const d = new Date(t); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return isoDay(d); };
 
-export function createInsightService({ db, brands, settings, strategy = null }) {
+export function createInsightService({ db, brands, settings, strategy = null, setup = null }) {
   const dismissed = () => { try { const v = JSON.parse(settings.get('insights.dismissed') || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; } };
 
   function forBrand(b, t) {
@@ -81,6 +81,21 @@ export function createInsightService({ db, brands, settings, strategy = null }) 
       const behind = strategy.progress(b.id, month).goals.filter(g => g.auto && g.percent != null && g.percent < 50);
       if (behind.length) add({ key: `hedef_geride:${b.id}:${month}`, kind: 'hedef_geride', priority: 'orta', date: isoDay(t), title: 'Ayın hedefi geride',
         text: behind.map(g => `${g.label}: %${g.percent}`).join(' · ') + ' (paylaşım sonuçları girilen içeriklere göre).', action: { label: 'Aylık rapor', href: `${base}/rapor` } });
+    }
+    // 6d) O4.6 · Marka kimliğinde kişinin vermesi gereken eksik bilgi (logo, açıklama, adres…): yapay zekâ çağrılmaz;
+    // kurulum sihirbazı yalnız eksik adımı açar. Anahtar eksik sayısına bağlı: sayı değişince uyarı yenilenir.
+    if (setup) {
+      let st = null;
+      try { st = setup.status(b.id); } catch { st = null; }
+      if (st) {
+        const missing = st.steps.filter(x => x.needs.length);
+        const n = missing.reduce((k, x) => k + x.needs.length, 0);
+        if (!st.started) add({ key: `kimlik_eksik:${b.id}:kurulmadi`, kind: 'kimlik_eksik', priority: 'orta', date: isoDay(t), title: 'Marka kimliği kurulmadı',
+          text: 'Birkaç soruyla marka, kitle, ses ve görsel kimlik tanımlanır; üretimler buna göre yapılır. Elle doldurulur, yapay zekâ isteğe bağlı.', action: { label: 'Kuruluma başla', href: `${base}/kimlik/kurulum` } });
+        else if (n) add({ key: `kimlik_eksik:${b.id}:${n}`, kind: 'kimlik_eksik', priority: missing.some(x => x.id === 'temel') ? 'orta' : 'dusuk', date: isoDay(t), title: `Marka kimliğinde ${n} eksik bilgi`,
+          text: missing.slice(0, 3).map(x => `${x.label}: ${x.needs.slice(0, 3).join(', ')}`).join(' · ') + (missing.length > 3 ? ` ve ${missing.length - 3} bölüm daha` : ''),
+          action: { label: 'Eksikleri tamamla', href: `${base}/kimlik/kurulum/${missing[0].id}` } });
+      }
     }
     // 7) Hafızada onay bekleyen bilgi kartları (siteden, yapay zekâdan gelenler): onaylanmadan üretime girmez
     const pend = db.prepare("SELECT COUNT(*) AS n FROM brand_facts WHERE brand_id = ? AND status = 'oneri'").get(b.id).n;
