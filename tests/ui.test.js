@@ -51,15 +51,15 @@ test('ilk açılış: yönetim merkezi → marka oluştur → kimlik → kütüp
     await page.locator('#ob-send').waitFor();
     assert.ok(await page.getByRole('link', { name: 'Yönetim Merkezine dön' }).isVisible());
     await page.getByRole('link', { name: 'Marka kimliği' }).first().click();
-    await page.getByRole('link', { name: 'Profil', exact: true }).click();
+    await page.locator('#ds-kitle').getByRole('link', { name: 'Düzenle' }).click();
     await page.waitForURL(/#\/m\/[^/]+\/kimlik\/profil$/);
     await page.getByLabel('Hedef kitle').fill('Üniversite öğrencileri');
     await page.getByLabel('Marka sloganı').fill('Her yudum bir mola');
     await page.getByRole('button', { name: 'Kaydet' }).click();
     await page.getByText('Tüm değişiklikler kayıtlı').waitFor();
 
-    await page.getByRole('link', { name: 'Görsel kimlik' }).click();
-    assert.match(page.url(), /\/kimlik\/gorsel$/);
+    // Görsel bölüm aynı sayfada (profil kaydedildikten sonra)
+    await page.locator('#ed-gorsel').waitFor();
     await page.locator('[data-hex="primary"]').fill('#aa3300');
     await page.getByLabel('Başlık fontu').selectOption('Poppins');
     assert.equal(await page.locator('.pp-title').textContent(), 'Her yudum bir mola');

@@ -14,7 +14,8 @@ import { renderMemory } from './memory.js';
 import { renderStrategy } from './strategy.js';
 import { renderPromptIdentity, characterBookCard } from './promptIdentity.js';
 
-export const ID_TABS = [['ozet', '', 'Marka dosyası'], ['profil', '/profil', 'Profil'], ['gorsel', '/gorsel', 'Görsel kimlik'], ['ses', '/ses', 'Ses ve hafıza'], ['prompt', '/prompt', 'Görsel dil'], ['maskot', '/maskot', 'Maskot'], ['strateji', '/strateji', 'Hedefler ve sütunlar']];
+// O4.5: Profil ve Görsel kimlik ayrı sekme değil; Marka dosyasındaki Düzenle düğmeleri tek düzenleme sayfasını açar
+export const ID_TABS = [['ozet', '', 'Marka dosyası'], ['ses', '/ses', 'Ses ve hafıza'], ['prompt', '/prompt', 'Görsel dil'], ['maskot', '/maskot', 'Maskot'], ['strateji', '/strateji', 'Hedefler ve sütunlar']];
 
 export function identityHead(brand, active, desc) {
   const base = `#/m/${esc(brand.id)}/kimlik`;
@@ -67,13 +68,13 @@ const optLabel = (questions, key, v) => {
   return Array.isArray(v) ? v.map(x => q.options[x] || x).join(', ') : (q.options ? q.options[v] || v : v);
 };
 
-function section({ id, title, step, tab, needs, rows, extra = '', brand }) {
+function section({ id, title, step, tab, needs, rows, extra = '', brand, href = null }) {
   const base = `#/m/${esc(brand.id)}/kimlik`;
   return `<section class="card dossier-card" id="ds-${id}">
     <div class="card-head"><h3>${esc(title)}</h3>${needs.length ? `<span class="pill pill-warn" title="${esc(needs.join(', '))}">${needs.length} eksik</span>` : '<span class="pill pill-ok"><span class="dot"></span>Tamam</span>'}</div>
     <dl class="dossier-dl">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>${extra}
     ${needs.length ? `<p class="xsmall muted mt-2">Eksik: ${esc(needs.join(', '))}</p>` : ''}
-    <div class="row mt-3"><a class="btn btn-sm btn-primary" href="${base}/duzenle/${step}">${icon('edit')}Düzenle</a></div>
+    <div class="row mt-3"><a class="btn btn-sm btn-primary" href="${href ? base + href : `${base}/duzenle/${step}`}">${icon('edit')}Düzenle</a></div>
   </section>`;
 }
 
@@ -96,13 +97,13 @@ async function renderDossier(view, brand) {
 
   const swatches = [b.colors.primary, ...b.colors.secondary].filter(Boolean);
   const cards = [
-    section({ brand, id: 'temel', title: 'Marka', step: 'temel', tab: 'profil', needs: need('temel'), rows: [['Ad', val(b.name)], ['Sektör', val(b.sector)], ['Slogan', val(b.slogan)], ['Açıklama', val(b.description)]] }),
+    section({ brand, id: 'temel', title: 'Marka', step: 'temel', href: '/profil', needs: need('temel'), rows: [['Ad', val(b.name)], ['Sektör', val(b.sector)], ['Slogan', val(b.slogan)], ['Açıklama', val(b.description)], ['Web sitesi', val(b.website)], ['Drive klasörü', b.driveFolderUrl ? 'Bağlı' : dash]] }),
     section({ brand, id: 'yapi', title: 'Kanallar ve içerikler', step: 'yapi', needs: need('yapi'), rows: [
       ['Kanallar', val(d.setup.channels.map(k => d.options.channels[k]))], ['İçerik türleri', val(d.setup.contentKinds.map(k => d.options.contentKinds[k]))],
       ['Maskot', d.setup.hasMascot == null ? dash : d.setup.hasMascot ? 'Var' : 'Yok'], ['Ziyaret edilen mekân', d.setup.hasPlace == null ? dash : d.setup.hasPlace ? 'Var' : 'Yok']] }),
-    section({ brand, id: 'kitle', title: 'Kitle ve hedef', step: 'kitle', tab: 'profil', needs: need('kitle'), rows: [['Hedef kitle', val(b.audience)], ['Hedefler', val(b.goals)], ['Rakipler', val(b.competitors)], ['Aylık içerik hedefi', b.monthlyGoal ? esc(String(b.monthlyGoal)) : dash]] }),
-    section({ brand, id: 'ses', title: 'Ses ve dil', step: 'ses', needs: need('ses'), rows: [['Karakter', val(b.character)], ['İletişim dili', val(b.tone)], ['Kullanılmayacak kelimeler', val(d.memory.banned)], ['Tercih edilen ifadeler', val(d.memory.preferred)]] }),
-    section({ brand, id: 'gorsel', title: 'Logo, renk ve font', step: 'gorsel', tab: 'gorsel', needs: need('gorsel'), rows: [
+    section({ brand, id: 'kitle', title: 'Kitle ve hedef', step: 'kitle', href: '/profil', needs: need('kitle'), rows: [['Hedef kitle', val(b.audience)], ['Hedefler', val(b.goals)], ['Rakipler', val(b.competitors)], ['Aylık içerik hedefi', b.monthlyGoal ? esc(String(b.monthlyGoal)) : dash]] }),
+    section({ brand, id: 'ses', title: 'Ses ve dil', step: 'ses', href: '/profil', needs: need('ses'), rows: [['Karakter', val(b.character)], ['İletişim dili', val(b.tone)], ['Kullanılmayacak kelimeler', val(d.memory.banned)], ['Tercih edilen ifadeler', val(d.memory.preferred)]] }),
+    section({ brand, id: 'gorsel', title: 'Logo, renk ve font', step: 'gorsel', href: '/gorsel', needs: need('gorsel'), rows: [
       ['Logo', d.logo ? `<img class="ds-logo" src="${esc(d.logo.url)}" alt="${esc(b.name)} logosu">` : dash],
       ['Renkler', swatches.length ? `<span class="swatches">${swatches.map(c => `<span class="swatch" style="background:${esc(c)}" title="${esc(c)}"></span>`).join('')}</span>` : dash],
       ['Fontlar', b.fonts.heading || b.fonts.body ? esc([b.fonts.heading, b.fonts.body].filter(Boolean).join(' / ')) : dash]] }),
