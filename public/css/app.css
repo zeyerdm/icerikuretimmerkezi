@@ -1537,7 +1537,7 @@ body.ai-full-open { overflow: hidden; }
 .cv-pick-item em { font-style: normal; font-size: var(--t-xs); color: var(--muted); }
 
 /* Aylık rapor */
-.rep-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.rep-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .rep-month { font-size: var(--t-lg); min-width: 150px; text-align: center; }
 .report { max-width: 900px; margin: 0 auto; padding: 28px 32px; display: grid; gap: 22px; border-top: 6px solid var(--rep); }
 .rep-head { display: flex; gap: 16px; align-items: center; }
