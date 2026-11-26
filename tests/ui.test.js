@@ -564,7 +564,7 @@ function stage3Provider() {
   }]);
 }
 
-test('Reels: eski liste Prompt Studio sayfasına yönlenir, ayarlar Kütüphanem menüsünde; eski senaryo sayfası: tek sahneyi yeniden yaz, Türkçeyi düzeltip çevir, sürüme dön, telepromter, takvim', { skip }, async () => {
+test('Reels: eski liste Prompt Studio sayfasına yönlenir, ayarlar Kütüphanem menüsünde; eski senaryo sayfası salt okunur arşiv (yeniden yazma yok), Türkçeyi düzeltip çevir, sürüme dön, telepromter, takvim', { skip }, async () => {
   const srv = await startServer({ aiProvider: stage3Provider() });
   const { browser, page, problems } = await open(srv);
   try {
@@ -582,18 +582,22 @@ test('Reels: eski liste Prompt Studio sayfasına yönlenir, ayarlar Kütüphanem
 
     // Eski senaryoların kendi sayfası açılmaya devam eder
     const made = (await srv.request('POST', `/api/brands/${brand.id}/reels`, { topic: 'Vize haftası kahve kuyruğu' })).data.reels;
+    // İkinci sürüm (arşivden önce yazılmış gibi): sürüme dönmeyi denemek için
+    await srv.request('POST', `/api/brands/${brand.id}/reels/${made.id}/regenerate`, { sceneIndex: 1 });
     await page.goto(srv.base + `/#/m/${brand.id}/reels/${made.id}`);
     await page.getByRole('heading', { name: 'Vize kahvesi' }).waitFor();
     assert.match(page.url(), /\/reels\/[0-9a-f-]{36}$/);
     await page.getByRole('heading', { name: /Sahne 2/ }).waitFor();
     assert.match(await page.locator('.reels-side').textContent(), /Sorun yok/);
 
-    // Tek sahneyi yeniden yaz
-    await page.locator('[data-scene="1"]').getByRole('button', { name: 'Bu sahneyi yeniden yaz' }).click();
-    // Sürüm notu Sürümler panelinde; yeniden yazılan replik sahnede görünür
-    await page.waitForFunction(() => document.querySelector('#line-1') && document.querySelector('#line-1').value.includes('yepyeni'));
-    assert.equal(await page.locator('.version-list li').first().locator('.strong').textContent(), 'Sahne 2 yeniden yazıldı');
+    // Arşiv: senaryo burada yeniden yazılmaz (yeni Reels Prompt Studio'da); arşiv notu ve Prompt Studio bağlantısı var
+    await page.locator('.reels-archive-note').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Bu sahneyi yeniden yaz' }).count(), 0);
+    assert.equal(await page.locator('.ed-rail').getByRole('button', { name: 'Yeniden yaz' }).count(), 0);
+    assert.ok(await page.locator('.reels-archive-note a[href$="/prompt"]').count());
+    // API ile yazılmış ikinci sürüm sahnede görünür; sürüm notu Sürümler panelinde
     assert.match(await page.locator('#line-1').inputValue(), /yepyeni/);
+    assert.equal(await page.locator('.version-list li').first().locator('.strong').textContent(), 'Sahne 2 yeniden yazıldı');
 
     // Türkçe tarifi düzelt → İngilizceye çevir
     await page.locator('[data-scene="0"] summary').filter({ hasText: 'Sahne tarifi' }).click();

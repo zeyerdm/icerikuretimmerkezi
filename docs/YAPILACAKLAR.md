@@ -19,7 +19,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 - ⬜ Playwright kurulum adımının belgelenmesi (arayüz testleri için)
 - ⬜ Büyük dosyalar (yalnız gerektiği yerde, adım adım): `public/js/views/posts.js` (2271), `server/app.js` (1018,
   bütün rotalar), `server/services/posts.js` (937), `server/services/prompts.js` (935), `server/db.js` (737, 49 göç)
-- ⬜ Reels ↔ Prompt Studio: eski Reels bölümü salt okunur arşive alınacak (karar verildi)
+- ✅ Reels ↔ Prompt Studio: eski Reels bölümü salt okunur arşiv. Menüde yok, liste ve fikir havuzu Prompt Studio'ya yönlenir; eski senaryo sayfasında arşiv notu, yeniden yazma yok; seslendirme, video, dışa aktarma, sürüme dönme, takvime ekleme çalışır. Veri ve API korunur (eski kayıtlar ve testler için)
 - ✅ Uzaktan erişim: kalıcı ve genel yanlış şifre kilidi. **Kullanıcı kararıyla şimdilik kapalı** (uzak istek reddedilir, tünel kurulmaz, Ayarlar'da kart yok; kayıtlı ayarlar silinmez, `REMOTE_ACCESS=1` ile açılır)
 - ⬜ Toplu üretim kuyruğunda kontrollü paralellik (şu an sıralı)
 - ⬜ Asistan isteminin küçültülmesi (her mesajda tüm hafıza + 12 mesaj + 45 gün özel gün + bütün işlem şeması)
