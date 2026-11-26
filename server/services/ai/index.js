@@ -8,6 +8,7 @@ import { createAnthropicProvider } from './providers/anthropic.js';
 import { createOpenAiCompatibleProvider } from './providers/openai.js';
 import { cancelled } from './providers/common.js';
 import { currentStream } from '../../lib/streamCtx.js';
+import { usageScope } from '../../lib/usageCtx.js';
 
 const TASKS_SETTING = 'ai.tasks';
 const BUDGET_SETTING = 'ai.budget';
@@ -80,9 +81,14 @@ export function createAiService(settings, { db, provider: legacyProvider, fetchI
   function record({ ref, task, brandId, usage = {}, cost = 0, ok = true, error = '' }) {
     if (!db) return;
     const p = parseRef(ref) || { provider: 'bilinmiyor', id: ref };
-    db.prepare(`INSERT INTO ai_usage (id, created_at, provider, model, task, brand_id, input_tokens, output_tokens, cost_usd, ok, error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(newId(), now(), p.provider, p.id, task, brandId || null, usage.input || 0, usage.output || 0, cost, ok ? 1 : 0, String(error).slice(0, 300));
+    // O2: istek bağlamı varsa satır içeriğe / posta / prompt'a / senaryoya bağlanır
+    const sc = usageScope();
+    const id = newId();
+    db.prepare(`INSERT INTO ai_usage (id, created_at, provider, model, task, brand_id, input_tokens, output_tokens, cost_usd, ok, error, content_id, ref)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, now(), p.provider, p.id, task, brandId || null, usage.input || 0, usage.output || 0, cost, ok ? 1 : 0, String(error).slice(0, 300),
+        (sc && sc.contentId) || null, (sc && sc.ref) || null);
+    if (sc && sc.ids) sc.ids.push(id);
   }
 
   const budget = () => Object.assign({ monthlyUsd: 0, warnPercent: 80 }, parseJson(settings.get(BUDGET_SETTING) || '{}', {}));
