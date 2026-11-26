@@ -28,7 +28,30 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
   let specials = [];
   let upcoming = [];
   let showSpecial = true;
+  // O3 süzgeçleri: kanal, amaç, sütun, kitle (yüklenen içerikler üzerinde; sunucuya ek istek yok)
+  const filters = { platform: '', purpose: '', pillar: '', audience: '' };
+  let raw = [];
+  const pass = c => (!filters.platform || c.platform === filters.platform) && (!filters.purpose || c.purpose === filters.purpose)
+    && (!filters.pillar || (filters.pillar === 'yok' ? !c.pillarId : c.pillarId === filters.pillar))
+    && (!filters.audience || c.audience.toLocaleLowerCase('tr') === filters.audience);
+  const filterCount = () => Object.values(filters).filter(Boolean).length;
   try { showSpecial = localStorage.getItem(SPECIAL_PREF) !== '0'; } catch { /* varsayılan: göster */ }
+
+  let filtersOpen = false;
+  function filtersHtml() {
+    const m = state.meta;
+    const opt = (list, cur) => list.map(([k, v]) => `<option value="${esc(k)}" ${k === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
+    const pillars = [...new Map(raw.filter(c => c.pillarId).map(c => [c.pillarId, c.pillarName])).entries()];
+    const auds = [...new Map(raw.filter(c => c.audience).map(c => [c.audience.toLocaleLowerCase('tr'), c.audience])).entries()];
+    return `<div class="row cal-filters mt-2" role="group" aria-label="Takvim süzgeçleri">
+      <select class="select w-auto input-sm" data-flt="platform" aria-label="Kanal"><option value="">Bütün kanallar</option>${opt(Object.entries(m.platforms || {}), filters.platform)}</select>
+      <select class="select w-auto input-sm" data-flt="purpose" aria-label="Amaç"><option value="">Bütün amaçlar</option>${opt(Object.entries(m.purposes || {}), filters.purpose)}</select>
+      <select class="select w-auto input-sm" data-flt="pillar" aria-label="İçerik sütunu"><option value="">Bütün sütunlar</option>${opt(pillars, filters.pillar)}<option value="yok" ${filters.pillar === 'yok' ? 'selected' : ''}>Sütunsuz</option></select>
+      <select class="select w-auto input-sm" data-flt="audience" aria-label="Hedef kitle"><option value="">Bütün kitleler</option>${opt(auds, filters.audience)}</select>
+      ${filterCount() ? '<button class="btn btn-sm btn-ghost" data-flt-clear>Temizle</button>' : ''}
+      <span class="xsmall muted">Seçenekler bu görünümdeki içeriklerden gelir.</span>
+    </div>`;
+  }
 
   function range() {
     if (mode === 'hafta') { const from = startOfWeek(cursor); return { from, to: addDays(from, 7) }; }
@@ -45,8 +68,9 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
       showSpecial ? api.specialDays(iso(from), iso(addDays(to, -1)), brandFilter).catch(() => ({ days: [] })) : { days: [] },
       showSpecial ? api.specialDays(iso(startOfDay(new Date())), iso(addDays(startOfDay(new Date()), 30)), brandFilter).catch(() => ({ days: [] })) : { days: [] }
     ]);
-    items = inRange.contents;
-    unscheduled = noDate.contents;
+    raw = inRange.contents.concat(noDate.contents);
+    items = inRange.contents.filter(pass);
+    unscheduled = noDate.contents.filter(pass);
     specials = sd.days;
     upcoming = up.days.filter(d => !d.end || d.date >= iso(startOfDay(new Date())));
   }
@@ -146,6 +170,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
           <div class="row">
             ${embedded ? `<button class="btn btn-primary" data-new>${icon('plus')}İçerik planla</button>` : ''}
             ${brand ? '' : `<select class="select w-auto" id="cal-brand" aria-label="Marka filtresi"><option value="">Bütün markalar</option>${state.brands.map(b => `<option value="${esc(b.id)}" ${b.id === brandFilter ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`}
+            <button class="btn btn-sm${filterCount() ? ' btn-primary' : ''}" data-filters aria-expanded="${filtersOpen}">Süzgeç${filterCount() ? ` (${filterCount()})` : ''}</button>
             <label class="check"><input type="checkbox" id="cal-special" ${showSpecial ? 'checked' : ''}> Özel günler</label>
             ${mode === 'ay' ? `<select class="select w-auto input-sm" id="cal-size" aria-label="Takvim boyutu" title="Takvim boyutu">${SIZES.map(([k, v]) => `<option value="${k}" ${size === k ? 'selected' : ''}>Boyut: ${v}</option>`).join('')}</select>` : ''}
             <div class="seg" role="tablist" aria-label="Görünüm">
@@ -154,6 +179,7 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
             </div>
           </div>
         </div>
+        ${filtersOpen ? filtersHtml() : ''}
         ${upcomingHtml()}
         ${embedded ? '<div class="cal-scroll">' : ''}${mode === 'ay' ? monthGrid() : weekGrid()}
         <div class="cal-legend"><div class="lg-row"><span class="lg-h">İçerik durumu</span>${Object.entries(statuses).map(([k, v]) => `<span class="lg status-${k}"><i></i>${esc(v)}</span>`).join('')}
@@ -172,7 +198,11 @@ export async function renderCalendar(view, { brand, embedded = false, initialMod
     const sz = view.querySelector('#cal-size');
     if (sz) sz.addEventListener('change', () => { size = sz.value; try { localStorage.setItem(prefKey + '.size', size); } catch { /* tercih kaydedilemezse sorun değil */ } draw().catch(err => toast(err.message, 'error')); });
     const sel = view.querySelector('#cal-brand');
-    if (sel) sel.addEventListener('change', () => { brandFilter = sel.value; draw().catch(err => toast(err.message, 'error')); });
+    if (sel) sel.addEventListener('change', () => { brandFilter = sel.value; filters.pillar = ''; draw().catch(err => toast(err.message, 'error')); });
+    view.querySelector('[data-filters]').addEventListener('click', () => { filtersOpen = !filtersOpen; draw().catch(err => toast(err.message, 'error')); });
+    view.querySelectorAll('[data-flt]').forEach(el => el.addEventListener('change', () => { filters[el.dataset.flt] = el.value; draw().catch(err => toast(err.message, 'error')); }));
+    const clr = view.querySelector('[data-flt-clear]');
+    if (clr) clr.addEventListener('click', () => { Object.keys(filters).forEach(k => { filters[k] = ''; }); draw().catch(err => toast(err.message, 'error')); });
   }
 
   // Geçmiş günler: içerik planlanmaz, içerik oraya taşınmaz (var olan içerikler açılıp görülebilir)

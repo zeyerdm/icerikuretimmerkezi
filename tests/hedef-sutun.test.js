@@ -95,3 +95,65 @@ test('Uyarı: içerik sütunları hedef payın çok altında kalınca bildirim m
     assert.ok(!list.some(i => i.kind === 'sutun_dengesi'));
   } finally { await s.stop(); }
 });
+
+// Arayüz: Hedefler ve sütunlar ekranı, içerik penceresinde sütun seçimi, takvim süzgeci, aylık rapor bölümü
+import { createRequire } from 'node:module';
+let chromium = null;
+try { chromium = createRequire(import.meta.url)('playwright').chromium; } catch { chromium = null; }
+
+test('Arayüz: hedef ve sütun ekle, içeriğe sütun ata, takvimde süz, raporda gör', { skip: !chromium && 'Playwright yok' }, async () => {
+  const s = await startServer();
+  const browser = await chromium.launch();
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Arayüz Marka' })).data.brand;
+    const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+    const problems = [];
+    page.on('pageerror', e => problems.push(e.message));
+    page.on('console', m => { if (m.type() === 'error' && !/fonts\.(googleapis|gstatic)/.test(m.text())) problems.push(m.text()); });
+    await page.goto(`${s.base}/#/m/${b.id}/kimlik/strateji`);
+    await page.getByRole('heading', { name: 'İçerik sütunları' }).waitFor();
+    // Sütun ekle
+    await page.getByRole('button', { name: 'Sütun ekle' }).click();
+    await page.fill('#p-name', 'Eğitici'); await page.fill('#p-share', '40');
+    await page.locator('.modal').getByRole('button', { name: 'Kaydet' }).click();
+    await page.locator('.rep-table', { hasText: 'Eğitici' }).waitFor();
+    // Hedef ekle (satış: elle gerçekleşen)
+    await page.getByRole('button', { name: 'Hedef ekle' }).click();
+    await page.selectOption('#g-kind', 'satis');
+    await page.fill('#g-target', '50'); await page.fill('#g-actual', '25');
+    await page.locator('.modal').getByRole('button', { name: 'Kaydet' }).click();
+    await page.locator('tr', { hasText: 'Satış' }).filter({ hasText: '%50' }).waitFor();
+    // İçerik penceresinde sütun seç
+    await page.goto(`${s.base}/#/m/${b.id}/takvim`);
+    await page.locator('.cal-card').waitFor();
+    const today = new Date();
+    await s.request('POST', '/api/contents', { brandId: b.id, title: 'Sütunsuz içerik', type: 'post', scheduledAt: new Date(today.getFullYear(), today.getMonth(), 15, 12).toISOString() });
+    await page.reload(); await page.locator('.cal-card').waitFor();
+    await page.locator('[data-item]', { hasText: 'Sütunsuz içerik' }).first().click();
+    await page.locator('#c-strategy summary').click();
+    await page.locator('#c-pillar option', { hasText: 'Eğitici' }).waitFor({ state: 'attached' });
+    await page.selectOption('#c-pillar', { label: 'Eğitici (%40)' });
+    await page.selectOption('#c-purpose', 'egitim');
+    await page.locator('.modal').getByRole('button', { name: 'Kaydet' }).click();
+    await page.locator('.modal').waitFor({ state: 'detached' });
+    const saved = (await s.request('GET', `/api/contents?brandId=${b.id}`)).data.contents[0];
+    assert.equal(saved.pillarName, 'Eğitici'); assert.equal(saved.purpose, 'egitim');
+    // Takvim süzgeci
+    await s.request('POST', '/api/contents', { brandId: b.id, title: 'Diğer içerik', type: 'youtube', scheduledAt: new Date(today.getFullYear(), today.getMonth(), 16, 12).toISOString() });
+    await page.reload(); await page.locator('.cal-card').waitFor();
+    await page.getByRole('button', { name: /^Süzgeç/ }).click();
+    await page.selectOption('[data-flt="platform"]', 'youtube');
+    await page.locator('[data-item]', { hasText: 'Diğer içerik' }).first().waitFor();
+    assert.equal(await page.locator('[data-item]', { hasText: 'Sütunsuz içerik' }).count(), 0);
+    await page.getByRole('button', { name: 'Temizle' }).click();
+    await page.locator('[data-item]', { hasText: 'Sütunsuz içerik' }).first().waitFor();
+    // Aylık rapor
+    await page.goto(`${s.base}/#/m/${b.id}/rapor`);
+    const sec = page.locator('section', { hasText: 'Hedefler ve içerik sütunları' });
+    await sec.waitFor();
+    assert.match(await sec.innerText(), /Satış/);
+    assert.match(await sec.innerText(), /Eğitici/);
+    assert.match(await sec.innerText(), /Satış hedefin %50'inde kaldı/);
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); await s.stop(); }
+});

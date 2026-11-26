@@ -218,6 +218,7 @@ export function createWorkspaceService(db, ownerId, brands) {
         if (!idea) throw badRequest('Bağlanmak istenen fikir bu markaya ait değil.');
         ideaId = idea.id;
       }
+      const st = strategyFields(brand.id, body, {});
       const t = now();
       const row = {
         id: newId(), brand_id: brand.id, idea_id: ideaId,
@@ -230,7 +231,6 @@ export function createWorkspaceService(db, ownerId, brands) {
       db.prepare(`INSERT INTO contents (id, brand_id, idea_id, title, type, status, scheduled_at, notes, completed_at, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(row.id, row.brand_id, row.idea_id, row.title, row.type, row.status, row.scheduled_at, row.notes, row.completed_at, row.created_at, row.updated_at);
-      const st = strategyFields(brand.id, body, {});
       db.prepare('UPDATE contents SET pillar_id = ?, purpose = ?, audience = ?, platform = ? WHERE id = ?').run(st.pillar_id, st.purpose, st.audience, st.platform, row.id);
       if (body.caption || body.hashtags) {
         db.prepare('UPDATE contents SET caption = ?, hashtags = ? WHERE id = ?').run(text(body.caption, { field: 'Açıklama', max: 2200 }), cleanTags(body.hashtags), row.id);
@@ -268,6 +268,10 @@ export function createWorkspaceService(db, ownerId, brands) {
       const isDone = DONE_STATUSES.includes(next.status);
       next.completed_at = isDone ? (wasDone ? row.completed_at : now()) : null;
       if (next.brand_id !== row.brand_id) next.idea_id = null; else next.idea_id = row.idea_id;
+      // Strateji alanları önce doğrulanır (hatalıysa hiçbir şey yazılmaz). Sütun markaya aittir: marka değiştiyse yalnız
+      // yeni markanın sütunu atanabilir
+      const st = ['pillarId', 'purpose', 'audience', 'platform'].some(k => k in body)
+        ? strategyFields(next.brand_id, body, next.brand_id !== row.brand_id ? Object.assign({}, row, { pillar_id: null }) : row) : null;
       db.prepare(`UPDATE contents SET brand_id = ?, idea_id = ?, title = ?, type = ?, status = ?, scheduled_at = ?, notes = ?, completed_at = ?, metrics = ?, hook = ?, theme = ?,
         caption = ?, hashtags = ?, first_comment = ?, checklist = ?, updated_at = ? WHERE id = ?`)
         .run(next.brand_id, next.idea_id, next.title, next.type, next.status, next.scheduled_at, next.notes, next.completed_at, next.metrics, next.hook, next.theme,
@@ -275,8 +279,7 @@ export function createWorkspaceService(db, ownerId, brands) {
       if (next.metrics && next.metrics !== row.metrics) brands.logActivity(next.brand_id, 'content.metrics', `Paylaşım sonucu girildi: ${next.title}`);
       // Marka değişince başka markanın senaryosuna/postuna bağlantı kalmaz
       if (next.brand_id !== row.brand_id) db.prepare('UPDATE contents SET reels_id = NULL, prompt_id = NULL, post_id = NULL, pillar_id = NULL WHERE id = ?').run(row.id);
-      else if (['pillarId', 'purpose', 'audience', 'platform'].some(k => k in body)) {
-        const st = strategyFields(row.brand_id, body, row);
+      if (st) {
         db.prepare('UPDATE contents SET pillar_id = ?, purpose = ?, audience = ?, platform = ? WHERE id = ?').run(st.pillar_id, st.purpose, st.audience, st.platform, row.id);
       }
       if (!wasDone && isDone) brands.logActivity(next.brand_id, 'content.completed', `${CONTENT_STATUSES[next.status]}: ${next.title}`);

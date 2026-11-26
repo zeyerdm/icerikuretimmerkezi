@@ -1552,7 +1552,7 @@ body.ai-full-open { overflow: hidden; }
 .rep-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: var(--t-sm); }
 .rep-table td, .rep-table th { font-size: var(--t-sm); }
 .rep-bar { display: inline-block; width: 80px; height: 6px; border-radius: 3px; background: var(--surface-3); vertical-align: middle; overflow: hidden; }
-.rep-bar i { display: block; height: 100%; background: var(--rep); }
+.rep-bar i { display: block; height: 100%; background: var(--rep, var(--brand)); }
 @media (max-width: 760px) { .rep-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .report { padding: 18px; } }
 @media print {
   @page { size: A4; margin: 14mm; }
