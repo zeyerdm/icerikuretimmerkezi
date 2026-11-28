@@ -28,6 +28,8 @@ test('Sektör kaynakları: RSS/HTML içerikleri çekilir, tekrarlanmaz ve post �
 
     const added = await s.request('POST', `/api/brands/${a.id}/sources`, { url: 'https://kaynak.example/rss.xml', label: 'Teknoloji Blogu' });
     assert.equal(added.status, 201);
+    const dup = await s.request('POST', `/api/brands/${a.id}/sources`, { url: 'http://www.kaynak.example/rss.xml' });
+    assert.equal(dup.status, 400);
     const src = added.data.source;
 
     const fetched = await s.request('POST', `/api/brands/${a.id}/sources/${src.id}/fetch`, {});

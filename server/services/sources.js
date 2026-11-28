@@ -213,6 +213,15 @@ export function createSourceService({ db, brands, siteReader }) {
       let parsed;
       try { parsed = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : 'https://' + raw); } catch { throw badRequest('Geçerli bir adres yaz (ör. blog.ornek.com).'); }
       if (!/^https?:$/.test(parsed.protocol)) throw badRequest('Yalnız http ve https adresleri eklenebilir.');
+      const normUrl = u => {
+        const p = new URL(u);
+        return `${p.hostname.replace(/^www\./, '').toLowerCase()}${p.pathname.replace(/\/+$/, '')}${p.search}`;
+      };
+      const targetKey = normUrl(parsed.href);
+      const exists = db.prepare('SELECT url FROM brand_sources WHERE brand_id = ?').all(b.id).some(s => {
+        try { return normUrl(s.url) === targetKey; } catch { return false; }
+      });
+      if (exists) throw badRequest('Bu web sitesi zaten kaynaklara eklenmiş.');
       const count = db.prepare('SELECT COUNT(*) AS n FROM brand_sources WHERE brand_id = ?').get(b.id).n;
       if (count >= MAX_SOURCES) throw badRequest(`Bir markada en fazla ${MAX_SOURCES} kaynak olabilir.`);
       const lb = text(label, { field: 'Kaynak adı', max: 80 }) || parsed.hostname.replace(/^www\./, '');
