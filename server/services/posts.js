@@ -392,11 +392,11 @@ function postPrompt({ brandName, memory, sourceContext = '', topic, kind, slideC
     KIND_TASK[kind] ? KIND_TASK[kind] : kind === 'carousel'
       ? [`GÖREV: Bu konu için ${slideCount} slaytlık, okuyana gerçek ve uygulanabilir değer katan bir Instagram carousel yaz. Akış bir mini rehber gibi ilerlesin:`,
         `1. slayt KAPAK = KANCA (hook): kaydırmayı durduran, somut bir soruna veya şaşırtıcı bir gerçeğe parmak basan kısa başlık (en fazla 7 kelime) ve okuyucunun sonraki slaytlarda tam olarak ne kazanacağını söyleyen 1 net alt cümle.`,
-        slideCount > 2 ? `2.–${slideCount - 1}. slaytlar GELİŞME (BİLGİ VE DEĞER): Her slayt tek bir somut adım, hata, teknik veya içgörü taşısın. Başlık kısa ve net (en fazla 6 kelime). Açıklama (body) 2-3 cümle (150-300 karakter; varsa uzunluk sınırını aşma) olsun ve MUTLAKA şunlardan en az birini içersin: (a) nasıl uygulanacağı / somut yöntem, (b) "Örneğin..." ile gerçekçi bir senaryo, (c) yapılmazsa ne olacağı veya somut etkisi.` : '',
+        slideCount > 2 ? `2.–${slideCount - 1}. slaytlar GELİŞME (BİLGİ VE DEĞER): Her slayt tek bir somut adım, hata, teknik veya içgörü taşısın. Başlık kısa ve net (en fazla 6 kelime). Konu özel bir ürün, teknoloji veya kavramsa ilk içerik slaytında ya da kapakta bunun ne olduğunu kısaca tanıt (okuyucu bilmiyor olabilir). Her slayt açıklaması (body) EN AZ 2-3 dolu cümle olsun (200-360 karakter; varsa kutu sınırını aşma) ve somut teknik detay, veri/rakam ve gerçekçi bir örnek ("Örneğin...") versin.` : '',
         `YASAKLI BOŞ KALIPLAR: "Süreçlerini hızlandırabilirsin", "Sadakati artırır", "İşletmeler kazanır", "Geleneksel yöntemler yetişemiyor", "Geleceğe hazırlan" gibi içi boş, genel geçer sloganlar YAZMA. Her cümle okuyana yeni bir şey öğretmeli.`,
         `Son slayt (${slideCount}.) KAPANIŞ: Konuyu tek bir uygulanabilir aksiyona bağlayan net özet ve okuyucuya doğrudan soru soran veya kaydetme nedeni veren bir çağrı.`,
         'Teknik bir terim gerekirse aynı cümlede sade Türkçeyle açıkla.'].filter(Boolean).join('\n')
-      : 'GÖREV: Tek görsellik bir Instagram postu metni yaz: somut bir içgörü veya aksiyon veren vurucu başlık (en fazla 7 kelime) ve boş slogan olmayan, gerçekten bilgi/örnek veren 1-2 cümle alt metin.',
+      : 'GÖREV: Tek görsellik bir Instagram postu metni yaz: somut bir içgörü veya aksiyon veren vurucu başlık (en fazla 7 kelime), konu özel bir ürün/kavramsa ne olduğunu da açıklayan, somut teknik detay ve örnek içeren en az 2-3 cümlelik bilgilendirici alt metin.',
     wantCta ? 'BUTON: Tasarımda buton var; ilgili slayta "cta" (en çok 3 kelimelik eylem çağrısı, ör. "Hemen dene") yaz.' : '',
     itemCount > 0 && kind !== 'grafik' ? `MADDELER: Tasarımda ${itemCount} adet madde alanı var; ilgili slaytta "items" dizisine ${itemCount} kısa madde yaz.` : '',
     kind !== 'carousel' && mascot && poses.length && fixedSpeech ? `MASKOT: Konuşma sabit havuzdan gelir; yalnızca "pose" yaz: ${poses.join(', ')}.` : '',
@@ -413,9 +413,9 @@ function postPrompt({ brandName, memory, sourceContext = '', topic, kind, slideC
     ].filter(Boolean).join('\n') : '',
     kind === 'youtube'
       ? "Kapak yazısı kalın ve iri basılacak; kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına YouTube video açıklaması (ilk iki satır videonun vaadini anlatsın, 400-1500 karakter), 'hashtags' alanına en fazla 3 hashtag yaz."
-      : "Görsel üzerindeki metinler kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına uzun ve değerli bir Instagram açıklaması (1200-1800 karakter, 2000'i aşma: kaydırmayı durduran ilk satır, konuyu slaytlardan daha ayrıntılı ve örnekli anlatan 3-5 kısa paragraf, kaydet ve paylaş çağrısı, yorum sorusu), 'hashtags' alanına en fazla 5 hashtag yaz.",
+      : "Başlıklar vurucu ve okunaklı, her slayt açıklaması (body) ise en az 2-3 cümlelik somut teknik detay ve örnek içeren bilgilendirici metin olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına uzun ve değerli bir Instagram açıklaması (1200-1800 karakter, 2000'i aşma: kaydırmayı durduran ilk satır, konuyu slaytlardan daha ayrıntılı ve örnekli anlatan 3-5 kısa paragraf, kaydet ve paylaş çağrısı, yorum sorusu), 'hashtags' alanına en fazla 5 hashtag yaz.",
     '', 'Sadece şu JSON biçiminde yanıt ver:',
-    JSON.stringify({ title: 'İçeriğin kısa adı', slides: [Object.assign({ title: 'Slayt başlığı', body: 'Kısa açıklama' }, kind === 'grafik' || itemCount > 0 ? { items: ['Madde 1', 'Madde 2'] } : {}, kind === 'reklam' || wantCta ? { cta: 'Hemen dene' } : {}, (kind === 'carousel' || mascot) && poses.length ? { speech: 'Kısa tepki', pose: poses[0] } : {}, fields.length ? { fields: Object.fromEntries(fields.map(f => [f.key, '...'])) } : {})], caption: 'Açıklama', hashtags: ['#ornek'] })
+    JSON.stringify({ title: 'İçeriğin kısa adı', slides: [Object.assign({ title: 'Slayt başlığı', body: 'En az 2-3 cümlelik somut teknik detay, veri ve örnek içeren bilgilendirici açıklama.' }, kind === 'grafik' || itemCount > 0 ? { items: ['Madde 1', 'Madde 2'] } : {}, kind === 'reklam' || wantCta ? { cta: 'Hemen dene' } : {}, (kind === 'carousel' || mascot) && poses.length ? { speech: 'Kısa tepki', pose: poses[0] } : {}, fields.length ? { fields: Object.fromEntries(fields.map(f => [f.key, '...'])) } : {})], caption: 'Açıklama', hashtags: ['#ornek'] })
   ].filter(Boolean).join('\n');
 }
 
@@ -638,7 +638,7 @@ export function createPostService({ db, ai, brands, assets, workspace, sources =
   // Sabit alanlar istenmez. Karakter sınırı kutu genişliği, yazı boyutu ve kutu yüksekliğinden kabaca hesaplanır.
   function templateNeeds(slides) {
     const fields = new Map(); const limits = {}; let itemCount = 0;
-    const cap = l => { const perLine = Math.max(4, Math.floor(l.w / (l.size * 0.56))); const lines = l.maxH > 0 ? Math.max(1, Math.floor(l.maxH / (l.size * (l.lineHeight || 1.2)))) : 3; return perLine * lines; };
+    const cap = l => { const perLine = Math.max(4, Math.floor(l.w / (l.size * 0.56))); const defLines = roleOf(l) === 'body' ? 6 : 3; const lines = l.maxH > 0 ? Math.max(1, Math.floor(l.maxH / (l.size * (l.lineHeight || 1.2)))) : defLines; return perLine * lines; };
     for (const s of slides) for (const l of s.layers || []) {
       if (l.type !== 'text' || l.fixed) continue;
       if (l.field && !['MAIN_TITLE', 'DESCRIPTION', 'CTA', 'SPEECH'].includes(l.field)) {
