@@ -88,9 +88,14 @@ export function createDriveService(settings, { fetchImpl = fetch } = {}) {
     let data = null;
     try { data = JSON.parse(raw); } catch { data = null; }
     if (!data) {
-      throw driveError(res.status === 404
-        ? 'Apps Script adresi bulunamadı. Dağıtımın silinmediğini ve adresin "/exec" ile bittiğini kontrol et.'
-        : 'Apps Script yanıt vermedi. Dağıtımda "Erişimi olan: Herkes" seçili olmalı ve ilk çalıştırmada izin verilmiş olmalı.');
+      if (res.status === 404) {
+        throw driveError('Apps Script adresi bulunamadı (404). Dağıtımın silinmediğini ve adresin "/exec" ile bittiğini kontrol et.');
+      }
+      if ((res.url && /accounts\.google\.com/i.test(res.url)) || /accounts\.google\.com|ServiceLogin/i.test(raw)) {
+        throw driveError(`Google giriş ekranına yönlendirdi (HTTP ${res.status}). Apps Script dağıtımında "Erişimi olan: Herkes" seçili olmalı ve yeni dağıtımın "/exec" adresi kullanılmalı.`);
+      }
+      const snippet = raw.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<[^>]+>/gi, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+      throw driveError(`Apps Script geçersiz yanıt döndürdü (HTTP ${res.status}${snippet ? `: ${snippet}` : ''}).`);
     }
     if (!data.ok) {
       if (data.hata === 'anahtar') throw driveError('Apps Script\'teki kod güncel değil. Ayarlar\'daki kodu yeniden kopyalayıp Apps Script\'e yapıştır ve yeni dağıtım yap.');
