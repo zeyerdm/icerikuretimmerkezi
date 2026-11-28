@@ -1821,12 +1821,17 @@ async function renderEditor(view, brand, id, models) {
 
   async function exportSlides(which, to) {
     const list = which === 'all' ? data.slides.map((s, i) => [s, i]) : [[slide(), current]];
-    for (const [s, i] of list) {
+    for (let idx = 0; idx < list.length; idx++) {
+      const [s, i] = list[idx];
       const blob = await slideBlob(s, format());
       const name = `${post.title} ${list.length > 1 || data.slides.length > 1 ? `slayt ${i + 1}` : ''}`.trim();
       if (to === 'drive') await api.driveUpload(brand.id, blob, name, 'image/png');
-      else downloadBlob(blob, `${safeName(name)}.png`);
+      else {
+        downloadBlob(blob, `${safeName(name)}.png`);
+        if (idx < list.length - 1) await new Promise(r => setTimeout(r, 250));
+      }
     }
+    if (to !== 'drive') toast(`${list.length} slayt İndirilenler klasörüne indirildi.`, 'success');
     offerIdeaDelete();
   }
   // Post bir fikirden üretildiyse: dışa aktarınca tekrara düşmemek için fikri havuzdan silme önerisi (oturumda bir kez)
