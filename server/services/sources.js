@@ -34,6 +34,8 @@ export function parseFeed(xml, baseUrl) {
   return out;
 }
 
+const DATE_OR_META = /^(?:(?:research|news|blog|product|safety|company|announcement|update|ai|tech)\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+\d{1,2},?\s+\d{2,4}$|^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$|^\d+\s*(?:dk|min|dakika)\s*(?:okuma|read)?$/i;
+
 // HTML sayfasından makale / blog / duyuru başlık ve özetlerini çıkarır
 export function extractArticles(pages) {
   const out = [];
@@ -43,13 +45,14 @@ export function extractArticles(pages) {
     for (let i = 0; i < lines.length && out.length < MAX_ITEMS_PER_FETCH; i++) {
       const line = lines[i];
       if (line.length < 18 || line.length > 140) continue;
+      if (DATE_OR_META.test(line)) continue;
       if (/^(ana sayfa|iletişim|hakkımızda|giriş|kayıt|çerez|gizlilik|menü|copyright|©)/i.test(line)) continue;
       const key = line.toLocaleLowerCase('tr-TR');
       if (seen.has(key)) continue;
       seen.add(key);
-      // Sonraki satır açıklayıcı paragraf gibiyse özet olarak al
+      // Sonraki satır açıklayıcı paragraf gibiyse özet olarak al (tarih/meta satırıysa atla)
       const next = lines[i + 1] || '';
-      const summary = next.length > 35 && next.length <= 420 ? next.slice(0, 360) : '';
+      const summary = next.length > 35 && next.length <= 420 && !DATE_OR_META.test(next) ? next.slice(0, 360) : '';
       out.push({ title: line, url: p.url || '', summary });
       if (summary) i++;
     }
@@ -82,13 +85,20 @@ export function createSourceService({ db, brands, siteReader }) {
       if (!items.length && data.text) items = extractArticles([{ url: data.url || src.url, text: data.text }]);
 
       const existing = new Set(db.prepare('SELECT title FROM brand_source_items WHERE source_id = ?').all(src.id).map(x => x.title.toLocaleLowerCase('tr-TR')));
+      const existingIdeas = new Set(db.prepare('SELECT title FROM ideas WHERE brand_id = ?').all(src.brand_id).map(x => x.title.toLocaleLowerCase('tr-TR')));
       let added = 0;
       const ins = db.prepare('INSERT INTO brand_source_items (id, brand_id, source_id, title, url, summary, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const insIdea = db.prepare('INSERT INTO ideas (id, brand_id, title, description, category, format, favorite, source, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)');
       for (const it of items.slice(0, MAX_ITEMS_PER_FETCH)) {
         const k = it.title.toLocaleLowerCase('tr-TR');
         if (existing.has(k)) continue;
         existing.add(k);
         ins.run(newId(), src.brand_id, src.id, it.title, it.url || '', it.summary || '', t);
+        if (!existingIdeas.has(k)) {
+          existingIdeas.add(k);
+          const desc = [it.summary, src.label ? `Kaynak: ${src.label}` : ''].filter(Boolean).join(' · ').slice(0, 1000);
+          insIdea.run(newId(), src.brand_id, it.title.slice(0, 200), desc, 'guncel', 'post', 'kaynak', t);
+        }
         added++;
       }
       // Kaynak başına en yeni 30 başlık kalsın

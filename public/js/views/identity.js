@@ -256,17 +256,13 @@ async function renderConnections(view, brand) {
           <div class="field"><label for="src-label">Kısa ad (isteğe bağlı)</label><input class="input" id="src-label" type="text" maxlength="80" placeholder="Ör. Sektör Blogu"></div>
         </div>
         <div class="row mt-2"><button type="button" class="btn btn-primary btn-sm" data-src-add>${icon('plus')}Kaynak ekle</button></div>
-        ${sources.length ? `<ul class="pool-list mt-3">${sources.map(s => `<li class="pool-item">
+        ${sources.length ? `<ul class="pool-list mt-3" style="max-height:220px;overflow-y:auto;">${sources.map(s => `<li class="pool-item">
           <div class="grow"><b>${esc(s.label)}</b> <span class="xsmall muted">${esc(s.url)}</span>
             <div class="xsmall muted">${s.lastFetchedAt ? `${s.lastCount} başlık · son çekme: ${new Date(s.lastFetchedAt).toLocaleDateString('tr-TR')}` : 'Henüz çekilmedi'}${s.lastError ? ` · <span class="danger-text">${esc(s.lastError)}</span>` : ''}</div></div>
           <button type="button" class="btn btn-sm" data-src-fetch="${esc(s.id)}">${icon('refresh')}Çek</button>
           <button type="button" class="btn btn-sm btn-ghost icon-btn" data-src-del="${esc(s.id)}" aria-label="Kaynağı sil">${icon('trash')}</button>
         </li>`).join('')}</ul>` : ''}
-        ${srcItems.length ? `<details class="mt-3" open><summary class="small strong">Çekilen güncel başlıklar (${srcItems.length})</summary>
-          <ul class="pool-list mt-2">${srcItems.slice(0, 12).map(it => `<li class="pool-item">
-            <div class="grow"><b>${esc(it.title)}</b>${it.summary ? `<div class="xsmall muted">${esc(it.summary)}</div>` : ''}</div>
-            <a class="btn btn-sm btn-ghost" href="#/m/${esc(brand.id)}/post?konu=${encodeURIComponent(it.title)}">Post üret →</a>
-          </li>`).join('')}</ul></details>` : ''}
+        ${srcItems.length ? `<div class="row mt-3"><span class="small muted grow">Çekilen <b>${srcItems.length}</b> güncel başlık otomatik olarak <b>İçerik fikirleri</b> havuzuna eklendi.</span><a class="btn btn-sm" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerini aç →</a></div>` : ''}
       </section>
     </div>`;
 
