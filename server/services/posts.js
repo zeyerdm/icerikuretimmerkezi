@@ -388,12 +388,13 @@ function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, pos
     // Kullanıcının kendi maddeleri: slaytlar bunlardan kurulur, özü korunur (eski sistemdeki "özel maddeler")
     notes ? `KULLANICININ VERDİĞİ MADDELER VE NOTLAR:\n\"\"\"\n${notes}\n\"\"\"\nÖNEMLİ: Slaytları bu maddeleri temel alarak kur. Her maddenin özünü koru, hiçbirini atlama, kendi bilgini ekleyerek uydurma; maddeleri vurucu kısa başlıklara ve değer katan açıklamalara dönüştür. Madde sayısı slayt sayısından fazlaysa birleştir, azsa kanca ve kapanışla tamamla.\n` : '',
     KIND_TASK[kind] ? KIND_TASK[kind] : kind === 'carousel'
-      ? [`GÖREV: Bu konu için ${slideCount} slaytlık, yüksek etkileşimli bir Instagram carousel yaz. Akış bir hikâye gibi ilerlesin:`,
-        `1. slayt KAPAK = KANCA (hook): kaydırmayı durduran, merak uyandıran, ters köşe ya da soru biçiminde kısa başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt başlık. Konunun ne olduğunu sezdirsin ama cevabı vermesin.`,
-        slideCount > 2 ? `2.–${slideCount - 1}. slaytlar GELİŞME: her biri tek bir madde, adım ya da bilgi; kısa başlık (en fazla 6 kelime) ve açıklama. Açıklama okuyana gerçekten değer katsın: neden önemli, nasıl yapılır, somut bir örnek ya da ipucu. Konu gerektiriyorsa 2-4 cümle (en fazla 340 karakter), basitse 1-2 cümle yeter; doldurmak için yazma. Maddeler BU KONUYA ve markanın sektörüne özel, somut, öğretici olsun; jenerik kalıp yazma. Her slayt bir sonrakine merak bıraksın, birbirini tekrar etmesin.` : '',
-        `Son slayt (${slideCount}.) KAPANIŞ: konuyu bağlayan akılda kalıcı bir sonuç ya da özet başlığı ve kaydetme/paylaşma ya da yorum yapma çağrısı.`,
+      ? [`GÖREV: Bu konu için ${slideCount} slaytlık, okuyana gerçek ve uygulanabilir değer katan bir Instagram carousel yaz. Akış bir mini rehber gibi ilerlesin:`,
+        `1. slayt KAPAK = KANCA (hook): kaydırmayı durduran, somut bir soruna veya şaşırtıcı bir gerçeğe parmak basan kısa başlık (en fazla 7 kelime) ve okuyucunun sonraki slaytlarda tam olarak ne kazanacağını söyleyen 1 net alt cümle.`,
+        slideCount > 2 ? `2.–${slideCount - 1}. slaytlar GELİŞME (BİLGİ VE DEĞER): Her slayt tek bir somut adım, hata, teknik veya içgörü taşısın. Başlık kısa ve net (en fazla 6 kelime). Açıklama (body) 2-3 cümle (150-300 karakter; varsa uzunluk sınırını aşma) olsun ve MUTLAKA şunlardan en az birini içersin: (a) nasıl uygulanacağı / somut yöntem, (b) "Örneğin..." ile gerçekçi bir senaryo, (c) yapılmazsa ne olacağı veya somut etkisi.` : '',
+        `YASAKLI BOŞ KALIPLAR: "Süreçlerini hızlandırabilirsin", "Sadakati artırır", "İşletmeler kazanır", "Geleneksel yöntemler yetişemiyor", "Geleceğe hazırlan" gibi içi boş, genel geçer sloganlar YAZMA. Her cümle okuyana yeni bir şey öğretmeli.`,
+        `Son slayt (${slideCount}.) KAPANIŞ: Konuyu tek bir uygulanabilir aksiyona bağlayan net özet ve okuyucuya doğrudan soru soran veya kaydetme nedeni veren bir çağrı.`,
         'Teknik bir terim gerekirse aynı cümlede sade Türkçeyle açıkla.'].filter(Boolean).join('\n')
-      : 'GÖREV: Tek görsellik bir Instagram postu metni yaz: kısa, vurucu başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt metin.',
+      : 'GÖREV: Tek görsellik bir Instagram postu metni yaz: somut bir içgörü veya aksiyon veren vurucu başlık (en fazla 7 kelime) ve boş slogan olmayan, gerçekten bilgi/örnek veren 1-2 cümle alt metin.',
     wantCta ? 'BUTON: Tasarımda buton var; ilgili slayta "cta" (en çok 3 kelimelik eylem çağrısı, ör. "Hemen dene") yaz.' : '',
     itemCount > 0 && kind !== 'grafik' ? `MADDELER: Tasarımda ${itemCount} adet madde alanı var; ilgili slaytta "items" dizisine ${itemCount} kısa madde yaz.` : '',
     kind !== 'carousel' && mascot && poses.length && fixedSpeech ? `MASKOT: Konuşma sabit havuzdan gelir; yalnızca "pose" yaz: ${poses.join(', ')}.` : '',
@@ -443,7 +444,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     const poses = assets.list(b.id, 'mascot').map(a => polish(a.label)).filter(Boolean).slice(0, 12);
     let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, itemCount, notes });
     if (linked) prompt = linkedinize(prompt);
-    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.7 });
+    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: kind === 'carousel' ? 'medium' : 'low', temperature: 0.7 });
     const out = r.output || {};
     const rawSlides = Array.isArray(out.slides) && out.slides.length ? out.slides : (out.title ? [out] : []);
     const texts = rawSlides.map(s => ({ title: polish(s && s.title).slice(0, 160), body: polish(s && s.body).slice(0, 500),
@@ -452,7 +453,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       fields: Object.fromEntries(Object.entries((s && typeof s.fields === 'object' && s.fields) || (typeof out.fields === 'object' && out.fields) || {}).filter(([k]) => /^[A-Za-z][A-Za-z0-9_]{0,29}$/.test(k)).map(([k, v]) => [k.toUpperCase(), polish(v).slice(0, 300)])) })).filter(s => s.title).slice(0, count);
     // Kapanış (son) slaytında "kaydır" çağrısı olmaz: kaydırılacak sayfa kalmadı
     const last = texts[texts.length - 1];
-    if (texts.length > 1 && last) { if (/kayd[ıi]r|swipe/i.test(last.speech)) last.speech = 'Kaydet, lazım olur! 🚀'; if (/kayd[ıi]r|swipe/i.test(last.cta)) last.cta = 'Kaydet ve paylaş'; }
+    if (texts.length > 1 && last) { if (/kayd[ıi]r|swipe|yanda|sonraki slayt/i.test(last.speech)) last.speech = 'Kaydet, lazım olur! 🚀'; if (/kayd[ıi]r|swipe|yanda/i.test(last.cta)) last.cta = 'Kaydet ve paylaş'; }
     if (!texts.length) throw new HttpError(502, 'AI_BAD_POST', 'Model kullanılabilir bir metin döndürmedi. Tekrar dene ya da başka bir model seç.');
     return { texts, title: polish(out.title).slice(0, 120) || texts[0].title, caption: String(out.caption || '').trim().slice(0, 3000),
       hashtags: (Array.isArray(out.hashtags) ? out.hashtags : []).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 8), r };
@@ -557,7 +558,7 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     slides: (data.slides || []).map((sl, i, all) => {
       const t = texts[Math.min(i, texts.length - 1)] || { title: '', body: '', items: [], cta: '' };
       const isLast = all.length > 1 && i === all.length - 1;
-      const noSwipe = list => (isLast ? list.filter(x => !/kayd[ıi]r|swipe/i.test(x)) : list);
+      const noSwipe = list => (isLast ? list.filter(x => !/kayd[ıi]r|swipe|yanda|sonraki slayt/i.test(x)) : list);
       const pickFor = (list, j, fb = 'Kaydet, lazım olur! 🚀') => { const l2 = noSwipe(list); return l2.length ? l2[(seed + j) % l2.length] : (isLast ? fb : pick(list, j)); };
       const speech = pools.speech.length ? pickFor(pools.speech, i) : (t.speech || '');
       let k = 0;
