@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { esc, icon, toast, pageHead, emptyState, busy, openModal, errorNotice, timeAgo } from '../ui.js';
 import { state, go, route } from '../app.js';
 import { aiModels, modelSelect, busyTimer, streamBusy, aiNote, bindCostHint } from '../aiPicker.js';
-import { drawSlide, resolveImages, slideBlob, hitTest, layerBox, handlesOf } from '../postCanvas.js';
+import { drawSlide, resolveImages, slideBlob, hitTest, layerBox, handlesOf, fitText } from '../postCanvas.js';
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
 import { canvasesToPdf } from '../pdf.js';
@@ -127,7 +127,7 @@ export async function renderPosts(view, brand, sub) {
         <div class="ps-topic-row"><input class="input grow" id="qp-topic" name="topic" maxlength="1000" required placeholder="Ör. Sınav haftasında kahve nasıl içilir?" aria-label="Post konusu"><button class="btn btn-primary" type="submit">${icon('sparkle')}Üret</button></div>
         <div class="ps-opts">
           <label>Tasarım<select class="select input-sm" name="templateId" id="qp-tpl" aria-label="Tasarım"><option value="">Otomatik</option>${templates.filter(t => !t.match.frame).map(t => `<option value="${esc(t.id)}" ${t.id === lastTpl ? 'selected' : ''}>${t.match.isDefault ? '★ ' : ''}${esc(t.name)}</option>`).join('')}</select></label>
-          <label>Sayfa<select class="select input-sm" name="slides" aria-label="Slayt sayısı">${[3, 4, 5, 6, 7, 8].map(n => `<option value="${n}" ${n === 5 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+          <label>Sayfa<select class="select input-sm" name="slides" id="qp-slides" aria-label="Slayt sayısı">${[['1', '1 (Tek / Afiş)'], ...[3, 4, 5, 6, 7, 8].map(n => [String(n), String(n)])].map(([v, l]) => `<option value="${v}" ${v === '5' ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label>Maskot<select class="select input-sm" name="mascot" aria-label="Maskot" title="Maskot kullanımı">${MASCOT_OPTS}</select></label>
         </div>
         <details class="ps-notes"><summary class="small">Kendi maddelerini ekle (isteğe bağlı)</summary>
@@ -174,7 +174,7 @@ export async function renderPosts(view, brand, sub) {
       </div><button type="button" class="post-menu-btn" data-tpl-menu="${esc(t.id)}" aria-haspopup="menu" aria-label="${esc(t.name)}: şablon işlemleri" title="İşlemler">⋯</button></div>`).join('')}</div>`).join('')}</section>`);
     for (const t of templates) {
       const c = view.querySelector(`[data-tpl-thumb="${CSS.escape(t.id)}"]`);
-      if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format]); });
+      if (c && t.data.slides) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format] || meta.formats['4:5']); });
     }
   }
 
@@ -187,7 +187,7 @@ export async function renderPosts(view, brand, sub) {
     </div>`).join('')}</div>` : '<p class="card-text">Henüz ortak şablon yok. Bir tasarımın düzenleyicisinde Dosya → "Ortak şablon kütüphanesine kaydet" ile ekle; sonra her markada o markanın kimliğiyle kullanılır.</p>'}</section>`);
   for (const t of sharedTpls) {
     const c = view.querySelector(`[data-shared-thumb="${CSS.escape(t.id)}"]`);
-    if (c && t.data) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format]); });
+    if (c && t.data) resolveImages(t.data.slides[0]).then(() => { if (c.isConnected) drawSlide(c, t.data.slides[0], meta.formats[t.data.format] || meta.formats['4:5']); });
   }
 
   // Küçük resimler: ilk slayt
@@ -231,8 +231,16 @@ export async function renderPosts(view, brand, sub) {
     if (busyNow) setTimeout(drawQueue, 3000);
   }
   drawQueue();
-  // Hızlı üret (eski sistemdeki gibi tek satır): kart düzeninde carousel, varsayılan model; metin akarak gelir
+  // Hızlı üret (eski sistemdeki gibi tek satır): kart düzeninde carousel veya seçilen tek sayfa/afiş şablonu; metin akarak gelir
   const qp = view.querySelector('#quick-post');
+  const qpTpl = view.querySelector('#qp-tpl');
+  const qpSlides = view.querySelector('#qp-slides');
+  const syncQuickSlides = () => {
+    if (!qpTpl || !qpSlides) return;
+    const t = templates.find(x => x.id === qpTpl.value);
+    if (t) qpSlides.value = ['afis', 'reklam', 'grafik', 'story', 'kapak', 'youtube', 'post'].includes(t.kind) || (t.data && (t.data.slides || []).length === 1) ? '1' : '5';
+  };
+  if (qpTpl) { qpTpl.addEventListener('change', syncQuickSlides); if (qpTpl.value) syncQuickSlides(); }
   if (qp) qp.addEventListener('submit', async e => {
     e.preventDefault();
     const fd = new FormData(qp);
@@ -240,8 +248,11 @@ export async function renderPosts(view, brand, sub) {
     if (!topic) return;
     try {
       const templateId = fd.get('templateId') || null;
+      const tpl = templateId ? templates.find(x => x.id === templateId) : null;
+      const slidesN = Number(fd.get('slides'));
+      const kind = tpl ? tpl.kind : (slidesN === 1 ? 'post' : 'carousel');
       try { localStorage.setItem(tplKey, templateId || ''); } catch { /* gizli pencere */ }
-      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind: 'carousel', slides: Number(fd.get('slides')), templateId, mascot: fd.get('mascot') || 'auto', notes: String(fd.get('notes') || '').trim() }, st));
+      const res = await streamBusy(e.submitter, st => api.createPost(brand.id, { topic, kind, slides: slidesN, templateId, mascot: fd.get('mascot') || 'auto', notes: String(fd.get('notes') || '').trim() }, st));
       if (!res) return;
       toast(aiNote(res.post.ai), 'success', 5000);
       previewPost(brand, res.post);
@@ -1013,7 +1024,8 @@ async function renderEditor(view, brand, id, models) {
     $('#layer-panel').hidden = !id;
   }
 
-  // Seçili öğenin üstündeki araç çubuğu (Canva benzeri): AI'ya sor, düzenle, değiştir, renk, çevir, saydamlık, konum, çoğalt, kilitle, sil
+  let replaceTarget = null;
+  // Seçili öğenin üstündeki araç çubuğu (Canva benzeri): hızlı yazı boyutu, kalın, büyük harf, hizalama, renk, çevir, saydamlık, konum, çoğalt, kilitle, sil
   function drawCtxBar() {
     const bar = $('#ed-ctxbar'); if (!bar) return;
     const l = layer(); const many = multi && multi.length > 1;
@@ -1021,9 +1033,15 @@ async function renderEditor(view, brand, id, models) {
     const b = (k, ic, label, extra = '') => `<button type="button" class="cb-btn" data-cb="${k}" ${extra}>${ic ? icon(ic) : ''}<span>${label}</span></button>`;
     const sep = '<span class="cb-sep" aria-hidden="true"></span>';
     const colorable = l && ['text', 'shape', 'qr'].includes(l.type) || (l && l.type === 'vector' && l.recolor);
+    const alignLabel = l && l.align === 'center' ? 'Orta' : l && l.align === 'right' ? 'Sağ' : 'Sol';
     bar.hidden = false;
     bar.innerHTML = many ? [b('arrange', 'layers', 'Konumlandır'), b('group', 'group', 'Grupla'), sep, b('dup', 'copy', 'Çoğalt'), b('del', 'trash', 'Sil', 'class="cb-btn cb-danger"')].join('')
-      : [aiReady && l.type === 'text' ? b('ai', 'sparkle', "AI'ya sor") : '', b('edit', 'edit', 'Düzenle'),
+      : [aiReady && l.type === 'text' ? b('ai', 'sparkle', "AI'ya sor") : '',
+        l.type === 'text' ? b('edit', 'edit', 'Metni yaz') : b('edit', 'edit', 'Düzenle'),
+        l.type === 'text' ? `<span class="cb-size-grp" title="Yazı boyutu"><button type="button" data-cb="size-" aria-label="Yazıyı küçült">−</button><span class="cb-size-val">${Math.round(l.size)}</span><button type="button" data-cb="size+" aria-label="Yazıyı büyüt">+</button></span>` : '',
+        l.type === 'text' ? `<button type="button" class="cb-btn ${(l.weight || 700) >= 700 ? 'is-on' : ''}" data-cb="bold" title="Kalın"><b>B</b></button>` : '',
+        l.type === 'text' ? `<button type="button" class="cb-btn ${l.upper ? 'is-on' : ''}" data-cb="upper" title="Büyük harf"><span>AA</span></button>` : '',
+        l.type === 'text' ? b('align', '', alignLabel, 'title="Hizalama (Sol / Orta / Sağ)"') : '',
         ['image', 'vector'].includes(l.type) ? b('replace', 'refresh', 'Değiştir') : '',
         colorable ? `<button type="button" class="cb-btn cb-color" data-cp="color" title="Renk" aria-label="Renk"><span class="cp-ring"><span class="cp-trigger-sw" style="background:${l.gradient ? gradCss(l.gradient) : esc(l.color || '#000000')}"></span></span><span class="sr-only">${esc(String(l.color || '').toUpperCase())}</span></button>` : '',
         ['image', 'vector'].includes(l.type) ? b('flip', 'refresh', 'Çevir') : '',
@@ -1034,8 +1052,22 @@ async function renderEditor(view, brand, id, models) {
   function ctxBarAction(k, btn) {
     const l = layer();
     if (k === 'ai') { aiScope = 'sel'; if (panel !== 'ai') openPanel('ai'); return; }
-    if (k === 'edit') { const t = $('#lp-text'); if (t) { t.focus(); t.select(); } else { const p = $('#layer-panel'); if (p) p.scrollIntoView({ block: 'nearest' }); } return; }
-    if (k === 'replace' && l) { const want = l.type === 'vector' ? 'ogeler' : 'yuklemeler'; if (panel !== want) openPanel(want); return toast(l.type === 'vector' ? 'Öğeler panelinden yeni öğeyi seç; eski öğeyi sonra silebilirsin.' : 'Yüklemelerden görsele tıklayınca seçili görselin yerine geçmesi için önce eskisini sil ya da sürükle.', 'info', 3000); }
+    if (k === 'edit') {
+      if (l && l.type === 'text' && !l.locked) return startInlineEdit(l);
+      const t = $('#lp-text'); if (t) { t.focus(); t.select(); } else { const p = $('#layer-panel'); if (p) p.scrollIntoView({ block: 'nearest' }); }
+      return;
+    }
+    if (k === 'size-' && l && l.type === 'text') { l.size = Math.max(10, Math.round(l.size - 4)); markDirty(false, `${l.id}:size`); return redraw({ keepProps: false }); }
+    if (k === 'size+' && l && l.type === 'text') { l.size = Math.min(300, Math.round(l.size + 4)); markDirty(false, `${l.id}:size`); return redraw({ keepProps: false }); }
+    if (k === 'bold' && l && l.type === 'text') { l.weight = (l.weight || 700) >= 700 ? 400 : 800; markDirty(); return redraw({ keepProps: false }); }
+    if (k === 'upper' && l && l.type === 'text') { l.upper = !l.upper; markDirty(); return redraw({ keepProps: false }); }
+    if (k === 'align' && l && l.type === 'text') { const ord = ['left', 'center', 'right']; l.align = ord[(ord.indexOf(l.align || 'left') + 1) % 3]; markDirty(); return redraw({ keepProps: false }); }
+    if (k === 'replace' && l) {
+      replaceTarget = l.id;
+      const want = l.type === 'vector' ? 'ogeler' : 'yuklemeler';
+      if (panel !== want) openPanel(want);
+      return toast(l.type === 'vector' ? 'Öğeler panelinden yeni öğeye tıkla; seçili öğenin yerine geçer.' : 'Yüklemelerden bir görsele tıkla; seçili görselin yerine geçer.', 'info', 3500);
+    }
     if (k === 'flip' && l) { l.flipX = !l.flipX; markDirty(); return redraw(); }
     if (k === 'opacity' && l) {
       document.querySelectorAll('.cb-pop').forEach(x => x.remove());
@@ -1186,9 +1218,16 @@ async function renderEditor(view, brand, id, models) {
     host.innerHTML = html;
     host.ondragstart = e => { const b = e.target.closest('[data-el]'); if (!b) return; e.dataTransfer.setData('text/x-element', b.dataset.el); e.dataTransfer.effectAllowed = 'copy'; };
   }
-  // Öğeyi tuvale ekler (at: tuval koordinatı; yoksa ortaya)
+  // Öğeyi tuvale ekler (at: tuval koordinatı; replaceTarget varsa yerinde değiştirir; yoksa ortaya)
   function addElement(it, at) {
     const F = format(); markUsed(it.id);
+    const rep = replaceTarget ? slide().layers.find(x => x.id === replaceTarget) : null;
+    replaceTarget = null;
+    if (rep && rep.type === 'vector' && it.svg) {
+      rep.svg = it.svg(); rep.elementId = it.id; rep.name = it.name.slice(0, 40);
+      if (it.recolor) rep.recolor = true; else delete rep.recolor;
+      markDirty(); return redraw();
+    }
     const isPattern = /^temel:(desenler|dokular)-/.test(it.id);
     if (!it.svg) { // yüklenen PNG/WebP/GIF öğe: görsel katmanı
       const s = 300; const x = at ? at.x - s / 2 : F.w / 2 - s / 2; const y = at ? at.y - s / 2 : F.h / 2 - s / 2;
@@ -1533,6 +1572,62 @@ async function renderEditor(view, brand, id, models) {
     return out;
   }
 
+  // Canva tarzı tuval üstü doğrudan metin düzenleme: çift tıklayınca metin kutusu tam yerinde açılır
+  function startInlineEdit(l) {
+    if (!l || l.type !== 'text' || l.locked) return;
+    const old = $('#ed-inline-edit'); if (old) old.blur();
+    const c = $('#stage'); const wrap = c && c.parentElement;
+    if (!c || !wrap) return;
+    const F = format();
+    const scale = c.clientWidth / F.w;
+    const ctx = c.getContext('2d');
+    const fitted = fitText(ctx, l);
+    const b = layerBox(ctx, l);
+    l._editing = true;
+    quick();
+    const ta = document.createElement('textarea');
+    ta.id = 'ed-inline-edit';
+    ta.className = 'ed-inline-edit';
+    ta.value = l.text || '';
+    const lh = l.lineHeight > 0 ? l.lineHeight : 1.2;
+    Object.assign(ta.style, {
+      left: `${c.offsetLeft + l.x * scale}px`,
+      top: `${c.offsetTop + l.y * scale}px`,
+      width: `${Math.max(48, l.w * scale)}px`,
+      height: `${Math.max(32, b.h * scale + 12)}px`,
+      fontSize: `${fitted.size * scale}px`,
+      fontFamily: `"${l.font || 'Inter'}", system-ui, sans-serif`,
+      fontWeight: String(l.weight || 700),
+      lineHeight: String(lh),
+      letterSpacing: `${(l.letterSpacing || 0) * scale}px`,
+      textAlign: l.align || 'left',
+      color: l.color || '#1b1f3b',
+      textTransform: l.upper ? 'uppercase' : 'none',
+      transform: l.rot ? `rotate(${l.rot}deg)` : ''
+    });
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = `${Math.max(32, ta.scrollHeight)}px`; };
+    ta.addEventListener('input', () => {
+      l.text = ta.value;
+      const lp = $('#lp-text'); if (lp) lp.value = l.text;
+      markDirty(false, `${l.id}:text`);
+      grow();
+    });
+    const finish = () => {
+      if (!ta.isConnected) return;
+      ta.remove();
+      delete l._editing;
+      redraw({ keepProps: false });
+    };
+    ta.addEventListener('blur', finish);
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); finish(); }
+    });
+    wrap.appendChild(ta);
+    grow();
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
+
   function wireStage() {
     const c = $('#stage');
     let drag = null;
@@ -1611,11 +1706,18 @@ async function renderEditor(view, brand, id, models) {
     const end = () => { guides = []; if (drag && drag.moved) { markDirty(); redraw({ keepProps: false }); } else if (drag) quick(); drag = null; };
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', end);
-    c.addEventListener('dblclick', () => { const t = $('#lp-text'); if (t) t.focus(); });
+    c.addEventListener('dblclick', e => {
+      const p = point(e);
+      const hit = hitTest(c, slide(), p.x, p.y);
+      const target = (hit && hit.type === 'text') ? hit : layer();
+      if (target && target.type === 'text' && !target.locked) { setSelected(target.id); return startInlineEdit(target); }
+      const t = $('#lp-text'); if (t) t.focus();
+    });
     c.addEventListener('keydown', e => {
       if (multi) return; // çoklu seçim tuşları belge düzeyinde
       const l = layer();
       if (!l || l.locked) return;
+      if (e.key === 'Enter' && l.type === 'text') { e.preventDefault(); return startInlineEdit(l); }
       const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
       if (k) { e.preventDefault(); const s = e.shiftKey ? 10 : 1; l.x += k[0] * s; l.y += k[1] * s; markDirty(false, `${l.id}:move`); redraw(); }
       if (e.key === 'Delete') { slide().layers = slide().layers.filter(x => x.id !== l.id); setSelected(null); markDirty(); redraw(); }
@@ -1926,7 +2028,14 @@ async function renderEditor(view, brand, id, models) {
     const sp = mascotSpot();
     addLayer(Object.assign({ id: uid(), type: 'image', role: 'mascot', src: a.url, assetId: a.id }, sp));
   };
-  const addAssetLayer = a => { if (a.category === 'mascot') return placeMascot(a); const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480; addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, ...(a.category === 'mascot' ? { role: 'mascot' } : a.category === 'logo' ? { role: 'logo' } : {}), x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s }); };
+  const addAssetLayer = a => {
+    const rep = replaceTarget ? slide().layers.find(x => x.id === replaceTarget) : null;
+    replaceTarget = null;
+    if (rep && rep.type === 'image') { rep.src = a.url; rep.assetId = a.id; markDirty(); return redraw(); }
+    if (a.category === 'mascot') return placeMascot(a);
+    const F = format(); const small = a.category === 'logo' || a.category === 'sticker'; const s = small ? 240 : 480;
+    addLayer({ id: uid(), type: 'image', src: a.url, assetId: a.id, ...(a.category === 'mascot' ? { role: 'mascot' } : a.category === 'logo' ? { role: 'logo' } : {}), x: Math.round(F.w / 2 - s / 2), y: Math.round(F.h / 2 - s / 2), w: s, h: s });
+  };
   async function save(btn) {
     post = (await busy(btn, () => api.savePost(brand.id, post.id, { data }))).post;
     data = JSON.parse(JSON.stringify(post.data)); dirty = false;

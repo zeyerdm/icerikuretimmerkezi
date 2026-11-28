@@ -12,7 +12,7 @@ test('Bilgilerden tasarım: afiş (A4) şablonsuz ve hazır afiş şablonuyla; y
   try {
     const b = (await s.request('POST', '/api/brands', { name: 'Afişli', colors: { primary: '#123456', secondary: [], backgrounds: [] } })).data.brand;
     const meta = (await s.request('GET', '/api/meta')).data.posts;
-    assert.equal(meta.kinds.afis, 'Afiş'); assert.equal(meta.formats.A4.h, 1754);
+    assert.equal(meta.kinds.afis, 'Afiş'); assert.equal(meta.formats.A4.h, 1528);
     // Şablonsuz: türün marka yerleşimi
     let r = await s.request('POST', `/api/brands/${b.id}/posts/from-brief`, { kind: 'afis', brief });
     assert.equal(r.status, 201, JSON.stringify(r.data));
@@ -21,14 +21,17 @@ test('Bilgilerden tasarım: afiş (A4) şablonsuz ve hazır afiş şablonuyla; y
     assert.match(all, /Kampüs Şubemiz Açıldı/); assert.match(all, /İlk hafta 2\. kahve hediye/); assert.match(all, /2 Aralık · 08\.00 · Merkez Kampüs/); assert.match(all, /Bekliyoruz!/);
     // Hazır afiş şablonu: ortak kütüphanede türüyle listelenir, markanın rengine çevrilir, bilgiler kutulara yerleşir
     const shared = (await s.request('GET', `/api/brands/${b.id}/shared-templates`)).data.templates.filter(t => t.kind === 'afis');
-    assert.equal(shared.length, 3);
-    r = await s.request('POST', `/api/brands/${b.id}/posts/from-brief`, { kind: 'afis', brief, sharedId: 'hazir-afis-buyuk' });
+    assert.equal(shared.length, 12);
+    // Ek alanlar: yazılan yerleşir, boş bırakılan kutu çıkar; sabit marka adı markadan gelir
+    const fields = { STAT_1: '%50', STAT_1_LABEL: 'açılış indirimi', STAT_2: '', STAT_2_LABEL: '', FOOTER_NOTE: '' };
+    r = await s.request('POST', `/api/brands/${b.id}/posts/from-brief`, { kind: 'afis', brief: Object.assign({ fields }, brief), sharedId: 'hazir-afis-tokmak' });
     assert.equal(r.status, 201, JSON.stringify(r.data));
     const p = r.data.post;
-    assert.equal(p.kind, 'afis'); assert.equal(p.data.format, 'A4'); assert.equal(p.data.slides[0].bg, '#123456', 'zemin marka rengi');
+    assert.equal(p.kind, 'afis'); assert.equal(p.data.format, 'A4');
     all = texts(p).join(' | ');
-    assert.match(all, /Kampüs Şubemiz Açıldı/); assert.match(all, /Merkez Kampüs/); assert.match(all, /Bekliyoruz!/);
-    assert.doesNotMatch(all, /BÜYÜK BAŞLIK BURAYA/, 'şablon örnek metni kalmaz');
+    assert.match(all, /Kampüs Şubemiz Açıldı/); assert.match(all, /Merkez Kampüs/); assert.match(all, /Bekliyoruz!/); assert.match(all, /%50 \| açılış indirimi/);
+    assert.match(all, /AFİŞLİ|Afişli/, 'marka adı');
+    for (const ex of [/fark yarat/, /11M\+/, /36/, /kaynak, tek aramada/, /markan\.com/]) assert.doesNotMatch(all, ex, `şablon örneği kalmaz: ${ex}`);
     // Başlık zorunlu; geçersiz tür
     assert.equal((await s.request('POST', `/api/brands/${b.id}/posts/from-brief`, { kind: 'afis', brief: { subtitle: 'x' } })).status, 400);
     assert.equal((await s.request('POST', `/api/brands/${b.id}/posts/from-brief`, { kind: 'yok', brief })).status, 400);
@@ -77,18 +80,26 @@ test('Arayüz: adım adım tasarım (her adım ayrı ekran, geri dönünce yazı
     await page.locator('[data-wz-next]').click();
     // 4: yalnız afiş şablonları
     await page.getByRole('heading', { name: 'Bir afiş şablonu seç' }).waitFor();
-    assert.equal(await page.locator('[data-wz-shared]').count(), 3);
+    assert.equal(await page.locator('[data-wz-shared]').count(), 12);
     await page.locator('[data-wz-back]').click();
     assert.equal(await page.getByLabel('Başlık *').inputValue(), 'Kampüs Şubemiz Açıldı', 'geri dönünce yazılanlar kalır');
     await page.locator('[data-wz-next]').click();
-    await page.locator('[data-wz-shared="hazir-afis-etkinlik"]').click();
+    await page.locator('[data-wz-shared="hazir-afis-tokmak"]').click();
+    // Şablonun ek alanları: örnek yazıyla dolu gelir; değiştirilir ya da silinir
+    await page.getByRole('heading', { name: 'Şablondaki ek alanlar' }).waitFor();
+    assert.equal(await page.getByLabel('Sayı 1', { exact: true }).inputValue(), '11M+');
+    await page.getByLabel('Sayı 1', { exact: true }).fill('%50');
+    await page.getByLabel('Sayı 1 etiketi').fill('açılış indirimi');
+    for (const l of ['Sayı 2', 'Sayı 2 etiketi', 'Alt not']) await page.getByLabel(l, { exact: true }).fill('');
+    await page.locator('[data-wz-make]').click();
     await page.waitForURL(/\/post\/[0-9a-f-]{36}$/);
     const id = page.url().split('/').pop();
     const post = (await s.request('GET', `/api/brands/${b.id}/posts/${id}`)).data.post;
     assert.equal(post.kind, 'afis'); assert.equal(post.data.format, 'A4');
     assert.match(JSON.stringify(post.data.slides), /Kampüs Şubemiz Açıldı/); assert.match(JSON.stringify(post.data.slides), /2 Aralık · 08\.00 · Merkez Kampüs/);
-    assert.doesNotMatch(JSON.stringify(post.data.slides), /Kayıt ol/, 'boş bırakılan buton tasarıma girmez');
+    assert.doesNotMatch(JSON.stringify(post.data.slides), /Hemen keşfedin/, 'boş bırakılan buton tasarıma girmez');
     assert.ok(!post.data.slides[0].layers.some(l => l.role === 'cta'));
+    assert.match(JSON.stringify(post.data.slides), /%50/); assert.doesNotMatch(JSON.stringify(post.data.slides), /markan\.com|kaynak, tek aramada/);
     // Hızlı başla: marka bilgisinden dolar; şablonsuz
     await page.goto(`${s.base}/#/m/${b.id}/post/yeni`);
     await page.locator('[data-wz-kind="post"]').click();

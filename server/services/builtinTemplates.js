@@ -119,35 +119,7 @@ function boxNews() {
   };
 }
 
-// Afiş (A4 dikey, 1240×1754): tek sayfa. Başlık, açıklama (alt başlık, tarih · yer, iletişim) ve buton kutusu
-// adım adım tasarım akışında kullanıcının yazdığı bilgilerle dolar; renk ve yazı tipleri markadan gelir.
-function posterBold() {
-  return { id: 'hazir-afis-buyuk', name: 'Afiş · büyük başlık', kind: 'afis', data: { format: 'A4', slides: [
-    { bg: '#c9561c', bgRole: 'primary', layers: [IMG('logo', 100, 100, 360, 130, { role: 'logo' }),
-      T('title', 'BÜYÜK BAŞLIK BURAYA', 100, 560, 1040, 150, '#ffffff', 'Poppins', { weight: 900, fontRole: 'heading', upper: true, maxH: 560, lineHeight: 1.02 }),
-      T('body', 'Alt başlık\nTarih · Yer\nİletişim', 100, 1180, 1000, 50, '#ffffff', 'Inter', { weight: 500, fontRole: 'body', maxH: 300, lineHeight: 1.4 }),
-      R(100, 1540, 520, 116, '#ffffff', { radius: 58 }), T('cta', 'Bekliyoruz!', 100, 1574, 520, 46, '#1b1f3b', 'Poppins', { weight: 800, fontRole: 'heading', align: 'center' })] }
-  ] } };
-}
-function posterEvent() {
-  const bg = '#1b1f3b';
-  return { id: 'hazir-afis-etkinlik', name: 'Afiş · etkinlik (koyu)', kind: 'afis', data: { format: 'A4', slides: [
-    { bg, layers: [R(0, 0, 1240, 36, '#ff6b00', { colorRole: 'primary' }), IMG('logo', 100, 110, 320, 110, { role: 'logo' }),
-      R(100, 420, 140, 12, '#ff6b00', { colorRole: 'primary', radius: 6 }),
-      T('title', 'Etkinlik adı', 100, 480, 1040, 132, '#ffffff', 'Poppins', { weight: 900, fontRole: 'heading', maxH: 520, lineHeight: 1.05 }),
-      T('body', 'Alt başlık\nTarih · Yer\nİletişim', 100, 1080, 1040, 52, '#c7cbd6', 'Inter', { weight: 500, fontRole: 'body', maxH: 360, lineHeight: 1.45 }),
-      R(100, 1530, 560, 116, '#ff6b00', { radius: 20, colorRole: 'primary' }), T('cta', 'Kayıt ol', 100, 1564, 560, 46, '#ffffff', 'Poppins', { weight: 800, fontRole: 'heading', align: 'center' })] }
-  ] } };
-}
-function posterMinimal() {
-  return { id: 'hazir-afis-minimal', name: 'Afiş · minimal açık', kind: 'afis', data: { format: 'A4', slides: [
-    { bg: '#ffffff', bgRole: 'bg', layers: [IMG('logo', 470, 120, 300, 120, { role: 'logo', align: 'center' }),
-      T('title', 'Başlık', 100, 560, 1040, 120, '#c9561c', 'Poppins', { weight: 800, fontRole: 'heading', colorRole: 'primary', align: 'center', maxH: 480, lineHeight: 1.08 }),
-      R(520, 1060, 200, 8, '#c9561c', { colorRole: 'primary', radius: 4 }),
-      T('body', 'Alt başlık\nTarih · Yer\nİletişim', 120, 1120, 1000, 48, '#3a3f63', 'Inter', { weight: 500, fontRole: 'body', align: 'center', maxH: 320, lineHeight: 1.45 }),
-      T('cta', 'Bekliyoruz!', 120, 1560, 1000, 52, '#1b1f3b', 'Poppins', { weight: 800, fontRole: 'heading', align: 'center' })] }
-  ] } };
-}
+import { LEXONOMI_POSTER_TEMPLATES } from './lexonomiTemplates.js';
 
-export const BUILTIN_TEMPLATES = [darkCard(), pastel(), stickyNote(), gridPaper(), elegant(), fontCombo(), boxNews(), posterBold(), posterEvent(), posterMinimal()];
+export const BUILTIN_TEMPLATES = [darkCard(), pastel(), stickyNote(), gridPaper(), elegant(), fontCombo(), boxNews(), ...LEXONOMI_POSTER_TEMPLATES];
 export const isBuiltin = tid => String(tid || '').startsWith('hazir-');

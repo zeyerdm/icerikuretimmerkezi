@@ -83,6 +83,13 @@ export function createSharedTemplateService({ db, ownerId, brands, assets }) {
         const o = Object.assign({}, l);
         if (o.colorRole) o.color = roleColor(b, o.colorRole, o.color);
         if (o.highlightRole) o.highlight = roleColor(b, o.highlightRole, o.highlight);
+        if (o.bgColorRole) o.bgColor = roleColor(b, o.bgColorRole, o.bgColor);
+        if (o.strokeColorRole) o.strokeColor = roleColor(b, o.strokeColorRole, o.strokeColor);
+        if (o.gradient && Array.isArray(o.gradient.stops)) {
+          o.gradient = Object.assign({}, o.gradient, {
+            stops: o.gradient.stops.map(st => st.colorRole ? { c: roleColor(b, st.colorRole, st.c), p: st.p } : st)
+          });
+        }
         // Rolsüz beyaz/koyu yazı, altındaki yeni renkte (en üstteki şekil ya da slayt zemini) okunmaz kaldıysa okunur renge çekilir
         if (o.type === 'text' && !o.colorRole && !o.bgColor && ['#ffffff', '#1b1f3b', '#000000'].includes(norm(o.color))) {
           const cx = o.x + (o.w || 0) / 2;
@@ -93,6 +100,10 @@ export function createSharedTemplateService({ db, ownerId, brands, assets }) {
           if ((norm(o.color) === '#ffffff') !== (want === '#ffffff')) o.color = want;
         }
         if (o.type === 'text' && o.fontRole) o.font = (o.fontRole === 'heading' ? f.heading : f.body) || o.font;
+        if (o.type === 'text' && typeof o.text === 'string' && o.text.includes('{{BRAND}}')) {
+          const brandLabel = o.upper ? String(b.name || '').toLocaleUpperCase('tr-TR') : String(b.name || '');
+          o.text = o.text.replace(/\{\{BRAND\}\}/g, brandLabel);
+        }
         if (o.type === 'image') {
           const a = files[o.imageRole];
           if (a) { o.src = a.url; o.assetId = a.id; } else {
@@ -101,7 +112,7 @@ export function createSharedTemplateService({ db, ownerId, brands, assets }) {
             continue;
           }
         }
-        delete o.colorRole; delete o.fontRole; delete o.imageRole; delete o.highlightRole;
+        delete o.colorRole; delete o.fontRole; delete o.imageRole; delete o.highlightRole; delete o.bgColorRole; delete o.strokeColorRole;
         layers.push(o);
       }
       return { bg, layers }; // zemin görseli kaynak markanın dosyası olduğu için taşınmaz

@@ -100,7 +100,7 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 
 - ✅ (28 Kasım, onaylandı) Adım adım tasarım: Post stüdyosu → **Yeni tasarım**: 1) ne tasarlıyoruz (afiş, post, carousel,
   story; diğer türler) 2) içerik nereden (ben yazacağım / fikirlerimden / hızlı başla) 3) türe özel alanlar (boş alan
-  tasarıma girmez) 4) yalnız o türün şablonları → düzenleyici. Afiş türü (A4) ve 3 hazır afiş şablonu; yapay zekâ yok.
+  tasarıma girmez) 4) yalnız o türün şablonları → düzenleyici. Afiş türü (A4) ve 12 hazır afiş şablonu (Antigravity); şablonun ek alanları (madde, sayı, rozet, alt not) ayrı adımda, boş bırakılan kutu çıkar; yapay zekâ yok.
   Sonraki adımlar: daha çok tür (menü, broşür, davetiye), türe özel hazır şablon sayısının artması, Canva tarzı şablon
   galerisi sayfası
 - Lisans: şimdilik karar yok; bugünkü kural geçerli (AGPL ve görünür atıf şartlı kod alınmaz)

@@ -107,9 +107,68 @@
     "noticeFile": "LICENSES.txt"
    },
    "count": 126
+  },
+  {
+   "id": "afis",
+   "name": "Afiş, mockup ve vurgu öğeleri",
+   "file": "afis.json",
+   "format": "items",
+   "recolor": true,
+   "source": "Kreatifhane (özgün)",
+   "url": "",
+   "license": {
+    "spdx": "LicenseRef-Kreatifhane",
+    "title": "Kreatifhane özgün çizim",
+    "holder": "Kreatifhane",
+    "commercial": true,
+    "attribution": false
+   },
+   "count": 36
   }
  ],
  "categories": [
+  {
+   "id": "afis",
+   "name": "Afiş & Mockup",
+   "subs": [
+    {
+     "id": "afis:mockup",
+     "pack": "afis",
+     "group": "mockup",
+     "name": "Cihaz & arayüz mockup'ları",
+     "count": 10
+    },
+    {
+     "id": "afis:duzen",
+     "pack": "afis",
+     "group": "duzen",
+     "name": "Afiş düzen blokları",
+     "count": 8
+    },
+    {
+     "id": "afis:vurgu",
+     "pack": "afis",
+     "group": "vurgu",
+     "name": "El çizimi vurgular",
+     "count": 8
+    },
+    {
+     "id": "afis:rozet",
+     "pack": "afis",
+     "group": "rozet",
+     "name": "Rozetler ve puanlar",
+     "count": 6
+    },
+    {
+     "id": "afis:doku",
+     "pack": "afis",
+     "group": "doku",
+     "name": "Arka plan dokuları",
+     "count": 4
+    }
+   ],
+   "count": 36
+  },
   {
    "id": "sekiller",
    "name": "Şekiller",

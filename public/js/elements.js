@@ -23,7 +23,9 @@ const SYN = {
   satis: 'sale', magaza: 'shop', kargo: 'truck', teslimat: 'delivery', paket: 'package', kutu: 'box', spor: 'sport', top: 'ball', futbol: 'football', kosu: 'run',
   yemek: 'food', icecek: 'drink', su: 'water', ekmek: 'bread', tatli: 'dessert', dondurma: 'ice-cream', seyahat: 'travel', bavul: 'luggage', otel: 'hotel', plaj: 'beach',
   hava: 'weather', firtina: 'storm', sicaklik: 'temperature', zaman: 'time', kronometre: 'stopwatch', grafik: 'chart', veri: 'data', bulut: 'cloud', guvenlik: 'safe',
-  kalkan: 'shield', anahtar: 'key', muzik: 'music', nota: 'music', oyun: 'game', hediye: 'gift', yildiz: 'star', kalp: 'heart', begen: 'like', yorum: 'comment', paylas: 'share'
+  kalkan: 'shield', anahtar: 'key', muzik: 'music', nota: 'music', oyun: 'game', hediye: 'gift', yildiz: 'star', kalp: 'heart', begen: 'like', yorum: 'comment', paylas: 'share',
+  mockup: 'mockup', telefon: 'phone', dizustu: 'laptop', tablet: 'tablet', monitor: 'monitor', ekran: 'ekran', arayuz: 'arayuz', pencere: 'browser',
+  dalga: 'wave', yay: 'arc', blob: 'blob', izgara: 'grid', puan: 'rating', kampanya: 'kampanya', vurgu: 'vurgu', tik: 'check'
 };
 const alts = w => { const f = fold(w); return [...new Set([w, f, TR_EN[w], TR_EN[f], SYN[f]].filter(Boolean))]; };
 

@@ -4,7 +4,7 @@
 // → düzenleyici. Yapay zekâ kullanılmaz; "Konu yaz, yapay zekâ yazsın" eski hızlı üretime gider.
 import { api } from '../api.js';
 import { esc, icon, toast, busy } from '../ui.js';
-import { go } from '../app.js';
+import { go, state } from '../app.js';
 import { drawSlide, resolveImages } from '../postCanvas.js';
 
 const MAIN_KINDS = [
@@ -29,6 +29,28 @@ const PRESETS = [
   ['acilis', 'Açılış', b => ({ title: 'Yeni şubemiz açıldı', subtitle: 'Açılışa özel sürpriz', date: 'Tarih · saat', place: 'Adres', contact: b.website || '', cta: 'Bekliyoruz!' })],
   ['ozelgun', 'Özel gün', b => ({ title: 'İyi bayramlar', subtitle: `${b.name} ailesi olarak`, cta: '' })]
 ];
+// Şablonun ek alanları: alan kodu → Türkçe ad (madde, istatistik, rozet…); örnek metin şablondan gelir
+const SKIP_FIELDS = ['MAIN_TITLE', 'DESCRIPTION', 'CTA', 'SPEECH'];
+function fieldLabel(code) {
+  const m = String(code).match(/^([A-Z]+)(?:_(\d+))?(?:_(DESC|LABEL|SUB))?$/);
+  const n = m && m[2] ? ` ${m[2]}` : '';
+  const names = { ITEM: 'Madde', STAT: 'Sayı', BADGE: 'Rozet', BEFORE: 'Önce', AFTER: 'Sonra', SUB: 'Alt başlık' };
+  if (code === 'SUB_TITLE') return 'Alt başlık';
+  if (code === 'FOOTER_NOTE') return 'Alt not';
+  if (code === 'FOOTER_STATS') return 'Alt bilgi';
+  if (code === 'AUDIENCE') return 'Kime yönelik';
+  if (m && names[m[1]]) return `${names[m[1]]}${n}${m[3] === 'DESC' ? ' açıklaması' : m[3] === 'LABEL' ? ' etiketi' : m[3] === 'SUB' ? ' alt başlığı' : ''}`;
+  return code.toLocaleLowerCase('tr-TR').replace(/_/g, ' ');
+}
+function templateFields(t) {
+  const out = new Map();
+  for (const sl of (t.data && t.data.slides) || []) for (const l of sl.layers || []) {
+    if (l.type !== 'text' || l.fixed) continue;
+    const code = l.field && !SKIP_FIELDS.includes(l.field) ? l.field : (!l.field && l.role === 'subtitle' ? 'SUB_TITLE' : null);
+    if (code && !out.has(code)) out.set(code, String(l.text || ''));
+  }
+  return [...out].map(([code, example]) => ({ code, example }));
+}
 function firstSentence(t) { const s = String(t || '').split(/(?<=[.!?])\s/)[0]; return s.length > 140 ? s.slice(0, 140) + '…' : s; }
 
 export async function renderDesignWizard(view, brand) {
@@ -67,6 +89,10 @@ export async function renderDesignWizard(view, brand) {
           ? `<textarea class="textarea" id="wz-${k}" name="${k}" rows="4" maxlength="1000" autocomplete="off" placeholder="${esc(ph)}">${esc(st.brief[k] || '')}</textarea>`
           : `<input class="input" id="wz-${k}" name="${k}" maxlength="200" autocomplete="off" value="${esc(st.brief[k] || '')}" placeholder="${esc(ph)}" ${k === 'title' ? 'required' : ''}>`}</div>`).join('')}</div></form>
         <div class="wz-next"><button type="button" class="btn btn-primary" data-wz-next>Devam ${icon('chevronRight')}</button></div>`;
+    } else if (st.extra) {
+      body = `<h2 class="wz-h">Şablondaki ek alanlar</h2><p class="muted">"${esc(st.extra.name)}" şablonunda bunlar da var. Örnek yazıları değiştir; boş bıraktığın kutu tasarıma girmez.</p>
+        <form class="card wz-form" id="wz-extra" novalidate autocomplete="off"><div class="form-grid">${st.extra.fields.map(x => `<div class="field"><label for="wx-${esc(x.code)}">${esc(fieldLabel(x.code))}</label><input class="input" id="wx-${esc(x.code)}" name="${esc(x.code)}" maxlength="300" autocomplete="off"></div>`).join('')}</div></form>
+        <div class="wz-next"><button type="button" class="btn btn-primary" data-wz-make>${icon('check')}Tasarımı oluştur</button></div>`;
     } else {
       const [{ templates: own }, { templates: shared }] = await Promise.all([api.postTemplates(brand.id), api.sharedTemplates(brand.id)]);
       const mine = own.filter(t => t.kind === st.kind);
@@ -83,18 +109,19 @@ export async function renderDesignWizard(view, brand) {
     if (st.step === 4) for (const t of st.thumbs || []) {
       const c = view.querySelector(`[data-wz-canvas="${CSS.escape(t.id)}"]`);
       const slide = t.data && t.data.slides && t.data.slides[0];
-      const F = { '4:5': { w: 1080, h: 1350 }, '1:1': { w: 1080, h: 1080 }, '9:16': { w: 1080, h: 1920 }, '16:9': { w: 1280, h: 720 }, A4: { w: 1240, h: 1754 } }[t.data && t.data.format] || { w: 1080, h: 1350 };
+      const F = ((state.meta.posts || {}).formats || {})[t.data && t.data.format] || { w: 1080, h: 1350 };
       if (c && slide) resolveImages(slide).then(() => { if (c.isConnected) drawSlide(c, slide, F); }).catch(() => {});
     }
     // Tarayıcı aynı adlı alana önceki yazıyı geri doldurmasın: değerler durumdan açıkça yazılır
     view.querySelectorAll('#wz-form [name]').forEach(el => { el.value = st.brief[el.name] || ''; });
+    if (st.extra) view.querySelectorAll('#wz-extra [name]').forEach(el => { const x = st.extra.fields.find(f => f.code === el.name); el.value = st.extra.values[el.name] != null ? st.extra.values[el.name] : x.example; });
     const first = view.querySelector('#wz-title'); if (first) first.focus();
   }
 
   const readForm = () => { const f = view.querySelector('#wz-form'); if (f) for (const [k, v] of new FormData(f).entries()) st.brief[k] = String(v).trim(); };
-  async function create(btn, extra) {
+  async function create(btn, extra, more = {}) {
     try {
-      const r = await busy(btn, () => api.createFromBrief(brand.id, Object.assign({ kind: st.kind, brief: st.brief }, extra)));
+      const r = await busy(btn, () => api.createFromBrief(brand.id, Object.assign({ kind: st.kind, brief: Object.assign({}, st.brief, more) }, extra)));
       toast('Tasarım hazır; düzenleyebilirsin.', 'success');
       go(`${base}/${r.post.id}`);
     } catch (err) { toast(err.message, 'error'); }
@@ -105,6 +132,7 @@ export async function renderDesignWizard(view, brand) {
     const d = t.dataset;
     if ('wzBack' in d) {
       readForm();
+      if (st.extra) { st.extra = null; return draw(); }
       // Fikir / hızlı başla: bilgiler ekranından seçim listesine dön
       if (st.step === 3 && st.source !== 'yaz' && st.brief.title) { st.brief = {}; }
       else st.step -= 1;
@@ -124,8 +152,19 @@ export async function renderDesignWizard(view, brand) {
       if (!st.brief.title) { toast('Başlığı yaz.', 'error'); const f = view.querySelector('#wz-title'); if (f) f.focus(); return; }
       st.step = 4; return draw();
     }
-    if (d.wzTpl) return create(t, { templateId: d.wzTpl });
-    if (d.wzShared) return create(t, { sharedId: d.wzShared });
+    // Şablon seçilince: ek alanı varsa önce o alanlar sorulur (örnek yazıyla dolu), yoksa doğrudan oluşturulur
+    if (d.wzTpl || d.wzShared) {
+      const tpl = (st.thumbs || []).find(x => x.id === (d.wzTpl || d.wzShared));
+      const extra = tpl ? templateFields(tpl) : [];
+      const ref = d.wzTpl ? { templateId: d.wzTpl } : { sharedId: d.wzShared };
+      if (!extra.length) return create(t, ref);
+      st.extra = { name: tpl.name, fields: extra, ref, values: st.brief.subtitle && extra.some(x => x.code === 'SUB_TITLE') ? { SUB_TITLE: st.brief.subtitle } : {} };
+      return draw();
+    }
+    if ('wzMake' in d) {
+      view.querySelectorAll('#wz-extra [name]').forEach(el => { st.extra.values[el.name] = el.value.trim(); });
+      return create(t, Object.assign({}, st.extra.ref), { fields: st.extra.values });
+    }
     if ('wzNone' in d) return create(t, {});
   };
   await draw();
