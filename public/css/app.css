@@ -1799,9 +1799,20 @@ body.editor-mode .radial-fab { display: none; }
 
 /* 9.3–9.9 Marka kimliği: Marka dosyası ve kurulum sihirbazı */
 .id-tabs { display: flex; flex-wrap: wrap; }
+.tabs-sub { margin-top: -8px; padding: 3px; font-size: var(--t-xs, 12px); }
+.tabs-sub a { padding: 5px 12px; }
 .setup-callout { display: flex; align-items: center; gap: var(--s-5); justify-content: space-between; }
 .setup-callout h2 { font-size: var(--t-lg); margin-bottom: var(--s-1); }
-.dossier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--s-5); align-items: start; }
+.dossier-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-5); align-items: stretch; }
+.dossier-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.dossier-card { display: flex; flex-direction: column; cursor: pointer; transition: box-shadow .15s ease, border-color .15s ease; }
+.dossier-card:hover { border-color: var(--line-2, #d4d1c9); }
+.dossier-body { position: relative; max-height: 176px; overflow: hidden; flex: 1; }
+.dossier-body.has-more::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: linear-gradient(to bottom, transparent, var(--surface, #fff)); pointer-events: none; }
+.dossier-card.is-open .dossier-body { max-height: none; overflow: visible; }
+.dossier-card.is-open .dossier-body.has-more::after { display: none; }
+.dossier-more { margin-top: 8px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; font-weight: 700; color: var(--brand, #5b55e6); cursor: pointer; align-self: flex-start; }
+.dossier-more:hover { text-decoration: underline; }
 .dossier-dl { display: grid; grid-template-columns: minmax(110px, 34%) 1fr; gap: var(--s-2) var(--s-3); margin: 0; font-size: var(--t-sm); }
 .dossier-dl dt { color: var(--muted); font-weight: 600; }
 .dossier-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
@@ -1883,7 +1894,8 @@ body.editor-mode .radial-fab { display: none; }
 .ob-links { justify-content: flex-start; }
 
 /* 11.6 Hazır seçenek çipleri */
-.suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.suggest { display: none; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.field:focus-within .suggest, .suggest:focus-within { display: flex; }
 .chip.chip-sm { height: 26px; padding: 0 10px; font-size: var(--t-xs); }
 .suggest .chip.is-on { background: var(--brand-soft); color: var(--brand-ink); border-color: transparent; }
 
@@ -2542,7 +2554,7 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 .bn-list li { padding: 6px 10px; align-items: center; }
 .bn-list li p { font-size: 14px; }
 .bn-date { margin-left: 8px; font-size: 11px; color: var(--muted, #7a7d8c); white-space: nowrap; }
-.bn-add textarea { min-height: 38px; resize: none; }
+.bn-add textarea { min-height: 58px; resize: vertical; }
 .bn-more { border: 0; background: none; padding: 4px 2px; font: inherit; font-size: 13px; font-weight: 600; color: var(--primary, #5b55e6); cursor: pointer; display: block; }
 .bn-more:hover { text-decoration: underline; }
 .bn-done { margin-top: 4px; }

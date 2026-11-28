@@ -730,14 +730,26 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), work });
     },
 
-    createBlank(brandId, { title = 'Yeni post', kind = 'post', format = null, templateId = null, editTemplate = false } = {}) {
+    createBlank(brandId, { title = 'Yeni post', kind = 'post', format = null, templateId = null, editTemplate = false, bgAsset = null, texts = null } = {}) {
       const b = brands.get(brandId);
       if (templateId) return fromTemplate(b, templateId, title, { edit: Boolean(editTemplate) });
       oneOf(kind, Object.keys(POST_KINDS), 'Tür');
       format = format || KIND_DEFAULTS[kind].format;
       if (!POST_FORMATS[format]) throw badRequest('Geçersiz boyut.');
       const t = text(title, { field: 'Ad', max: 120, required: true });
-      const data = { format, slides: layoutSlides(Object.assign({ texts: [{ title: t, body: '', items: kind === 'grafik' ? ['Birinci madde', 'İkinci madde', 'Üçüncü madde'] : [] }], brand: b, format, kind }, brandAssets(b))), caption: '', hashtags: [] };
+      let slides;
+      if (bgAsset && bgAsset.url && Array.isArray(texts) && texts[0] && texts[0].title === false) {
+        slides = [{ bg: '#ffffff', layers: [] }];
+      } else {
+        const srcTexts = Array.isArray(texts) && texts.length
+          ? texts.map(x => ({ title: String(x.title || t).slice(0, 200), body: String(x.body || '').slice(0, 300), cta: String(x.cta || '').slice(0, 200), items: Array.isArray(x.items) ? x.items : [] }))
+          : [{ title: t, body: '', items: kind === 'grafik' ? ['Birinci madde', 'İkinci madde', 'Üçüncü madde'] : [] }];
+        slides = layoutSlides(Object.assign({ texts: srcTexts, brand: b, format, kind: layoutKind(kind) }, brandAssets(b)));
+      }
+      if (bgAsset && bgAsset.url && slides[0]) {
+        slides[0].bgImage = { src: String(bgAsset.url), fit: 'cover', dim: 0 };
+      }
+      const data = cleanData({ format, slides, caption: '', hashtags: [] }, b.id);
       const r = { id: newId(), brand_id: b.id, title: t, kind, data: JSON.stringify(data), created_at: now() };
       db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, \'\', ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.created_at, r.created_at);
       return toPost(Object.assign(r, { model: '', updated_at: r.created_at }));

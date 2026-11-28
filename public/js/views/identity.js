@@ -14,16 +14,34 @@ import { renderMemory } from './memory.js';
 import { renderStrategy } from './strategy.js';
 import { renderPromptIdentity, characterBookCard } from './promptIdentity.js';
 
-// O4.5: Profil ve Görsel kimlik ayrı sekme değil; Marka dosyasındaki Düzenle düğmeleri tek düzenleme sayfasını açar
-export const ID_TABS = [['ozet', '', 'Marka dosyası'], ['ses', '/ses', 'Ses ve hafıza'], ['prompt', '/prompt', 'Görsel dil'], ['maskot', '/maskot', 'Maskot'], ['strateji', '/strateji', 'Hedefler ve sütunlar']];
+export const ID_TABS = [
+  ['ozet', '', 'Genel', ['ozet']],
+  ['profil', '/profil', 'Görsel & Marka', ['profil', 'gorsel', 'maskot']],
+  ['ses', '/ses', 'AI Dili & Hafıza', ['ses', 'prompt', 'strateji']],
+  ['baglantilar', '/baglantilar', 'Bağlantılar', ['baglantilar']],
+  ['kilavuz', '/kilavuz', 'Marka Kılavuzu', ['kilavuz']]
+];
+
+const SUB_TABS = {
+  profil: [['profil', '/profil', 'Profil & Hedefler'], ['gorsel', '/gorsel', 'Logo, Renk & Font'], ['maskot', '/maskot', 'Maskot']],
+  gorsel: [['profil', '/profil', 'Profil & Hedefler'], ['gorsel', '/gorsel', 'Logo, Renk & Font'], ['maskot', '/maskot', 'Maskot']],
+  maskot: [['profil', '/profil', 'Profil & Hedefler'], ['gorsel', '/gorsel', 'Logo, Renk & Font'], ['maskot', '/maskot', 'Maskot']],
+  ses: [['ses', '/ses', 'Ses & Hafıza'], ['prompt', '/prompt', 'Görsel Dil & Prompt'], ['strateji', '/strateji', 'Hedefler & Sütunlar']],
+  prompt: [['ses', '/ses', 'Ses & Hafıza'], ['prompt', '/prompt', 'Görsel Dil & Prompt'], ['strateji', '/strateji', 'Hedefler & Sütunlar']],
+  strateji: [['ses', '/ses', 'Ses & Hafıza'], ['prompt', '/prompt', 'Görsel Dil & Prompt'], ['strateji', '/strateji', 'Hedefler & Sütunlar']]
+};
 
 export function identityHead(brand, active, desc) {
   const base = `#/m/${esc(brand.id)}/kimlik`;
+  const subs = SUB_TABS[active];
   return pageHead({
     title: 'Marka kimliği',
     desc: desc || `${esc(brand.name)} hakkında yapay zekânın bildiği her şey tek yerde. Burada yazdıkların bütün üretimlere (asistan, Reels, post, prompt, denetçi) kendiliğinden girer.`,
     actions: `<a class="btn" href="${base}/kilavuz">${icon('download')}Marka kılavuzu</a>`
-  }) + `<nav class="tabs id-tabs" aria-label="Marka kimliği bölümleri">${ID_TABS.map(([k, p, l]) => `<a href="${base}${p}" class="${k === active ? 'active' : ''}"${k === active ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  }) + `<nav class="tabs id-tabs" aria-label="Marka kimliği kategorileri">${ID_TABS.map(([k, p, l, keys]) => {
+    const on = keys.includes(active);
+    return `<a href="${base}${p}" class="${on ? 'active' : ''}"${on ? ' aria-current="page"' : ''}>${l}</a>`;
+  }).join('')}</nav>${subs ? `<nav class="tabs tabs-sub mb-4" aria-label="Alt bölümler">${subs.map(([k, p, l]) => `<a href="${base}${p}" class="${k === active ? 'active' : ''}"${k === active ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>` : ''}`;
 }
 
 // Başlıktaki Markayı sil (başlık her çizimde yeniden oluşur; dinleyici birikmez)
@@ -53,6 +71,7 @@ export async function renderIdentity(view, brand, tab = 'ozet', step = null) {
   if (tab === 'strateji') return renderStrategy(view, brand);
   if (tab === 'prompt') return renderPromptIdentity(view, brand);
   if (tab === 'maskot') return renderMascot(view, brand);
+  if (tab === 'baglantilar') return renderConnections(view, brand);
   if (tab === 'kilavuz') return renderBrandBook(view, brand);
   if (tab === 'kurulum') return renderSetup(view, brand, step, false);
   if (tab === 'duzenle') return renderSetup(view, brand, step, true);
@@ -72,8 +91,10 @@ function section({ id, title, step, tab, needs, rows, extra = '', brand, href = 
   const base = `#/m/${esc(brand.id)}/kimlik`;
   return `<section class="card dossier-card" id="ds-${id}">
     <div class="card-head"><h3>${esc(title)}</h3>${needs.length ? `<span class="pill pill-warn" title="${esc(needs.join(', '))}">${needs.length} eksik</span>` : '<span class="pill pill-ok"><span class="dot"></span>Tamam</span>'}</div>
-    <dl class="dossier-dl">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>${extra}
-    ${needs.length ? `<p class="xsmall muted mt-2">Eksik: ${esc(needs.join(', '))}</p>` : ''}
+    <div class="dossier-body">
+      <dl class="dossier-dl">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>${extra}
+      ${needs.length ? `<p class="xsmall muted mt-2">Eksik: ${esc(needs.join(', '))}</p>` : ''}
+    </div>
     <div class="row mt-3"><a class="btn btn-sm btn-primary" href="${href ? base + href : `${base}/duzenle/${step}`}">${icon('edit')}Düzenle</a></div>
   </section>`;
 }
@@ -131,6 +152,25 @@ async function renderDossier(view, brand) {
   const fillBtn = running ? '' : `<div class="row mb-4"><button type="button" class="btn btn-sm" data-ai-fill>${icon('sparkle')}Yapay zekâ ile doldur</button><span class="xsmall muted">Web sitesinden ya da eldeki bilgilerden; arka planda çalışır, yalnız boş alanlara yazar.</span></div>`;
   const danger = `<section class="card ds-danger mt-5"><div class="grow"><b>Markayı sil</b><div class="small muted">Marka ve bütün içerikleri çöp kutusuna gider; oradan geri alınabilir.</div></div><button type="button" class="btn btn-danger btn-sm" data-id-action="delete">${icon('trash')}Markayı sil</button></section>`;
   view.innerHTML = identityHead(brand, 'ozet') + head + aiBox + fillBtn + `<div class="dossier-grid">${cards.join('')}</div>` + '<div id="bn-wrap" class="mt-5"></div>' + danger;
+  view.querySelectorAll('.dossier-card').forEach(card => {
+    const body = card.querySelector('.dossier-body');
+    if (body && body.scrollHeight > body.clientHeight + 6) {
+      body.classList.add('has-more');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dossier-more';
+      btn.dataset.dsToggle = '1';
+      btn.textContent = 'Tümünü gör ▾';
+      card.appendChild(btn);
+    }
+    card.addEventListener('click', e => {
+      if (e.target.closest('a') || (e.target.closest('button') && !e.target.closest('[data-ds-toggle]'))) return;
+      if (!card.querySelector('[data-ds-toggle]')) return;
+      const open = card.classList.toggle('is-open');
+      const btn = card.querySelector('[data-ds-toggle]');
+      if (btn) btn.textContent = open ? 'Küçült ▴' : 'Tümünü gör ▾';
+    });
+  });
   mountBrandNotes(view.querySelector('#bn-wrap'), brand);
   const fb = view.querySelector('[data-ai-fill]');
   if (fb) fb.addEventListener('click', () => openModal({
@@ -157,6 +197,85 @@ async function renderDossier(view, brand) {
     };
     setTimeout(poll, 5000);
   }
+  bindIdentityActions(view, brand);
+}
+
+// ---------- Bağlantılar sekmesi ----------
+async function renderConnections(view, brand) {
+  view.innerHTML = identityHead(brand, 'baglantilar', 'Web sitesi, Google Drive klasörü ve sosyal medya kanalları tek yerde.') + skeletonPage({ cards: 2, height: 180 });
+  const [d, sys] = await Promise.all([api.brandSetup(brand.id), api.settings().catch(() => ({ drive: { configured: false } }))]);
+  const b = d.brand;
+  const driveOk = Boolean(sys && sys.drive && sys.drive.configured);
+  const channels = (d.setup.channels || []).map(k => d.options.channels[k]).filter(Boolean);
+
+  view.innerHTML = identityHead(brand, 'baglantilar', 'Web sitesi, Google Drive klasörü ve sosyal medya kanalları tek yerde.') + `
+    <div class="dossier-grid">
+      <section class="card">
+        <div class="card-head"><h3>Web sitesi</h3>${b.website ? '<span class="pill pill-ok"><span class="dot"></span>Kayıtlı</span>' : '<span class="pill pill-warn">Yok</span>'}</div>
+        <div class="field mt-2">
+          <label for="cn-website">Web sitesi adresi</label>
+          <input class="input" id="cn-website" type="url" inputmode="url" maxlength="300" placeholder="ornek.com" value="${esc(b.website || '')}">
+        </div>
+        <div class="row gap-2 mt-3">
+          <button type="button" class="btn btn-primary btn-sm" data-cn-save-site>${icon('check')}Kaydet</button>
+          <button type="button" class="btn btn-sm" data-cn-scan-site>${icon('download')}Siteyi tara</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>Google Drive klasörü</h3>${driveOk ? (b.driveFolderId ? '<span class="pill pill-ok"><span class="dot"></span>Bağlı</span>' : '<span class="pill pill-warn">Klasör yok</span>') : '<span class="pill pill-warn">Sistem Drive kapalı</span>'}</div>
+        <div class="field mt-2">
+          <label for="cn-drive">Klasör linki</label>
+          <div class="drive-row">
+            <input class="input" id="cn-drive" type="text" placeholder="https://drive.google.com/drive/folders/…" value="${esc(b.driveFolderUrl || '')}">
+            <button type="button" class="btn btn-sm" data-cn-paste>Yapıştır</button>
+          </div>
+        </div>
+        <div class="row gap-2 mt-3">
+          <button type="button" class="btn btn-primary btn-sm" data-cn-save-drive>${icon('check')}Kaydet</button>
+          <button type="button" class="btn btn-sm" data-cn-test-drive ${driveOk && b.driveFolderId ? '' : 'disabled'}>Bağlantıyı test et</button>
+          ${driveOk ? '' : '<a class="btn btn-sm btn-ghost" href="#/ayarlar">Ayarlar → Drive</a>'}
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>Sosyal medya kanalları</h3><a class="btn btn-sm btn-ghost" href="#/m/${esc(brand.id)}/kimlik/duzenle/yapi">${icon('edit')}Düzenle</a></div>
+        <p class="small mt-2">${channels.length ? esc(channels.join(', ')) : '<span class="muted">Henüz kanal seçilmedi.</span>'}</p>
+      </section>
+    </div>`;
+
+  view.onclick = async e => {
+    const saveSite = e.target.closest('[data-cn-save-site]');
+    if (saveSite) {
+      const website = view.querySelector('#cn-website').value.trim();
+      try { await busy(saveSite, () => api.updateBrand(brand.id, { website })); await refreshBrands(); toast('Web sitesi kaydedildi.', 'success'); renderConnections(view, brand); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const scanSite = e.target.closest('[data-cn-scan-site]');
+    if (scanSite) {
+      const url = view.querySelector('#cn-website').value.trim();
+      if (!url) return toast('Önce web sitesi adresini yaz.', 'error');
+      try {
+        const r = await busy(scanSite, () => api.onboardSite(brand.id, { url }));
+        toast(`${r.found.join(' · ')}${r.aiStarted ? ' · Yapay zekâ arka planda bilgi çıkarıyor.' : ''}`, 'success', 6000);
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    if (e.target.closest('[data-cn-paste]')) {
+      try { view.querySelector('#cn-drive').value = await navigator.clipboard.readText(); } catch { toast('Panodan okunamadı; Ctrl+V ile yapıştır.', 'info'); }
+      return;
+    }
+    const saveDrive = e.target.closest('[data-cn-save-drive]');
+    if (saveDrive) {
+      const driveFolderUrl = view.querySelector('#cn-drive').value.trim();
+      try { await busy(saveDrive, () => api.updateBrand(brand.id, { driveFolderUrl })); await refreshBrands(); toast('Drive klasörü güncellendi.', 'success'); renderConnections(view, brand); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const testDrive = e.target.closest('[data-cn-test-drive]');
+    if (testDrive) {
+      try { const r = await busy(testDrive, () => api.testBrandDrive(brand.id)); toast(`Bağlantı başarılı: ${r.folderName || 'Klasör erişilebilir'}.`, 'success'); } catch (err) { toast(err.message, 'error'); }
+    }
+  };
   bindIdentityActions(view, brand);
 }
 

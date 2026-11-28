@@ -106,8 +106,9 @@ export async function renderPosts(view, brand, sub) {
   if (!lastTpl && defTpl) lastTpl = defTpl.id;
   view.innerHTML = `
     ${pageHead({
-      title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
-      actions: `<button class="btn" data-blank>${icon('plus')}Boş tasarım</button>
+      title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, afiş, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; kendi tasarımını yükleyip üzerindeki metinleri düzenleyebilirsin.`,
+      actions: `<button class="btn" data-upload-design>${icon('upload')}Tasarım yükle</button>
+        <button class="btn" data-blank>${icon('plus')}Boş tasarım</button>
         <details class="menu-dd"><summary class="btn btn-ghost">Diğer ▾</summary><div class="menu-dd-list" role="menu">
           ${aiReady ? `<button type="button" role="menuitem" data-ref><b>${icon('image')} Referanstan şablon</b><span class="xsmall muted">Beğendiğin bir tasarımdan şablon çıkar</span></button>
           <button type="button" role="menuitem" data-new><b>${icon('sparkle')} Konudan üret (gelişmiş)</b><span class="xsmall muted">Tür, boyut ve model seçerek</span></button>` : ''}
@@ -424,6 +425,47 @@ export async function renderPosts(view, brand, sub) {
       });
       const pm = m.form.querySelector('#pc-model');
       bindCostHint(m.form.querySelector('[data-cost]'), models, () => ({ task: 'yazim', ref: pm ? pm.value : '', job: 'post' }), [pm]);
+      return wireKind(m);
+    }
+    if (e.target.closest('[data-upload-design]')) {
+      const m = openModal({
+        title: 'Tasarım yükle ve metinleri düzenle', submitLabel: 'Yükle ve düzenle',
+        body: `<div class="form-grid">
+          <div class="field full"><label for="ud-file">Tasarım görseli (PNG, JPG, WebP) *</label><input class="input" id="ud-file" name="file" type="file" accept="image/png,image/jpeg,image/webp" required></div>
+          <div class="field full"><label for="ud-title">Tasarım adı *</label><input class="input" id="ud-title" name="title" required maxlength="120" placeholder="Ör. Bahar kampanyası afişi"></div>
+          <div class="field"><label for="ud-kind">Tür</label><select class="select" id="ud-kind" name="kind">${Object.entries(meta.kinds).map(([k, v]) => `<option value="${k}" ${k === 'afis' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+          <div class="field"><label for="ud-format">Boyut</label><select class="select" id="ud-format" name="format">${Object.entries(meta.formats).map(([k, v]) => `<option value="${k}" ${k === 'A4' ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select></div>
+          <div class="field full"><label class="check"><input type="checkbox" name="addTexts" id="ud-add-texts" checked> Üzerine düzenlenebilir metin katmanları ekle</label></div>
+          <div class="field full" id="ud-texts-box">
+            <label for="ud-t1">Başlık</label><input class="input mb-2" id="ud-t1" name="t1" maxlength="200" placeholder="Afiş / post başlığı (boş bırakırsan tasarım adı yazılır)">
+            <label for="ud-t2">Alt metin / Tarih & Detay</label><input class="input mb-2" id="ud-t2" name="t2" maxlength="300" placeholder="Ör. 15 Mayıs · Saat 19:00 · Tüm şubelerde">
+            <label for="ud-t3">Alt bilgi / İletişim</label><input class="input" id="ud-t3" name="t3" maxlength="200" placeholder="Ör. ${esc(brand.website || 'Detaylı bilgi için profilimizdeki linke tıkla')}">
+          </div>
+        </div>`,
+        onSubmit: async fd => {
+          const file = m.form.querySelector('#ud-file').files[0];
+          if (!file) throw new Error('Lütfen bir tasarım görseli seç.');
+          const title = String(fd.get('title') || '').trim();
+          const kind = fd.get('kind') || 'afis';
+          const format = fd.get('format') || 'A4';
+          const { asset } = await api.uploadAsset(brand.id, file, 'reference', title);
+          const addTexts = Boolean(m.form.querySelector('#ud-add-texts').checked);
+          const texts = addTexts
+            ? [{ title: String(fd.get('t1') || '').trim() || title, body: String(fd.get('t2') || '').trim(), cta: String(fd.get('t3') || '').trim() }]
+            : [{ title: false }];
+          const { post } = await api.createPost(brand.id, { blank: true, title, kind, format, bgAsset: { id: asset.id, url: asset.url }, texts });
+          go(base(brand) + '/' + post.id);
+        }
+      });
+      const fileEl = m.form.querySelector('#ud-file');
+      const titleEl = m.form.querySelector('#ud-title');
+      const chkEl = m.form.querySelector('#ud-add-texts');
+      const boxEl = m.form.querySelector('#ud-texts-box');
+      fileEl.addEventListener('change', () => {
+        const f = fileEl.files[0];
+        if (f && !titleEl.value.trim()) titleEl.value = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 120);
+      });
+      chkEl.addEventListener('change', () => { boxEl.hidden = !chkEl.checked; });
       return wireKind(m);
     }
     if (e.target.closest('[data-blank]')) {

@@ -8,6 +8,7 @@ import { state } from '../app.js';
 import { prepareSlide, slideBlob } from '../postCanvas.js';
 import { downloadBlob, safeName } from '../titlePng.js';
 import { brandNotes, NOTE_KINDS } from './brandNotes.js';
+import { identityHead } from './identity.js';
 
 // Kanal başına önerilen içerik biçimi ve yaklaşım (markanın seçtiği içerik türleriyle kesişir)
 const CHANNEL_GUIDE = {
@@ -149,9 +150,8 @@ export async function renderBrandBook(view, brand) {
       <footer class="bb-foot">${esc(b.name)} · Marka kimliği kılavuzu · ${esc(today)}</footer>
     </article>`;
 
-  view.innerHTML = `<div class="bb-bar no-print">
-      <a class="btn btn-sm btn-ghost" href="#/m/${esc(brand.id)}/kimlik">${icon('back')}Marka kimliği</a>
-      <span class="grow small muted">Müşteriye sunulacak belge. Eksik bölümler Marka kimliğinden doldurulunca burada da görünür.</span>
+  view.innerHTML = `${identityHead(brand, 'kilavuz', 'Müşteriye sunulacak marka kılavuzu. Eksik bölümler Marka kimliğinden doldurulunca burada da görünür.')}<div class="bb-bar no-print">
+      <span class="grow small muted">Kılavuz önizlemesi ve indirme araçları</span>
       ${noteCount ? '<label class="check small"><input type="checkbox" data-bb-notes checked> Yönetici notları belgede</label>' : ''}
       <button type="button" class="btn btn-sm" data-bb-md>${icon('download')}Metin olarak indir</button>
       <button type="button" class="btn btn-sm btn-primary" data-bb-pdf>${icon('download')}PDF olarak kaydet</button>
