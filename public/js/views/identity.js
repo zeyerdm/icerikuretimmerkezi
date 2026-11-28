@@ -202,13 +202,15 @@ async function renderDossier(view, brand) {
 
 // ---------- Bağlantılar sekmesi ----------
 async function renderConnections(view, brand) {
-  view.innerHTML = identityHead(brand, 'baglantilar', 'Web sitesi, Google Drive klasörü ve sosyal medya kanalları tek yerde.') + skeletonPage({ cards: 2, height: 180 });
-  const [d, sys] = await Promise.all([api.brandSetup(brand.id), api.settings().catch(() => ({ drive: { configured: false } }))]);
+  view.innerHTML = identityHead(brand, 'baglantilar', 'Web sitesi, Google Drive klasörü, sektör kaynakları ve sosyal medya kanalları tek yerde.') + skeletonPage({ cards: 2, height: 180 });
+  const [d, sys, srcData] = await Promise.all([api.brandSetup(brand.id), api.settings().catch(() => ({ drive: { configured: false } })), api.sources(brand.id).catch(() => ({ sources: [], items: [] }))]);
   const b = d.brand;
   const driveOk = Boolean(sys && sys.drive && sys.drive.configured);
   const channels = (d.setup.channels || []).map(k => d.options.channels[k]).filter(Boolean);
+  const sources = srcData.sources || [];
+  const srcItems = srcData.items || [];
 
-  view.innerHTML = identityHead(brand, 'baglantilar', 'Web sitesi, Google Drive klasörü ve sosyal medya kanalları tek yerde.') + `
+  view.innerHTML = identityHead(brand, 'baglantilar', 'Web sitesi, Google Drive klasörü, sektör kaynakları ve sosyal medya kanalları tek yerde.') + `
     <div class="dossier-grid">
       <section class="card">
         <div class="card-head"><h3>Web sitesi</h3>${b.website ? '<span class="pill pill-ok"><span class="dot"></span>Kayıtlı</span>' : '<span class="pill pill-warn">Yok</span>'}</div>
@@ -242,6 +244,30 @@ async function renderConnections(view, brand) {
         <div class="card-head"><h3>Sosyal medya kanalları</h3><a class="btn btn-sm btn-ghost" href="#/m/${esc(brand.id)}/kimlik/duzenle/yapi">${icon('edit')}Düzenle</a></div>
         <p class="small mt-2">${channels.length ? esc(channels.join(', ')) : '<span class="muted">Henüz kanal seçilmedi.</span>'}</p>
       </section>
+
+      <section class="card" style="grid-column: 1 / -1;">
+        <div class="card-head">
+          <h3>Güncel sektör kaynakları (haftalık otomatik)</h3>
+          ${sources.length ? `<button type="button" class="btn btn-sm" data-src-fetch-all>${icon('refresh')}Tümünü şimdi çek</button>` : ''}
+        </div>
+        <p class="small muted mt-1">Sektörünle ilgili güncel blog, haber veya dokümantasyon sitelerini ekle. Sistem her hafta bu kaynaklardan güncel başlık ve özetleri çeker, post üretiminde gerçek bilgi kaynağı olarak kullanır.</p>
+        <div class="form-grid mt-3">
+          <div class="field"><label for="src-url">Site veya RSS adresi *</label><input class="input" id="src-url" type="url" maxlength="400" placeholder="https://orneksektor.com/blog"></div>
+          <div class="field"><label for="src-label">Kısa ad (isteğe bağlı)</label><input class="input" id="src-label" type="text" maxlength="80" placeholder="Ör. Sektör Blogu"></div>
+        </div>
+        <div class="row mt-2"><button type="button" class="btn btn-primary btn-sm" data-src-add>${icon('plus')}Kaynak ekle</button></div>
+        ${sources.length ? `<ul class="pool-list mt-3">${sources.map(s => `<li class="pool-item">
+          <div class="grow"><b>${esc(s.label)}</b> <span class="xsmall muted">${esc(s.url)}</span>
+            <div class="xsmall muted">${s.lastFetchedAt ? `${s.lastCount} başlık · son çekme: ${new Date(s.lastFetchedAt).toLocaleDateString('tr-TR')}` : 'Henüz çekilmedi'}${s.lastError ? ` · <span class="danger-text">${esc(s.lastError)}</span>` : ''}</div></div>
+          <button type="button" class="btn btn-sm" data-src-fetch="${esc(s.id)}">${icon('refresh')}Çek</button>
+          <button type="button" class="btn btn-sm btn-ghost icon-btn" data-src-del="${esc(s.id)}" aria-label="Kaynağı sil">${icon('trash')}</button>
+        </li>`).join('')}</ul>` : ''}
+        ${srcItems.length ? `<details class="mt-3" open><summary class="small strong">Çekilen güncel başlıklar (${srcItems.length})</summary>
+          <ul class="pool-list mt-2">${srcItems.slice(0, 12).map(it => `<li class="pool-item">
+            <div class="grow"><b>${esc(it.title)}</b>${it.summary ? `<div class="xsmall muted">${esc(it.summary)}</div>` : ''}</div>
+            <a class="btn btn-sm btn-ghost" href="#/m/${esc(brand.id)}/post?konu=${encodeURIComponent(it.title)}">Post üret →</a>
+          </li>`).join('')}</ul></details>` : ''}
+      </section>
     </div>`;
 
   view.onclick = async e => {
@@ -274,6 +300,34 @@ async function renderConnections(view, brand) {
     const testDrive = e.target.closest('[data-cn-test-drive]');
     if (testDrive) {
       try { const r = await busy(testDrive, () => api.testBrandDrive(brand.id)); toast(`Bağlantı başarılı: ${r.folderName || 'Klasör erişilebilir'}.`, 'success'); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const addSrc = e.target.closest('[data-src-add]');
+    if (addSrc) {
+      const url = view.querySelector('#src-url').value.trim();
+      const label = view.querySelector('#src-label').value.trim();
+      if (!url) return toast('Kaynak adresini yaz.', 'error');
+      try {
+        const { source } = await busy(addSrc, () => api.addSource(brand.id, { url, label }));
+        toast('Kaynak eklendi, içerikler çekiliyor…', 'info', 2000);
+        try { await api.fetchSource(brand.id, source.id); toast('Güncel başlıklar çekildi.', 'success'); } catch (fe) { toast(fe.message, 'error'); }
+        renderConnections(view, brand);
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const fOne = e.target.closest('[data-src-fetch]');
+    if (fOne) {
+      try { const r = await busy(fOne, () => api.fetchSource(brand.id, fOne.dataset.srcFetch)); toast(`${r.total} başlık tarandı (${r.added} yeni).`, 'success'); renderConnections(view, brand); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const fAll = e.target.closest('[data-src-fetch-all]');
+    if (fAll) {
+      try { const r = await busy(fAll, () => api.fetchAllSources(brand.id)); toast(`${r.checked} kaynak tarandı, ${r.added} yeni başlık eklendi.`, 'success'); renderConnections(view, brand); } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const delSrc = e.target.closest('[data-src-del]');
+    if (delSrc) {
+      try { await api.deleteSource(brand.id, delSrc.dataset.srcDel); renderConnections(view, brand); } catch (err) { toast(err.message, 'error'); }
     }
   };
   bindIdentityActions(view, brand);

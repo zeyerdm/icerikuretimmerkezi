@@ -147,6 +147,17 @@ export async function renderPosts(view, brand, sub) {
 
   // Sabit metin havuzları: buton, kapanış cümlesi ve maskot konuşması AI'ya gitmeden havuzdan sırayla dolar
   const tp = brand.textPools || { cta: [], closing: [], speech: [] };
+  const qpTopicEl = view.querySelector('#qp-topic');
+  if (qpTopicEl && location.hash.includes('konu=')) {
+    const k = new URLSearchParams(location.hash.split('?')[1] || '').get('konu');
+    if (k) qpTopicEl.value = k;
+  }
+  api.sources(brand.id).then(sr => {
+    const qpForm = view.querySelector('#quick-post');
+    if (!qpForm || !qpForm.isConnected || !(sr.items && sr.items.length)) return;
+    qpForm.insertAdjacentHTML('beforeend', `<details class="ps-notes mt-2"><summary class="small">Güncel sektör kaynaklarından başlık seç (${sr.items.length})</summary>
+      <div class="chip-row mt-2">${sr.items.slice(0, 8).map(it => `<button type="button" class="chip chip-sm" data-pick-src-topic="${esc(it.title)}" title="${esc(it.summary || it.title)}">${esc(it.title.slice(0, 56))}${it.title.length > 56 ? '…' : ''}</button>`).join('')}</div></details>`);
+  }).catch(() => {});
   // Sabit metinler tasarımların üstünde (önce kurulur, sonra tasarımlar ve şablonlar)
   const poolAnchor = view.querySelector('.ps-h') || view.querySelector('.ps-start');
   const poolPos = view.querySelector('.ps-h') ? 'beforebegin' : poolAnchor ? 'afterend' : 'beforeend';
@@ -259,6 +270,8 @@ export async function renderPosts(view, brand, sub) {
     } catch (err) { toast(err.message, 'error'); }
   });
   view.onclick = async e => {
+    const spt = e.target.closest('[data-pick-src-topic]');
+    if (spt) { const inp = view.querySelector('#qp-topic'); if (inp) { inp.value = spt.dataset.pickSrcTopic; inp.focus(); } return; }
     // Tasarım kartı menüsü (⋯): aç, çoğalt, sil (yalnızca kendi tasarımlarında; hazır şablonlarda yok)
     const pm = e.target.closest('[data-post-menu]');
     if (pm) {

@@ -380,10 +380,11 @@ export function linkedinize(prompt) {
 
 // Şablon alanları: alan kimliği ↔ metin anahtarı
 export const FIELD_CODES = { title: 'MAIN_TITLE', subtitle: 'SUB_TITLE', body: 'DESCRIPTION', cta: 'CTA', speech: 'SPEECH', num: 'PAGE_NUMBER', page: 'PAGE_TOTAL', stat: 'STAT', topic: 'TOPIC', item: 'ITEM', closing: 'CLOSING', mascot: 'MASCOT', logo: 'LOGO', main: 'MAIN_IMAGE' };
-function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, itemCount = 0, notes = '' }) {
+function postPrompt({ brandName, memory, sourceContext = '', topic, kind, slideCount, rewriteOf, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, itemCount = 0, notes = '' }) {
   const lim = Object.entries(limits).filter(([, n]) => n > 0);
   return [
     kind === 'youtube' ? `Sen '${brandName}' markasının YouTube kapak ve içerik yazarısın.` : `Sen '${brandName}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI (dil ve kitle buna uysun):', memory, '',
+    sourceContext ? `SEKTÖR KAYNAKLARINDAN GÜNCEL BİLGİLER (konuyla ilgili olanları somut veri, örnek ve güncel bilgi olarak kullan; boş slogan yerine buradaki gerçek bilgilerden faydalan):\n${sourceContext}\n` : '',
     `KONU: ${topic}`, '',
     // Kullanıcının kendi maddeleri: slaytlar bunlardan kurulur, özü korunur (eski sistemdeki "özel maddeler")
     notes ? `KULLANICININ VERDİĞİ MADDELER VE NOTLAR:\n\"\"\"\n${notes}\n\"\"\"\nÖNEMLİ: Slaytları bu maddeleri temel alarak kur. Her maddenin özünü koru, hiçbirini atlama, kendi bilgini ekleyerek uydurma; maddeleri vurucu kısa başlıklara ve değer katan açıklamalara dönüştür. Madde sayısı slayt sayısından fazlaysa birleştir, azsa kanca ve kapanışla tamamla.\n` : '',
@@ -417,7 +418,7 @@ function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, pos
   ].filter(Boolean).join('\n');
 }
 
-export function createPostService({ db, ai, brands, assets, workspace }) {
+export function createPostService({ db, ai, brands, assets, workspace, sources = null }) {
   const toPost = r => {
     const data = parseJson(r.data, {});
     return { id: r.id, title: r.title, kind: r.kind, kindLabel: POST_KINDS[r.kind] || r.kind, archived: r.archived === 1, editingTemplate: r.archived === 2, data, model: r.model, modelLabel: r.model ? ai.labelOf(r.model) : '', createdAt: r.created_at, updatedAt: r.updated_at,
@@ -442,7 +443,8 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
     const count = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || 6)) : 1;
     // Post metni kısa ve kalıplı: modelin uzun düşünmesine gerek yok (düşük çaba = hızlı yanıt)
     const poses = assets.list(b.id, 'mascot').map(a => polish(a.label)).filter(Boolean).slice(0, 12);
-    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, itemCount, notes });
+    const sourceContext = sources ? sources.recentContext(b.id, topic, 6) : '';
+    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), sourceContext, topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, itemCount, notes });
     if (linked) prompt = linkedinize(prompt);
     const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: kind === 'carousel' ? 'medium' : 'low', temperature: 0.7 });
     const out = r.output || {};

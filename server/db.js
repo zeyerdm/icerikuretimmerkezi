@@ -768,6 +768,30 @@ const MIGRATIONS = [
     ref TEXT
   );
   CREATE INDEX idx_content_events ON content_events(content_id, at);
+  `,
+  `
+  CREATE TABLE brand_sources (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    last_fetched_at TEXT NOT NULL DEFAULT '',
+    last_error TEXT NOT NULL DEFAULT '',
+    last_count INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_brand_sources ON brand_sources(brand_id);
+  CREATE TABLE brand_source_items (
+    id TEXT PRIMARY KEY,
+    brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+    source_id TEXT NOT NULL REFERENCES brand_sources(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    fetched_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_brand_source_items ON brand_source_items(brand_id, fetched_at);
   `
 ];
 

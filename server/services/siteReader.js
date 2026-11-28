@@ -123,7 +123,8 @@ export function createSiteReader({ fetchImpl = fetch, lookup = (h) => dns.lookup
         url: home.url.href, title: p0.title, siteName: p0.siteName, description: p0.description, themeColor: p0.themeColor,
         pages: pages.map(p => ({ url: p.url, title: p.title })),
         contacts: { emails, phones, socials },
-        text: text.trim().slice(0, MAX_TEXT)
+        text: text.trim().slice(0, MAX_TEXT),
+        ...( /<(?:rss|feed)\b/i.test(home.html) ? { rawXml: home.html } : {} )
       };
     }
   };

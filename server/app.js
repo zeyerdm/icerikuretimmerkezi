@@ -49,6 +49,7 @@ import { createCaptionService } from './services/captions.js';
 import { specialDays, DAY_CATEGORIES } from './services/specialDays.js';
 import { createIdentityService } from './services/identity.js';
 import { createSiteReader } from './services/siteReader.js';
+import { createSourceService } from './services/sources.js';
 import { createLinkedinService } from './services/linkedin.js';
 import { createInsightService } from './services/insights.js';
 import { usageCtx, scopeFromPath, costCtx } from './lib/usageCtx.js';
@@ -133,7 +134,10 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const patterns = createPatternService({ db, ai, brands });
   const competitors = createCompetitorService({ db, ai, brands });
   const reels = createReelsService({ db, ai, brands, workspace, patterns });
-  const posts = createPostService({ db, ai, brands, assets, workspace });
+  const siteReader = createSiteReader(Object.assign({ allowPrivate: Boolean(siteAllowPrivate) }, siteFetch ? { fetchImpl: siteFetch } : {}));
+  const sources = createSourceService({ db, brands, siteReader });
+  if (queueAutostart) sources.startWeeklySync();
+  const posts = createPostService({ db, ai, brands, assets, workspace, sources });
   let promptsRef = null; // Prompt Studio aşağıda kurulur; toplu Reels işleri ona buradan ulaşır
   const queue = createGenQueue({ db, brands, posts, ideas, getPrompts: () => promptsRef, autostart: queueAutostart });
   const elements = createElementService(db, path.join(dataDir, 'uploads', 'elements'));
@@ -164,7 +168,6 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const thumbnails = createThumbnailService({ ai, brands, identity: promptIdentity });
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
-  const siteReader = createSiteReader(Object.assign({ allowPrivate: Boolean(siteAllowPrivate) }, siteFetch ? { fetchImpl: siteFetch } : {}));
   const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, siteReader, readMs: onboardReadMs || 90000 });
   const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory, getInsights: () => insights });
 
@@ -748,6 +751,13 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   }));
   api.post('/brands/:brandId/reels/:id/restore', (req, res) => res.json({ reels: reels.restore(req.brand.id, req.params.id, req.body && req.body.versionId) }));
   api.post('/brands/:brandId/reels/:id/schedule', (req, res) => res.status(201).json({ content: reels.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));
+
+  // --- Sektör kaynakları (haftalık güncel bilgi çekme) ---
+  api.get('/brands/:brandId/sources', (req, res) => res.json(sources.list(req.brand.id)));
+  api.post('/brands/:brandId/sources', (req, res) => res.status(201).json({ source: sources.add(req.brand.id, req.body || {}) }));
+  api.post('/brands/:brandId/sources/fetch-all', route(async (req, res) => res.json(await sources.fetchBrand(req.brand.id))));
+  api.post('/brands/:brandId/sources/:id/fetch', route(async (req, res) => res.json(await sources.fetchSource(req.brand.id, req.params.id))));
+  api.delete('/brands/:brandId/sources/:id', (req, res) => { sources.remove(req.brand.id, req.params.id); res.status(204).end(); });
 
   // --- Post stüdyosu ---
   api.get('/brands/:brandId/posts', (req, res) => res.json({ posts: posts.list(req.brand.id) }));
