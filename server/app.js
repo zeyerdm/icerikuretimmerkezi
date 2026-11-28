@@ -169,7 +169,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   const captions = createCaptionService({ db, ai, brands, workspace, reels });
   const identity = createIdentityService({ ai });
   const onboard = createBrandOnboardService({ db, ai, brands, assets, memory, identity: promptIdentity, characterBook, ideas, setup: brandSetup, identityDraft: o => identity.draft(o), designRef, siteReader, readMs: onboardReadMs || 90000 });
-  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory, getInsights: () => insights });
+  const assistant = createAssistantService({ db, ai, brands, ideas, reels, posts, prompts, workspace, images, memory, sources, getInsights: () => insights });
 
   const strategy = createStrategyService({ db });
   const insights = createInsightService({ db, brands, settings, strategy, setup: brandSetup });

@@ -20,7 +20,7 @@ test('Sektör kaynakları: RSS/HTML içerikleri çekilir, tekrarlanmaz ve post �
       { title: 'B-Tree ve GIN *Farkı*', body: 'Tam metin aramalarında GIN, eşitlikte B-Tree kullan.' },
       { title: 'Hemen *Dene*', body: 'EXPLAIN ANALYZE ile kontrol et.' }
     ]
-  }]);
+  }, { reply: 'Kaynaklardan fikirler ürettim.', actions: [] }]);
   const s = await startServer({ aiProvider: provider, siteFetch, siteAllowPrivate: true });
   try {
     const a = (await s.request('POST', '/api/brands', { name: 'DevOrtak' })).data.brand;
@@ -51,6 +51,12 @@ test('Sektör kaynakları: RSS/HTML içerikleri çekilir, tekrarlanmaz ve post �
     assert.match(provider.calls[0].prompt, /SEKTÖR KAYNAKLARINDAN GÜNCEL BİLGİLER/);
     assert.match(provider.calls[0].prompt, /B-Tree ve GIN indekslerinin doğru kullanımı/);
     assert.match(provider.calls[0].prompt, /CONCURRENTLY ile B-Tree indeks eklemek kilitlenmeyi önler/);
+
+    // Asistandan fikir istendiğinde de kayıtlı kaynaklardaki güncel bilgiler isteme girer
+    const chatRes = await s.request('POST', `/api/brands/${a.id}/chat`, { message: 'Sektör kaynaklarından PostgreSQL için fikir üret' });
+    assert.equal(chatRes.status, 200);
+    assert.match(provider.calls[1].prompt, /SEKTÖR KAYNAKLARINDAN GÜNCEL BİLGİLER/);
+    assert.match(provider.calls[1].prompt, /CONCURRENTLY ile B-Tree indeks eklemek kilitlenmeyi önler/);
 
     assert.equal((await s.request('DELETE', `/api/brands/${a.id}/sources/${src.id}`)).status, 204);
     assert.equal((await s.request('GET', `/api/brands/${a.id}/sources`)).data.items.length, 0);

@@ -21,7 +21,7 @@ const MAX_IDEAS_PER_ACTION = 12;
 const MAX_HEAVY = 3;
 const HEAVY = ['create_reels', 'create_post', 'create_prompt', 'create_image'];
 
-export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null, images = null, memory = null, getInsights = () => null }) {
+export function createAssistantService({ db, ai, brands, ideas, reels = null, posts = null, prompts = null, workspace = null, images = null, memory = null, sources = null, getInsights = () => null }) {
   const toMessage = r => ({ id: r.id, role: r.role, content: r.content, actions: parseJson(r.actions, []), createdAt: r.created_at });
   const save = (brandId, role, content, actions = []) => {
     const row = { id: newId(), brand_id: brandId, role, content, actions: JSON.stringify(actions), created_at: now() };
@@ -36,7 +36,7 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       .all(brandId, limit).map(toMessage);
   }
 
-  function buildPrompt(brand, memory, past, message) {
+  function buildPrompt(brand, memory, past, message, sourceContext = '') {
     const categories = Object.entries(IDEA_CATEGORIES).map(([id, label]) => `${id} (${label})`).join(', ');
     return [
       "Sen 'KREATİFHANE' (Kreatif Yönetim Platformu) uygulamasının AI içerik asistanısın. Şu an yalnızca aşağıdaki marka için çalışıyorsun.",
@@ -45,6 +45,7 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
       'MARKA HAFIZASI:',
       memory,
       '',
+      sourceContext ? `SEKTÖR KAYNAKLARINDAN GÜNCEL BİLGİLER (kullanıcı fikir, öneri veya içerik istediğinde mutlaka buradaki güncel yazılardan ve gerçek bilgilerden somut, değer katan fikirler üret; boş klişe üretme):\n${sourceContext}\n` : '',
       past.length ? 'SON KONUŞMA:\n' + past.map(m => `${m.role === 'user' ? 'Kullanıcı' : 'Asistan'}: ${String(m.content).length > PAST_CHARS ? String(m.content).slice(0, PAST_CHARS) + '…' : m.content}`).join('\n') : '',
       '',
       'MARKANIN SON KAYITLARI (kullanıcı "bu fikir", "bu senaryo" derse buradaki id ile işlem yap):',
@@ -246,7 +247,16 @@ export function createAssistantService({ db, ai, brands, ideas, reels = null, po
         return transaction(db, () => ({ userMessage: save(brand.id, 'user', message), assistantMessage: save(brand.id, 'assistant', `${quick}\n\n(Bu cevap kayıtlardan hazırlandı; yapay zekâ kullanılmadı.)`, []) }));
       }
       const past = history(brand.id, HISTORY_LIMIT);
-      const response = await ai.generate(buildPrompt(brand, brands.memory(brand.id, { light: !wantsProduction(message) }), past, message), { json: true, temperature: 0.8, task: 'fikir', brandId: brand.id });
+      let sourceContext = '';
+      if (sources && wantsProduction(message)) {
+        try {
+          const res = await sources.research(brand.id, message, { maxPages: 2 });
+          sourceContext = res.text || sources.recentContext(brand.id, message, 8);
+        } catch {
+          sourceContext = sources.recentContext(brand.id, message, 8);
+        }
+      }
+      const response = await ai.generate(buildPrompt(brand, brands.memory(brand.id, { light: !wantsProduction(message) }), past, message, sourceContext), { json: true, temperature: 0.8, task: 'fikir', brandId: brand.id });
       const reply = typeof (response && response.reply) === 'string' && response.reply.trim()
         ? response.reply.trim()
         : 'Yanıt oluşturulamadı, mesajını biraz farklı yazıp tekrar dener misin?';
