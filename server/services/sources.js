@@ -80,6 +80,7 @@ export function createSourceService({ db, brands, siteReader }) {
     db.prepare("DELETE FROM brand_source_items WHERE title LIKE 'Site adı:%' OR title LIKE 'Site açıklaması:%' OR title LIKE '===%'").run();
     db.prepare("DELETE FROM ideas WHERE source LIKE 'kaynak%' AND (title LIKE 'Site adı:%' OR title LIKE 'Site açıklaması:%' OR title LIKE '===%')").run();
   }
+  cleanNoise();
 
   // Her kaynaktan günde en fazla 1 yeni fikir: hem yeni çekilenlerden hem daha önce çekilmiş bekleyenlerden seçer
   function ensureDailyIdea(src, t = now()) {
