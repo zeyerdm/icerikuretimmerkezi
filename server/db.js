@@ -792,7 +792,9 @@ const MIGRATIONS = [
     fetched_at TEXT NOT NULL
   );
   CREATE INDEX idx_brand_source_items ON brand_source_items(brand_id, fetched_at);
-  `
+  `,
+  // v54: çekilen kaynak başlıklarının tam makale metnini de önbellekte sakla (post üretiminde bekleme olmaz)
+  `ALTER TABLE brand_source_items ADD COLUMN body TEXT NOT NULL DEFAULT '';`
 ];
 
 export function openDb(file) {

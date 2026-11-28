@@ -153,6 +153,23 @@ export function createSiteReader({ fetchImpl = fetch, lookup = (h) => dns.lookup
         }
       }
       return { url: home.url.href, html: home.html, text: pageText(home.html) };
+    },
+    // Tek bir makale/haber sayfasının ana metnini hızlıca okur (alt sayfa taraması yapmaz)
+    async readArticle(raw) {
+      const input = String(raw || '').trim();
+      if (!input) throw badRequest('Adres yaz.');
+      let start;
+      try { start = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(input) ? input : 'https://' + input); } catch { throw badRequest('Geçerli bir adres yaz.'); }
+      const page = await fetchPage(start);
+      const stripped = String(page.html || '')
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/<(script|style|noscript|svg|template|iframe|canvas|form|nav|header|footer|aside)\b[\s\S]*?<\/\1>/gi, ' ');
+      const mainBlock = (stripped.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i) || [])[1]
+        || (stripped.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) || [])[1]
+        || stripped;
+      const bodyText = pageText(mainBlock);
+      const fallback = bodyText.length >= 120 ? bodyText : pageText(stripped);
+      return { url: page.url.href, title: parsePage(page.html, page.url).title, text: fallback.slice(0, 3500) };
     }
   };
 }

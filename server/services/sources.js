@@ -168,6 +168,14 @@ export function createSourceService({ db, brands, siteReader }) {
     return 0;
   }
 
+  async function fetchArticleBody(url) {
+    if (!url) return '';
+    try {
+      const page = siteReader.readArticle ? await siteReader.readArticle(url) : await siteReader.read(url);
+      return String(page && page.text || '').replace(/\s+/g, ' ').trim().slice(0, 2600);
+    } catch { return ''; }
+  }
+
   async function pullOne(src) {
     cleanNoise();
     const t = now();
@@ -180,13 +188,22 @@ export function createSourceService({ db, brands, siteReader }) {
       if (!items.length && data.text) items = extractArticles([{ url: data.url || src.url, text: data.text }]);
 
       const existing = new Set(db.prepare('SELECT title FROM brand_source_items WHERE source_id = ?').all(src.id).map(x => x.title.toLocaleLowerCase('tr-TR')));
-      let added = 0;
-      const ins = db.prepare('INSERT INTO brand_source_items (id, brand_id, source_id, title, url, summary, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const fresh = [];
       for (const it of items.slice(0, MAX_ITEMS_PER_FETCH)) {
         const k = it.title.toLocaleLowerCase('tr-TR');
         if (existing.has(k)) continue;
         existing.add(k);
-        ins.run(newId(), src.brand_id, src.id, it.title, it.url || '', it.summary || '', t);
+        fresh.push(it);
+      }
+      // Yeni çekilen makalelerin tam yazısını da paralel olarak şimdi çekip önbelleğe al (AI üretiminde bekleme olmasın)
+      const bodies = await Promise.all(fresh.slice(0, 6).map(it => (it.url && it.url !== src.url ? fetchArticleBody(it.url) : Promise.resolve(''))));
+      let added = 0;
+      const ins = db.prepare('INSERT INTO brand_source_items (id, brand_id, source_id, title, url, summary, body, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+      for (let i = 0; i < fresh.length; i++) {
+        const it = fresh[i];
+        const body = bodies[i] || '';
+        const summary = it.summary || (body ? body.slice(0, 280) : '');
+        ins.run(newId(), src.brand_id, src.id, it.title, it.url || '', summary, body, t);
         added++;
       }
       // Kaynak başına en yeni 30 başlık kalsın
@@ -260,40 +277,42 @@ export function createSourceService({ db, brands, siteReader }) {
       }).sort((a, b) => b.score - a.score);
       return scored.slice(0, limit).map(({ r }) => `- [${r.label}] ${r.title}${r.summary ? `: ${r.summary}` : ''}`).join('\n');
     },
-    // Konuyla ilgili kayıtlı kaynak linklerinin içine girip asıl yazı/makale metnini okuyarak araştırma özeti çıkarır
+    // Konuyla ilgili kayıtlı kaynak linklerinin tam yazılarını önbellekten (yoksa linkten çekip kaydederek) döndürür
     async research(brandId, topic = '', { maxPages = 2 } = {}) {
-      let items = db.prepare('SELECT i.title, i.url, i.summary, s.label FROM brand_source_items i JOIN brand_sources s ON s.id = i.source_id WHERE i.brand_id = ? ORDER BY i.fetched_at DESC LIMIT 40').all(brandId);
+      let items = db.prepare('SELECT i.id, i.title, i.url, i.summary, i.body, s.label FROM brand_source_items i JOIN brand_sources s ON s.id = i.source_id WHERE i.brand_id = ? ORDER BY i.fetched_at DESC LIMIT 40').all(brandId);
       const sourcesList = db.prepare('SELECT url, label FROM brand_sources WHERE brand_id = ? AND enabled = 1 ORDER BY created_at DESC').all(brandId);
       if (!sourcesList.length) return { text: '', used: [] };
       if (!items.length) {
         await this.fetchBrand(brandId).catch(() => {});
-        items = db.prepare('SELECT i.title, i.url, i.summary, s.label FROM brand_source_items i JOIN brand_sources s ON s.id = i.source_id WHERE i.brand_id = ? ORDER BY i.fetched_at DESC LIMIT 40').all(brandId);
+        items = db.prepare('SELECT i.id, i.title, i.url, i.summary, i.body, s.label FROM brand_source_items i JOIN brand_sources s ON s.id = i.source_id WHERE i.brand_id = ? ORDER BY i.fetched_at DESC LIMIT 40').all(brandId);
       }
       const words = String(topic || '').toLocaleLowerCase('tr-TR').split(/\s+/).filter(w => w.length >= 3);
       const scored = items.map(it => {
-        const hay = `${it.title} ${it.summary}`.toLocaleLowerCase('tr-TR');
+        const hay = `${it.title} ${it.summary} ${it.body || ''}`.toLocaleLowerCase('tr-TR');
         return { it, score: words.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0) };
       }).sort((a, b) => b.score - a.score);
       const targets = [];
       const seenUrl = new Set();
       for (const { it } of scored) {
-        if (it.url && !seenUrl.has(it.url)) { seenUrl.add(it.url); targets.push({ url: it.url, label: it.label, title: it.title }); }
+        if (it.url && !seenUrl.has(it.url)) { seenUrl.add(it.url); targets.push({ id: it.id, url: it.url, label: it.label, title: it.title, body: it.body || '' }); }
         if (targets.length >= maxPages) break;
       }
       if (!targets.length) {
-        for (const s of sourcesList.slice(0, maxPages)) targets.push({ url: s.url, label: s.label, title: s.label });
+        for (const s of sourcesList.slice(0, maxPages)) targets.push({ id: '', url: s.url, label: s.label, title: s.label, body: '' });
       }
       const blocks = [];
       const used = [];
+      const updBody = db.prepare('UPDATE brand_source_items SET body = ? WHERE id = ?');
       for (const tg of targets) {
-        try {
-          const page = await siteReader.read(tg.url);
-          const body = String(page.text || '').replace(/\s+/g, ' ').trim().slice(0, 2600);
-          if (body.length > 60) {
-            blocks.push(`[${tg.label} · ${tg.title}]\n${body}`);
-            used.push(tg.url);
-          }
-        } catch { /* erişilemeyen linki atla */ }
+        let body = tg.body;
+        if (!body || body.length <= 60) {
+          body = await fetchArticleBody(tg.url);
+          if (body.length > 60 && tg.id) updBody.run(body, tg.id);
+        }
+        if (body.length > 60) {
+          blocks.push(`[${tg.label} · ${tg.title}]\n${body}`);
+          used.push(tg.url);
+        }
       }
       const summaryLines = this.recentContext(brandId, topic, 5);
       const textOut = [blocks.join('\n\n'), summaryLines ? `Diğer güncel başlıklar:\n${summaryLines}` : ''].filter(Boolean).join('\n\n');
