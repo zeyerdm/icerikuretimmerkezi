@@ -35,6 +35,7 @@ export function parseFeed(xml, baseUrl) {
 }
 
 const DATE_OR_META = /^(?:(?:research|news|blog|product|safety|company|announcement|update|ai|tech)\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+\d{1,2},?\s+\d{2,4}$|^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$|^\d+\s*(?:dk|min|dakika)\s*(?:okuma|read)?$/i;
+const SITE_NOISE = /^(?:site adı:|site açıklaması:|===|https?:\/\/|ana sayfa|iletişim|hakkımızda|giriş|kayıt|çerez|gizlilik|menü|copyright|©|reklam|künye|abone ol)/i;
 
 // HTML sayfasından makale / blog / duyuru başlık ve özetlerini çıkarır
 export function extractArticles(pages) {
@@ -44,15 +45,14 @@ export function extractArticles(pages) {
     const lines = String(p.text || '').split('\n').map(l => l.trim()).filter(Boolean);
     for (let i = 0; i < lines.length && out.length < MAX_ITEMS_PER_FETCH; i++) {
       const line = lines[i];
-      if (line.length < 18 || line.length > 140) continue;
-      if (DATE_OR_META.test(line)) continue;
-      if (/^(ana sayfa|iletişim|hakkımızda|giriş|kayıt|çerez|gizlilik|menü|copyright|©)/i.test(line)) continue;
+      if (line.length < 20 || line.length > 140) continue;
+      if (DATE_OR_META.test(line) || SITE_NOISE.test(line)) continue;
       const key = line.toLocaleLowerCase('tr-TR');
       if (seen.has(key)) continue;
       seen.add(key);
-      // Sonraki satır açıklayıcı paragraf gibiyse özet olarak al (tarih/meta satırıysa atla)
+      // Sonraki satır açıklayıcı paragraf gibiyse özet olarak al (tarih/meta/gürültü satırıysa atla)
       const next = lines[i + 1] || '';
-      const summary = next.length > 35 && next.length <= 420 && !DATE_OR_META.test(next) ? next.slice(0, 360) : '';
+      const summary = next.length > 35 && next.length <= 420 && !DATE_OR_META.test(next) && !SITE_NOISE.test(next) ? next.slice(0, 360) : '';
       out.push({ title: line, url: p.url || '', summary });
       if (summary) i++;
     }
@@ -75,26 +75,36 @@ export function createSourceService({ db, brands, siteReader }) {
     return r;
   };
 
+  // Önceki hatalı meta satırlarını ("Site adı:", "Site açıklaması:", "===") temizler
+  function cleanNoise() {
+    db.prepare("DELETE FROM brand_source_items WHERE title LIKE 'Site adı:%' OR title LIKE 'Site açıklaması:%' OR title LIKE '===%'").run();
+    db.prepare("DELETE FROM ideas WHERE source LIKE 'kaynak%' AND (title LIKE 'Site adı:%' OR title LIKE 'Site açıklaması:%' OR title LIKE '===%')").run();
+  }
+
   // Her kaynaktan günde en fazla 1 yeni fikir: hem yeni çekilenlerden hem daha önce çekilmiş bekleyenlerden seçer
   function ensureDailyIdea(src, t = now()) {
     const dayAgo = new Date(Date.now() - DAY_MS).toISOString();
-    const srcTag = `kaynak:${src.id}`;
-    const alreadyToday = db.prepare('SELECT 1 FROM ideas WHERE brand_id = ? AND source = ? AND created_at >= ? LIMIT 1').get(src.brand_id, srcTag, dayAgo);
+    const labelSuffix = src.label ? `Kaynak: ${src.label}` : '';
+    const alreadyToday = labelSuffix
+      ? db.prepare("SELECT 1 FROM ideas WHERE brand_id = ? AND source = 'kaynak' AND description LIKE ? AND created_at >= ? LIMIT 1").get(src.brand_id, `%${labelSuffix}%`, dayAgo)
+      : db.prepare("SELECT 1 FROM ideas WHERE brand_id = ? AND source = 'kaynak' AND created_at >= ? LIMIT 1").get(src.brand_id, dayAgo);
     if (alreadyToday) return 0;
     const existingIdeas = new Set(db.prepare('SELECT title FROM ideas WHERE brand_id = ?').all(src.brand_id).map(x => x.title.toLocaleLowerCase('tr-TR')));
     const candidates = db.prepare('SELECT title, summary FROM brand_source_items WHERE source_id = ? ORDER BY fetched_at DESC LIMIT 30').all(src.id);
     const insIdea = db.prepare('INSERT INTO ideas (id, brand_id, title, description, category, format, favorite, source, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)');
     for (const it of candidates) {
+      if (SITE_NOISE.test(it.title) || DATE_OR_META.test(it.title)) continue;
       const k = it.title.toLocaleLowerCase('tr-TR');
       if (existingIdeas.has(k)) continue;
-      const desc = [it.summary, src.label ? `Kaynak: ${src.label}` : ''].filter(Boolean).join(' · ').slice(0, 1000);
-      insIdea.run(newId(), src.brand_id, it.title.slice(0, 200), desc, 'guncel', 'post', srcTag, t);
+      const desc = [it.summary, labelSuffix].filter(Boolean).join(' · ').slice(0, 1000);
+      insIdea.run(newId(), src.brand_id, it.title.slice(0, 200), desc, 'guncel', 'post', 'kaynak', t);
       return 1;
     }
     return 0;
   }
 
   async function pullOne(src) {
+    cleanNoise();
     const t = now();
     try {
       const data = await siteReader.read(src.url);
@@ -215,6 +225,7 @@ export function createSourceService({ db, brands, siteReader }) {
       return { text: textOut.slice(0, 6500), used };
     },
     async syncDue() {
+      cleanNoise();
       // Daha önce çekilmiş ama bugün henüz fikir üretmemiş kaynaklar için bekleyen başlıklardan 1 fikir çıkar
       const allActive = db.prepare('SELECT * FROM brand_sources WHERE enabled = 1').all();
       for (const s of allActive) ensureDailyIdea(s);

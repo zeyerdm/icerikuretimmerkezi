@@ -41,7 +41,7 @@ test('Sektör kaynakları: RSS/HTML içerikleri çekilir, tekrarlanmaz ve post �
     assert.equal(listA.items.length, 2);
     // Her kaynaktan günde 1 yeni fikir İçerik fikirleri havuzuna eklenir
     const ideasA = (await s.request('GET', `/api/brands/${a.id}/ideas`)).data.ideas;
-    assert.equal(ideasA.filter(i => i.source === `kaynak:${src.id}`).length, 1);
+    assert.equal(ideasA.filter(i => i.source === 'kaynak').length, 1);
     assert.ok(ideasA.some(i => i.title.includes('PostgreSQL indeks') && i.category === 'guncel'));
     // Diğer markada görünmez
     assert.equal((await s.request('GET', `/api/brands/${b.id}/sources`)).data.items.length, 0);
