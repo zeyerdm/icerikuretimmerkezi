@@ -9,7 +9,8 @@ test('Sektör kaynakları: RSS/HTML içerikleri çekilir, tekrarlanmaz ve post �
       <item><title>PostgreSQL indeks optimizasyonu ile sorguları hızlandırma</title><link>https://kaynak.example/pg-index</link><description>B-Tree ve GIN indekslerinin doğru kullanımı sorgu süresini %80 düşürür.</description></item>
       <item><title>API önbellekleme stratejileri</title><link>https://kaynak.example/cache</link><description>ETag ve Redis ile gereksiz veritabanı yükünü azaltma yöntemleri.</description></item>
     </channel></rss>`;
-  const siteFetch = async url => new Response(rss, { status: 200, headers: { 'content-type': 'application/xml; charset=utf-8' } });
+  const articleHtml = `<!doctype html><html><head><title>PostgreSQL İndeks Optimizasyonu</title></head><body><article><h1>PostgreSQL İndeks Optimizasyonu</h1><p>EXPLAIN ANALYZE çıktısında Seq Scan görüyorsanız ve tablo 100 bin satırı geçtiyse CONCURRENTLY ile B-Tree indeks eklemek kilitlenmeyi önler.</p></article></body></html>`;
+  const siteFetch = async url => new Response(String(url).includes('/pg-index') ? articleHtml : rss, { status: 200, headers: { 'content-type': String(url).includes('/pg-index') ? 'text/html; charset=utf-8' : 'application/xml; charset=utf-8' } });
   const provider = fakeProvider([{
     title: 'PostgreSQL İndeks Rehberi',
     caption: 'Açıklama',
@@ -41,11 +42,12 @@ test('Sektör kaynakları: RSS/HTML içerikleri çekilir, tekrarlanmaz ve post �
     // Diğer markada görünmez
     assert.equal((await s.request('GET', `/api/brands/${b.id}/sources`)).data.items.length, 0);
 
-    // Post üretiminde çekilen güncel kaynak bilgileri isteme girer
+    // Post üretiminde çekilen güncel kaynak bilgileri ve makalenin tam içeriği isteme girer
     const postRes = await s.request('POST', `/api/brands/${a.id}/posts`, { topic: 'PostgreSQL sorgu performansı', kind: 'carousel', slides: 3 });
     assert.equal(postRes.status, 201);
     assert.match(provider.calls[0].prompt, /SEKTÖR KAYNAKLARINDAN GÜNCEL BİLGİLER/);
     assert.match(provider.calls[0].prompt, /B-Tree ve GIN indekslerinin doğru kullanımı/);
+    assert.match(provider.calls[0].prompt, /CONCURRENTLY ile B-Tree indeks eklemek kilitlenmeyi önler/);
 
     assert.equal((await s.request('DELETE', `/api/brands/${a.id}/sources/${src.id}`)).status, 204);
     assert.equal((await s.request('GET', `/api/brands/${a.id}/sources`)).data.items.length, 0);

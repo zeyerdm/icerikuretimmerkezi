@@ -152,6 +152,45 @@ export function createSourceService({ db, brands, siteReader }) {
       }).sort((a, b) => b.score - a.score);
       return scored.slice(0, limit).map(({ r }) => `- [${r.label}] ${r.title}${r.summary ? `: ${r.summary}` : ''}`).join('\n');
     },
+    // Konuyla ilgili kayıtlı kaynak linklerinin içine girip asıl yazı/makale metnini okuyarak araştırma özeti çıkarır
+    async research(brandId, topic = '', { maxPages = 2 } = {}) {
+      let items = db.prepare('SELECT i.title, i.url, i.summary, s.label FROM brand_source_items i JOIN brand_sources s ON s.id = i.source_id WHERE i.brand_id = ? ORDER BY i.fetched_at DESC LIMIT 40').all(brandId);
+      const sourcesList = db.prepare('SELECT url, label FROM brand_sources WHERE brand_id = ? AND enabled = 1 ORDER BY created_at DESC').all(brandId);
+      if (!sourcesList.length) return { text: '', used: [] };
+      if (!items.length) {
+        await this.fetchBrand(brandId).catch(() => {});
+        items = db.prepare('SELECT i.title, i.url, i.summary, s.label FROM brand_source_items i JOIN brand_sources s ON s.id = i.source_id WHERE i.brand_id = ? ORDER BY i.fetched_at DESC LIMIT 40').all(brandId);
+      }
+      const words = String(topic || '').toLocaleLowerCase('tr-TR').split(/\s+/).filter(w => w.length >= 3);
+      const scored = items.map(it => {
+        const hay = `${it.title} ${it.summary}`.toLocaleLowerCase('tr-TR');
+        return { it, score: words.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0) };
+      }).sort((a, b) => b.score - a.score);
+      const targets = [];
+      const seenUrl = new Set();
+      for (const { it } of scored) {
+        if (it.url && !seenUrl.has(it.url)) { seenUrl.add(it.url); targets.push({ url: it.url, label: it.label, title: it.title }); }
+        if (targets.length >= maxPages) break;
+      }
+      if (!targets.length) {
+        for (const s of sourcesList.slice(0, maxPages)) targets.push({ url: s.url, label: s.label, title: s.label });
+      }
+      const blocks = [];
+      const used = [];
+      for (const tg of targets) {
+        try {
+          const page = await siteReader.read(tg.url);
+          const body = String(page.text || '').replace(/\s+/g, ' ').trim().slice(0, 2600);
+          if (body.length > 60) {
+            blocks.push(`[${tg.label} · ${tg.title}]\n${body}`);
+            used.push(tg.url);
+          }
+        } catch { /* erişilemeyen linki atla */ }
+      }
+      const summaryLines = this.recentContext(brandId, topic, 5);
+      const textOut = [blocks.join('\n\n'), summaryLines ? `Diğer güncel başlıklar:\n${summaryLines}` : ''].filter(Boolean).join('\n\n');
+      return { text: textOut.slice(0, 6500), used };
+    },
     async syncDue() {
       const cutoff = new Date(Date.now() - WEEK_MS).toISOString();
       const due = db.prepare("SELECT * FROM brand_sources WHERE enabled = 1 AND (last_fetched_at = '' OR last_fetched_at < ?) LIMIT 10").all(cutoff);

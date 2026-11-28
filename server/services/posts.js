@@ -443,7 +443,17 @@ export function createPostService({ db, ai, brands, assets, workspace, sources =
     const count = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || 6)) : 1;
     // Post metni kısa ve kalıplı: modelin uzun düşünmesine gerek yok (düşük çaba = hızlı yanıt)
     const poses = assets.list(b.id, 'mascot').map(a => polish(a.label)).filter(Boolean).slice(0, 12);
-    const sourceContext = sources ? sources.recentContext(b.id, topic, 6) : '';
+    let sourceContext = '';
+    let researchedUrls = [];
+    if (sources) {
+      try {
+        const res = await sources.research(b.id, topic, { maxPages: 2 });
+        sourceContext = res.text || sources.recentContext(b.id, topic, 6);
+        researchedUrls = res.used || [];
+      } catch {
+        sourceContext = sources.recentContext(b.id, topic, 6);
+      }
+    }
     let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), sourceContext, topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, itemCount, notes });
     if (linked) prompt = linkedinize(prompt);
     const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: kind === 'carousel' ? 'medium' : 'low', temperature: 0.7 });
@@ -458,7 +468,7 @@ export function createPostService({ db, ai, brands, assets, workspace, sources =
     if (texts.length > 1 && last) { if (/kayd[ıi]r|swipe|yanda|sonraki slayt/i.test(last.speech)) last.speech = 'Kaydet, lazım olur! 🚀'; if (/kayd[ıi]r|swipe|yanda/i.test(last.cta)) last.cta = 'Kaydet ve paylaş'; }
     if (!texts.length) throw new HttpError(502, 'AI_BAD_POST', 'Model kullanılabilir bir metin döndürmedi. Tekrar dene ya da başka bir model seç.');
     return { texts, title: polish(out.title).slice(0, 120) || texts[0].title, caption: String(out.caption || '').trim().slice(0, 3000),
-      hashtags: (Array.isArray(out.hashtags) ? out.hashtags : []).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 8), r };
+      hashtags: (Array.isArray(out.hashtags) ? out.hashtags : []).map(h => polish(h).replace(/^#?/, '#')).filter(h => h.length > 1).slice(0, 8), r, researchedUrls };
   }
   // Şablonlar: bir tasarımın yerleşimi (katmanlar, renkler, görseller, metinler) markaya kaydedilir; yeni tasarım ondan açılır
   const cleanMatch = m => ({
@@ -729,7 +739,8 @@ export function createPostService({ db, ai, brands, assets, workspace, sources =
       const r = { id: newId(), brand_id: b.id, title: w.title, kind, data: JSON.stringify(data), model: w.r.servedRef || w.r.ref, created_at: now() };
       db.prepare('INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(r.id, r.brand_id, r.title, r.kind, r.data, r.model, r.created_at, r.created_at);
       brands.logActivity(b.id, 'post.created', `${POST_KINDS[kind]} hazırlandı: ${w.title}`);
-      const work = [{ by: 'ai', label: `Metinleri yazdı (${w.texts.length} sayfa), tek istek` }, { by: 'sistem', label: 'Marka yerleşimi: renkler, yazı tipleri, logo ve maskot markanın kimliğinden' }];
+      const work = [{ by: 'ai', label: `Metinleri yazdı (${w.texts.length} sayfa), tek istek` }, { by: 'sistem', label: 'Marka yerleşimi: renkler, yazı tipleri, logo ve maskot markanın kimliğinden' },
+        ...(w.researchedUrls && w.researchedUrls.length ? [{ by: 'sistem', label: `Kayıtlı sektör kaynaklarından ${w.researchedUrls.length} sayfa araştırıldı` }] : [])];
       return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), work });
     },
 
