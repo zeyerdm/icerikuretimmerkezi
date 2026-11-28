@@ -72,6 +72,10 @@ test('Sektör kaynakları: HTML menü/slogan gürültüsü atlanır, gerçek mak
     <main>
       <p>Insights içeriklerine göz atın.</p>
       <p>Teknoloji dünyasından önemli gelişmeleri yakından takip edin.</p>
+      <a href="/mac">Mac / iMac / Macbook / Mac Mini</a>
+      <a href="/foundation">Foundation (opens in a new window)</a>
+      <a href="/sartlar">- İçerik Kullanım Şartları</a>
+      <h2>Güncel Teknoloji Haberleri ve Rehberler</h2>
       <article><h2><a href="/yapay-zeka-kod-asistani">Yapay Zekâ Kod Asistanlarında Yeni Verimlilik Ölçütleri</a></h2><p>Geliştirici ekiplerin kod inceleme süresini %40 azaltan yeni nesil araçlar karşılaştırıldı.</p></article>
     </main></body></html>`;
   const siteWithRss = `<!doctype html><html><head><title>Blog</title><link rel="alternate" type="application/rss+xml" href="/feed.xml"></head><body><nav>Ana Sayfa</nav></body></html>`;

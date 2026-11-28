@@ -35,13 +35,15 @@ export function parseFeed(xml, baseUrl) {
 }
 
 const DATE_OR_META = /^(?:(?:research|news|blog|product|safety|company|announcement|update|ai|tech)\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+\d{1,2},?\s+\d{2,4}$|^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$|^\d+\s*(?:dk|min|dakika)\s*(?:okuma|read)?$/i;
-const SITE_NOISE = /^(?:site adı:|site açıklaması:|===|https?:\/\/|ana sayfa|iletişim|hakkımızda|giriş|kayıt|çerez|gizlilik|menü|copyright|©|reklam|künye|abone ol|skip to main|bunu biliyor muydunuz|uygulama\s*\/\s*yazılım|teknoloji haberleri|devamını oku|read more|tümünü gör|see all|son dakika|popüler haberler|en çok okunan)/i;
+const SITE_NOISE = /^(?:[-•|>]\s*|site adı:|site açıklaması:|===|https?:\/\/|ana sayfa|iletişim|hakkımızda|giriş|kayıt|çerez|gizlilik|menü|copyright|©|reklam|künye|abone ol|skip to main|bunu biliyor muydunuz|uygulama\s*\/\s*yazılım|teknoloji haberleri|güncel teknoloji haberleri|devamını oku|read more|tümünü gör|see all|son dakika|popüler haberler|en çok okunan|log in|sign in|sign up|try chatgpt)/i;
+const BAD_CONTAINS = /(?:opens in a new window|kullanım şart|kullanim sart|gizlilik politikası|çerez politikası|aydınlatma metni|kvkk|haberleri ve rehberler)/i;
 const PROMO_SUFFIX = /(?:takip edin\.?|göz atın\.?|abone olun\.?|keşfedin\.?)$/i;
-const BAD_HREF = /\/(?:category|kategori|tag|etiket|author|yazar|login|giris|register|kayit|iletisim|contact|hakkimizda|about|gizlilik|privacy|search|ara)\b|^#/i;
+const BAD_HREF = /\/(?:category|kategori|tag|etiket|author|yazar|login|giris|register|kayit|iletisim|contact|hakkimizda|about|gizlilik|privacy|terms|kullanim|search|ara)\b|^#/i;
 
 function isGoodTitle(t) {
   if (!t || t.length < 24 || t.length > 160) return false;
-  if (DATE_OR_META.test(t) || SITE_NOISE.test(t) || PROMO_SUFFIX.test(t)) return false;
+  if (DATE_OR_META.test(t) || SITE_NOISE.test(t) || BAD_CONTAINS.test(t) || PROMO_SUFFIX.test(t)) return false;
+  if ((t.match(/\s\/\s/g) || []).length >= 2) return false; // "Mac / iMac / Macbook / Mac Mini" gibi kategori menüsü
   const words = t.split(/\s+/).filter(Boolean);
   return words.length >= 4 || (words.length >= 3 && t.length >= 28);
 }
@@ -53,7 +55,7 @@ export function extractArticlesFromHtml(html, baseUrl = '') {
     .replace(/<(script|style|noscript|svg|template|iframe|canvas|form|nav|header|footer|aside)\b[\s\S]*?<\/\1>/gi, ' ');
   const out = [];
   const seen = new Set();
-  const push = (rawTitle, rawHref = '', rawSummary = '') => {
+  const push = (rawTitle, rawHref = '', rawSummary = '', requireArticleSlug = false) => {
     const title = stripTags(rawTitle).slice(0, 180);
     if (!isGoodTitle(title)) return;
     const key = title.toLocaleLowerCase('tr-TR');
@@ -62,7 +64,13 @@ export function extractArticlesFromHtml(html, baseUrl = '') {
     if (rawHref) {
       if (BAD_HREF.test(rawHref)) return;
       try { url = new URL(rawHref, baseUrl).href; } catch { url = baseUrl; }
-    }
+      if (requireArticleSlug) {
+        try {
+          const p = new URL(url).pathname.replace(/\/+$/, '');
+          if (p.length < 18 || !/[a-z0-9]{4,}-[a-z0-9]{3,}/i.test(p)) return;
+        } catch { return; }
+      }
+    } else if (requireArticleSlug) return;
     seen.add(key);
     const summary = stripTags(rawSummary).slice(0, 360);
     out.push({ title, url, summary });
@@ -80,7 +88,7 @@ export function extractArticlesFromHtml(html, baseUrl = '') {
     push(titleHtml, href, pm ? pm[1] : '');
   }
 
-  // 2. Yeterli <article> yoksa sayfadaki başlık + bağlantılı haber başlıklarını tara
+  // 2. Yeterli <article> yoksa sayfadaki başlık + gerçek makale bağlantılı başlıkları tara
   if (out.length < 4) {
     for (const m of cleaned.matchAll(/<h([1-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)) {
       if (out.length >= MAX_ITEMS_PER_FETCH) break;
@@ -88,10 +96,10 @@ export function extractArticlesFromHtml(html, baseUrl = '') {
       push(m[2], href, '');
     }
   }
-  if (out.length < 4) {
+  if (out.length < 3) {
     for (const m of cleaned.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
       if (out.length >= MAX_ITEMS_PER_FETCH) break;
-      push(m[2], m[1], '');
+      push(m[2], m[1], '', true);
     }
   }
   return out;
