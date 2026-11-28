@@ -30,7 +30,8 @@ test('T.3 post türleri: varsayılan boyutlar, grafik maddeleri, takvimde doğru
     assert.match(texts, /Birinci madde/);
     // Boyut elle seçilebilir; geçersiz tür ve boyut reddedilir
     assert.equal((await blank(s, a.id, { kind: 'story', format: '1:1', title: 'Kare story' })).data.format, '1:1');
-    assert.equal((await s.request('POST', `/api/brands/${a.id}/posts`, { blank: true, kind: 'afis' })).status, 400);
+    assert.equal((await s.request('POST', `/api/brands/${a.id}/posts`, { blank: true, kind: 'brosur' })).status, 400); // tanımsız tür (afiş artık geçerli bir tür)
+    assert.equal((await s.request('POST', `/api/brands/${a.id}/posts`, { blank: true, kind: 'afis' })).data.post.data.format, 'A4');
     assert.equal((await s.request('POST', `/api/brands/${a.id}/posts`, { blank: true, kind: 'post', format: '2:3' })).status, 400);
   } finally { await s.stop(); }
 });

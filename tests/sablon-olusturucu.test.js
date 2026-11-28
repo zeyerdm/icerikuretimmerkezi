@@ -79,7 +79,11 @@ test('Hazır post tasarımları: her markada listelenir, açılır, markanın ş
     const list = (await s.request('GET', `/api/brands/${b.id}/shared-templates`)).data.templates;
     const built = list.filter(t => t.builtin);
     assert.ok(built.length >= 7);
-    assert.ok(built.every(t => t.data.slides.length === 3 && t.kind === 'carousel'));
+    // Carousel hazır tasarımları kapak + içerik + kapanış; afiş hazır tasarımları tek sayfa A4 (adım adım tasarım akışı)
+    assert.ok(built.filter(t => t.kind === 'carousel').length >= 7);
+    assert.ok(built.filter(t => t.kind === 'carousel').every(t => t.data.slides.length === 3));
+    assert.ok(built.filter(t => t.kind === 'afis').every(t => t.data.slides.length === 1 && t.data.format === 'A4'));
+    assert.ok(built.every(t => ['carousel', 'afis'].includes(t.kind)));
     const dark = built.find(t => t.id === 'hazir-koyu-kart');
     const title = dark.data.slides[0].layers.find(l => l.role === 'title');
     assert.equal(title.highlight, '#22aa55', 'vurgu rengi markanın ana rengi');
