@@ -3,7 +3,7 @@
 import { newId, now, text, badRequest, notFound } from '../lib/http.js';
 import { decode, pageText } from './siteReader.js';
 
-const WEEK_MS = 7 * 24 * 3600 * 1000;
+const DAY_MS = 24 * 3600 * 1000;
 const MAX_SOURCES = 15;
 const MAX_ITEMS_PER_FETCH = 12;
 
@@ -75,6 +75,25 @@ export function createSourceService({ db, brands, siteReader }) {
     return r;
   };
 
+  // Her kaynaktan günde en fazla 1 yeni fikir: hem yeni çekilenlerden hem daha önce çekilmiş bekleyenlerden seçer
+  function ensureDailyIdea(src, t = now()) {
+    const dayAgo = new Date(Date.now() - DAY_MS).toISOString();
+    const srcTag = `kaynak:${src.id}`;
+    const alreadyToday = db.prepare('SELECT 1 FROM ideas WHERE brand_id = ? AND source = ? AND created_at >= ? LIMIT 1').get(src.brand_id, srcTag, dayAgo);
+    if (alreadyToday) return 0;
+    const existingIdeas = new Set(db.prepare('SELECT title FROM ideas WHERE brand_id = ?').all(src.brand_id).map(x => x.title.toLocaleLowerCase('tr-TR')));
+    const candidates = db.prepare('SELECT title, summary FROM brand_source_items WHERE source_id = ? ORDER BY fetched_at DESC LIMIT 30').all(src.id);
+    const insIdea = db.prepare('INSERT INTO ideas (id, brand_id, title, description, category, format, favorite, source, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)');
+    for (const it of candidates) {
+      const k = it.title.toLocaleLowerCase('tr-TR');
+      if (existingIdeas.has(k)) continue;
+      const desc = [it.summary, src.label ? `Kaynak: ${src.label}` : ''].filter(Boolean).join(' · ').slice(0, 1000);
+      insIdea.run(newId(), src.brand_id, it.title.slice(0, 200), desc, 'guncel', 'post', srcTag, t);
+      return 1;
+    }
+    return 0;
+  }
+
   async function pullOne(src) {
     const t = now();
     try {
@@ -85,26 +104,20 @@ export function createSourceService({ db, brands, siteReader }) {
       if (!items.length && data.text) items = extractArticles([{ url: data.url || src.url, text: data.text }]);
 
       const existing = new Set(db.prepare('SELECT title FROM brand_source_items WHERE source_id = ?').all(src.id).map(x => x.title.toLocaleLowerCase('tr-TR')));
-      const existingIdeas = new Set(db.prepare('SELECT title FROM ideas WHERE brand_id = ?').all(src.brand_id).map(x => x.title.toLocaleLowerCase('tr-TR')));
       let added = 0;
       const ins = db.prepare('INSERT INTO brand_source_items (id, brand_id, source_id, title, url, summary, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      const insIdea = db.prepare('INSERT INTO ideas (id, brand_id, title, description, category, format, favorite, source, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)');
       for (const it of items.slice(0, MAX_ITEMS_PER_FETCH)) {
         const k = it.title.toLocaleLowerCase('tr-TR');
         if (existing.has(k)) continue;
         existing.add(k);
         ins.run(newId(), src.brand_id, src.id, it.title, it.url || '', it.summary || '', t);
-        if (!existingIdeas.has(k)) {
-          existingIdeas.add(k);
-          const desc = [it.summary, src.label ? `Kaynak: ${src.label}` : ''].filter(Boolean).join(' · ').slice(0, 1000);
-          insIdea.run(newId(), src.brand_id, it.title.slice(0, 200), desc, 'guncel', 'post', 'kaynak', t);
-        }
         added++;
       }
       // Kaynak başına en yeni 30 başlık kalsın
       db.prepare('DELETE FROM brand_source_items WHERE source_id = ? AND id NOT IN (SELECT id FROM brand_source_items WHERE source_id = ? ORDER BY fetched_at DESC LIMIT 30)').run(src.id, src.id);
       db.prepare("UPDATE brand_sources SET last_fetched_at = ?, last_error = '', last_count = ? WHERE id = ?").run(t, items.length, src.id);
-      return { added, total: items.length };
+      const ideasAdded = ensureDailyIdea(src, t);
+      return { added, ideasAdded, total: items.length };
     } catch (err) {
       db.prepare('UPDATE brand_sources SET last_fetched_at = ?, last_error = ? WHERE id = ?').run(t, String(err && err.message || 'Çekilemedi').slice(0, 200), src.id);
       throw err;
@@ -144,11 +157,11 @@ export function createSourceService({ db, brands, siteReader }) {
     async fetchBrand(brandId) {
       const b = brands.get(brandId);
       const list = db.prepare('SELECT * FROM brand_sources WHERE brand_id = ? AND enabled = 1').all(b.id);
-      let added = 0; let errors = 0;
+      let added = 0; let ideasAdded = 0; let errors = 0;
       for (const s of list) {
-        try { added += (await pullOne(s)).added; } catch { errors++; }
+        try { const r = await pullOne(s); added += r.added; ideasAdded += r.ideasAdded || 0; } catch { errors++; }
       }
-      return { checked: list.length, added, errors };
+      return { checked: list.length, added, ideasAdded, errors };
     },
     // Post üretiminde konuya göre güncel kaynaklardan en alakalı başlık + özetleri döndürür
     recentContext(brandId, topic = '', limit = 6) {
@@ -202,12 +215,17 @@ export function createSourceService({ db, brands, siteReader }) {
       return { text: textOut.slice(0, 6500), used };
     },
     async syncDue() {
-      const cutoff = new Date(Date.now() - WEEK_MS).toISOString();
-      const due = db.prepare("SELECT * FROM brand_sources WHERE enabled = 1 AND (last_fetched_at = '' OR last_fetched_at < ?) LIMIT 10").all(cutoff);
+      // Daha önce çekilmiş ama bugün henüz fikir üretmemiş kaynaklar için bekleyen başlıklardan 1 fikir çıkar
+      const allActive = db.prepare('SELECT * FROM brand_sources WHERE enabled = 1').all();
+      for (const s of allActive) ensureDailyIdea(s);
+      const cutoff = new Date(Date.now() - DAY_MS).toISOString();
+      const due = db.prepare("SELECT * FROM brand_sources WHERE enabled = 1 AND (last_fetched_at = '' OR last_fetched_at < ?) LIMIT 15").all(cutoff);
       for (const s of due) { try { await pullOne(s); } catch { /* sonraki döngüde tekrar denenir */ } }
       return due.length;
     },
     startWeeklySync() {
+      const boot = setTimeout(() => { this.syncDue().catch(() => {}); }, 4000);
+      if (boot.unref) boot.unref();
       const t = setInterval(() => { this.syncDue().catch(() => {}); }, 6 * 3600 * 1000);
       if (t.unref) t.unref();
       return t;

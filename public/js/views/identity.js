@@ -318,7 +318,7 @@ async function renderConnections(view, brand) {
     }
     const fAll = e.target.closest('[data-src-fetch-all]');
     if (fAll) {
-      try { const r = await busy(fAll, () => api.fetchAllSources(brand.id)); toast(`${r.checked} kaynak tarandı, ${r.added} yeni başlık eklendi.`, 'success'); renderConnections(view, brand); } catch (err) { toast(err.message, 'error'); }
+      try { const r = await busy(fAll, () => api.fetchAllSources(brand.id)); toast(`${r.checked} kaynak tarandı, ${r.ideasAdded || 0} yeni fikir İçerik fikirleri'ne eklendi.`, 'success'); renderConnections(view, brand); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const delSrc = e.target.closest('[data-src-del]');
