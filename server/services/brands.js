@@ -154,7 +154,7 @@ export function createBrandService(db, ownerId) {
       const profile = readProfile(body || {}, { partial: false });
       const colors = normalizeColors(body.colors) || normalizeColors({});
       const fonts = normalizeFonts(body.fonts) || normalizeFonts({});
-      const drive = parseFolder(body.driveFolder);
+      const drive = parseFolder('driveFolder' in (body || {}) ? body.driveFolder : body.driveFolderUrl);
       const id = newId();
       const t = now();
       db.prepare(`INSERT INTO brands (id, owner_id, name, sector, description, audience, character, tone, goals, competitors, slogan, colors, fonts, drive_folder, created_at, updated_at)
@@ -184,7 +184,8 @@ export function createBrandService(db, ownerId) {
       const colors = normalizeColors(body.colors);
       const fonts = normalizeFonts(body.fonts);
       const next = Object.assign({}, current, profile);
-      const drive = 'driveFolder' in (body || {}) ? parseFolder(body.driveFolder) : current.driveFolderId;
+      const hasDrive = 'driveFolder' in (body || {}) || 'driveFolderUrl' in (body || {});
+      const drive = hasDrive ? parseFolder('driveFolder' in (body || {}) ? body.driveFolder : body.driveFolderUrl) : current.driveFolderId;
       db.prepare(`UPDATE brands SET name = ?, sector = ?, description = ?, audience = ?, character = ?, tone = ?, goals = ?,
         competitors = ?, slogan = ?, colors = ?, fonts = ?, drive_folder = ?, updated_at = ? WHERE id = ? AND owner_id = ?`)
         .run(next.name, next.sector, next.description, next.audience, next.character, next.tone, next.goals,

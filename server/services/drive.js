@@ -8,7 +8,7 @@ import { HttpError, badRequest } from '../lib/http.js';
 const URL_SETTING = 'drive.scriptUrl';
 const TOKEN_SETTING = 'drive.token';
 export const SCRIPT_VERSION = 1;
-const SCRIPT_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,}\/exec$/;
+const SCRIPT_URL_RE = /^https:\/\/script\.google\.com\/(?:a\/[^/]+\/)?macros\/s\/[A-Za-z0-9_-]{20,}\/exec$/;
 const FOLDER_ID_RE = /^[A-Za-z0-9_-]{10,100}$/;
 
 const driveError = message => new HttpError(502, 'DRIVE_ERROR', message);
@@ -18,9 +18,9 @@ export function parseFolder(input) {
   const v = String(input || '').trim();
   if (!v) return '';
   let id = v;
-  if (/^https?:\/\//i.test(v)) {
+  if (/^(?:https?:\/\/|drive\.google\.com\/)/i.test(v)) {
     let url;
-    try { url = new URL(v); } catch { url = null; }
+    try { url = new URL(/^https?:\/\//i.test(v) ? v : 'https://' + v); } catch { url = null; }
     const m = url && url.hostname === 'drive.google.com' && url.pathname.match(/\/folders\/([A-Za-z0-9_-]+)/);
     id = m ? m[1] : (url && url.hostname === 'drive.google.com' && url.searchParams.get('id')) || '';
   }

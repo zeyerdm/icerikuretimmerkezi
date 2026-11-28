@@ -289,8 +289,14 @@ async function renderConnections(view, brand) {
     }
     const saveDrive = e.target.closest('[data-cn-save-drive]');
     if (saveDrive) {
-      const driveFolderUrl = view.querySelector('#cn-drive').value.trim();
-      try { await busy(saveDrive, () => api.updateBrand(brand.id, { driveFolderUrl })); await refreshBrands(); toast('Drive klasörü güncellendi.', 'success'); renderConnections(view, brand); } catch (err) { toast(err.message, 'error'); }
+      const driveFolder = view.querySelector('#cn-drive').value.trim();
+      try {
+        const { brand: saved } = await busy(saveDrive, () => api.updateBrand(brand.id, { driveFolder }));
+        Object.assign(brand, saved);
+        await refreshBrands();
+        toast('Drive klasörü güncellendi.', 'success');
+        renderConnections(view, brand);
+      } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const testDrive = e.target.closest('[data-cn-test-drive]');
