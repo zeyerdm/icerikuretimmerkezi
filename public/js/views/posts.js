@@ -8,6 +8,7 @@ import { drawSlide, resolveImages, slideBlob, hitTest, layerBox, handlesOf, fitT
 import { downloadBlob, safeName, drawTitle, ensureTitleFonts } from '../titlePng.js';
 import { reviewBox } from './review.js';
 import { canvasesToPdf } from '../pdf.js';
+import { filesToZip } from '../zip.js';
 import { openColorPicker, gradCss } from '../colorPicker.js';
 import { checkDesign, applyFix } from '../designCheck.js';
 import { svgUrl } from '../stockPacks.js';
@@ -924,6 +925,7 @@ async function renderEditor(view, brand, id, models) {
                 ${post.kind === 'youtube' ? `<button type="button" data-act="yt-preview">${icon('eye')}<span>YouTube önizlemesi</span></button>` : ''}
                 <button type="button" data-png="one">${icon('download')}<span>Bu slaytı PNG indir</span></button>
                 ${data.slides.length > 1 ? `<button type="button" data-png="all">${icon('download')}<span>Bütün slaytları indir</span></button>` : ''}
+                ${data.slides.length > 1 ? `<button type="button" data-zip>${icon('download')}<span>Bütün slaytları ZIP indir</span></button>` : ''}
                 <button type="button" data-pdf>${icon('download')}<span>${data.slides.length > 1 ? 'PDF olarak indir (bütün slaytlar)' : 'PDF olarak indir'}</span></button>
                 <button type="button" data-drive="one">${icon('upload')}<span>Bu slaytı Drive'a gönder</span></button>${data.slides.length > 1 ? `<button type="button" data-drive="all">${icon('upload')}<span>Bütün slaytları Drive'a gönder</span></button>` : ''}
                 ${post.content ? '' : `<button type="button" data-act="schedule">${icon('calendar')}<span>Takvime ekle</span></button>`}
@@ -2450,6 +2452,21 @@ async function renderEditor(view, brand, id, models) {
         const canvases = [];
         for (const s of data.slides) { await resolveImages(s); canvases.push(drawSlide(document.createElement('canvas'), s, format())); }
         downloadBlob(await canvasesToPdf(canvases, { title: post.title }), `${safeName(post.title)}.pdf`);
+        offerIdeaDelete();
+      }).catch(err => toast(err.message, 'error'));
+    }
+    const zipBtn = t.closest('[data-zip]');
+    if (zipBtn) {
+      closeMenus();
+      if (!exportGate()) return;
+      return busy(zipBtn, async () => {
+        const files = [];
+        for (let i = 0; i < data.slides.length; i++) {
+          const blob = await slideBlob(data.slides[i], format());
+          files.push({ name: `${String(i + 1).padStart(2, '0')}-${safeName(post.title)}.png`, bytes: new Uint8Array(await blob.arrayBuffer()) });
+        }
+        downloadBlob(filesToZip(files), `${safeName(post.title)}.zip`);
+        toast(`${files.length} slayt ZIP olarak indirildi.`, 'success');
         offerIdeaDelete();
       }).catch(err => toast(err.message, 'error'));
     }
