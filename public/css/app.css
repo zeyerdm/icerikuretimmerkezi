@@ -2589,3 +2589,29 @@ html[data-theme="dark"] .cal-card .sp-day { filter: brightness(.9); }
 @media (max-width: 760px) { .nav .nav-sec, .nav .nav-sec .nav-sec-body { display: contents !important; } }
 .mem-pending { border-color: #f0d9a8; } .mem-conflict { color: #a12b2b; margin-top: 4px; } .mem-fact.is-archived { opacity: .7; }
 .hist-stats { flex-wrap: wrap; gap: var(--s-3); }
+
+/* Adım adım tasarım (views/designWizard.js) */
+.wz { max-width: 1000px; margin: 0 auto; padding-bottom: 120px; } /* sağ alttaki Asistan düğmesi Devam düğmesini örtmesin */
+.wz-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.wz-dots { display: flex; gap: 6px; }
+.wz-dots i { width: 34px; height: 6px; border-radius: 3px; background: var(--line, #ddd8cf); }
+.wz-dots i.on { background: var(--brand); }
+.wz-h { font-size: 26px; margin: 14px 0 4px; }
+.wz-grid { display: grid; gap: 14px; margin-top: 18px; }
+.wz-g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wz-g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wz-card, .wz-way, .wz-tpl, .wz-idea { background: var(--surface, #fff); border: 2px solid var(--line, #ece7de); border-radius: 18px; padding: 20px; cursor: pointer; font: inherit; color: inherit; text-align: center; transition: border-color .15s, box-shadow .15s; }
+.wz-card:hover, .wz-way:hover, .wz-tpl:hover, .wz-idea:hover, .wz-card:focus-visible, .wz-way:focus-visible, .wz-tpl:focus-visible, .wz-idea:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); outline: none; }
+.wz-card b { display: block; font-size: 17px; margin-top: 10px; }
+.wz-card small { color: var(--muted, #8a8ea3); }
+.wz-shape { display: block; margin: 0 auto; border-radius: 8px; background: linear-gradient(135deg, var(--brand-soft), var(--brand)); }
+.wz-more { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--muted, #6b6f86); }
+.wz-way { text-align: left; display: flex; flex-direction: column; gap: 4px; }
+.wz-way b { font-size: 17px; }
+.wz-list { display: grid; gap: 8px; margin-top: 16px; }
+.wz-idea { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: 12px; }
+.wz-form { margin-top: 16px; }
+.wz-next { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.wz-tpl { padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+.wz-thumb { width: 100%; height: auto; border-radius: 10px; background: var(--surface-2, #f3f1ec); }
+@media (max-width: 760px) { .wz-g4, .wz-g3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .wz-h { font-size: 22px; } }

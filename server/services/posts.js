@@ -368,7 +368,7 @@ const KIND_TASK = {
 };
 
 // LinkedIn belgesi (PDF carousel): yerleşim carousel'in aynısı; istem LinkedIn diline çevrilir
-export const layoutKind = k => (k === 'linkedin' ? 'carousel' : k);
+export const layoutKind = k => (k === 'linkedin' ? 'carousel' : k === 'afis' ? 'reklam' : k);
 export function linkedinize(prompt) {
   return String(prompt)
     .replace(/markasının Instagram içerik yazarısın\./, 'markasının LinkedIn içerik yazarısın. Profesyonel, uzmanlık gösteren ama samimi bir dil kullan; emoji ve Instagram kalıpları kullanma.')
@@ -728,6 +728,52 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       brands.logActivity(b.id, 'post.created', `${POST_KINDS[kind]} hazırlandı: ${w.title}`);
       const work = [{ by: 'ai', label: `Metinleri yazdı (${w.texts.length} sayfa), tek istek` }, { by: 'sistem', label: 'Marka yerleşimi: renkler, yazı tipleri, logo ve maskot markanın kimliğinden' }];
       return Object.assign(toPost(Object.assign(r, { updated_at: r.created_at })), { ai: meta(w.r), work });
+    },
+
+    // Adım adım tasarım akışı: kullanıcının yazdığı bilgilerden tasarım (yapay zekâ yok). Şablon seçildiyse bilgiler
+    // şablonun başlık / açıklama / buton kutularına yerleşir; seçilmediyse türün marka yerleşimi kullanılır.
+    // templateData: ortak ya da hazır şablonun bu markanın kimliğine çevrilmiş hâli (sharedTemplates.themed).
+    createFromBrief(brandId, { kind = 'post', brief = {}, templateId = null, templateData = null, templateName = '' } = {}) {
+      const b = brands.get(brandId);
+      const f = k => text(brief[k], { field: k, max: k === 'body' ? 1000 : 200 }) || '';
+      const title = f('title');
+      if (!title) throw badRequest('Başlık gerekli.');
+      // Şablonun ek alanları (madde, istatistik, rozet, alt not…): anahtar → metin; boş bırakılan kutu tasarımdan çıkar
+      const extra = Object.fromEntries(Object.entries((brief.fields && typeof brief.fields === 'object') ? brief.fields : {})
+        .filter(([k]) => /^[A-Z][A-Z0-9_]{0,29}$/.test(k)).slice(0, 40).map(([k, v]) => [k, String(v == null ? '' : v).trim().slice(0, 300)]));
+      let tpl = null;
+      if (templateId) tpl = templateAt(b.id, templateId);
+      else if (templateData) tpl = { id: '', name: templateName || 'Hazır şablon', kind, data: templateData };
+      // Şablonda alt başlık kutusu varsa alt başlık oraya, yoksa açıklamanın başına
+      const subInField = extra.SUB_TITLE != null;
+      const details = [f('date'), f('place')].filter(Boolean).join(' · ');
+      const body = [subInField ? '' : f('subtitle'), f('body'), details, f('contact')].filter(Boolean).join('\n');
+      const texts = [{ title, body, cta: f('cta'), items: [], fields: extra }];
+      let k = tpl ? tpl.kind : oneOf(kind, Object.keys(POST_KINDS), 'Tür');
+      let data;
+      if (tpl) {
+        const clean = cleanData(tpl.data, b.id);
+        const one = clean.slides.filter(s => !s.frame).slice(0, layoutKind(k) === 'carousel' ? 1 : undefined);
+        if (layoutKind(k) === 'carousel') k = 'post';
+        // Boş bırakılan alan tasarıma girmez: açıklama ya da buton boşsa kutusu (ve butonun zemini) çıkarılır
+        const drop = role => one.forEach(sl => {
+          const ls = sl.layers || [];
+          const gone = ls.filter(l => l.type === 'text' && l.role === role);
+          sl.layers = ls.filter(l => !gone.includes(l) && !(l.type === 'shape' && gone.some(g => g.x >= l.x - 4 && g.y >= l.y - 4 && g.x + (g.w || 0) <= l.x + l.w + 4 && g.y <= l.y + l.h)));
+        });
+        if (!texts[0].cta) drop('cta');
+        if (!texts[0].body) drop('body');
+        one.forEach(sl => { sl.layers = (sl.layers || []).filter(l => !(l.type === 'text' && !l.fixed && ((l.field && extra[l.field] === '') || (!l.field && l.role === 'subtitle' && extra.SUB_TITLE === '')))); });
+        data = Object.assign(fillTemplate(Object.assign({}, clean, { slides: one }), texts, { mascots: brandAssets(b).mascots, topic: title, pools: b.textPools || { cta: [], closing: [], speech: [] } }), { caption: '', hashtags: [] },
+          tpl.id ? { template: { id: tpl.id, name: tpl.name, version: tpl.version || 1 } } : {});
+      } else {
+        const format = KIND_DEFAULTS[k].format;
+        data = { format, slides: layoutSlides(Object.assign({ texts, brand: b, format, kind: layoutKind(k), topic: title }, brandAssets(b))), caption: '', hashtags: [] };
+      }
+      const r = { id: newId(), brand_id: b.id, title: title.slice(0, 120), kind: k, data: JSON.stringify(data), created_at: now() };
+      db.prepare("INSERT INTO posts (id, brand_id, title, kind, data, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, '', ?, ?)").run(r.id, r.brand_id, r.title, r.kind, r.data, r.created_at, r.created_at);
+      brands.logActivity(b.id, 'post.created', `${POST_KINDS[k] || k} bilgilerden hazırlandı: ${r.title}`);
+      return toPost(Object.assign(r, { model: '', updated_at: r.created_at }));
     },
 
     createBlank(brandId, { title = 'Yeni post', kind = 'post', format = null, templateId = null, editTemplate = false, bgAsset = null, texts = null } = {}) {

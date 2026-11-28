@@ -144,6 +144,12 @@ export function createSharedTemplateService({ db, ownerId, brands, assets }) {
       brands.logActivity(b.id, 'template.shared', `Ortak şablon kütüphanesine eklendi: ${name || p.title}`);
       return toItem(row(id), b);
     },
+    // Hedef markanın kimliğine çevrilmiş şablon verisi (adım adım tasarım akışında bilgilerle doldurulur)
+    themed(brandId, id) {
+      const b = brands.get(brandId);
+      const r = row(id);
+      return { id: r.id, name: r.name, kind: r.kind, data: theme(parseJson(r.data, {}), b) };
+    },
     // Hedef markada yeni tasarım olarak açar
     use(brandId, id, { title } = {}) {
       const b = brands.get(brandId);

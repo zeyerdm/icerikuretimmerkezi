@@ -49,6 +49,7 @@ function tplFields(t) {
   return [...set];
 }
 import { youtubePreview } from './youtube.js';
+import { renderDesignWizard } from './designWizard.js';
 
 const base = brand => `#/m/${encodeURIComponent(brand.id)}/post`;
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -92,6 +93,7 @@ export async function renderPosts(view, brand, sub) {
   view.onclick = view.onchange = view.oninput = view.onkeydown = view.ondblclick = null;
   const models = await aiModels();
   if (sub === 'izgara') return renderGrid(view, brand);
+  if (sub === 'yeni') return renderDesignWizard(view, brand);
   if (sub) return renderEditor(view, brand, sub, models);
   const aiReady = models.ov.providers.some(p => p.configured);
   const [{ posts }, { templates }, { templates: sharedTpls }] = await Promise.all([api.posts(brand.id), api.postTemplates(brand.id), api.sharedTemplates(brand.id)]);
@@ -106,9 +108,8 @@ export async function renderPosts(view, brand, sub) {
   if (!lastTpl && defTpl) lastTpl = defTpl.id;
   view.innerHTML = `
     ${pageHead({
-      title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, afiş, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; kendi tasarımını yükleyip üzerindeki metinleri düzenleyebilirsin.`,
-      actions: `<button class="btn" data-upload-design>${icon('upload')}Tasarım yükle</button>
-        <button class="btn" data-blank>${icon('plus')}Boş tasarım</button>
+      title: 'Post stüdyosu', desc: `${esc(brand.name)} için post, afiş, carousel, story, Reels kapağı, reklam ve bilgi grafiği tasarımları. Metinler marka diliyle yazılır; renk, font, logo ve maskot otomatik uygulanır.`,
+      actions: `<a class="btn btn-primary" href="${base(brand)}/yeni">${icon('plus')}Yeni tasarım</a><button class="btn" data-upload-design>${icon('upload')}Tasarım yükle</button><button class="btn" data-blank>Boş tasarım</button>
         <details class="menu-dd"><summary class="btn btn-ghost">Diğer ▾</summary><div class="menu-dd-list" role="menu">
           ${aiReady ? `<button type="button" role="menuitem" data-ref><b>${icon('image')} Referanstan şablon</b><span class="xsmall muted">Beğendiğin bir tasarımdan şablon çıkar</span></button>
           <button type="button" role="menuitem" data-new><b>${icon('sparkle')} Konudan üret (gelişmiş)</b><span class="xsmall muted">Tür, boyut ve model seçerek</span></button>` : ''}

@@ -757,6 +757,12 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
     const post = b.blank ? posts.createBlank(req.brand.id, b) : await posts.create(req.brand.id, { topic: b.topic, kind: b.kind, format: b.format || null, slides: b.slides, modelRef: mr(b), templateId: b.templateId || null, templateVersion: b.templateVersion || null, mascot: b.mascot || 'auto', notes: b.notes || '' });
     res.status(201).json({ post });
   }));
+  // Adım adım tasarım: bilgilerden tasarım (yapay zekâ yok); şablon markanın ya da ortak / hazır şablon olabilir
+  api.post('/brands/:brandId/posts/from-brief', (req, res) => {
+    const b = req.body || {};
+    const sh = b.sharedId ? shared.themed(req.brand.id, String(b.sharedId)) : null;
+    res.status(201).json({ post: posts.createFromBrief(req.brand.id, { kind: b.kind, brief: b.brief || {}, templateId: b.templateId || null, templateData: sh ? sh.data : null, templateName: sh ? sh.name : '' }) });
+  });
   api.get('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.get(req.brand.id, req.params.id) }));
   api.put('/brands/:brandId/posts/:id', (req, res) => res.json({ post: posts.update(req.brand.id, req.params.id, req.body || {}) }));
   api.delete('/brands/:brandId/posts/:id', (req, res) => trashed(res, 'post', req.params.id, () => posts.remove(req.brand.id, req.params.id)));
