@@ -806,7 +806,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(ROOT, 'd
   api.post('/brands/:brandId/posts/from-idea', route(async (req, res) => { const b = req.body || {}; res.status(201).json(await posts.fromIdea(req.brand.id, { ideaId: b.ideaId, templateId: b.templateId || null, templateVersion: b.templateVersion || null, designId: b.designId || null, slides: b.slides || null, modelRef: mr(b), mascot: b.mascot || 'auto', notes: b.notes || '' })); }));
   api.delete('/brands/:brandId/post-templates/:tid', (req, res) => { posts.removeTemplate(req.brand.id, req.params.tid); res.status(204).end(); });
   api.post('/brands/:brandId/posts/ai-edit', route(async (req, res) => { const b = req.body || {}; res.json(await posts.aiEdit(req.brand.id, { command: b.command, instruction: b.instruction, texts: b.texts, topic: b.topic, kind: b.kind, modelRef: mr(b) })); }));
-  api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body) }) })));
+  api.post('/brands/:brandId/posts/:id/rewrite', route(async (req, res) => res.json({ post: await posts.rewrite(req.brand.id, req.params.id, { modelRef: mr(req.body), enrich: Boolean(req.body && req.body.enrich) }) })));
   api.post('/brands/:brandId/posts/:id/schedule', (req, res) => res.status(201).json({ content: posts.schedule(req.brand.id, req.params.id, { scheduledAt: (req.body && req.body.scheduledAt) || null }) }));
 
   // --- AI içerik denetçisi ---

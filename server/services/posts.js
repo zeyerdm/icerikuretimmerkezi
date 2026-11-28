@@ -25,6 +25,7 @@ export const AI_EDIT_COMMANDS = {
   resmi: 'Tonu daha kurumsal ve resmi yap.',
   yazim: 'Yazım, noktalama ve dil bilgisi hatalarını düzelt; başka bir şeyi değiştirme.',
   sade: 'Metni daha sade ve anlaşılır yaz; uzun cümleleri böl.',
+  zenginlestir: 'Metinleri çok daha bilgilendirici ve değer katan hale getir: somut teknik detay, uygulama adımı veya gerçekçi bir örnek ("Örneğin...") ekle; yüzeysel/kısa cümleleri geliştir.',
   serbest: 'Kullanıcının isteğini uygula.'
 };
 const ELEMENT_SRC = /^\/api\/elements\/[A-Za-z0-9-]+\/file$/;
@@ -380,7 +381,7 @@ export function linkedinize(prompt) {
 
 // Şablon alanları: alan kimliği ↔ metin anahtarı
 export const FIELD_CODES = { title: 'MAIN_TITLE', subtitle: 'SUB_TITLE', body: 'DESCRIPTION', cta: 'CTA', speech: 'SPEECH', num: 'PAGE_NUMBER', page: 'PAGE_TOTAL', stat: 'STAT', topic: 'TOPIC', item: 'ITEM', closing: 'CLOSING', mascot: 'MASCOT', logo: 'LOGO', main: 'MAIN_IMAGE' };
-function postPrompt({ brandName, memory, sourceContext = '', topic, kind, slideCount, rewriteOf, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, itemCount = 0, notes = '' }) {
+function postPrompt({ brandName, memory, sourceContext = '', topic, kind, slideCount, rewriteOf, enrich = false, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, itemCount = 0, notes = '' }) {
   const lim = Object.entries(limits).filter(([, n]) => n > 0);
   return [
     kind === 'youtube' ? `Sen '${brandName}' markasının YouTube kapak ve içerik yazarısın.` : `Sen '${brandName}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI (dil ve kitle buna uysun):', memory, '',
@@ -400,7 +401,7 @@ function postPrompt({ brandName, memory, sourceContext = '', topic, kind, slideC
     itemCount > 0 && kind !== 'grafik' ? `MADDELER: Tasarımda ${itemCount} adet madde alanı var; ilgili slaytta "items" dizisine ${itemCount} kısa madde yaz.` : '',
     kind !== 'carousel' && mascot && poses.length && fixedSpeech ? `MASKOT: Konuşma sabit havuzdan gelir; yalnızca "pose" yaz: ${poses.join(', ')}.` : '',
     kind !== 'carousel' && mascot && poses.length && !fixedSpeech ? `MASKOT: "speech" (maskotun en çok 6 kelimelik kısa tepkisi) ve "pose" yaz. "pose" şu pozlardan en uygun olanı olsun: ${poses.join(', ')}.` : '',
-    rewriteOf ? `\nÖNCEKİ METİN (farklı ve daha iyi yaz, kopyalama):\n${rewriteOf}` : '',
+    rewriteOf ? `\n${enrich ? 'ÖNCEKİ YÜZEYSEL/KISA METİN (bunu çok daha bilgilendirici, somut örnekli, teknik/uygulanabilir detaylar ve kaynak verileriyle ZENGİNLEŞTİR; her slayt açıklaması 2-3 dolu cümle olsun, boş sloganları at)' : 'ÖNCEKİ METİN (farklı ve daha iyi yaz, kopyalama)'}:\n${rewriteOf}` : '',
     // Şablonun ek alanları ve kutulara sığacak uzunluklar (metin küçültülmesin diye baştan kısa yazılır)
     fields.length ? `EK ALANLAR (her slaytta "fields" nesnesine bu anahtarların tamamını eksiksiz yaz): ${fields.map(f => `${f.key}${f.hint ? ` (${f.hint})` : ''}`).join(', ')}.` : '',
     lim.length ? `UZUNLUK SINIRLARI (tasarım kutusuna sığması için aşma, gerekirse kısalt): ${lim.map(([k, n]) => `${k} en fazla ${n} karakter`).join('; ')}.` : '',
@@ -436,7 +437,7 @@ export function createPostService({ db, ai, brands, assets, workspace, sources =
       mascots: assets.list(b.id, 'mascot').map(a => ({ id: a.id, url: a.url, label: a.label })) };
   };
 
-  async function writeTexts(b, { topic, kind: kind0, slides, modelRef, rewriteOf, mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, itemCount = 0, notes = '' }) {
+  async function writeTexts(b, { topic, kind: kind0, slides, modelRef, rewriteOf, enrich = false, mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, itemCount = 0, notes = '' }) {
     // LinkedIn belgesi: carousel gibi çok sayfalı, ama LinkedIn diliyle ve LinkedIn paylaşım metniyle
     const linked = kind0 === 'linkedin';
     const kind = layoutKind(kind0);
@@ -454,9 +455,9 @@ export function createPostService({ db, ai, brands, assets, workspace, sources =
         sourceContext = sources.recentContext(b.id, topic, 6);
       }
     }
-    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), sourceContext, topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, itemCount, notes });
+    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), sourceContext, topic, kind, slideCount: count, rewriteOf, enrich, poses, mascot, fields, limits, fixedSpeech, wantCta, itemCount, notes });
     if (linked) prompt = linkedinize(prompt);
-    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: kind === 'carousel' ? 'medium' : 'low', temperature: 0.7 });
+    const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: enrich || kind === 'carousel' ? 'medium' : 'low', temperature: 0.7 });
     const out = r.output || {};
     const rawSlides = Array.isArray(out.slides) && out.slides.length ? out.slides : (out.title ? [out] : []);
     const texts = rawSlides.map(s => ({ title: polish(s && s.title).slice(0, 160), body: polish(s && s.body).slice(0, 500),
@@ -815,8 +816,8 @@ export function createPostService({ db, ai, brands, assets, workspace, sources =
       return toPost(Object.assign(r, { model: '', updated_at: r.created_at }));
     },
 
-    // Metinleri (seçilen modelle) yeniden yazdırır; yerleşim marka şablonuyla baştan kurulur
-    async rewrite(brandId, id, { modelRef = null } = {}) {
+    // Metinleri (seçilen modelle) yeniden yazdırır veya zenginleştirir; şablonlu tasarımda yerleşim korunur
+    async rewrite(brandId, id, { modelRef = null, enrich = false } = {}) {
       const b = brands.get(brandId);
       const p = row(b.id, id);
       const data = parseJson(p.data, {});
@@ -824,14 +825,14 @@ export function createPostService({ db, ai, brands, assets, workspace, sources =
       // Şablonla hazırlanmış tasarımda yerleşim korunur: yalnızca metinler (ve maskot pozu) yenilenir
       if (data.template) {
         const content = (data.slides || []).map((s, i) => i).filter(i => !data.slides[i].frame);
-        const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: content.length, modelRef, rewriteOf: prev, mascot: true, notes: data.notes || '' });
+        const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: content.length, modelRef, rewriteOf: prev, enrich, mascot: true, notes: data.notes || '' });
         const filled = fillTemplate({ slides: content.map(i => data.slides[i]) }, w.texts, { mascots: brandAssets(b).mascots, topic: String(data.topic || p.title).split(' — ')[0] }).slides;
         const slides = data.slides.map((s, i) => (content.includes(i) ? filled[content.indexOf(i)] : s));
         const next = Object.assign({}, data, { slides, caption: w.caption, hashtags: w.hashtags });
         db.prepare('UPDATE posts SET title = ?, data = ?, model = ?, updated_at = ? WHERE id = ?').run(w.title, JSON.stringify(next), w.r.servedRef || w.r.ref, now(), p.id);
         return Object.assign(toPost(row(b.id, p.id)), { ai: meta(w.r) });
       }
-      const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: (data.slides || []).length, modelRef, rewriteOf: prev, notes: data.notes || '' });
+      const w = await writeTexts(b, { topic: data.topic || p.title, kind: p.kind, slides: (data.slides || []).length, modelRef, rewriteOf: prev, enrich, notes: data.notes || '' });
       const next = Object.assign({}, data, { slides: layoutSlides(Object.assign({ texts: w.texts, brand: b, format: data.format, kind: layoutKind(p.kind), topic: String(data.topic || p.title).split(' — ')[0] }, brandAssets(b))), caption: w.caption, hashtags: w.hashtags });
       db.prepare('UPDATE posts SET title = ?, data = ?, model = ?, updated_at = ? WHERE id = ?').run(w.title, JSON.stringify(next), w.r.servedRef || w.r.ref, now(), p.id);
       return Object.assign(toPost(row(b.id, p.id)), { ai: meta(w.r) });

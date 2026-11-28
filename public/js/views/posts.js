@@ -280,10 +280,22 @@ export async function renderPosts(view, brand, sub) {
       const id = pm.dataset.postMenu;
       const menu = document.createElement('div');
       menu.className = 'post-menu'; menu.setAttribute('role', 'menu');
-      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" data-tpl-post="${esc(id)}">${icon('grid')}Şablon olarak kaydet</button><a role="menuitem" href="#/m/${esc(brand.id)}/linkedin/post-${esc(id)}">${icon('send')}LinkedIn'e uyarla</a><button type="button" role="menuitem" data-arch-post="${esc(id)}">${icon('archive')}${(posts.find(x => x.id === id) || {}).archived ? 'Arşivden çıkar' : 'Arşivle'}</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
+      menu.innerHTML = `<a role="menuitem" href="${base(brand)}/${esc(id)}">${icon('edit')}Aç ve düzenle</a><button type="button" role="menuitem" data-enrich-post="${esc(id)}">${icon('sparkle')}Zenginleştir (AI)</button><button type="button" role="menuitem" data-dup-post="${esc(id)}">${icon('copy')}Çoğalt</button><button type="button" role="menuitem" data-tpl-post="${esc(id)}">${icon('grid')}Şablon olarak kaydet</button><a role="menuitem" href="#/m/${esc(brand.id)}/linkedin/post-${esc(id)}">${icon('send')}LinkedIn'e uyarla</a><button type="button" role="menuitem" data-arch-post="${esc(id)}">${icon('archive')}${(posts.find(x => x.id === id) || {}).archived ? 'Arşivden çıkar' : 'Arşivle'}</button><button type="button" role="menuitem" class="danger" data-del-post="${esc(id)}">${icon('trash')}Sil</button>`;
       pm.parentElement.appendChild(menu);
       const close = ev => { if (!menu.contains(ev.target) && ev.target !== pm) { menu.remove(); document.removeEventListener('click', close, true); } };
       setTimeout(() => document.addEventListener('click', close, true), 0);
+      return;
+    }
+    const enp = e.target.closest('[data-enrich-post]');
+    if (enp) {
+      const p = posts.find(x => x.id === enp.dataset.enrichPost); if (!p) return;
+      document.querySelectorAll('.post-menu').forEach(x => x.remove());
+      try {
+        toast('AI postu zenginleştiriyor…', 'info', 4000);
+        const res = await api.rewritePost(brand.id, p.id, { enrich: true });
+        toast(`Zenginleştirildi · ${aiNote(res.post.ai)}`, 'success', 4500);
+        openPreview(res.post);
+      } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const tpp = e.target.closest('[data-tpl-post]');
@@ -676,7 +688,7 @@ export async function previewPost(brand, post) {
     body: `<p class="small muted mb-2">Sayfaları sürükleyerek sıralayabilir, sorunları görebilir, bir sayfaya tıklayıp düzenleyicide açabilirsin.</p>
       ${post.work ? `<details class="pv-work mb-2"><summary class="small"><b>Yapay zekâ ne yaptı, sistem ne yaptı?</b>${post.ai ? ` <span class="xsmall muted">· ${esc(aiNote(post.ai))}</span>` : ''}</summary><ul>${post.work.map(w => `<li><span class="pv-by pv-${w.by}">${w.by === 'ai' ? 'Yapay zekâ' : 'Sistem'}</span>${esc(w.label)}</li>`).join('')}</ul></details>` : ''}
       <div id="pv-sum" class="ck-sum"></div><div class="pv-grid" id="pv-grid"></div>
-      <div class="row mt-3"><button type="button" class="btn btn-sm btn-ghost" data-pv-close>Kaydet ve listeye dön</button></div>`,
+      <div class="row mt-3"><button type="button" class="btn btn-sm btn-primary" data-pv-enrich>${icon('sparkle')}Zenginleştir</button><button type="button" class="btn btn-sm btn-ghost" data-pv-close>Kaydet ve listeye dön</button></div>`,
     onSubmit: async () => { await persist(); go(base(brand) + '/' + post.id); } });
   m.form.closest('.modal').classList.add('modal-xl');
   async function persist() { if (changed) { await api.savePost(brand.id, post.id, { data }); changed = false; } }
@@ -699,6 +711,17 @@ export async function previewPost(brand, post) {
   m.form.addEventListener('click', async e => {
     const ed2 = e.target.closest('[data-pv-edit]');
     if (ed2) { e.preventDefault(); await persist(); try { sessionStorage.setItem(`ium.openSlide.${post.id}`, ed2.dataset.pvEdit); } catch { /* yok */ } m.close(); return go(base(brand) + '/' + post.id); }
+    const pven = e.target.closest('[data-pv-enrich]');
+    if (pven) {
+      e.preventDefault();
+      try {
+        const res = await busyTimer(pven, () => api.rewritePost(brand.id, post.id, { enrich: true }));
+        post = res.post; data = JSON.parse(JSON.stringify(post.data)); changed = false;
+        toast(`Metinler zenginleştirildi · ${aiNote(res.post.ai)}`, 'success', 4500);
+        await draw();
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
     if (e.target.closest('[data-pv-close]')) { e.preventDefault(); await persist(); m.close(); if (location.hash === base(brand)) route(); else go(base(brand)); }
   });
   draw();
@@ -1504,9 +1527,9 @@ async function renderEditor(view, brand, id, models) {
         <div class="field"><label for="ai-free">Ne yapayım?</label><textarea class="textarea" id="ai-free" rows="2" maxlength="400" placeholder="Ör. başlığı soru cümlesi yap · maskotu sola taşı · bu sayfayı çoğalt"></textarea></div>
         <div class="stack-sm">${modelSelect(models, 'yazim', { id: 'pw-model' })}<button type="button" class="btn btn-primary" data-ai-cmd="serbest">${icon('sparkle')}Uygula</button></div>
         <div id="ai-result" class="mt-3"></div>
-        <h4 class="ed-sub mt-3">Baştan yaz</h4>
-        <p class="small muted mb-2">Bütün slayt metinleri seçtiğin modelle yeniden yazılır; şablonlu tasarımda yerleşim korunur.</p>
-        <button type="button" class="btn" data-rewrite>${icon('refresh')}Metni yeniden yaz</button>`
+        <h4 class="ed-sub mt-3">Baştan yaz / Zenginleştir</h4>
+        <p class="small muted mb-2">Bütün slayt metinleri seçtiğin modelle yeniden yazılır veya daha detaylı bilgilendirici metinlerle zenginleştirilir; şablonlu tasarımda yerleşim korunur.</p>
+        <div class="row"><button type="button" class="btn btn-primary" data-enrich>${icon('sparkle')}Zenginleştir</button><button type="button" class="btn" data-rewrite>${icon('refresh')}Metni yeniden yaz</button></div>`
         : '<div class="notice"><div>AI bağlı değil. Hızlı düzen komutları AI olmadan çalışır.</div><a class="btn btn-sm" href="#/ai/modeller">AI bağla</a></div>'}`;
       return;
     }
@@ -2407,10 +2430,11 @@ async function renderEditor(view, brand, id, models) {
     const ash = t.closest('[data-ai-short]'); if (ash) { const iss = (($('#ed-panel-body') || {})._issues || [])[Number(ash.dataset.aiShort)]; if (iss) await runAi('kisalt', ash, iss.layer); return; }
     if (t.closest('[data-ai-apply]')) { const picks = [...view.querySelectorAll('[data-ai-pick]')].filter(x => x.checked).map(x => aiPending[Number(x.dataset.aiPick)]); applyAi(picks); aiPending = null; $('#ai-result').innerHTML = ''; toast(`${picks.length} metin güncellendi. Geri almak için Ctrl+Z.`, 'success'); return; }
     if (t.closest('[data-ai-cancel]')) { aiPending = null; $('#ai-result').innerHTML = ''; return; }
-    const rw = t.closest('[data-rewrite]');
+    const rw = t.closest('[data-rewrite], [data-enrich]');
     if (rw) {
-      if (dirty && !confirm('Kaydedilmemiş değişiklikler var; yeniden yazınca yerleşim de baştan kurulur. Devam edilsin mi?')) return;
-      try { const res = await busyTimer(rw, () => api.rewritePost(brand.id, post.id, { model: ($('#pw-model') || {}).value || null })); post = res.post; data = JSON.parse(JSON.stringify(post.data)); current = 0; selected = null; dirty = false; toast(aiNote(res.post.ai), 'success', 5000); shell(); } catch (err) { toast(err.message, 'error'); }
+      const enrich = rw.hasAttribute('data-enrich');
+      if (dirty && !confirm('Kaydedilmemiş değişiklikler var; devam edince yerleşim de güncellenir. Devam edilsin mi?')) return;
+      try { const res = await busyTimer(rw, () => api.rewritePost(brand.id, post.id, { model: ($('#pw-model') || {}).value || null, enrich })); post = res.post; data = JSON.parse(JSON.stringify(post.data)); current = 0; selected = null; dirty = false; toast(aiNote(res.post.ai), 'success', 5000); shell(); } catch (err) { toast(err.message, 'error'); }
       return;
     }
     const pdfBtn = t.closest('[data-pdf]');
