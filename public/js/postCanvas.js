@@ -189,7 +189,7 @@ export function drawSlide(canvas, slide, format, { selectedId = null, handles = 
     if (slide.bgImage.dim) { ctx.fillStyle = `rgba(0,0,0,${slide.bgImage.dim / 100})`; ctx.fillRect(0, 0, format.w, format.h); }
   }
   for (const l0 of slide.layers) {
-    if (l0.hidden && !showHidden) continue; // gizli katman: çizilmez, dışa aktarılmaz
+    if ((l0.hidden && !showHidden) || l0._editing) continue; // gizli ya da tuval üstünde düzenlenen katman çizilmez
     const l = fitText(ctx, l0);
     ctx.save();
     // Döndürme: katman kendi kutusunun merkezi etrafında döner
@@ -204,6 +204,11 @@ export function drawSlide(canvas, slide, format, { selectedId = null, handles = 
       else if (ctx.roundRect) ctx.roundRect(l.x, l.y, l.w, l.h, r);
       else ctx.rect(l.x, l.y, l.w, l.h);
       ctx.fill();
+      if (l.strokeW > 0) {
+        ctx.save(); ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = l.strokeColor || '#1b1f3b'; ctx.lineWidth = l.strokeW;
+        ctx.stroke(); ctx.restore();
+      }
     } else if (l.type === 'vector') {
       const p = imageCache.get(vectorUrl(l));
       const img = p && p.resolved;

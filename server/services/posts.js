@@ -5,14 +5,14 @@ import { newId, now, text, badRequest, notFound, oneOf, parseJson, HttpError, HE
 import { polish } from './reels/rules.js';
 import { markIdeaUsed, IDEA_FORMATS, IDEA_CATEGORIES } from './ideas.js';
 
-export const POST_KINDS = { carousel: 'Carousel', post: 'Tek görsel post', story: 'Story', kapak: 'Reels kapağı', reklam: 'Reklam', grafik: 'Bilgi grafiği', youtube: 'YouTube kapağı', linkedin: 'LinkedIn belgesi' };
+export const POST_KINDS = { carousel: 'Carousel', post: 'Tek görsel post', afis: 'Afiş', story: 'Story', kapak: 'Reels kapağı', reklam: 'Reklam', grafik: 'Bilgi grafiği', youtube: 'YouTube kapağı', linkedin: 'LinkedIn belgesi' };
 // Türün varsayılan boyutu ve takvimdeki içerik türü
-export const KIND_DEFAULTS = { carousel: { format: '4:5', content: 'carousel' }, post: { format: '4:5', content: 'post' }, story: { format: '9:16', content: 'story' },
+export const KIND_DEFAULTS = { carousel: { format: '4:5', content: 'carousel' }, post: { format: '4:5', content: 'post' }, afis: { format: 'A4', content: 'reklam' }, story: { format: '9:16', content: 'story' },
   kapak: { format: '9:16', content: 'reels' }, reklam: { format: '4:5', content: 'reklam' }, grafik: { format: '4:5', content: 'grafik' },
   youtube: { format: '16:9', content: 'youtube' }, linkedin: { format: '4:5', content: 'linkedin_belge' } };
-export const POST_FORMATS = { '4:5': { w: 1080, h: 1350, label: 'Dikey 4:5' }, '1:1': { w: 1080, h: 1080, label: 'Kare 1:1' }, '9:16': { w: 1080, h: 1920, label: 'Story 9:16' }, '16:9': { w: 1280, h: 720, label: 'YouTube 16:9' } };
+export const POST_FORMATS = { '4:5': { w: 1080, h: 1350, label: 'Dikey 4:5' }, 'A4': { w: 1080, h: 1528, label: 'Afiş A4 (210×297)' }, '1:1': { w: 1080, h: 1080, label: 'Kare 1:1' }, '9:16': { w: 1080, h: 1920, label: 'Story 9:16' }, '16:9': { w: 1280, h: 720, label: 'YouTube 16:9' } };
 const MAX_SLIDES = 10;
-const MAX_LAYERS = 30;
+const MAX_LAYERS = 80;
 const LAYER_TYPES = ['text', 'image', 'shape', 'qr', 'vector'];
 // Öğe kütüphanesindeki (markadan bağımsız) dosyalar da görsel katmanı olabilir
 // A6 editör AI komutları (yalnızca metin değiştirir)
@@ -274,7 +274,7 @@ function cleanLayer(l) {
   const fx = (k, min, max) => { if (l[k] != null && l[k] !== '' && Number.isFinite(Number(l[k]))) out[k] = Math.min(max, Math.max(min, Math.round(Number(l[k]) * 100) / 100)); };
   const col = k => { if (HEX.test(l[k] || '')) out[k] = l[k]; };
   if (l.type === 'text') {
-    Object.assign(out, { role: String(l.role || 'text').slice(0, 12), text: String(l.text || '').slice(0, 1000), w: num(l.w, 40, 2000, 800), size: num(l.size, 10, 300, 40),
+    Object.assign(out, { role: String(l.role || 'text').slice(0, 12), text: String(l.text || '').slice(0, 1000), w: num(l.w, 10, 2000, 800), size: num(l.size, 10, 300, 40),
       color: HEX.test(l.color || '') ? l.color : '#1b1f3b', font: polish(l.font).slice(0, 40) || 'Inter', weight: [400, 500, 600, 700, 800, 900].includes(Number(l.weight)) ? Number(l.weight) : 700,
       align: ['left', 'center', 'right'].includes(l.align) ? l.align : 'left' });
     if (HEX.test(l.highlight || '')) out.highlight = l.highlight; // *vurgulu* kelimelerin rengi
@@ -317,6 +317,7 @@ function cleanLayer(l) {
   } else {
     Object.assign(out, { shape: l.shape === 'circle' ? 'circle' : 'rect', w: num(l.w, 1, 4000, 100), h: num(l.h, 1, 4000, 100), color: HEX.test(l.color || '') ? l.color : '#5b55e6', radius: num(l.radius, 0, 1000, 0) });
     if (l.role === 'bubble') out.role = 'bubble'; // maskotun konuşma balonu: konuşma yoksa gizlenir
+    fx('strokeW', 0, 40); col('strokeColor');
     const gr = cleanGradient(l.gradient); if (gr) out.gradient = gr;
   }
   return out;
@@ -358,6 +359,7 @@ export function cleanData(data, brandId) {
 }
 
 const KIND_TASK = {
+  afis: 'GÖREV: Tek sayfalık profesyonel bir tanıtım afişi metni yaz: çarpıcı ana başlık (en fazla 6 kelime), kısa alt başlık veya açıklama (en fazla 160 karakter) ve varsa şablondaki tüm ek alanlar (özellikler, istatistikler, CTA). Marka dışı uydurma sayı yazma; konuya uygun net ifadeler kur.',
   story: 'GÖREV: Tek ekranlık bir Instagram story metni yaz: kısa başlık (en fazla 6 kelime) ve 1-2 kısa cümle (en fazla 140 karakter). Samimi, anlık bir dil.',
   kapak: 'GÖREV: Bir Reels videosunun kapak görseli için metin yaz: profil ızgarasında okunacak çok kısa ve merak uyandıran başlık (en fazla 5 kelime); body isteğe bağlı en fazla 6 kelimelik alt başlık.',
   reklam: 'GÖREV: Tek görsellik bir Instagram reklamı metni yaz: güçlü başlık (en fazla 7 kelime), faydayı anlatan tek cümle (en fazla 120 karakter) ve "cta" alanına 2-3 kelimelik eylem çağrısı (ör. Hemen dene). Abartılı ya da yanıltıcı iddia kullanma.',
@@ -378,7 +380,7 @@ export function linkedinize(prompt) {
 
 // Şablon alanları: alan kimliği ↔ metin anahtarı
 export const FIELD_CODES = { title: 'MAIN_TITLE', subtitle: 'SUB_TITLE', body: 'DESCRIPTION', cta: 'CTA', speech: 'SPEECH', num: 'PAGE_NUMBER', page: 'PAGE_TOTAL', stat: 'STAT', topic: 'TOPIC', item: 'ITEM', closing: 'CLOSING', mascot: 'MASCOT', logo: 'LOGO', main: 'MAIN_IMAGE' };
-function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, notes = '' }) {
+function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, poses = [], mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, itemCount = 0, notes = '' }) {
   const lim = Object.entries(limits).filter(([, n]) => n > 0);
   return [
     kind === 'youtube' ? `Sen '${brandName}' markasının YouTube kapak ve içerik yazarısın.` : `Sen '${brandName}' markasının Instagram içerik yazarısın.`, '', 'MARKA HAFIZASI (dil ve kitle buna uysun):', memory, '',
@@ -393,11 +395,12 @@ function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, pos
         'Teknik bir terim gerekirse aynı cümlede sade Türkçeyle açıkla.'].filter(Boolean).join('\n')
       : 'GÖREV: Tek görsellik bir Instagram postu metni yaz: kısa, vurucu başlık (en fazla 7 kelime) ve isteğe bağlı tek cümle alt metin.',
     wantCta ? 'BUTON: Tasarımda buton var; ilgili slayta "cta" (en çok 3 kelimelik eylem çağrısı, ör. "Hemen dene") yaz.' : '',
+    itemCount > 0 && kind !== 'grafik' ? `MADDELER: Tasarımda ${itemCount} adet madde alanı var; ilgili slaytta "items" dizisine ${itemCount} kısa madde yaz.` : '',
     kind !== 'carousel' && mascot && poses.length && fixedSpeech ? `MASKOT: Konuşma sabit havuzdan gelir; yalnızca "pose" yaz: ${poses.join(', ')}.` : '',
     kind !== 'carousel' && mascot && poses.length && !fixedSpeech ? `MASKOT: "speech" (maskotun en çok 6 kelimelik kısa tepkisi) ve "pose" yaz. "pose" şu pozlardan en uygun olanı olsun: ${poses.join(', ')}.` : '',
     rewriteOf ? `\nÖNCEKİ METİN (farklı ve daha iyi yaz, kopyalama):\n${rewriteOf}` : '',
     // Şablonun ek alanları ve kutulara sığacak uzunluklar (metin küçültülmesin diye baştan kısa yazılır)
-    fields.length ? `EK ALANLAR (her slaytta "fields" nesnesine yaz): ${fields.map(f => `${f.key}${f.hint ? ` (${f.hint})` : ''}`).join(', ')}.` : '',
+    fields.length ? `EK ALANLAR (her slaytta "fields" nesnesine bu anahtarların tamamını eksiksiz yaz): ${fields.map(f => `${f.key}${f.hint ? ` (${f.hint})` : ''}`).join(', ')}.` : '',
     lim.length ? `UZUNLUK SINIRLARI (tasarım kutusuna sığması için aşma, gerekirse kısalt): ${lim.map(([k, n]) => `${k} en fazla ${n} karakter`).join('; ')}.` : '',
     // Kart düzeni (carousel): başlıkta *vurgu*, maskotun konuşma balonu ve slayta uygun poz
     kind === 'carousel' ? [
@@ -409,7 +412,7 @@ function postPrompt({ brandName, memory, topic, kind, slideCount, rewriteOf, pos
       ? "Kapak yazısı kalın ve iri basılacak; kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına YouTube video açıklaması (ilk iki satır videonun vaadini anlatsın, 400-1500 karakter), 'hashtags' alanına en fazla 3 hashtag yaz."
       : "Görsel üzerindeki metinler kısa ve okunaklı olsun. Gerçek kişi, ünlü veya başka marka adı kullanma. 'caption' alanına uzun ve değerli bir Instagram açıklaması (1200-1800 karakter, 2000'i aşma: kaydırmayı durduran ilk satır, konuyu slaytlardan daha ayrıntılı ve örnekli anlatan 3-5 kısa paragraf, kaydet ve paylaş çağrısı, yorum sorusu), 'hashtags' alanına en fazla 5 hashtag yaz.",
     '', 'Sadece şu JSON biçiminde yanıt ver:',
-    JSON.stringify({ title: 'İçeriğin kısa adı', slides: [Object.assign({ title: 'Slayt başlığı', body: 'Kısa açıklama' }, kind === 'grafik' ? { items: ['Madde 1', 'Madde 2'] } : {}, kind === 'reklam' ? { cta: 'Hemen dene' } : {}, (kind === 'carousel' || mascot) && poses.length ? { speech: 'Kısa tepki', pose: poses[0] } : {}, fields.length ? { fields: Object.fromEntries(fields.map(f => [f.key, '...'])) } : {})], caption: 'Açıklama', hashtags: ['#ornek'] })
+    JSON.stringify({ title: 'İçeriğin kısa adı', slides: [Object.assign({ title: 'Slayt başlığı', body: 'Kısa açıklama' }, kind === 'grafik' || itemCount > 0 ? { items: ['Madde 1', 'Madde 2'] } : {}, kind === 'reklam' || wantCta ? { cta: 'Hemen dene' } : {}, (kind === 'carousel' || mascot) && poses.length ? { speech: 'Kısa tepki', pose: poses[0] } : {}, fields.length ? { fields: Object.fromEntries(fields.map(f => [f.key, '...'])) } : {})], caption: 'Açıklama', hashtags: ['#ornek'] })
   ].filter(Boolean).join('\n');
 }
 
@@ -431,21 +434,22 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
       mascots: assets.list(b.id, 'mascot').map(a => ({ id: a.id, url: a.url, label: a.label })) };
   };
 
-  async function writeTexts(b, { topic, kind: kind0, slides, modelRef, rewriteOf, mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, notes = '' }) {
+  async function writeTexts(b, { topic, kind: kind0, slides, modelRef, rewriteOf, mascot = false, fields = [], limits = {}, fixedSpeech = false, wantCta = false, itemCount = 0, notes = '' }) {
     // LinkedIn belgesi: carousel gibi çok sayfalı, ama LinkedIn diliyle ve LinkedIn paylaşım metniyle
     const linked = kind0 === 'linkedin';
     const kind = layoutKind(kind0);
     const count = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || 6)) : 1;
     // Post metni kısa ve kalıplı: modelin uzun düşünmesine gerek yok (düşük çaba = hızlı yanıt)
     const poses = assets.list(b.id, 'mascot').map(a => polish(a.label)).filter(Boolean).slice(0, 12);
-    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, notes });
+    let prompt = postPrompt({ brandName: b.name, memory: brands.memory(b.id, { task: 'tasarim' }), topic, kind, slideCount: count, rewriteOf, poses, mascot, fields, limits, fixedSpeech, wantCta, itemCount, notes });
     if (linked) prompt = linkedinize(prompt);
     const r = await ai.run({ task: 'yazim', brandId: b.id, prompt, json: true, modelRef: modelRef || null, effort: 'low', temperature: 0.7 });
     const out = r.output || {};
-    const texts = (Array.isArray(out.slides) ? out.slides : []).map(s => ({ title: polish(s && s.title).slice(0, 160), body: polish(s && s.body).slice(0, 500),
-      items: (Array.isArray(s && s.items) ? s.items : []).map(x => polish(x).slice(0, 120)).filter(Boolean).slice(0, 6), cta: polish(s && s.cta).slice(0, 40),
+    const rawSlides = Array.isArray(out.slides) && out.slides.length ? out.slides : (out.title ? [out] : []);
+    const texts = rawSlides.map(s => ({ title: polish(s && s.title).slice(0, 160), body: polish(s && s.body).slice(0, 500),
+      items: (Array.isArray(s && s.items) ? s.items : []).map(x => polish(x).slice(0, 120)).filter(Boolean).slice(0, 8), cta: polish(s && s.cta).slice(0, 40),
       speech: polish(s && s.speech).replace(/["“”]/g, '').slice(0, 60), pose: polish(s && s.pose).slice(0, 60),
-      fields: Object.fromEntries(Object.entries((s && typeof s.fields === 'object' && s.fields) || {}).filter(([k]) => /^[A-Za-z][A-Za-z0-9_]{0,29}$/.test(k)).map(([k, v]) => [k.toUpperCase(), polish(v).slice(0, 300)])) })).filter(s => s.title).slice(0, count);
+      fields: Object.fromEntries(Object.entries((s && typeof s.fields === 'object' && s.fields) || (typeof out.fields === 'object' && out.fields) || {}).filter(([k]) => /^[A-Za-z][A-Za-z0-9_]{0,29}$/.test(k)).map(([k, v]) => [k.toUpperCase(), polish(v).slice(0, 300)])) })).filter(s => s.title).slice(0, count);
     // Kapanış (son) slaytında "kaydır" çağrısı olmaz: kaydırılacak sayfa kalmadı
     const last = texts[texts.length - 1];
     if (texts.length > 1 && last) { if (/kayd[ıi]r|swipe/i.test(last.speech)) last.speech = 'Kaydet, lazım olur! 🚀'; if (/kayd[ıi]r|swipe/i.test(last.cta)) last.cta = 'Kaydet ve paylaş'; }
@@ -619,18 +623,22 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
   // Şablonun istediği ek alanlar (alt başlık, istatistik, özel alanlar) ve kutulara sığacak karakter sayısı.
   // Sabit alanlar istenmez. Karakter sınırı kutu genişliği, yazı boyutu ve kutu yüksekliğinden kabaca hesaplanır.
   function templateNeeds(slides) {
-    const fields = new Map(); const limits = {};
+    const fields = new Map(); const limits = {}; let itemCount = 0;
     const cap = l => { const perLine = Math.max(4, Math.floor(l.w / (l.size * 0.56))); const lines = l.maxH > 0 ? Math.max(1, Math.floor(l.maxH / (l.size * (l.lineHeight || 1.2)))) : 3; return perLine * lines; };
     for (const s of slides) for (const l of s.layers || []) {
       if (l.type !== 'text' || l.fixed) continue;
-      if (l.field && !['MAIN_TITLE', 'DESCRIPTION', 'CTA', 'SPEECH'].includes(l.field)) fields.set(l.field, l.name || '');
-      if (l.role === 'subtitle') fields.set('SUB_TITLE', 'kısa alt başlık');
-      if (l.role === 'stat') fields.set('STAT', 'tek bir çarpıcı sayı ya da istatistik, ör. "%73"');
+      if (l.field && !['MAIN_TITLE', 'DESCRIPTION', 'CTA', 'SPEECH'].includes(l.field)) {
+        fields.set(l.field, l.name || '');
+        limits[l.field] = Math.min(limits[l.field] || Infinity, cap(l));
+      }
+      if (l.role === 'subtitle' && !l.field) fields.set('SUB_TITLE', 'kısa alt başlık');
+      if (l.role === 'stat' && !l.field) fields.set('STAT', 'tek bir çarpıcı sayı ya da istatistik, ör. "%73"');
+      if (l.role === 'item' && !l.field) itemCount++;
       const key = { title: 'title', body: 'body', cta: 'cta', speech: 'speech' }[roleOf(l)];
       if (key) limits[key] = Math.min(limits[key] || Infinity, cap(l));
     }
     Object.keys(limits).forEach(k => { if (!Number.isFinite(limits[k])) delete limits[k]; });
-    return { fields: [...fields].map(([key, hint]) => ({ key, hint })), limits };
+    return { fields: [...fields].map(([key, hint]) => ({ key, hint })), limits, itemCount };
   }
   // Maskot kullanılmayacaksa (ya da kullanıcı kendisi yerleştirecekse) maskot, balon ve konuşma kutuları çıkarılır
   const MASCOT_MODES = ['auto', 'manual', 'none'];
@@ -638,19 +646,20 @@ export function createPostService({ db, ai, brands, assets, workspace }) {
   async function fromTemplateTopic(b, tpl, topic, modelRef, slides = null, mascotMode = 'auto', notes = '') {
     const clean = cleanData(tpl.data, b.id);
     const tslides = clean.slides.filter(s => !s.frame);
-    // Carousel'de istenen slayt sayısı (yoksa şablonun kendi sayısı; 3'ten azsa 6)
-    // Tek görsellik tasarımdan sayfa sayısı istenirse (ör. 5) carousel kurulur: kapak (kanca) + gelişme + kapanış
+    // Tek görselli afiş/reklam/grafik/story/kapak/youtube türleri her zaman tek sayfa kalır;
+    // 'post' türünde ise yalnızca kullanıcı açıkça 2+ sayfa istediyse carousel kurulur, 1 ya da null ise tek görsel kalır.
     const single = Number(slides) === 1 && tpl.kind === 'carousel'; // carousel tasarımından tek görsel: yalnız kapak düzeni
     if (single) tslides.splice(1);
-    const kind = single ? 'post' : layoutKind(tpl.kind) === 'carousel' || (tpl.kind === 'post' && Number(slides) >= 2) ? 'carousel' : tpl.kind;
+    const fixedSingle = ['afis', 'reklam', 'grafik', 'story', 'kapak', 'youtube'].includes(tpl.kind);
+    const kind = single ? 'post' : fixedSingle ? tpl.kind : (layoutKind(tpl.kind) === 'carousel' || (tpl.kind === 'post' && Number(slides) >= 2)) ? 'carousel' : tpl.kind;
     const want = kind === 'carousel' ? Math.min(MAX_SLIDES, Math.max(3, Number(slides) || (tslides.length >= 3 ? tslides.length : 6))) : tslides.length || 1;
     const mascot = mascotMode === 'auto' && tslides.some(s => (s.layers || []).some(l => l.type === 'image' && l.role === 'mascot'));
-    const { fields, limits } = templateNeeds(tslides);
+    const { fields, limits, itemCount } = templateNeeds(tslides);
     const pools = b.textPools || { cta: [], closing: [], speech: [] };
     const hasRole = r => tslides.some(s => (s.layers || []).some(l => l.type === 'text' && !l.fixed && roleOf(l) === r));
     // Kapanış cümlesi kutusu havuz boşsa yapay zekâya ek alan olarak gider
     if (hasRole('closing') && !pools.closing.length && !fields.some(f => f.key === 'CLOSING')) fields.push({ key: 'CLOSING', hint: 'kısa kapanış cümlesi' });
-    const w = await writeTexts(b, { topic, kind: kind, slides: want, modelRef, mascot, fields, limits, fixedSpeech: pools.speech.length > 0, wantCta: hasRole('cta') && !pools.cta.length, notes });
+    const w = await writeTexts(b, { topic, kind: kind, slides: want, modelRef, mascot, fields, limits, fixedSpeech: pools.speech.length > 0, wantCta: hasRole('cta') && !pools.cta.length, itemCount, notes });
     const seed = db.prepare('SELECT COUNT(*) AS n FROM posts WHERE brand_id = ?').get(b.id).n;
     const fitted = kind === 'carousel' ? fitSlides(tslides, w.texts.length) : tslides;
     const filled = fillTemplate(Object.assign({}, clean, { slides: fitted }), w.texts, { mascots: brandAssets(b).mascots, topic: String(topic).split(' — ')[0], pools, seed });

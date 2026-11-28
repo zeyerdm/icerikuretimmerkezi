@@ -75,11 +75,18 @@ test('Stiller ve ortak kural şablonları: kendi stil, oluştur, ortak şablon b
 test('Hazır post tasarımları: her markada listelenir, açılır, markanın şablonlarına eklenir, silinemez', async () => {
   const s = await startServer();
   try {
-    const b = (await s.request('POST', '/api/brands', { name: 'Hazır', colors: { primary: '#22aa55' } })).data.brand;
+    const b = (await s.request('POST', '/api/brands', { name: 'Hazır', colors: { primary: '#22aa55', secondary: ['#115588', '#e6b800'] } })).data.brand;
     const list = (await s.request('GET', `/api/brands/${b.id}/shared-templates`)).data.templates;
     const built = list.filter(t => t.builtin);
-    assert.ok(built.length >= 7);
-    assert.ok(built.every(t => t.data.slides.length === 3 && t.kind === 'carousel'));
+    assert.ok(built.length >= 19);
+    assert.ok(built.filter(t => t.kind === 'carousel').every(t => t.data.slides.length === 3));
+    const posters = built.filter(t => t.kind === 'afis');
+    assert.equal(posters.length, 12);
+    assert.ok(posters.every(t => t.data.slides.length === 1 && t.data.format === 'A4'));
+    // Afiş şablonunda marka adı ve renk rolleri hedef markaya çevrilir
+    const tokmak = posters.find(t => t.id === 'hazir-afis-tokmak');
+    assert.ok(tokmak.data.slides[0].layers.some(l => l.type === 'text' && l.text === 'HAZIR'));
+    assert.equal(tokmak.data.slides[0].layers.find(l => l.role === 'title').highlight, '#115588');
     const dark = built.find(t => t.id === 'hazir-koyu-kart');
     const title = dark.data.slides[0].layers.find(l => l.role === 'title');
     assert.equal(title.highlight, '#22aa55', 'vurgu rengi markanın ana rengi');
@@ -95,6 +102,46 @@ test('Hazır post tasarımları: her markada listelenir, açılır, markanın ş
     assert.ok(mine.some(t => t.id === tb.data.template.id && t.data.slides.length === 3));
     assert.equal((await s.request('DELETE', '/api/shared-templates/hazir-pastel')).status, 400);
     assert.equal((await s.request('POST', `/api/brands/${b.id}/shared-templates/hazir-yok/use`, {})).status, 404);
+  } finally { await s.stop(); }
+});
+
+test('Afiş şablonundan konu ile üretim: tek sayfa A4 kalır, tüm özel alanlar AI metniyle dolar', async () => {
+  const provider = fakeProvider([{
+    title: 'Yeni Kahve Serisi',
+    caption: 'Açıklama',
+    hashtags: ['#kahve'],
+    slides: [{
+      title: 'Taze Kavrum *Lezzeti*',
+      body: 'Her sabah özenle kavrulmuş çekirdekler.',
+      cta: 'Şimdi dene →',
+      fields: {
+        ITEM_1: 'Tek Köken', ITEM_1_DESC: 'Seçilmiş çiftliklerden taze hasat.',
+        ITEM_2: 'Hızlı Teslimat', ITEM_2_DESC: '24 saatte kapınızda.',
+        ITEM_3: 'Doğal Aroma', ITEM_3_DESC: 'Katkısız ve saf tat.',
+        ITEM_4: 'Abonelik', ITEM_4_DESC: 'Her ay düzenli gönderim.',
+        BADGE_1: 'Taze Kavrum', BADGE_2: 'Adil Ticaret', BADGE_3: 'Hızlı Kargo',
+        FOOTER_NOTE: 'kahvecim.com'
+      }
+    }]
+  }]);
+  const s = await startServer({ aiProvider: provider });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'Kahvecim', colors: { primary: '#5c3a21', secondary: ['#d97706'] } })).data.brand;
+    const tb = await s.request('POST', `/api/brands/${b.id}/shared-templates/hazir-afis-modul-listesi/to-brand`, {});
+    assert.equal(tb.status, 201);
+    const tpl = tb.data.template;
+    // Hızlı üretimde varsayılan 5 sayfa gönderilse bile afiş şablonu tek sayfa A4 kalır
+    const res = await s.request('POST', `/api/brands/${b.id}/posts`, { topic: 'Yeni sezon filtre kahve', kind: 'carousel', slides: 5, templateId: tpl.id });
+    assert.equal(res.status, 201);
+    const p = res.data.post;
+    assert.equal(p.kind, 'afis');
+    assert.equal(p.data.format, 'A4');
+    assert.equal(p.data.slides.length, 1);
+    const layers = p.data.slides[0].layers;
+    assert.equal(layers.find(l => l.role === 'title').text, 'Taze Kavrum *Lezzeti*');
+    assert.equal(layers.find(l => l.field === 'ITEM_1').text, 'Tek Köken');
+    assert.equal(layers.find(l => l.field === 'BADGE_2').text, 'Adil Ticaret');
+    assert.equal(layers.find(l => l.field === 'FOOTER_NOTE').text, 'kahvecim.com');
   } finally { await s.stop(); }
 });
 

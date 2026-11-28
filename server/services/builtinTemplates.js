@@ -119,5 +119,7 @@ function boxNews() {
   };
 }
 
-export const BUILTIN_TEMPLATES = [darkCard(), pastel(), stickyNote(), gridPaper(), elegant(), fontCombo(), boxNews()];
+import { LEXONOMI_POSTER_TEMPLATES } from './lexonomiTemplates.js';
+
+export const BUILTIN_TEMPLATES = [darkCard(), pastel(), stickyNote(), gridPaper(), elegant(), fontCombo(), boxNews(), ...LEXONOMI_POSTER_TEMPLATES];
 export const isBuiltin = tid => String(tid || '').startsWith('hazir-');
