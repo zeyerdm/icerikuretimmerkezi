@@ -126,6 +126,33 @@ export function createSiteReader({ fetchImpl = fetch, lookup = (h) => dns.lookup
         text: text.trim().slice(0, MAX_TEXT),
         ...( /<(?:rss|feed)\b/i.test(home.html) ? { rawXml: home.html } : {} )
       };
+    },
+    // Sektör kaynağı okuma: varsa RSS/Atom beslemesini otomatik bulur, yoksa ana sayfa HTML'ini döndürür
+    async readSource(raw) {
+      const input = String(raw || '').trim();
+      if (!input) throw badRequest('Web sitesi adresini yaz.');
+      let start;
+      try { start = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(input) ? input : 'https://' + input); } catch { throw badRequest('Geçerli bir web sitesi adresi yaz (ör. ornek.com).'); }
+      const home = await fetchPage(start);
+      if (/<(?:rss|feed)\b/i.test(home.html)) {
+        return { url: home.url.href, rawXml: home.html, html: '' };
+      }
+      // Sayfa içindeki <link rel="alternate" type="application/rss+xml|atom+xml"> etiketinden besleme bul
+      for (const tag of home.html.match(/<link\b[^>]*>/gi) || []) {
+        const type = attr(tag, 'type');
+        const rel = attr(tag, 'rel');
+        const href = attr(tag, 'href');
+        if (href && (/rss|atom/i.test(type) || (/alternate/i.test(rel) && /(rss|atom|feed)/i.test(href)))) {
+          try {
+            const feedUrl = new URL(href, home.url);
+            const feedRes = await fetchPage(feedUrl);
+            if (/<(?:rss|feed)\b/i.test(feedRes.html)) {
+              return { url: home.url.href, feedUrl: feedRes.url.href, rawXml: feedRes.html, html: home.html };
+            }
+          } catch { /* besleme alınamazsa HTML ile devam et */ }
+        }
+      }
+      return { url: home.url.href, html: home.html, text: pageText(home.html) };
     }
   };
 }

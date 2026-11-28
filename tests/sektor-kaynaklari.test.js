@@ -63,3 +63,34 @@ test('Sektör kaynakları: RSS/HTML içerikleri çekilir, tekrarlanmaz ve post �
     assert.equal((await s.request('GET', `/api/brands/${a.id}/sources`)).data.items.length, 0);
   } finally { await s.stop(); }
 });
+
+test('Sektör kaynakları: HTML menü/slogan gürültüsü atlanır, gerçek makale ve RSS keşfi çalışır', async () => {
+  const htmlSite = `<!doctype html><html><head><title>Örnek Teknoloji</title></head><body>
+    <header><nav><a href="#main">Skip to main content Research</a><a href="/tech">Teknoloji Haberleri</a><a href="/apps">Uygulama / Yazılım</a></nav></header>
+    <main>
+      <p>Insights içeriklerine göz atın.</p>
+      <p>Teknoloji dünyasından önemli gelişmeleri yakından takip edin.</p>
+      <article><h2><a href="/yapay-zeka-kod-asistani">Yapay Zekâ Kod Asistanlarında Yeni Verimlilik Ölçütleri</a></h2><p>Geliştirici ekiplerin kod inceleme süresini %40 azaltan yeni nesil araçlar karşılaştırıldı.</p></article>
+    </main></body></html>`;
+  const siteWithRss = `<!doctype html><html><head><title>Blog</title><link rel="alternate" type="application/rss+xml" href="/feed.xml"></head><body><nav>Ana Sayfa</nav></body></html>`;
+  const rssFeed = `<?xml version="1.0"?><rss version="2.0"><channel><title>Blog</title><item><title>Node.js 24 ile Yerel Test Koşucusu İpuçları</title><link>https://blog.example/node-24</link><description>Harici paket kurmadan hızlı birim testi yazma yöntemleri.</description></item></channel></rss>`;
+  const siteFetch = async url => {
+    const u = String(url);
+    if (u.includes('blog.example/feed.xml')) return new Response(rssFeed, { status: 200, headers: { 'content-type': 'application/xml' } });
+    if (u.includes('blog.example')) return new Response(siteWithRss, { status: 200, headers: { 'content-type': 'text/html' } });
+    return new Response(htmlSite, { status: 200, headers: { 'content-type': 'text/html' } });
+  };
+  const s = await startServer({ aiProvider: fakeProvider([]), siteFetch, siteAllowPrivate: true });
+  try {
+    const b = (await s.request('POST', '/api/brands', { name: 'DevOrtak' })).data.brand;
+    const s1 = (await s.request('POST', `/api/brands/${b.id}/sources`, { url: 'https://haber.example', label: 'haber.example' })).data.source;
+    const s2 = (await s.request('POST', `/api/brands/${b.id}/sources`, { url: 'https://blog.example', label: 'blog.example' })).data.source;
+    await s.request('POST', `/api/brands/${b.id}/sources/fetch-all`, {});
+    const ideas = (await s.request('GET', `/api/brands/${b.id}/ideas`)).data.ideas.filter(i => i.source === 'kaynak');
+    assert.equal(ideas.length, 2);
+    assert.ok(ideas.some(i => i.title.includes('Yapay Zekâ Kod Asistanlarında')));
+    assert.ok(ideas.some(i => i.title.includes('Node.js 24 ile Yerel Test')));
+    assert.ok(!ideas.some(i => /Skip to main|Teknoloji Haberleri|göz atın|takip edin|Uygulama/i.test(i.title)));
+    void s1; void s2;
+  } finally { await s.stop(); }
+});
