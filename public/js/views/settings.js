@@ -39,8 +39,9 @@ export function settingsTabs(active) {
 }
 
 export async function renderSettings(view) {
-  const [{ ai, profile = {} }, system, backupData, drive] = await Promise.all([api.settings(), api.system(), api.backups(), api.driveSettings()]);
+  const [{ ai, drive: sysDrive, profile = {} }, system, backupData, drive] = await Promise.all([api.settings(), api.system(), api.backups(), api.driveSettings()]);
   state.settings.ai = ai;
+  state.settings.drive = sysDrive || drive;
   renderChrome();
   const shortSha = system.sha ? system.sha.slice(0, 7) : 'bilinmiyor';
 
