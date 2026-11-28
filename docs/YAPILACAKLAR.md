@@ -98,9 +98,11 @@ Ayrıntılı rapor: [analiz/ASAMA_01.md](analiz/ASAMA_01.md)
 
 ## Bekleyen kararlar (kullanıcıya toplu sorulacak)
 
-- Hazır görsel şablonları (26 Kasım cevabı: "Canva tarzı bir yapı olabilir; kullanılması gereken yerlerden erişilsin;
-  bir de ana sayfa gibi bir şablon sayfası olabilir; tam emin değilim"): önce taslak öneri hazırlanacak (tek şablon
-  galerisi + Post, Prompt Studio, Kampanya kanvasından kısayol), onaydan sonra yapılır
+- ✅ (28 Kasım, onaylandı) Adım adım tasarım: Post stüdyosu → **Yeni tasarım**: 1) ne tasarlıyoruz (afiş, post, carousel,
+  story; diğer türler) 2) içerik nereden (ben yazacağım / fikirlerimden / hızlı başla) 3) türe özel alanlar (boş alan
+  tasarıma girmez) 4) yalnız o türün şablonları → düzenleyici. Afiş türü (A4) ve 3 hazır afiş şablonu; yapay zekâ yok.
+  Sonraki adımlar: daha çok tür (menü, broşür, davetiye), türe özel hazır şablon sayısının artması, Canva tarzı şablon
+  galerisi sayfası
 - Lisans: şimdilik karar yok; bugünkü kural geçerli (AGPL ve görünür atıf şartlı kod alınmaz)
 - Ücretli işlem onay sınırı: acelesi yok (kullanıcı ücretsiz sürümleri kullanıyor); varsayılan $0,10 kaldı, ücretsiz
   kullanım etkilenmez

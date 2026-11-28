@@ -299,6 +299,7 @@ export const api = {
   addCampaignItem: (id, cid, body) => request('POST', `${b(id)}/campaigns/${cid}/items`, body),
   updateCampaignItem: (id, cid, iid, body) => request('PATCH', `${b(id)}/campaigns/${cid}/items/${iid}`, body),
   deleteCampaignItem: (id, cid, iid) => request('DELETE', `${b(id)}/campaigns/${cid}/items/${iid}`),
+  createFromBrief: (id, body) => request('POST', b(id) + '/posts/from-brief', body),
   createPost: (id, body, stream) => (stream ? streamRequest('POST', b(id) + '/posts', body, stream) : request('POST', b(id) + '/posts', body)),
   post: (id, pid) => request('GET', `${b(id)}/posts/${pid}`),
   savePost: (id, pid, body) => request('PUT', `${b(id)}/posts/${pid}`, body),
