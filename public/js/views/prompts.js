@@ -59,6 +59,7 @@ export async function renderPrompts(view, brand, sub) {
       ${aiReady ? `
         <div class="ps-compose">
           <div class="ps-compose-top"><span class="small muted grow" id="ps-hint"></span>
+            <button type="button" class="btn btn-sm btn-ghost" data-add-idea title="Havuza yeni fikir ekle">${icon('plus')}Fikir ekle</button>
             <button type="button" class="btn btn-sm btn-soft" data-pick-idea id="ps-pick-btn" title="Fikir türü seçili prompt türünden gelir">${icon('idea')}Havuzdan fikir</button></div>
           <div class="ps-picked small" id="ps-picked" hidden></div>
           <label class="sr-only" for="ps-brief">İstek</label>
@@ -210,6 +211,7 @@ export async function renderPrompts(view, brand, sub) {
         <span class="status-badge">${esc(p.kindLabel)}</span>
         <a class="grow prompt-link" href="${base(brand)}/${esc(p.id)}"><div class="strong truncate">${p.favorite ? '★ ' : ''}${p.example ? '<span class="badge" title="Marka örneği: sonraki üretimlere örnek olarak girer">Örnek</span> ' : ''}${esc(p.title)}</div><div class="xsmall muted truncate">${esc(p.text.slice(0, 160))}</div></a>
         <span class="xsmall muted">${timeAgo(p.updatedAt)}</span>
+        <button class="btn btn-sm btn-ghost" data-preview="${esc(p.id)}" title="Prompt'u önizle">Önizle</button>
         <button class="btn btn-sm btn-ghost" data-copy="${esc(p.id)}" title="Kopyala">Kopyala</button>
         <button class="btn btn-sm btn-ghost" data-ptxt="${esc(p.id)}" title="Metin dosyası olarak indir">İndir</button>
         <button class="btn btn-sm btn-ghost icon-btn ps-del" data-pdel="${esc(p.id)}" title="Sil (çöp kutusuna gider)" aria-label="${esc(p.title)} prompt'unu sil">${icon('trash')}</button>
@@ -279,6 +281,22 @@ export async function renderPrompts(view, brand, sub) {
       if (p) copy(p.text, 'Prompt kopyalandı.');
       return;
     }
+    const pv = e.target.closest('[data-preview]');
+    if (pv) {
+      const p = (view.querySelector('#ps-list')._prompts || []).find(x => x.id === pv.dataset.preview);
+      if (!p) return;
+      const m = openModal({
+        title: p.title || 'Prompt önizlemesi',
+        submitLabel: 'Sayfasını aç',
+        body: `<div class="row mb-2"><span class="status-badge">${esc(p.kindLabel)}</span><span class="xsmall muted">${when(p.updatedAt)}</span><span class="spacer"></span><button type="button" class="btn btn-sm" data-pv-copy>Kopyala</button></div>
+          <pre class="prompt-text" style="white-space:pre-wrap;max-height:55vh;overflow:auto;padding:12px;background:var(--bg-soft,rgba(0,0,0,.04));border-radius:10px;">${esc(p.text)}</pre>
+          ${p.textTr && p.textTr !== p.text ? `<details class="mt-2"><summary class="small muted">Türkçe metin</summary><pre class="prompt-text mt-1" style="white-space:pre-wrap;max-height:35vh;overflow:auto;">${esc(p.textTr)}</pre></details>` : ''}`,
+        onSubmit: async () => { go(base(brand) + '/' + p.id); }
+      });
+      const cpBtn = m.form.querySelector('[data-pv-copy]');
+      if (cpBtn) cpBtn.addEventListener('click', () => copy(p.text, 'Prompt kopyalandı.'));
+      return;
+    }
     const bs = e.target.closest('[data-brainstorm]');
     if (bs) {
       const brief = view.querySelector('#ps-brief').value.trim();
@@ -304,17 +322,62 @@ export async function renderPrompts(view, brand, sub) {
       return;
     }
     // 10.7: içerik havuzundan rastgele (kullanılmamış) fikir; üretim olunca fikir "kullanıldı" olur
+    const showPicked = idea => {
+      const note = view.querySelector('#ps-picked');
+      note.hidden = false;
+      picked = idea;
+      if (!idea) { view.querySelector('#ps-pick-btn').hidden = false; note.innerHTML = `Bu türde kullanılmamış fikir kalmadı. <a class="link" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerine</a> fikir ekle.`; return; }
+      pickedSeen.push(idea.id);
+      view.querySelector('#ps-brief').value = idea.title + (idea.description ? `\n${idea.description}` : '');
+      view.querySelector('#ps-pick-btn').hidden = true;
+      note.innerHTML = `${icon('idea')}<span class="grow">Havuzdan gelen <b>${esc(idea.formatLabel)}</b> fikri</span>
+        <button type="button" class="btn btn-sm btn-ghost" data-pick-similar title="Bu fikre benzeyen yeni fikirler üretip havuza ekle">${icon('sparkle')}Benzerini üret</button>
+        <button type="button" class="btn btn-sm btn-ghost danger-text" data-pick-del title="Fikri havuzdan sil (çöp kutusundan geri alınabilir) ve yenisini getir">${icon('trash')}Sil</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-pick-idea>Başka fikir</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-pick-clear title="Fikri bırak; metin elle yazılmış sayılır">Bırak</button>`;
+    };
     const pick = e.target.closest('[data-pick-idea]');
     if (pick) {
       try {
         const { idea } = await busy(pick, () => api.randomIdea(brand.id, { format: POOL_OF[kind] || 'genel', exclude: pickedSeen }));
-        const note = view.querySelector('#ps-picked');
-        note.hidden = false;
-        if (!idea) { picked = null; view.querySelector('#ps-pick-btn').hidden = false; note.innerHTML = `Bu türde kullanılmamış fikir kalmadı. <a class="link" href="#/m/${esc(brand.id)}/fikirler">İçerik fikirlerine</a> fikir ekle.`; return; }
-        picked = idea; pickedSeen.push(idea.id);
-        view.querySelector('#ps-brief').value = idea.title + (idea.description ? `\n${idea.description}` : '');
-        view.querySelector('#ps-pick-btn').hidden = true;
-        note.innerHTML = `${icon('idea')}<span class="grow">Havuzdan gelen <b>${esc(idea.formatLabel)}</b> fikri; istersen metni değiştir</span><button type="button" class="btn btn-sm btn-ghost" data-pick-idea>Başka fikir</button><button type="button" class="btn btn-sm btn-ghost" data-pick-clear title="Fikri bırak; metin elle yazılmış sayılır">Bırak</button>`;
+        showPicked(idea);
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const addIdeaBtn = e.target.closest('[data-add-idea]');
+    if (addIdeaBtn) {
+      const fmtDefault = POOL_OF[kind] || 'genel';
+      openModal({
+        title: 'Havuza fikir ekle', submitLabel: 'Ekle ve kullan',
+        body: `<div class="form-grid">
+          <div class="field full"><label for="ai-title">Fikir başlığı *</label><input class="input" id="ai-title" name="title" required maxlength="200" placeholder="Ör. Yeni özellik tanıtımı"></div>
+          <div class="field"><label for="ai-fmt">Tür</label><select class="select" id="ai-fmt" name="format">${Object.entries(state.meta.ideaFormats).map(([k2, v]) => `<option value="${k2}" ${k2 === fmtDefault ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+          <div class="field"><label for="ai-cat">Kategori</label><select class="select" id="ai-cat" name="category">${Object.entries(state.meta.ideaCategories).map(([k2, v]) => `<option value="${k2}">${esc(v)}</option>`).join('')}</select></div>
+          <div class="field full"><label for="ai-desc">Açıklama (isteğe bağlı)</label><textarea class="textarea" id="ai-desc" name="description" rows="3" maxlength="1000"></textarea></div>
+        </div>`,
+        onSubmit: async fd => {
+          const { idea } = await api.createIdea(brand.id, { title: fd.get('title'), format: fd.get('format'), category: fd.get('category'), description: fd.get('description') });
+          showPicked(idea);
+          toast('Fikir havuza eklendi ve seçildi.', 'success');
+        }
+      });
+      return;
+    }
+    const pickDel = e.target.closest('[data-pick-del]');
+    if (pickDel && picked) {
+      try {
+        await busy(pickDel, () => api.deleteIdea(brand.id, picked.id));
+        toast(`"${picked.title}" havuzdan silindi (çöp kutusundan geri alınabilir).`, 'success');
+        const { idea } = await api.randomIdea(brand.id, { format: POOL_OF[kind] || 'genel', exclude: pickedSeen });
+        showPicked(idea);
+      } catch (err) { toast(err.message, 'error'); }
+      return;
+    }
+    const pickSim = e.target.closest('[data-pick-similar]');
+    if (pickSim && picked) {
+      try {
+        const r = await busyTimer(pickSim, () => api.similarIdeas(brand.id, picked.id, { count: 3 }), 'Üretiyor');
+        toast(`${r.ideas.length} benzer fikir havuza eklendi${r.skipped ? `, ${r.skipped} çok benzeri atlandı` : ''}.`, 'success', 5000);
       } catch (err) { toast(err.message, 'error'); }
       return;
     }
